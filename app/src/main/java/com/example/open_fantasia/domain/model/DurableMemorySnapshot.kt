@@ -1,0 +1,112 @@
+package com.example.open_fantasia.domain.model
+
+import kotlinx.serialization.Serializable
+
+@Serializable
+data class DurableMemorySnapshot(
+    val metadata: SnapshotMetadata,
+    val spatial_state: SpatialState,
+    val entity_state: List<EntityState>,
+    val relational_state: List<RelationalState>,
+    val narrative_state: NarrativeState
+)
+
+@Serializable
+data class SnapshotMetadata(
+    val current_turn_id: String,
+    val narrative_timestamp: String,
+    val transition_type: String, // "continuation" | "scene_transition" | "time_skip"
+    val version: Int
+)
+
+@Serializable
+data class SpatialState(
+    val current_location: LocationState?,
+    val adjacent_locations: List<LocationRef>,
+    val known_locations: List<LocationState>,
+    val edges: List<LocationEdge>,
+    val entity_placements: List<EntityPlacement>
+)
+
+@Serializable
+data class LocationState(
+    val id: String,
+    val name: String,
+    val description: String,
+    val environmental_modifiers: List<String>
+)
+
+@Serializable
+data class LocationRef(
+    val id: String,
+    val name: String
+)
+
+@Serializable
+data class LocationEdge(
+    val edge_id: String,
+    val from_location_id: String,
+    val to_location_id: String,
+    val is_bidirectional: Boolean
+)
+
+@Serializable
+data class EntityPlacement(
+    val entity_id: String,
+    val entity_name: String,
+    val location_id: String,
+    val location_name: String,
+    val micro_position: String
+)
+
+@Serializable
+data class EntityState(
+    val entity_id: String,
+    val canonical_name: String,
+    val entity_type: String, // "character" | "npc" | "creature" | "object" | "group"
+    val aliases: List<String>,
+    val is_present: Boolean,
+    val primary_emotion: String,
+    val emotion_intensity: Int,
+    val emotion_catalyst: String,
+    val knowledge_boundary: List<FactRef>,
+    val traits: List<FactRef>,
+    val goals: List<FactRef>,
+    val secrets: List<FactRef>,
+    val abilities: List<FactRef>,
+    val possessions: List<FactRef>
+)
+
+@Serializable
+data class FactRef(
+    val id: String,
+    val body: String
+)
+
+@Serializable
+data class RelationalState(
+    val relationship_id: String,
+    val source_entity_id: String,
+    val source_entity_name: String,
+    val target_entity_id: String,
+    val target_entity_name: String,
+    val relationship_type: String, // "social" | "romantic" | "familial" | "professional" | "adversarial" | "alliance" | "other"
+    val dynamic_status: String
+)
+
+@Serializable
+data class NarrativeState(
+    val story_summary: String,
+    val scene_summary: String,
+    val last_turn_beat: String,
+    val active_threads: List<NarrativeThread>,
+    val resolved_threads: List<String>
+)
+
+@Serializable
+data class NarrativeThread(
+    val thread_id: String,
+    val objective: String,
+    val status: String, // "open" | "blocked" | "resolving" | "resolved"
+    val dependencies: List<String>
+)
