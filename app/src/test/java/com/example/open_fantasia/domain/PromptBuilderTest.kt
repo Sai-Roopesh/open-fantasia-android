@@ -168,6 +168,57 @@ class PromptBuilderTest {
     }
 
     @Test
+    fun testSupportingCastRendersAsCardsInPrefix() {
+        val charBundle = makeCharacterBundle()
+        val cast = listOf(
+            CastMember("Joren", "Gruff ex-soldier barkeep, speaks in clipped sentences."),
+            CastMember("Mira", "Nervous serving girl who notices everything.")
+        )
+
+        val system = PromptBuilder.buildSystemPrompt(charBundle, null, null, cast)
+
+        assertTrue(system.contains("<supporting_cast>"))
+        assertTrue(system.contains("JOREN"))
+        assertTrue(system.contains("Gruff ex-soldier barkeep, speaks in clipped sentences."))
+        assertTrue(system.contains("MIRA"))
+    }
+
+    @Test
+    fun testEmptyCastKeepsPrefixByteIdentical() {
+        val charBundle = makeCharacterBundle()
+
+        // Cache invariant: a thread with no cast (or only blank entries) must produce a prefix
+        // byte-identical to the no-cast prompt, so existing threads lose no prompt-cache hits.
+        val noCast = PromptBuilder.buildSystemPrompt(charBundle, null, null)
+        val empty = PromptBuilder.buildSystemPrompt(charBundle, null, null, emptyList())
+        val blankOnly = PromptBuilder.buildSystemPrompt(charBundle, null, null, listOf(CastMember("", "")))
+
+        assertEquals(noCast, empty)
+        assertEquals(noCast, blankOnly)
+        assertFalse(noCast.contains("<supporting_cast>"))
+    }
+
+    @Test
+    fun testSupportingCastJsonRoundTripDropsBlanks() {
+        val cast = listOf(
+            CastMember("Joren", "Barkeep"),
+            CastMember("", ""),                         // fully blank — dropped
+            CastMember("  Mira  ", "  Serving girl  ")  // trimmed
+        )
+        val parsed = parseSupportingCast(cast.toSupportingCastJson())
+
+        assertEquals(2, parsed.size)
+        assertEquals("Joren", parsed[0].name)
+        assertEquals("Mira", parsed[1].name)
+        assertEquals("Serving girl", parsed[1].description)
+
+        // Empty / garbage input is tolerated.
+        assertTrue(parseSupportingCast("").isEmpty())
+        assertTrue(parseSupportingCast("not json").isEmpty())
+        assertEquals("", emptyList<CastMember>().toSupportingCastJson())
+    }
+
+    @Test
     fun testPinsTimelineHeaders() {
         val charBundle = makeCharacterBundle()
         val pins = listOf(ChatPinRecord("pin-1", "thread-1", "branch-1", "turn-1", "A secret box.", "active", "", ""))

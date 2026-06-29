@@ -15,6 +15,12 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
     }
 }
 
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE chat_threads ADD COLUMN supporting_cast TEXT NOT NULL DEFAULT ''")
+    }
+}
+
 @Database(
     entities = [
         ProfileEntity::class,
@@ -29,7 +35,7 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
         PinEntity::class,
         PortraitTaskEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 @TypeConverters(Converters::class)

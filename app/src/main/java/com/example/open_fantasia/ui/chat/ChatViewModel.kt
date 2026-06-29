@@ -19,6 +19,7 @@ import com.example.open_fantasia.data.local.entity.TimelineEntity
 import com.example.open_fantasia.data.remote.ChatMessage
 import com.example.open_fantasia.data.remote.LLMClient
 import com.example.open_fantasia.domain.model.CharacterBundle
+import com.example.open_fantasia.domain.model.parseSupportingCast
 import com.example.open_fantasia.domain.model.DurableMemorySnapshot
 import com.example.open_fantasia.domain.model.SnapshotMetadata
 import com.example.open_fantasia.domain.model.SpatialState
@@ -210,7 +211,8 @@ class ChatViewModel(
             val systemPrompt = PromptBuilder.buildSystemPrompt(
                 characterBundle = CharacterBundle(state.character.toDomain(), state.character.starters, state.character.example_conversations),
                 persona = state.activePersona?.toDomain(),
-                directorNotes = thread.director_notes
+                directorNotes = thread.director_notes,
+                supportingCast = parseSupportingCast(thread.supporting_cast)
             )
             // Volatile world state rides on the latest user turn (after the cached history),
             // NOT in the system prompt — so the static system + conversation history prefix
@@ -477,7 +479,8 @@ class ChatViewModel(
         personaId: String?,
         brainConnectionId: String?,
         brainModelId: String?,
-        directorNotes: String
+        directorNotes: String,
+        supportingCast: String
     ) {
         viewModelScope.launch {
             val thread = chatDao.getThread(threadId) ?: return@launch
@@ -489,6 +492,7 @@ class ChatViewModel(
                 brain_connection_id = brainConnectionId,
                 brain_model_id = brainModelId,
                 director_notes = directorNotes.trim(),
+                supporting_cast = supportingCast,
                 updated_at = Instant.now().toString()
             )
             chatDao.updateThread(updated)

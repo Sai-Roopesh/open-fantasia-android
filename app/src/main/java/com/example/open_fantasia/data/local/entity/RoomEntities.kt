@@ -202,7 +202,8 @@ data class ThreadEntity(
     val archived_at: String?,
     val pinned_at: String?,
     val created_at: String,
-    val updated_at: String
+    val updated_at: String,
+    val supporting_cast: String = ""
 ) {
     fun toDomain() = ThreadRecord(
         id, user_id, character_id, connection_id, model_id, persona_id, brain_connection_id, brain_model_id,

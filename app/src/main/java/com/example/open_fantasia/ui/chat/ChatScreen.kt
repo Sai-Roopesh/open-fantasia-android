@@ -53,6 +53,9 @@ import com.example.open_fantasia.data.local.entity.ThreadEntity
 import com.example.open_fantasia.data.local.entity.TurnEntity
 import com.example.open_fantasia.data.local.entity.PinEntity
 import com.example.open_fantasia.data.local.entity.TimelineEntity
+import com.example.open_fantasia.domain.model.CastMember
+import com.example.open_fantasia.domain.model.parseSupportingCast
+import com.example.open_fantasia.domain.model.toSupportingCastJson
 import com.example.open_fantasia.domain.model.DurableMemorySnapshot
 import com.example.open_fantasia.domain.selector.filterBrainConnections
 import com.example.open_fantasia.ui.components.BrainModelDropdown
@@ -414,8 +417,8 @@ fun ChatWorkspace(
                         connections = state.connections,
                         personas = state.personas,
                         onDismiss = { showThreadSettings = false },
-                        onSave = { connId, modelId, maxTokens, personaId, brainConnId, brainModelId, directorNotes ->
-                            viewModel.updateThreadSettings(connId, modelId, maxTokens, personaId, brainConnId, brainModelId, directorNotes)
+                        onSave = { connId, modelId, maxTokens, personaId, brainConnId, brainModelId, directorNotes, supportingCast ->
+                            viewModel.updateThreadSettings(connId, modelId, maxTokens, personaId, brainConnId, brainModelId, directorNotes, supportingCast)
                             showThreadSettings = false
                         }
                     )
@@ -1041,7 +1044,7 @@ fun ThreadSettingsDialog(
     connections: List<ConnectionEntity>,
     personas: List<PersonaEntity>,
     onDismiss: () -> Unit,
-    onSave: (connectionId: String, modelId: String, maxTokens: Int, personaId: String?, brainConnectionId: String?, brainModelId: String?, directorNotes: String) -> Unit
+    onSave: (connectionId: String, modelId: String, maxTokens: Int, personaId: String?, brainConnectionId: String?, brainModelId: String?, directorNotes: String, supportingCast: String) -> Unit
 ) {
     var selectedConn by remember { mutableStateOf<ConnectionEntity?>(connections.find { it.id == thread.connection_id } ?: connections.firstOrNull()) }
     var selectedModel by remember { mutableStateOf(thread.model_id) }
@@ -1060,6 +1063,7 @@ fun ThreadSettingsDialog(
     }
     var selectedPersona by remember { mutableStateOf<PersonaEntity?>(personas.find { it.id == thread.persona_id }) }
     var directorNotes by remember { mutableStateOf(thread.director_notes) }
+    var castMembers by remember { mutableStateOf(parseSupportingCast(thread.supporting_cast)) }
     
     // HCE brain model override (single combined picker — web parity)
     var brainConnId by remember { mutableStateOf(thread.brain_connection_id) }
@@ -1096,7 +1100,8 @@ fun ThreadSettingsDialog(
                         selectedPersona?.id,
                         brainConnId,
                         brainModelId,
-                        directorNotes
+                        directorNotes,
+                        castMembers.toSupportingCastJson()
                     )
                 },
                 shape = RoundedCornerShape(8.dp),
@@ -1266,6 +1271,75 @@ fun ThreadSettingsDialog(
                     colors = dialogTextFieldColors,
                     modifier = Modifier.fillMaxWidth()
                 )
+
+                // Supporting cast — side-character identity cards. The narrator voices these NPCs.
+                HorizontalDivider(color = Color(0xFF2C2C35), modifier = Modifier.padding(vertical = 4.dp))
+                Text("Supporting cast", color = Color(0xFF00FBFB), fontFamily = SpaceGrotesk, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text(
+                    "Side characters present in this thread. The main character narrates them, so each gets a consistent voice. Keep this stable — editing it re-warms the prompt cache once.",
+                    color = Color(0xFF8A8590),
+                    fontFamily = Inter,
+                    fontSize = 11.sp,
+                    lineHeight = 15.sp
+                )
+                castMembers.forEachIndexed { index, member ->
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFF1B1B1F), RoundedCornerShape(8.dp))
+                            .padding(10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Character ${index + 1}", color = Color(0xFFCFC2D7), fontFamily = SpaceGrotesk, fontSize = 12.sp)
+                            TextButton(onClick = {
+                                castMembers = castMembers.toMutableList().also { it.removeAt(index) }
+                            }) {
+                                Text("Remove", color = Color(0xFFE57373), fontSize = 12.sp)
+                            }
+                        }
+                        OutlinedTextField(
+                            value = member.name,
+                            onValueChange = { newName ->
+                                if (newName.length <= 80) {
+                                    castMembers = castMembers.toMutableList().also { it[index] = it[index].copy(name = newName) }
+                                }
+                            },
+                            label = { Text("Name") },
+                            singleLine = true,
+                            shape = RoundedCornerShape(8.dp),
+                            colors = dialogTextFieldColors,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = member.description,
+                            onValueChange = { newDesc ->
+                                if (newDesc.length <= 1000) {
+                                    castMembers = castMembers.toMutableList().also { it[index] = it[index].copy(description = newDesc) }
+                                }
+                            },
+                            label = { Text("Personality, voice, role…") },
+                            minLines = 2,
+                            shape = RoundedCornerShape(8.dp),
+                            colors = dialogTextFieldColors,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+                TextButton(
+                    onClick = { castMembers = castMembers + CastMember() },
+                    enabled = castMembers.size < 8
+                ) {
+                    Text(
+                        if (castMembers.size < 8) "+ Add character" else "Cast limit reached (8)",
+                        color = if (castMembers.size < 8) Color(0xFF8A2BE2) else Color(0xFF7A7580),
+                        fontSize = 13.sp
+                    )
+                }
 
                 HorizontalDivider(color = Color(0xFF2C2C35), modifier = Modifier.padding(vertical = 4.dp))
                 Text("HCE Brain Model", color = Color(0xFF00FBFB), fontFamily = SpaceGrotesk, fontWeight = FontWeight.Bold, fontSize = 13.sp)

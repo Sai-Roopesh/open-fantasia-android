@@ -3,6 +3,7 @@ package com.example.open_fantasia
 import android.content.Context
 import androidx.room.Room
 import com.example.open_fantasia.data.local.db.MIGRATION_1_2
+import com.example.open_fantasia.data.local.db.MIGRATION_2_3
 import com.example.open_fantasia.data.local.db.OpenFantasiaDatabase
 import com.example.open_fantasia.data.remote.KtorLLMClient
 import com.example.open_fantasia.data.remote.LLMClient
@@ -21,7 +22,7 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             context.applicationContext,
             OpenFantasiaDatabase::class.java,
             "open_fantasia.db"
-        ).addMigrations(MIGRATION_1_2).build()
+        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
     }
 
     override val llmClient: LLMClient by lazy {

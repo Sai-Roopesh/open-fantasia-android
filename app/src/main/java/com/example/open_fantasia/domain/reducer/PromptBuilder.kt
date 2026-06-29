@@ -45,7 +45,8 @@ object PromptBuilder {
     fun buildSystemPrompt(
         characterBundle: CharacterBundle,
         persona: UserPersonaRecord?,
-        directorNotes: String? = null
+        directorNotes: String? = null,
+        supportingCast: List<CastMember> = emptyList()
     ): String {
         val sections = mutableListOf<String>()
 
@@ -77,6 +78,26 @@ object PromptBuilder {
         ))
         val charPersonaContent = charLines.ifEmpty { "No character guidance has been filled in yet." }
         sections.add(formatSection("character_persona", charPersonaContent))
+
+        // Section 3b: supporting_cast — side-character identity cards. Lives in the cached prefix
+        // (stable for the thread's life). Renders nothing when empty, so threads without a cast
+        // keep a byte-identical prefix and lose no prompt-cache hits. The narrator voices these
+        // NPCs; their volatile state still rides on durable_state in the suffix.
+        val castCards = supportingCast.mapNotNull { member ->
+            val name = member.name.trim()
+            val desc = member.description.trim()
+            when {
+                name.isEmpty() && desc.isEmpty() -> null
+                desc.isEmpty() -> name.uppercase()
+                name.isEmpty() -> desc
+                else -> "${name.uppercase()}\n$desc"
+            }
+        }
+        if (castCards.isNotEmpty()) {
+            val castIntro = "Other characters present in this story. You voice and narrate each of them in your replies, keeping every one consistent with their card below. They are part of the world, never the user — never speak, act, or decide for the user."
+            val castContent = castIntro + "\n\n" + castCards.joinToString("\n\n")
+            sections.add(formatSection("supporting_cast", castContent))
+        }
 
         // Section 4: user_persona
         if (persona != null) {
@@ -275,9 +296,10 @@ object PromptBuilder {
         snapshot: DurableMemorySnapshot?,
         pins: List<ChatPinRecord>,
         timeline: List<TimelineEventRecord>,
-        directorNotes: String? = null
+        directorNotes: String? = null,
+        supportingCast: List<CastMember> = emptyList()
     ): String {
-        val system = buildSystemPrompt(characterBundle, persona, directorNotes)
+        val system = buildSystemPrompt(characterBundle, persona, directorNotes, supportingCast)
         val state = buildStateContext(snapshot, pins, timeline)
         return "$system\n\n$state"
     }
