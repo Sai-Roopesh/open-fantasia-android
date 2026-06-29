@@ -137,6 +137,37 @@ class PromptBuilderTest {
     }
 
     @Test
+    fun testLengthTargetReflectsTokenBudgetAndRidesOnSuffix() {
+        val snapshot = makeDurableSnapshot()
+
+        val concise = PromptBuilder.buildStateContext(snapshot, emptyList(), emptyList(), replyLengthTokens = 750)
+        val expansive = PromptBuilder.buildStateContext(snapshot, emptyList(), emptyList(), replyLengthTokens = 8192)
+
+        // The preset must produce a real, differing prose directive — not just a token cap.
+        assertTrue(concise.contains("<length_target>"))
+        assertTrue(concise.contains("2-4 sentences"))
+        assertTrue(expansive.contains("5 or more paragraphs"))
+        assertNotEquals(
+            "Different length presets must yield different length directives",
+            concise.substringAfter("<length_target>"),
+            expansive.substringAfter("<length_target>")
+        )
+    }
+
+    @Test
+    fun testDriveThisTurnRidesOnSuffixNotCachedPrefix() {
+        val charBundle = makeCharacterBundle()
+        val snapshot = makeDurableSnapshot()
+
+        // The positive forcing function lives on the volatile suffix (recency), never in the
+        // cached system prefix — so it must not invalidate prefix-cache stability.
+        val system = PromptBuilder.buildSystemPrompt(charBundle, null, null)
+        val state = PromptBuilder.buildStateContext(snapshot, emptyList(), emptyList())
+        assertFalse(system.contains("<drive_this_turn>"))
+        assertTrue(state.contains("<drive_this_turn>"))
+    }
+
+    @Test
     fun testPinsTimelineHeaders() {
         val charBundle = makeCharacterBundle()
         val pins = listOf(ChatPinRecord("pin-1", "thread-1", "branch-1", "turn-1", "A secret box.", "active", "", ""))

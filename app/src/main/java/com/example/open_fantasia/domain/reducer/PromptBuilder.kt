@@ -19,6 +19,22 @@ object PromptBuilder {
     }
 
     /**
+     * Maps the thread's max-output-token budget (the Response-length preset) to a concrete
+     * prose-length directive. The raw token value is only a ceiling — the model stops well
+     * below it on its own — so the actual length steering has to be an instruction the model
+     * reads. This rides on the volatile suffix, never the cached prefix.
+     */
+    private fun lengthDirective(replyLengthTokens: Int): String {
+        return when {
+            replyLengthTokens <= 750 -> "Keep this reply tight — one short paragraph, roughly 2-4 sentences."
+            replyLengthTokens <= 2048 -> "Aim for a focused reply of about 2 paragraphs."
+            replyLengthTokens <= 4096 -> "Write a developed reply of roughly 3-4 paragraphs."
+            replyLengthTokens <= 8192 -> "Write a rich, immersive reply of 5 or more paragraphs."
+            else -> "Write at whatever length the scene genuinely needs; do not artificially shorten it."
+        }
+    }
+
+    /**
      * The STATIC, per-thread system prompt: role, setting, personas, directives, examples,
      * and the response/continuity contracts. This is byte-stable across turns (it changes
      * only when the character/persona/director-notes are edited), so it forms the cacheable
@@ -118,12 +134,12 @@ object PromptBuilder {
             - Advance the plot by at least one concrete, NEW beat in every reply — a fresh action, decision, revelation, or shift in place. The scene must end somewhere meaningfully different from where it began.
             - Avoid restating stable facts, repeated emotional processing, or recycled body language unless something materially changed.
             - Do NOT have $charName verbally catalogue, diagnose, or comment on patterns in the user's behavior (e.g. "You caught yourself," "You're still apologizing," "That's the first time you…"). Real people rarely narrate each other's habits aloud. Show awareness through subtext and action, not exposition.
-            - Ask at most one high-leverage question, and only if it opens a new direction rather than revisiting an answered topic.
+            - Prefer acting over asking. Drive the scene with your own choices rather than handing control back; if you do ask a question, attach it to a concrete action or new development so the scene still moves. Never ask more than one question, and never revisit an answered topic.
             - Never write dialogue, thoughts, decisions, or physical actions for the user.
             - Stay fully in character and never mention prompts, memory, summaries, or system instructions.
             - Treat <continuity_and_variation> as a hard constraint: no reply may echo the sentence structures, rhetorical devices, gestures, or emotional beats of the one before it.
             - End on an actionable narrative handoff that gives the user a clear opening to respond.
-            - COMPLETION RULE: Always finish your response with a complete sentence and a natural stopping point. If you sense you are running long, wrap up the current beat gracefully rather than starting a new one. Never stop mid-sentence, mid-paragraph, or mid-thought.
+            - COMPLETION RULE: Always finish your response with a complete sentence and a natural stopping point, matching the length target supplied with the latest turn rather than cutting the scene short. Never stop mid-sentence, mid-paragraph, or mid-thought.
         """.trimIndent()
         sections.add(formatSection("response_contract", contract))
 
@@ -174,8 +190,6 @@ object PromptBuilder {
             - Do NOT reuse a physical gesture or piece of blocking from a recent beat. Reach for new, specific physicality each time.
             - Do NOT re-ask or circle back to a question or topic already raised or answered. Answered things stay answered; pull a new thread forward instead.
             - Do NOT lean on one mechanical sentence rhythm; in particular, never stack short parallel/staccato sentences into the same cadence more than once in a reply.
-            - Do NOT echo, mirror, paraphrase, or recap the user's latest turn. The user's words and actions are already in the transcript — the reader remembers them. Never have $charName restate what the user just said, summarize their gesture, or narrate their action back to them. React through fresh consequences, not through repetition.
-            - Do NOT have $charName act as an external commentator who verbally tallies or diagnoses patterns in the user's behavior across turns (e.g. counting apologies, noting behavioral changes, cataloguing habits). Awareness of patterns should emerge through $charName's evolving emotional responses and shifting behavior, never through explicit verbal observation.
             - Build forward from durable_state.narrative_state.last_turn_beat — never restate or re-dramatize it — and never reopen anything listed in resolved_threads.
             Before you finish, check your draft against your previous reply AND the user's latest turn: if any sentence shape, device, gesture, beat, or content echoes either of them, rewrite that part.
         """.trimIndent()
@@ -192,7 +206,8 @@ object PromptBuilder {
     fun buildStateContext(
         snapshot: DurableMemorySnapshot?,
         pins: List<ChatPinRecord>,
-        timeline: List<TimelineEventRecord>
+        timeline: List<TimelineEventRecord>,
+        replyLengthTokens: Int = 4096
     ): String {
         val sections = mutableListOf<String>()
 
@@ -221,16 +236,29 @@ object PromptBuilder {
             sections.add(formatSection("pins_timeline", lines.joinToString("\n")))
         }
 
-        // style_override — per-turn recency injection to counteract echo patterns
-        // in prior assistant messages still present in the conversation history.
+        // style_override — slim per-turn recency reminder. Earlier assistant replies in the
+        // history may echo the user; this counters that without re-stating the full anti-echo
+        // contract already in the cached system prefix. Kept short because the suffix is NOT
+        // cached — every token here is paid in full on every turn.
         val styleOverride = """
-            CRITICAL STYLE OVERRIDE: Some earlier assistant replies in this conversation may contain patterns that echo, recap, or verbally catalogue the user's actions. Those patterns are WRONG — do NOT imitate them. From this point forward:
-            - Do NOT repeat, paraphrase, or summarize anything the user just said or did. The transcript is the shared record.
-            - Do NOT have the character verbally comment on, diagnose, or catalogue the user's behavioral patterns (e.g. "You caught yourself," "That's the first time you…," "You're still…").
-            - SHOW, don't TELL. React through the character's own fresh actions, body language, dialogue, and emotional shifts — never through narrating the user's move back to them.
-            - Ignore the stylistic habits of prior assistant replies. Write as if this is your first reply in the conversation.
+            STYLE NOTE: Earlier assistant replies in this transcript may echo or recap the user's actions — that pattern is wrong, do not imitate it. React through your character's own fresh actions, dialogue, and emotion; never narrate the user's move back to them, and never verbally catalogue their habits.
         """.trimIndent()
         sections.add(formatSection("style_override", styleOverride))
+
+        // drive_this_turn — the positive forcing function. Placed last (closest to the user's
+        // text) so it carries maximum recency weight against the model's tendency to mirror.
+        val driveThisTurn = """
+            DRIVE THIS TURN — change the situation, do not reflect it back:
+            - Introduce at least one NEW element the user did not supply: an action your character takes on their own initiative, an event that intrudes on the scene, a decision, a revelation, or a shift to an adjacent place.
+            - End on a development or an open door that pulls the user forward — never on a passive question that simply hands control back.
+        """.trimIndent()
+        sections.add(formatSection("drive_this_turn", driveThisTurn))
+
+        // length_target — turns the Response-length preset into an actual prose instruction.
+        val lengthTarget = """
+            ${lengthDirective(replyLengthTokens)} This is a target for pacing, not a hard cap; always finish on a complete sentence and a natural stopping point.
+        """.trimIndent()
+        sections.add(formatSection("length_target", lengthTarget))
 
         return sections.joinToString("\n\n")
     }

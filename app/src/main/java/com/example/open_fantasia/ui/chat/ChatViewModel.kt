@@ -218,7 +218,8 @@ class ChatViewModel(
             val stateContext = PromptBuilder.buildStateContext(
                 snapshot = parentSnapshot,
                 pins = state.pins.map { it.toDomain() },
-                timeline = emptyList()
+                timeline = emptyList(),
+                replyLengthTokens = thread.max_output_tokens
             )
 
             val allTurns = chatDao.getTurnsForThread(thread.id)

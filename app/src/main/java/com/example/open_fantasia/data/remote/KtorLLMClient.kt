@@ -276,7 +276,15 @@ class KtorLLMClient(
                     put("top_p", topP)
                     put("max_tokens", maxTokens)
                     put("stream", true)
-                    if (jsonMode) put("response_format", buildJsonObject { put("type", "json_object") })
+                    if (jsonMode) {
+                        put("response_format", buildJsonObject { put("type", "json_object") })
+                    } else {
+                        // Creative roleplay generation only — discourage echoing/repetition.
+                        // Never applied to jsonMode (HCE continuity extraction), where penalties
+                        // would distort the structured JSON output.
+                        put("presence_penalty", 0.4)
+                        put("frequency_penalty", 0.4)
+                    }
                 }
             }
             "ollama" -> {
