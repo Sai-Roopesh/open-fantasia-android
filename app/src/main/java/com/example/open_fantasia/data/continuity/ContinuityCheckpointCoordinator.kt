@@ -6,6 +6,7 @@ import com.example.open_fantasia.data.local.entity.ContinuityCheckpointEntity
 import com.example.open_fantasia.data.local.entity.PersonaEntity
 import com.example.open_fantasia.data.local.entity.PinEntity
 import java.time.Instant
+import java.util.UUID
 import kotlinx.coroutines.CancellationException
 
 class ContinuityCheckpointCoordinator(
@@ -24,6 +25,12 @@ class ContinuityCheckpointCoordinator(
         flushAcknowledgements()
         try {
             var current = chatDao.getCheckpoint(request.id) ?: return
+            // A completed local materialization is authoritative. This repairs an interrupted
+            // acknowledgement or a stale retry without ever rebuilding the same checkpoint.
+            if (chatDao.hasCompletedSnapshot(current.target_turn_id, current.baseline_version)) {
+                markAccepted(current)
+                return
+            }
             if (current.status == "pending_export") {
                 val envelope = ContinuityCheckpointProtocol.buildRequest(
                     chatDao, current, character, persona, pins, directorNotes
@@ -65,23 +72,62 @@ class ContinuityCheckpointCoordinator(
             }
         } catch (error: Throwable) {
             if (error is CancellationException) throw error
-            client.markUnavailable(error)
             val latest = chatDao.getCheckpoint(request.id) ?: return
             if (latest.status != "failed" && latest.status != "accepted") {
                 chatDao.updateCheckpoint(latest.copy(
-                    failure_detail = "Waiting for Continuity Host",
+                    status = if (error is ContinuityHostHttpException && error.status == 409) "failed" else latest.status,
+                    failure_detail = when {
+                        error is ContinuityHostHttpException && error.status == 409 -> IMMUTABLE_CONFLICT_DETAIL
+                        else -> "Waiting for Continuity Host"
+                    },
                     updated_at = Instant.now().toString()
                 ))
             }
+            if (error !is ContinuityHostHttpException || error.status >= 500) client.markUnavailable(error)
         }
     }
 
     suspend fun retry(request: ContinuityCheckpointEntity) {
+        if (request.failure_detail == IMMUTABLE_CONFLICT_DETAIL) {
+            val now = Instant.now().toString()
+            val successor = request.copy(
+                id = UUID.randomUUID().toString(),
+                baseline_hash = "",
+                status = "pending_export",
+                attempt_count = 0,
+                failure_detail = null,
+                created_at = now,
+                updated_at = now,
+                accepted_at = null
+            )
+            chatDao.updateCheckpoint(request.copy(
+                status = "superseded",
+                failure_detail = null,
+                updated_at = now
+            ))
+            chatDao.insertCheckpoint(successor)
+            try {
+                client.supersede(request.id, successor.id)
+            } catch (error: Throwable) {
+                if (error is CancellationException) throw error
+                // A new identity is already safely queued locally; it will sync independently.
+            }
+            return
+        }
         chatDao.updateCheckpoint(request.copy(
             status = "pending_export",
             attempt_count = request.attempt_count + 1,
             failure_detail = null,
             updated_at = Instant.now().toString()
+        ))
+    }
+
+    private suspend fun markAccepted(request: ContinuityCheckpointEntity) {
+        chatDao.updateCheckpoint(request.copy(
+            status = "accepted",
+            failure_detail = null,
+            updated_at = Instant.now().toString(),
+            accepted_at = request.accepted_at ?: Instant.now().toString()
         ))
     }
 
@@ -126,5 +172,9 @@ class ContinuityCheckpointCoordinator(
         "validating" -> "validating"
         "ready" -> "validating"
         else -> "waiting_for_host"
+    }
+
+    private companion object {
+        const val IMMUTABLE_CONFLICT_DETAIL = "This checkpoint was already completed with an older immutable payload. Retry creates a fresh checkpoint."
     }
 }

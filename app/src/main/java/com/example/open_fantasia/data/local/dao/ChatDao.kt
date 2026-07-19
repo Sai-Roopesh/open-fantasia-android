@@ -126,6 +126,9 @@ abstract class ChatDao {
     @Query("SELECT * FROM world_snapshots WHERE turn_id = :turnId")
     abstract suspend fun getSnapshot(turnId: String): SnapshotEntity?
 
+    @Query("SELECT EXISTS(SELECT 1 FROM world_snapshots WHERE turn_id = :turnId AND is_full_materialization = 1 AND version > :baselineVersion)")
+    abstract suspend fun hasCompletedSnapshot(turnId: String, baselineVersion: Int): Boolean
+
     /** Reactive signal: re-emits whenever any snapshot row for the thread changes, so the
      *  chat UI re-reads currentSnapshot after a background materialization saves it. */
     @Query("SELECT COUNT(*) FROM world_snapshots WHERE thread_id = :threadId")
@@ -146,7 +149,7 @@ abstract class ChatDao {
     @Query("SELECT * FROM continuity_checkpoint_requests WHERE thread_id = :threadId ORDER BY created_at DESC")
     abstract fun getCheckpointsForThreadFlow(threadId: String): Flow<List<ContinuityCheckpointEntity>>
 
-    @Query("SELECT * FROM continuity_checkpoint_requests WHERE status != 'accepted' ORDER BY created_at ASC")
+    @Query("SELECT * FROM continuity_checkpoint_requests WHERE status NOT IN ('accepted', 'superseded') ORDER BY created_at ASC")
     abstract suspend fun getPendingCheckpoints(): List<ContinuityCheckpointEntity>
 
     @Query("""
@@ -156,7 +159,7 @@ abstract class ChatDao {
             SELECT t.id, t.parent_turn_id FROM chat_turns t JOIN path ON path.parent_turn_id = t.id
         )
         SELECT c.* FROM continuity_checkpoint_requests c
-        WHERE c.status != 'accepted' AND c.target_turn_id IN (SELECT id FROM path)
+        WHERE c.status NOT IN ('accepted', 'superseded') AND c.target_turn_id IN (SELECT id FROM path)
         ORDER BY c.created_at DESC LIMIT 1
     """)
     abstract suspend fun getBlockingCheckpoint(headTurnId: String): ContinuityCheckpointEntity?

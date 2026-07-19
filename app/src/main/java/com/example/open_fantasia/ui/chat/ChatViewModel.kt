@@ -196,7 +196,7 @@ class ChatViewModel(
                 val exchangesSinceSnapshot = branchTurns.drop(baselineIndex + 1)
                     .count { it.generation_status == "committed" && !it.starter_seed }
                 val lineageIds = branchTurns.map { it.id }.toSet()
-                val checkpoint = checkpoints.firstOrNull { it.status != "accepted" && it.target_turn_id in lineageIds }
+                val checkpoint = checkpoints.firstOrNull { it.status !in setOf("accepted", "superseded") && it.target_turn_id in lineageIds }
                 val pins = chatDao.getActivePins(threadId, activeBranch.id)
                 val activePersona = thread.persona_id?.let { pid -> personas.find { it.id == pid } }
                 val castRoster = resolveCastRoster(
