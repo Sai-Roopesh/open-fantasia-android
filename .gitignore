@@ -1,15 +1,24 @@
 *.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
 .DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
+
+# Android Studio / Gradle machine state
+.gradle/
+.kotlin/
+.idea/
 local.properties
+**/build/
+**/.externalNativeBuild/
+**/.cxx/
+captures/
+
+# Local signing and environment secrets
+*.jks
+*.keystore
+.env
+.env.*
+!.env.example
+
+# Device data and local continuity-host runtime state
+/.device-backups/
+/backups/
+/tools/continuity-worker/.runtime/

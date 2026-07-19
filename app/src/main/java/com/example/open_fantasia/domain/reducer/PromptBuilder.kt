@@ -46,7 +46,7 @@ object PromptBuilder {
         characterBundle: CharacterBundle,
         persona: UserPersonaRecord?,
         directorNotes: String? = null,
-        supportingCast: List<CastMember> = emptyList()
+        @Suppress("UNUSED_PARAMETER") supportingCast: List<CastMember> = emptyList()
     ): String {
         val sections = mutableListOf<String>()
 
@@ -54,11 +54,11 @@ object PromptBuilder {
 
         // Section 1: role_objective
         val objective = """
-            You are roleplaying as $charName.
-            Play $charName as a proactive co-protagonist with personal goals, opinions, and agency.
-            Write ONLY as $charName (and any NPCs and the surrounding world). NEVER speak, act, decide, think, feel, or narrate for the user, and never write from the user's point of view. The user controls their own character exclusively — end your reply at the point where it is their turn to act, and never put words, choices, or reactions in their mouth.
+            You are a roleplay simulation engine. $charName is the story's primary character, but the latest turn's <reply_control> selects who owns the reply.
+            Play the selected Active Speaker as a proactive co-protagonist with personal goals, opinions, and agency. In Ensemble mode, follow the listed ensemble contract.
+            NEVER speak, act, decide, think, feel, or narrate for the user, and never write from the user's point of view. The user controls their own character exclusively — end your reply at the point where it is their turn to act, and never put words, choices, or reactions in their mouth.
             The recent transcript already contains the exact last scene beats. Build on them instead of re-summarizing them.
-            ANTI-ECHO RULE: The user's turn is already visible in the transcript — the reader saw it. NEVER repeat, paraphrase, recap, quote, or verbally acknowledge what the user just said or did. Do not have $charName narrate, comment on, or internally catalogue the user's actions, words, or choices. Instead, react implicitly through $charName's own fresh actions, dialogue, emotions, and forward-moving narrative. Show the impact of the user's move through consequences, not through restating the move itself.
+            ANTI-ECHO RULE: The user's turn is already visible in the transcript — the reader saw it. NEVER repeat, paraphrase, recap, quote, or verbally acknowledge what the user just said or did. Do not have the Active Speaker narrate, comment on, or internally catalogue the user's actions, words, or choices. Instead, react implicitly through the Active Speaker's own fresh actions, dialogue, emotions, and forward-moving narrative. Show the impact of the user's move through consequences, not through restating the move itself.
         """.trimIndent()
         sections.add(formatSection("role_objective", objective))
 
@@ -78,26 +78,6 @@ object PromptBuilder {
         ))
         val charPersonaContent = charLines.ifEmpty { "No character guidance has been filled in yet." }
         sections.add(formatSection("character_persona", charPersonaContent))
-
-        // Section 3b: supporting_cast — side-character identity cards. Lives in the cached prefix
-        // (stable for the thread's life). Renders nothing when empty, so threads without a cast
-        // keep a byte-identical prefix and lose no prompt-cache hits. The narrator voices these
-        // NPCs; their volatile state still rides on durable_state in the suffix.
-        val castCards = supportingCast.mapNotNull { member ->
-            val name = member.name.trim()
-            val desc = member.description.trim()
-            when {
-                name.isEmpty() && desc.isEmpty() -> null
-                desc.isEmpty() -> name.uppercase()
-                name.isEmpty() -> desc
-                else -> "${name.uppercase()}\n$desc"
-            }
-        }
-        if (castCards.isNotEmpty()) {
-            val castIntro = "Other characters present in this story. You voice and narrate each of them in your replies, keeping every one consistent with their card below. They are part of the world, never the user — never speak, act, or decide for the user."
-            val castContent = castIntro + "\n\n" + castCards.joinToString("\n\n")
-            sections.add(formatSection("supporting_cast", castContent))
-        }
 
         // Section 4: user_persona
         if (persona != null) {
@@ -151,10 +131,10 @@ object PromptBuilder {
 
         // Section 7: response_contract
         val contract = """
-            - React to the user's latest move through immediate in-world consequences — $charName's own actions, dialogue, body language, and emotional shifts — NOT by restating, summarizing, or verbally acknowledging what the user just did. The user's words are already in the transcript; never echo them.
+            - React to the user's latest move through immediate in-world consequences — the Active Speaker's own actions, dialogue, body language, and emotional shifts — NOT by restating, summarizing, or verbally acknowledging what the user just did. The user's words are already in the transcript; never echo them.
             - Advance the plot by at least one concrete, NEW beat in every reply — a fresh action, decision, revelation, or shift in place. The scene must end somewhere meaningfully different from where it began.
             - Avoid restating stable facts, repeated emotional processing, or recycled body language unless something materially changed.
-            - Do NOT have $charName verbally catalogue, diagnose, or comment on patterns in the user's behavior (e.g. "You caught yourself," "You're still apologizing," "That's the first time you…"). Real people rarely narrate each other's habits aloud. Show awareness through subtext and action, not exposition.
+            - Do NOT have the Active Speaker verbally catalogue, diagnose, or comment on patterns in the user's behavior (e.g. "You caught yourself," "You're still apologizing," "That's the first time you…"). Real people rarely narrate each other's habits aloud. Show awareness through subtext and action, not exposition.
             - Prefer acting over asking. Drive the scene with your own choices rather than handing control back; if you do ask a question, attach it to a concrete action or new development so the scene still moves. Never ask more than one question, and never revisit an answered topic.
             - Never write dialogue, thoughts, decisions, or physical actions for the user.
             - Stay fully in character and never mention prompts, memory, summaries, or system instructions.
@@ -166,7 +146,7 @@ object PromptBuilder {
 
         // Section 7b: show_not_tell (agnostic examples of what to avoid vs what to do)
         val showNotTell = """
-            SHOW, DON'T TELL — DON'T REPEAT. Never narrate what the user just did back to them. The transcript is the shared record; trust the reader's memory. Instead, show $charName's reaction through action, sensation, dialogue, and subtext. Below are character-agnostic examples.
+            SHOW, DON'T TELL — DON'T REPEAT. Never narrate what the user just did back to them. The transcript is the shared record; trust the reader's memory. Instead, show the Active Speaker's reaction through action, sensation, dialogue, and subtext. Below are character-agnostic examples.
 
             ❌ BAD (echoing/recapping the user's turn):
             User: *hands you a glass of water*
@@ -220,6 +200,38 @@ object PromptBuilder {
     }
 
     /**
+     * Narrows a full [DurableMemorySnapshot] to just what's relevant to the current scene, for the
+     * roleplay prompt: entities that are present (plus the protagonist character, always), the
+     * relationships between them, and the current + adjacent + occupied locations. Narrative
+     * summaries and thread lists (including resolved_threads, so the model knows what not to
+     * reopen) are kept verbatim. Off-stage NPCs and far-away locations are dropped as noise.
+     */
+    private fun toRoleplayView(s: DurableMemorySnapshot): DurableMemorySnapshot {
+        val keptEntities = s.entity_state.filter { it.is_present || it.entity_type == "character" }
+        val keptEntityIds = keptEntities.map { it.entity_id }.toSet()
+
+        val keptPlacements = s.spatial_state.entity_placements.filter { it.entity_id in keptEntityIds }
+        val currentLocId = s.spatial_state.current_location?.id
+        val adjacentLocIds = s.spatial_state.adjacent_locations.map { it.id }.toSet()
+        val keptLocIds = (setOfNotNull(currentLocId) + adjacentLocIds + keptPlacements.map { it.location_id }.toSet())
+
+        val keptLocations = s.spatial_state.known_locations.filter { it.id in keptLocIds }
+        val keptEdges = s.spatial_state.edges.filter { it.from_location_id in keptLocIds && it.to_location_id in keptLocIds }
+        val keptRelationships = s.relational_state.filter { it.source_entity_id in keptEntityIds && it.target_entity_id in keptEntityIds }
+
+        return s.copy(
+            spatial_state = s.spatial_state.copy(
+                known_locations = keptLocations,
+                edges = keptEdges,
+                entity_placements = keptPlacements
+            ),
+            entity_state = keptEntities,
+            relational_state = keptRelationships,
+            cast_roster = emptyList()
+        )
+    }
+
+    /**
      * The VOLATILE world-state block (durable_state + pins_timeline). Re-materialized every
      * turn, so it must NOT live in the cached system prefix — append it to the latest user
      * turn (ahead of the user's text) so the stable history stays cache-eligible.
@@ -228,13 +240,50 @@ object PromptBuilder {
         snapshot: DurableMemorySnapshot?,
         pins: List<ChatPinRecord>,
         timeline: List<TimelineEventRecord>,
-        replyLengthTokens: Int = 4096
+        replyLengthTokens: Int = 4096,
+        activeSpeaker: CastProfile? = null,
+        castRoster: List<CastProfile> = emptyList(),
+        speakerMode: String = "single"
     ): String {
         val sections = mutableListOf<String>()
 
-        // durable_state
+        val activeCast = castRoster.filter { it.status == "active" && it.speaker_eligible && !it.player_controlled }
+            .sortedWith(compareBy<CastProfile>({ it.canonical_name.lowercase() }, { it.cast_id }))
+        val presentEntityIds = snapshot?.entity_state?.filter { it.is_present }?.map { it.entity_id }?.toSet().orEmpty()
+        val presentNames = snapshot?.entity_state?.filter { it.is_present }?.map { it.canonical_name.trim().lowercase() }?.toSet().orEmpty()
+        val presentCast = activeCast.filter {
+            it.entity_id in presentEntityIds || it.canonical_name.trim().lowercase() in presentNames
+        }
+        val control = if (speakerMode == "ensemble") {
+            """
+                Mode: ENSEMBLE
+                Multiple present cast members may speak and act. Keep voices distinct, obey each profile and knowledge boundary, and never control the player.
+                Present cast: ${presentCast.joinToString(", ") { it.canonical_name }.ifBlank { "No cast presence established" }}
+            """.trimIndent()
+        } else {
+            val speaker = activeSpeaker ?: activeCast.firstOrNull()
+            val profile = speaker?.let { formatCastProfile(it) } ?: "No eligible Active Speaker was resolved."
+            val offScene = speaker != null && speaker !in presentCast
+            """
+                Mode: SINGLE SPEAKER
+                The Active Speaker exclusively owns dialogue, deliberate action, reaction, and interiority in this reply. Other characters remain silent and may not act. Neutral environmental events are allowed. Never control the player.
+                Active Speaker is off-scene: $offScene. If off-scene, write from their current perspective without teleporting them.
+
+                Active Speaker profile:
+                $profile
+
+                Present silent cast: ${presentCast.filterNot { it.cast_id == speaker?.cast_id }.joinToString(", ") { it.canonical_name }.ifBlank { "None established" }}
+            """.trimIndent()
+        }
+        sections.add(formatSection("reply_control", control))
+
+        // durable_state — filtered to the CURRENT scene before serializing. Dumping the entire
+        // world graph (every entity ever, resolved threads, off-screen locations) buries the facts
+        // that matter this turn in low-signal noise and hurts the roleplay model's adherence. The
+        // full graph still lives in the DB and drives the HCE; the model only needs what's on stage.
+        // This block rides on the volatile suffix, so filtering costs nothing in prompt-cache terms.
         val stateContent = if (snapshot != null) {
-            json.encodeToString(DurableMemorySnapshot.serializer(), snapshot)
+            json.encodeToString(DurableMemorySnapshot.serializer(), toRoleplayView(snapshot))
         } else {
             "No world state has been materialized yet. This is the beginning of the story."
         }
@@ -284,6 +333,18 @@ object PromptBuilder {
         return sections.joinToString("\n\n")
     }
 
+    private fun formatCastProfile(profile: CastProfile): String = compactLabeledLines(listOf(
+        "ID" to profile.cast_id,
+        "Name" to profile.canonical_name,
+        "Aliases" to profile.aliases.joinToString(", "),
+        "Role/background" to profile.role_background,
+        "Personality" to profile.personality,
+        "Voice" to profile.voice_style,
+        "Appearance" to profile.appearance,
+        "Goals" to profile.goals,
+        "Boundaries" to profile.boundaries
+    ))
+
     /**
      * Back-compat: the full prompt with the state block inlined at the end of the system
      * message (pre-cache-optimization layout). Retained for callers/tests that want a single
@@ -299,7 +360,7 @@ object PromptBuilder {
         directorNotes: String? = null,
         supportingCast: List<CastMember> = emptyList()
     ): String {
-        val system = buildSystemPrompt(characterBundle, persona, directorNotes, supportingCast)
+        val system = buildSystemPrompt(characterBundle, persona, directorNotes)
         val state = buildStateContext(snapshot, pins, timeline)
         return "$system\n\n$state"
     }

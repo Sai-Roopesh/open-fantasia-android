@@ -9,6 +9,9 @@ import com.example.open_fantasia.data.local.entity.*
 import com.example.open_fantasia.data.remote.LLMClient
 import com.example.open_fantasia.domain.model.*
 import com.example.open_fantasia.domain.usecase.RunContinuityExtractionUseCase
+import com.example.open_fantasia.data.continuity.ContinuityCheckpointCoordinator
+import com.example.open_fantasia.data.continuity.ContinuityHostClient
+import com.example.open_fantasia.data.continuity.ContinuityHostPreferences
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.runBlocking
@@ -36,7 +39,8 @@ class ChatScreenTest {
             temperature: Double,
             topP: Double,
             maxTokens: Int,
-            jsonMode: Boolean
+            jsonMode: Boolean,
+            jsonSchema: kotlinx.serialization.json.JsonObject?
         ): String = "Generated response"
 
         override fun streamGenerateText(
@@ -47,7 +51,8 @@ class ChatScreenTest {
             temperature: Double,
             topP: Double,
             maxTokens: Int,
-            jsonMode: Boolean
+            jsonMode: Boolean,
+            jsonSchema: kotlinx.serialization.json.JsonObject?
         ): Flow<com.example.open_fantasia.data.remote.StreamChunk> = emptyFlow()
     }
 
@@ -151,6 +156,8 @@ class ChatScreenTest {
             db.chatDao().insertBranch(branch)
         }
 
+        val hostPreferences = ContinuityHostPreferences(context.applicationContext)
+        val hostClient = ContinuityHostClient(hostPreferences)
         viewModel = ChatViewModel(
             threadId = "thread-1",
             chatDao = db.chatDao(),
@@ -158,7 +165,10 @@ class ChatScreenTest {
             connectionDao = db.connectionDao(),
             personaDao = db.personaDao(),
             llmClient = fakeLlmClient,
-            runContinuityExtractionUseCase = useCase
+            runContinuityExtractionUseCase = useCase,
+            continuityCheckpointCoordinator = ContinuityCheckpointCoordinator(db.chatDao(), hostClient, hostPreferences),
+            continuityHostClient = hostClient,
+            context = context.applicationContext
         )
     }
 

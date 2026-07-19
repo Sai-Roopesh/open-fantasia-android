@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.example.open_fantasia.data.local.dao.ConnectionDao
 import com.example.open_fantasia.data.local.entity.ConnectionEntity
 import com.example.open_fantasia.data.remote.LLMClient
+import com.example.open_fantasia.data.continuity.ContinuityHostClient
+import com.example.open_fantasia.data.continuity.ContinuityHostState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -16,7 +18,8 @@ import java.util.UUID
 
 class SettingsViewModel(
     private val connectionDao: ConnectionDao,
-    private val llmClient: LLMClient
+    private val llmClient: LLMClient,
+    private val continuityHostClient: ContinuityHostClient
 ) : ViewModel() {
 
     private val FIXED_USER_ID = "00000000-0000-0000-0000-000000000000"
@@ -26,6 +29,41 @@ class SettingsViewModel(
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = emptyList()
     )
+
+    val continuityHostState: StateFlow<ContinuityHostState> = continuityHostClient.state
+    private val _continuityMessage = MutableStateFlow<String?>(null)
+    val continuityMessage = _continuityMessage.asStateFlow()
+
+    fun pairContinuityHost(endpoint: String, code: String) {
+        viewModelScope.launch {
+            try {
+                continuityHostClient.pair(endpoint, code)
+                _continuityMessage.value = "Continuity Host paired"
+            } catch (error: Throwable) {
+                continuityHostClient.markUnavailable(error)
+                _continuityMessage.value = error.message ?: "Could not pair Continuity Host"
+            }
+        }
+    }
+
+    fun testContinuityHost() {
+        viewModelScope.launch {
+            try {
+                continuityHostClient.checkHealth()
+                _continuityMessage.value = "Continuity Host is available"
+            } catch (error: Throwable) {
+                continuityHostClient.markUnavailable(error)
+                _continuityMessage.value = error.message ?: "Continuity Host is unavailable"
+            }
+        }
+    }
+
+    fun forgetContinuityHost() {
+        continuityHostClient.forget()
+        _continuityMessage.value = "Continuity Host pairing removed"
+    }
+
+    fun consumeContinuityMessage() { _continuityMessage.value = null }
 
     fun saveConnection(
         id: String?,

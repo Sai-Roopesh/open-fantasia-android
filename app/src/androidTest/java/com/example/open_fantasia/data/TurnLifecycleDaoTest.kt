@@ -96,6 +96,101 @@ class TurnLifecycleDaoTest {
     }
 
     @Test
+    fun seventhCommittedExchangeCreatesStrictCheckpoint() = runBlocking {
+        val dao = db.chatDao()
+        val thread = dao.createThreadWithBranch(userId, characterId, connectionId, "chat-model", null, null, null, 2048, "Checkpoint")
+        val branch = dao.getActiveBranchForThread(thread.id)!!
+        var head: String? = null
+        repeat(7) { index ->
+            val turn = dao.beginTurn(userId, branch.id, head, "User ${index + 1}", "{}")
+            dao.commitTurn(userId, branch.id, turn.id, "Assistant ${index + 1}", "{}", "deepseek", "chat-model", "Chat", "stop", 10, 5, 5, null)
+            head = turn.id
+            if (index < 6) assertTrue(dao.getPendingCheckpoints().isEmpty())
+        }
+        val checkpoint = dao.getPendingCheckpoints().single()
+        assertEquals(head, checkpoint.target_turn_id)
+        assertEquals("pending_export", checkpoint.status)
+        try {
+            dao.beginTurn(userId, branch.id, head, "Blocked", "{}")
+            fail("Checkpoint must block the eighth exchange")
+        } catch (expected: IllegalStateException) {
+            assertTrue(expected.message!!.contains("Continuity checkpoint"))
+        }
+    }
+
+    @Test
+    fun rewindCreatesCheckpointUsingOnlyRetainedLineage() = runBlocking {
+        val dao = db.chatDao()
+        val thread = dao.createThreadWithBranch(userId, characterId, connectionId, "chat-model", null, null, null, 2048, "Rewind")
+        val branch = dao.getActiveBranchForThread(thread.id)!!
+        val turns = mutableListOf<TurnEntity>()
+        var head: String? = null
+        repeat(3) { index ->
+            val turn = dao.beginTurn(userId, branch.id, head, "User ${index + 1}", "{}")
+            dao.commitTurn(userId, branch.id, turn.id, "Assistant ${index + 1}", "{}", "deepseek", "chat-model", "Chat", "stop", 10, 5, 5, null)
+            turns += turn
+            head = turn.id
+        }
+        dao.rewindBranchToTurn(userId, branch.id, turns.first().id, turns.last().id)
+
+        val request = dao.getPendingCheckpoints().single()
+        assertEquals("rewind", request.trigger_reason)
+        assertEquals(turns.last().id, request.old_head_turn_id)
+        assertEquals(turns.first().id, request.target_turn_id)
+        assertEquals(2, request.discarded_exchange_count)
+        assertNull(dao.getTurn(turns[1].id))
+        assertNull(dao.getTurn(turns[2].id))
+        assertEquals(listOf(turns.first().id), dao.getAncestorTurns(turns.first().id).map { it.id })
+    }
+
+    @Test
+    fun acceptingCheckpointPersistsTimelineEventsAtomically() = runBlocking {
+        val dao = db.chatDao()
+        val thread = dao.createThreadWithBranch(userId, characterId, connectionId, "chat-model", null, null, null, 2048, "Timeline")
+        val branch = dao.getActiveBranchForThread(thread.id)!!
+        val turn = dao.beginTurn(userId, branch.id, null, "A revelation", "{}")
+        dao.commitTurn(userId, branch.id, turn.id, "The truth is revealed", "{}", "deepseek", "chat-model", "Chat", "stop", 10, 5, 5, null)
+        val request = ContinuityCheckpointEntity(
+            id = "checkpoint-timeline",
+            thread_id = thread.id,
+            branch_id = branch.id,
+            target_turn_id = turn.id,
+            baseline_turn_id = null,
+            baseline_version = 0,
+            status = "waiting_for_worker",
+            created_at = "now",
+            updated_at = "now"
+        )
+        dao.insertCheckpoint(request)
+        val snapshot = DurableMemorySnapshot(
+            metadata = SnapshotMetadata(turn.id, "Day 1", "continuation", 1),
+            spatial_state = SpatialState(null, emptyList(), emptyList(), emptyList(), emptyList()),
+            entity_state = emptyList(),
+            relational_state = emptyList(),
+            narrative_state = NarrativeState("Story", "Scene", "Beat", emptyList(), emptyList())
+        )
+        val event = TimelineEntity(
+            id = "checkpoint-timeline:event:0",
+            thread_id = thread.id,
+            branch_id = branch.id,
+            turn_id = turn.id,
+            title = "The truth emerges",
+            detail = "A major revelation changes the scene.",
+            importance = 5,
+            event_type = "reveal",
+            affected_entity_ids = emptyList(),
+            affected_relationship_ids = emptyList(),
+            created_at = "now"
+        )
+
+        dao.acceptCheckpoint(request.id, snapshot, listOf(event))
+
+        assertEquals("accepted", dao.getCheckpoint(request.id)?.status)
+        assertEquals(listOf(event), dao.getTimelineEvents(thread.id, branch.id))
+        assertEquals(snapshot, dao.getSnapshot(turn.id)?.world_state)
+    }
+
+    @Test
     fun testBeginTurnLocksBranchAndReservesTurn() = runBlocking {
         val chatDao = db.chatDao()
 
@@ -202,6 +297,26 @@ class TurnLifecycleDaoTest {
         assertFalse(updatedBranch.generation_locked)
         assertEquals(committed.id, updatedBranch.head_turn_id)
         assertNull(updatedBranch.locked_by_turn_id)
+    }
+
+    @Test
+    fun testCommitTurnRejectsBlankAssistantOutput() = runBlocking {
+        val chatDao = db.chatDao()
+        val thread = chatDao.createThreadWithBranch(
+            userId, characterId, connectionId, "deepseek-v4-pro", null, null, null, 2048, "Blank output"
+        )
+        val branch = chatDao.getActiveBranchForThread(thread.id)!!
+        val turn = chatDao.beginTurn(userId, branch.id, null, "Hello", "{}")
+
+        try {
+            chatDao.commitTurn(userId, branch.id, turn.id, "   ", "{}", "deepseek", "deepseek-v4-pro", "DeepSeek", "stop", 999, 900, 99, null)
+            fail("Blank assistant output must not be committed")
+        } catch (error: IllegalArgumentException) {
+            assertTrue(error.message!!.contains("no visible reply"))
+        }
+
+        assertEquals("reserved", chatDao.getTurn(turn.id)!!.generation_status)
+        assertNull(chatDao.getBranch(branch.id)!!.head_turn_id)
     }
 
     @Test

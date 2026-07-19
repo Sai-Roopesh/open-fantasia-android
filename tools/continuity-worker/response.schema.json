@@ -1,0 +1,203 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol_version", "request_id", "attempt_count", "thread_id", "branch_id", "target_turn_id", "baseline_hash", "world_state", "timeline_events"],
+  "properties": {
+    "protocol_version": { "type": "integer" },
+    "request_id": { "type": "string" },
+    "attempt_count": { "type": "integer", "minimum": 0 },
+    "thread_id": { "type": "string" },
+    "branch_id": { "type": "string" },
+    "target_turn_id": { "type": "string" },
+    "baseline_hash": { "type": "string" },
+    "world_state": { "$ref": "#/$defs/world_state" },
+    "timeline_events": { "type": "array", "items": { "$ref": "#/$defs/timeline_event" } }
+  },
+  "$defs": {
+    "world_state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["metadata", "spatial_state", "entity_state", "relational_state", "narrative_state", "cast_roster"],
+      "properties": {
+        "metadata": { "$ref": "#/$defs/metadata" },
+        "spatial_state": { "$ref": "#/$defs/spatial_state" },
+        "entity_state": { "type": "array", "items": { "$ref": "#/$defs/entity" } },
+        "relational_state": { "type": "array", "items": { "$ref": "#/$defs/relationship" } },
+        "narrative_state": { "$ref": "#/$defs/narrative_state" },
+        "cast_roster": { "type": "array", "items": { "$ref": "#/$defs/cast_profile" } }
+      }
+    },
+    "cast_profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cast_id", "entity_id", "canonical_name", "aliases", "role_background", "personality", "voice_style", "appearance", "goals", "boundaries", "provenance", "first_seen_turn_id", "evidence", "status", "speaker_eligible", "player_controlled", "manual_locks"],
+      "properties": {
+        "cast_id": { "type": "string", "minLength": 1 },
+        "entity_id": { "type": ["string", "null"] },
+        "canonical_name": { "type": "string", "minLength": 1 },
+        "aliases": { "type": "array", "items": { "type": "string" } },
+        "role_background": { "type": "string" },
+        "personality": { "type": "string" },
+        "voice_style": { "type": "string" },
+        "appearance": { "type": "string" },
+        "goals": { "type": "string" },
+        "boundaries": { "type": "string" },
+        "provenance": { "enum": ["primary", "manual_seed", "continuity_discovered"] },
+        "first_seen_turn_id": { "type": ["string", "null"] },
+        "evidence": { "type": "array", "items": { "type": "string" } },
+        "status": { "enum": ["active", "archived"] },
+        "speaker_eligible": { "type": "boolean" },
+        "player_controlled": { "type": "boolean" },
+        "manual_locks": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["current_turn_id", "narrative_timestamp", "transition_type", "version"],
+      "properties": {
+        "current_turn_id": { "type": "string" },
+        "narrative_timestamp": { "type": "string" },
+        "transition_type": { "type": "string" },
+        "version": { "type": "integer" }
+      }
+    },
+    "spatial_state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["current_location", "adjacent_locations", "known_locations", "edges", "entity_placements"],
+      "properties": {
+        "current_location": { "anyOf": [{ "$ref": "#/$defs/location" }, { "type": "null" }] },
+        "adjacent_locations": { "type": "array", "items": { "$ref": "#/$defs/location_ref" } },
+        "known_locations": { "type": "array", "items": { "$ref": "#/$defs/location" } },
+        "edges": { "type": "array", "items": { "$ref": "#/$defs/edge" } },
+        "entity_placements": { "type": "array", "items": { "$ref": "#/$defs/placement" } }
+      }
+    },
+    "location": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "description", "environmental_modifiers"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "environmental_modifiers": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "location_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["edge_id", "from_location_id", "to_location_id", "is_bidirectional"],
+      "properties": {
+        "edge_id": { "type": "string" },
+        "from_location_id": { "type": "string" },
+        "to_location_id": { "type": "string" },
+        "is_bidirectional": { "type": "boolean" }
+      }
+    },
+    "placement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entity_id", "entity_name", "location_id", "location_name", "micro_position"],
+      "properties": {
+        "entity_id": { "type": "string" },
+        "entity_name": { "type": "string" },
+        "location_id": { "type": "string" },
+        "location_name": { "type": "string" },
+        "micro_position": { "type": "string" }
+      }
+    },
+    "fact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "body"],
+      "properties": {
+        "id": { "type": "string" },
+        "body": { "type": "string" }
+      }
+    },
+    "entity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entity_id", "canonical_name", "entity_type", "aliases", "is_present", "primary_emotion", "emotion_intensity", "emotion_catalyst", "knowledge_boundary", "traits", "goals", "secrets", "abilities", "possessions"],
+      "properties": {
+        "entity_id": { "type": "string" },
+        "canonical_name": { "type": "string" },
+        "entity_type": { "type": "string" },
+        "aliases": { "type": "array", "items": { "type": "string" } },
+        "is_present": { "type": "boolean" },
+        "primary_emotion": { "type": "string" },
+        "emotion_intensity": { "type": "integer" },
+        "emotion_catalyst": { "type": "string" },
+        "knowledge_boundary": { "type": "array", "items": { "$ref": "#/$defs/fact" } },
+        "traits": { "type": "array", "items": { "$ref": "#/$defs/fact" } },
+        "goals": { "type": "array", "items": { "$ref": "#/$defs/fact" } },
+        "secrets": { "type": "array", "items": { "$ref": "#/$defs/fact" } },
+        "abilities": { "type": "array", "items": { "$ref": "#/$defs/fact" } },
+        "possessions": { "type": "array", "items": { "$ref": "#/$defs/fact" } }
+      }
+    },
+    "relationship": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["relationship_id", "source_entity_id", "source_entity_name", "target_entity_id", "target_entity_name", "relationship_type", "dynamic_status"],
+      "properties": {
+        "relationship_id": { "type": "string" },
+        "source_entity_id": { "type": "string" },
+        "source_entity_name": { "type": "string" },
+        "target_entity_id": { "type": "string" },
+        "target_entity_name": { "type": "string" },
+        "relationship_type": { "type": "string" },
+        "dynamic_status": { "type": "string" }
+      }
+    },
+    "narrative_thread": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["thread_id", "objective", "status", "dependencies"],
+      "properties": {
+        "thread_id": { "type": "string" },
+        "objective": { "type": "string" },
+        "status": { "type": "string" },
+        "dependencies": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "narrative_state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["story_summary", "scene_summary", "last_turn_beat", "active_threads", "resolved_threads"],
+      "properties": {
+        "story_summary": { "type": "string" },
+        "scene_summary": { "type": "string" },
+        "last_turn_beat": { "type": "string" },
+        "active_threads": { "type": "array", "items": { "$ref": "#/$defs/narrative_thread" } },
+        "resolved_threads": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "timeline_event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["turn_id", "title", "detail", "importance", "event_type", "affected_entity_ids", "affected_relationship_ids"],
+      "properties": {
+        "turn_id": { "type": "string" },
+        "title": { "type": "string" },
+        "detail": { "type": "string" },
+        "importance": { "type": "integer" },
+        "event_type": { "type": "string" },
+        "affected_entity_ids": { "type": "array", "items": { "type": "string" } },
+        "affected_relationship_ids": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

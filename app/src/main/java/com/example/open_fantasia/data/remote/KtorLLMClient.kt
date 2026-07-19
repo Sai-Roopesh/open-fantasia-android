@@ -23,8 +23,31 @@ class KtorLLMClient(
     private val client: HttpClient = createDefaultClient()
 ) : LLMClient {
 
+    internal data class TimeoutOverride(
+        val requestMillis: Long,
+        val connectMillis: Long,
+        val socketMillis: Long
+    )
+
     companion object {
         private const val TAG = "KtorLLMClient"
+        // DeepSeek can take substantially longer to begin and complete a streamed reply.
+        // Keep the normal client defaults for every other provider, but give DeepSeek ten
+        // times the existing request, connection, and idle-socket windows.
+        private const val DEEPSEEK_REQUEST_TIMEOUT_MILLIS = 600_000L
+        private const val DEEPSEEK_CONNECT_TIMEOUT_MILLIS = 150_000L
+        private const val DEEPSEEK_SOCKET_TIMEOUT_MILLIS = 600_000L
+
+        internal fun streamingTimeoutOverrideFor(provider: String): TimeoutOverride? =
+            if (provider == "deepseek") {
+                TimeoutOverride(
+                    requestMillis = DEEPSEEK_REQUEST_TIMEOUT_MILLIS,
+                    connectMillis = DEEPSEEK_CONNECT_TIMEOUT_MILLIS,
+                    socketMillis = DEEPSEEK_SOCKET_TIMEOUT_MILLIS
+                )
+            } else {
+                null
+            }
 
         fun createDefaultClient(): HttpClient {
             return HttpClient(CIO) {
@@ -191,10 +214,11 @@ class KtorLLMClient(
         temperature: Double,
         topP: Double,
         maxTokens: Int,
-        jsonMode: Boolean
+        jsonMode: Boolean,
+        jsonSchema: JsonObject?
     ): String {
         var fullText = ""
-        streamGenerateText(connection, modelId, systemPrompt, messages, temperature, topP, maxTokens, jsonMode)
+        streamGenerateText(connection, modelId, systemPrompt, messages, temperature, topP, maxTokens, jsonMode, jsonSchema)
             .collect { chunk ->
                 chunk.text?.let { fullText += it }
             }
@@ -209,7 +233,8 @@ class KtorLLMClient(
         temperature: Double,
         topP: Double,
         maxTokens: Int,
-        jsonMode: Boolean
+        jsonMode: Boolean,
+        jsonSchema: JsonObject?
     ): Flow<StreamChunk> = flow {
         val apiKey = decryptKey(connection)
 
@@ -276,7 +301,23 @@ class KtorLLMClient(
                     put("top_p", topP)
                     put("max_tokens", maxTokens)
                     put("stream", true)
-                    if (jsonMode) {
+                    if (connection.provider in setOf("deepseek", "openrouter")) {
+                        put("stream_options", buildJsonObject { put("include_usage", true) })
+                    }
+                    // Schema-constrained decoding when a schema is supplied and the provider
+                    // supports json_schema (Mistral, Groq, OpenRouter). DeepSeek only supports
+                    // json_object, so it falls through to the loose mode below.
+                    val schemaCapable = connection.provider in setOf("mistral", "groq", "openrouter")
+                    if (jsonMode && jsonSchema != null && schemaCapable) {
+                        put("response_format", buildJsonObject {
+                            put("type", "json_schema")
+                            put("json_schema", buildJsonObject {
+                                put("name", "hce_extraction")
+                                put("strict", false)
+                                put("schema", jsonSchema)
+                            })
+                        })
+                    } else if (jsonMode) {
                         put("response_format", buildJsonObject { put("type", "json_object") })
                     } else {
                         // Creative roleplay generation only — discourage echoing/repetition.
@@ -324,6 +365,13 @@ class KtorLLMClient(
         try {
             client.preparePost(url) {
                 contentType(ContentType.Application.Json)
+                streamingTimeoutOverrideFor(connection.provider)?.let { timeoutOverride ->
+                    timeout {
+                        requestTimeoutMillis = timeoutOverride.requestMillis
+                        connectTimeoutMillis = timeoutOverride.connectMillis
+                        socketTimeoutMillis = timeoutOverride.socketMillis
+                    }
+                }
                 if (connection.provider == "google") {
                     parameter("key", apiKey)
                 } else {
@@ -385,7 +433,21 @@ class KtorLLMClient(
                     val choices = jsonObject["choices"]?.jsonArray
                     val text = choices?.firstOrNull()?.jsonObject?.get("delta")?.jsonObject?.get("content")?.jsonPrimitive?.contentOrNull
                     val finishReason = choices?.firstOrNull()?.jsonObject?.get("finish_reason")?.jsonPrimitive?.contentOrNull
-                    StreamChunk(text = text, finishReason = finishReason)
+                    // With stream_options.include_usage, DeepSeek includes `"usage": null` on
+                    // every text frame and the real object only on the final frame. JsonNull is
+                    // non-null in Kotlin; calling .jsonObject on it discarded the whole text frame.
+                    val usage = jsonObject["usage"]?.takeUnless { it is JsonNull }?.jsonObject
+                    val details = usage?.get("prompt_tokens_details")?.takeUnless { it is JsonNull }?.jsonObject
+                    StreamChunk(
+                        text = text,
+                        finishReason = finishReason,
+                        totalTokens = usage?.get("total_tokens")?.jsonPrimitive?.intOrNull,
+                        promptTokens = usage?.get("prompt_tokens")?.jsonPrimitive?.intOrNull,
+                        completionTokens = usage?.get("completion_tokens")?.jsonPrimitive?.intOrNull,
+                        promptCacheHitTokens = usage?.get("prompt_cache_hit_tokens")?.jsonPrimitive?.intOrNull
+                            ?: details?.get("cached_tokens")?.jsonPrimitive?.intOrNull,
+                        promptCacheMissTokens = usage?.get("prompt_cache_miss_tokens")?.jsonPrimitive?.intOrNull
+                    )
                 }
             }
         } catch (e: Exception) {

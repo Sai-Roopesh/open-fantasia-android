@@ -168,33 +168,33 @@ class PromptBuilderTest {
     }
 
     @Test
-    fun testSupportingCastRendersAsCardsInPrefix() {
+    fun testCastRendersOnlyInVolatileSuffix() {
         val charBundle = makeCharacterBundle()
         val cast = listOf(
-            CastMember("Joren", "Gruff ex-soldier barkeep, speaks in clipped sentences."),
-            CastMember("Mira", "Nervous serving girl who notices everything.")
+            CastProfile("cast-1", canonical_name = "Joren", role_background = "Gruff ex-soldier barkeep.", provenance = "manual_seed"),
+            CastProfile("cast-2", canonical_name = "Mira", role_background = "Nervous serving girl.", provenance = "manual_seed")
         )
 
-        val system = PromptBuilder.buildSystemPrompt(charBundle, null, null, cast)
+        val system = PromptBuilder.buildSystemPrompt(charBundle, null, null)
+        val suffix = PromptBuilder.buildStateContext(makeDurableSnapshot(), emptyList(), emptyList(), activeSpeaker = cast[0], castRoster = cast)
 
-        assertTrue(system.contains("<supporting_cast>"))
-        assertTrue(system.contains("JOREN"))
-        assertTrue(system.contains("Gruff ex-soldier barkeep, speaks in clipped sentences."))
-        assertTrue(system.contains("MIRA"))
+        assertFalse(system.contains("Joren"))
+        assertFalse(system.contains("Mira"))
+        assertTrue(suffix.contains("Joren"))
+        assertTrue(suffix.contains("Gruff ex-soldier barkeep."))
     }
 
     @Test
     fun testEmptyCastKeepsPrefixByteIdentical() {
         val charBundle = makeCharacterBundle()
 
-        // Cache invariant: a thread with no cast (or only blank entries) must produce a prefix
-        // byte-identical to the no-cast prompt, so existing threads lose no prompt-cache hits.
+        // Legacy caller arguments are deliberately ignored: cast changes never alter the prefix.
         val noCast = PromptBuilder.buildSystemPrompt(charBundle, null, null)
         val empty = PromptBuilder.buildSystemPrompt(charBundle, null, null, emptyList())
-        val blankOnly = PromptBuilder.buildSystemPrompt(charBundle, null, null, listOf(CastMember("", "")))
+        val populated = PromptBuilder.buildSystemPrompt(charBundle, null, null, listOf(CastMember("Joren", "Barkeep")))
 
         assertEquals(noCast, empty)
-        assertEquals(noCast, blankOnly)
+        assertEquals(noCast, populated)
         assertFalse(noCast.contains("<supporting_cast>"))
     }
 

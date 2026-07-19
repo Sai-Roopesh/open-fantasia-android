@@ -6,6 +6,7 @@ import com.example.open_fantasia.data.remote.StreamChunk
 import com.example.open_fantasia.domain.model.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.serialization.json.JsonObject
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Test
@@ -45,7 +46,8 @@ class RunContinuityExtractionUseCaseTest {
             temperature: Double,
             topP: Double,
             maxTokens: Int,
-            jsonMode: Boolean
+            jsonMode: Boolean,
+            jsonSchema: JsonObject?
         ): String {
             return generateTextHandler(systemPrompt, messages)
         }
@@ -58,7 +60,8 @@ class RunContinuityExtractionUseCaseTest {
             temperature: Double,
             topP: Double,
             maxTokens: Int,
-            jsonMode: Boolean
+            jsonMode: Boolean,
+            jsonSchema: JsonObject?
         ): Flow<StreamChunk> = emptyFlow()
     }
 

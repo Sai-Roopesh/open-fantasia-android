@@ -217,6 +217,45 @@ fun ThreadRecord.toEntity() = ThreadEntity(
 )
 
 @Entity(
+    tableName = "cast_seeds",
+    foreignKeys = [ForeignKey(
+        entity = ThreadEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["thread_id"],
+        onDelete = ForeignKey.CASCADE
+    )],
+    indices = [Index("thread_id")]
+)
+data class CastSeedEntity(
+    @PrimaryKey val cast_id: String,
+    val thread_id: String,
+    val entity_id: String? = null,
+    val canonical_name: String,
+    val aliases: List<String> = emptyList(),
+    val role_background: String = "",
+    val personality: String = "",
+    val voice_style: String = "",
+    val appearance: String = "",
+    val goals: String = "",
+    val boundaries: String = "",
+    val provenance: String = "manual_seed",
+    val first_seen_turn_id: String? = null,
+    val evidence: List<String> = emptyList(),
+    val status: String = "active",
+    val speaker_eligible: Boolean = true,
+    val player_controlled: Boolean = false,
+    val manual_locks: List<String> = emptyList(),
+    val created_at: String,
+    val updated_at: String
+) {
+    fun toDomain() = CastProfile(
+        cast_id, entity_id, canonical_name, aliases, role_background, personality,
+        voice_style, appearance, goals, boundaries, provenance, first_seen_turn_id,
+        evidence, status, speaker_eligible, player_controlled, manual_locks
+    )
+}
+
+@Entity(
     tableName = "chat_branches",
     foreignKeys = [
         ForeignKey(
@@ -250,7 +289,9 @@ data class BranchEntity(
     val locked_at: String?,
     val created_by: String,
     val created_at: String,
-    val updated_at: String
+    val updated_at: String,
+    val active_speaker_id: String? = null,
+    val speaker_mode: String = "single"
 ) {
     fun toDomain() = ChatBranchRecord(
         id, thread_id, name, parent_branch_id, fork_turn_id, head_turn_id, is_active,
@@ -262,6 +303,45 @@ fun ChatBranchRecord.toEntity() = BranchEntity(
     id, thread_id, name, parent_branch_id, fork_turn_id, head_turn_id, is_active,
     generation_locked, locked_by_turn_id, locked_at, created_by, created_at, updated_at
 )
+
+@Entity(
+    tableName = "cast_profile_overrides",
+    primaryKeys = ["branch_id", "cast_id"],
+    foreignKeys = [ForeignKey(
+        entity = BranchEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["branch_id"],
+        onDelete = ForeignKey.CASCADE
+    )],
+    indices = [Index("branch_id"), Index("cast_id")]
+)
+data class CastProfileOverrideEntity(
+    val branch_id: String,
+    val cast_id: String,
+    val entity_id: String? = null,
+    val canonical_name: String,
+    val aliases: List<String> = emptyList(),
+    val role_background: String = "",
+    val personality: String = "",
+    val voice_style: String = "",
+    val appearance: String = "",
+    val goals: String = "",
+    val boundaries: String = "",
+    val provenance: String,
+    val first_seen_turn_id: String? = null,
+    val evidence: List<String> = emptyList(),
+    val status: String = "active",
+    val speaker_eligible: Boolean = true,
+    val player_controlled: Boolean = false,
+    val manual_locks: List<String> = emptyList(),
+    val updated_at: String
+) {
+    fun toDomain() = CastProfile(
+        cast_id, entity_id, canonical_name, aliases, role_background, personality,
+        voice_style, appearance, goals, boundaries, provenance, first_seen_turn_id,
+        evidence, status, speaker_eligible, player_controlled, manual_locks
+    )
+}
 
 @Entity(
     tableName = "chat_turns",
@@ -317,7 +397,11 @@ data class TurnEntity(
     val failure_code: String?,
     val failure_message: String?,
     val created_at: String,
-    val updated_at: String
+    val updated_at: String,
+    val requested_speaker_id: String? = null,
+    val requested_speaker_name: String? = null,
+    val speaker_mode: String = "single",
+    val rendered_user_message: String? = null
 ) {
     fun toDomain() = ChatTurnRecord(
         id, thread_id, branch_origin_id, parent_turn_id, user_input_text, user_input_payload,
@@ -374,6 +458,35 @@ data class SnapshotEntity(
     val world_state: DurableMemorySnapshot,
     val version: Int,
     val is_full_materialization: Boolean
+)
+
+@Entity(
+    tableName = "continuity_checkpoint_requests",
+    foreignKeys = [
+        ForeignKey(entity = ThreadEntity::class, parentColumns = ["id"], childColumns = ["thread_id"], onDelete = ForeignKey.CASCADE),
+        ForeignKey(entity = BranchEntity::class, parentColumns = ["id"], childColumns = ["branch_id"], onDelete = ForeignKey.CASCADE),
+        ForeignKey(entity = TurnEntity::class, parentColumns = ["id"], childColumns = ["target_turn_id"], onDelete = ForeignKey.CASCADE)
+    ],
+    indices = [Index("thread_id"), Index("branch_id"), Index("target_turn_id"), Index("status")]
+)
+data class ContinuityCheckpointEntity(
+    @PrimaryKey val id: String,
+    val protocol_version: Int = 1,
+    val thread_id: String,
+    val branch_id: String,
+    val target_turn_id: String,
+    val baseline_turn_id: String?,
+    val baseline_version: Int,
+    val baseline_hash: String = "",
+    val trigger_reason: String = "cadence",
+    val old_head_turn_id: String? = null,
+    val discarded_exchange_count: Int = 0,
+    val status: String = "pending_export",
+    val attempt_count: Int = 0,
+    val failure_detail: String? = null,
+    val created_at: String,
+    val updated_at: String,
+    val accepted_at: String? = null
 )
 
 @Entity(

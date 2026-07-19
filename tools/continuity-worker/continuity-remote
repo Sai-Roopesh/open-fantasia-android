@@ -1,0 +1,82 @@
+#!/bin/zsh
+set -eu
+
+here="$(cd "$(dirname "$0")" && pwd)"
+label="com.openfantasia.continuity-host"
+domain="gui/$UID"
+service="$domain/$label"
+plist="$HOME/Library/LaunchAgents/$label.plist"
+node_bin="$(command -v node)"
+export TAILSCALE_BE_CLI=1
+
+tailscale_bin=""
+for candidate in /usr/local/bin/tailscale /Applications/Tailscale.app/Contents/MacOS/Tailscale; do
+  if [ -x "$candidate" ]; then tailscale_bin="$candidate"; break; fi
+done
+
+require_tailscale() {
+  if [ -z "$tailscale_bin" ]; then
+    echo "Tailscale is not installed. Install the standalone Mac client and its CLI integration first." >&2
+    exit 1
+  fi
+}
+
+host_pid() {
+  launchctl print "$service" 2>/dev/null | awk '/pid =/{print $3; exit}'
+}
+
+endpoint() {
+  "$tailscale_bin" status --json | "$node_bin" -e 'let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>{const n=JSON.parse(s).Self.DNSName.replace(/\.$/,"");if(!n)process.exit(1);process.stdout.write(`https://${n}`)})'
+}
+
+command="${1:-status}"
+case "$command" in
+  on)
+    require_tailscale
+    [ -f "$plist" ] || { echo "Run $here/install-host-launch-agent.sh first." >&2; exit 1; }
+    "$tailscale_bin" up
+    launchctl enable "$service"
+    if ! launchctl print "$service" >/dev/null 2>&1; then launchctl bootstrap "$domain" "$plist"; fi
+    launchctl kickstart -k "$service"
+    "$tailscale_bin" serve --bg 47831
+    echo "Open Fantasia Continuity Host: on ($(endpoint))"
+    ;;
+  off)
+    require_tailscale
+    force="${2:-}"
+    pid="$(host_pid || true)"
+    launchctl disable "$service"
+    if [ "$force" = "--force" ]; then
+      launchctl kill SIGKILL "$service" 2>/dev/null || true
+      launchctl bootout "$service" 2>/dev/null || true
+    else
+      launchctl kill SIGTERM "$service" 2>/dev/null || true
+      if [ -n "$pid" ]; then
+        while kill -0 "$pid" 2>/dev/null; do sleep 1; done
+      fi
+      launchctl bootout "$service" 2>/dev/null || true
+    fi
+    "$tailscale_bin" serve off 2>/dev/null || true
+    "$tailscale_bin" down
+    echo "Open Fantasia Continuity Host: off"
+    ;;
+  status)
+    if launchctl print "$service" >/dev/null 2>&1; then echo "Continuity Host: on (pid $(host_pid))"; else echo "Continuity Host: off"; fi
+    if [ -n "$tailscale_bin" ]; then "$tailscale_bin" status --self 2>/dev/null || true; else echo "Tailscale: not installed"; fi
+    "$node_bin" "$here/host-cli.mjs" status
+    ;;
+  pair)
+    require_tailscale
+    "$node_bin" "$here/host-cli.mjs" pair --endpoint "$(endpoint)"
+    ;;
+  devices)
+    "$node_bin" "$here/host-cli.mjs" devices
+    ;;
+  revoke)
+    "$node_bin" "$here/host-cli.mjs" revoke "${2:-}"
+    ;;
+  *)
+    echo "Usage: continuity-remote {on|off [--force]|status|pair|devices|revoke ID}" >&2
+    exit 2
+    ;;
+esac

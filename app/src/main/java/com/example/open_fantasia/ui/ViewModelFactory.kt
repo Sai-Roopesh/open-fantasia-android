@@ -43,7 +43,8 @@ class ViewModelFactory(
             modelClass.isAssignableFrom(SettingsViewModel::class.java) -> {
                 SettingsViewModel(
                     connectionDao = appContainer.database.connectionDao(),
-                    llmClient = appContainer.llmClient
+                    llmClient = appContainer.llmClient,
+                    continuityHostClient = appContainer.continuityHostClient
                 ) as T
             }
             modelClass.isAssignableFrom(ChatViewModel::class.java) -> {
@@ -55,7 +56,10 @@ class ViewModelFactory(
                     connectionDao = appContainer.database.connectionDao(),
                     personaDao = appContainer.database.personaDao(),
                     llmClient = appContainer.llmClient,
-                    runContinuityExtractionUseCase = appContainer.runContinuityExtractionUseCase
+                    runContinuityExtractionUseCase = appContainer.runContinuityExtractionUseCase,
+                    continuityCheckpointCoordinator = appContainer.continuityCheckpointCoordinator,
+                    continuityHostClient = appContainer.continuityHostClient,
+                    context = context.applicationContext
                 ) as T
             }
             else -> throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")

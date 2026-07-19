@@ -4,11 +4,15 @@ import com.example.open_fantasia.domain.model.ConnectionRecord
 import com.example.open_fantasia.domain.model.ModelCatalogEntry
 import io.ktor.client.*
 import io.ktor.client.engine.mock.*
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.http.*
+import io.ktor.http.content.OutgoingContent
 import io.ktor.serialization.kotlinx.json.*
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -190,5 +194,52 @@ class KtorLLMClientTest {
         llmClient.discoverModels(conn)
 
         assertNull(refererHeader)
+    }
+
+    @Test
+    fun testDeepSeekStreamingRequestUsesExtendedTimeouts() {
+        val timeout = KtorLLMClient.streamingTimeoutOverrideFor("deepseek")
+
+        assertEquals(600_000L, timeout?.requestMillis)
+        assertEquals(150_000L, timeout?.connectMillis)
+        assertEquals(600_000L, timeout?.socketMillis)
+        assertNull(KtorLLMClient.streamingTimeoutOverrideFor("groq"))
+    }
+
+    @Test
+    fun testDeepSeekStreamingPayloadPreservesDefaultThinkingAndParsesVisibleContent() = runBlocking {
+        var requestJson = ""
+        val mockEngine = MockEngine { request ->
+            requestJson = (request.body as OutgoingContent.ByteArrayContent).bytes().decodeToString()
+            respond(
+                content = """
+                    data: {"choices":[{"delta":{"content":"Yunxi replies."},"finish_reason":null}],"usage":null}
+
+                    data: {"choices":[{"delta":{"content":""},"finish_reason":"stop"}],"usage":{"completion_tokens":3,"prompt_tokens":10,"total_tokens":13,"prompt_cache_hit_tokens":8,"prompt_cache_miss_tokens":2}}
+
+                    data: [DONE]
+                """.trimIndent(),
+                status = HttpStatusCode.OK,
+                headers = headersOf(HttpHeaders.ContentType, "text/event-stream")
+            )
+        }
+        val http = HttpClient(mockEngine) {
+            install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+            install(HttpTimeout)
+        }
+        val chunks = KtorLLMClient(http).streamGenerateText(
+            connection = makeMockConnection("deepseek", key = "test-key"),
+            modelId = "deepseek-v4-pro",
+            systemPrompt = "system",
+            messages = listOf(ChatMessage("user", "hello")),
+            temperature = 0.9,
+            topP = 0.9,
+            maxTokens = 1024
+        ).toList()
+
+        val payload = Json.parseToJsonElement(requestJson).jsonObject
+        assertFalse(payload.containsKey("thinking"))
+        assertEquals("Yunxi replies.", chunks.joinToString("") { it.text.orEmpty() })
+        assertEquals(8, chunks.last().promptCacheHitTokens)
     }
 }

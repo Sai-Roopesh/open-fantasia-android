@@ -27,6 +27,96 @@ class RunContinuityExtractionUseCase(
         coerceInputValues = true
     }
 
+    // JSON Schema describing [ExtractionOutput], sent as a json_schema response_format to providers
+    // that support grammar-constrained decoding. strict=false (see KtorLLMClient), so this is a
+    // strong shape hint rather than a rigid contract — it steers the model to the flat top-level
+    // layout (the dominant failure mode with loose json_object mode) without rejecting extra fields.
+    private val EXTRACTION_SCHEMA: JsonObject = buildExtractionSchema()
+
+    private fun buildExtractionSchema(): JsonObject {
+        fun typed(type: String) = buildJsonObject { put("type", type) }
+        fun strArray() = buildJsonObject {
+            put("type", "array")
+            put("items", typed("string"))
+        }
+        fun objArray(properties: JsonObject) = buildJsonObject {
+            put("type", "array")
+            put("items", buildJsonObject {
+                put("type", "object")
+                put("properties", properties)
+            })
+        }
+        return buildJsonObject {
+            put("type", "object")
+            put("properties", buildJsonObject {
+                put("transition_type", typed("string"))
+                put("story_summary", typed("string"))
+                put("scene_summary", typed("string"))
+                put("last_turn_beat", typed("string"))
+                put("narrative_timestamp", typed("string"))
+                put("entity_mutations", objArray(buildJsonObject {
+                    put("op", typed("string"))
+                    put("entity_id", typed("string"))
+                    put("canonical_name", typed("string"))
+                    put("entity_type", typed("string"))
+                    put("aliases", strArray())
+                    put("is_present", typed("boolean"))
+                    put("primary_emotion", typed("string"))
+                    put("emotion_intensity", typed("integer"))
+                    put("emotion_catalyst", typed("string"))
+                }))
+                put("fact_mutations", objArray(buildJsonObject {
+                    put("op", typed("string"))
+                    put("entity_id", typed("string"))
+                    put("fact_type", typed("string"))
+                    put("body", typed("string"))
+                    put("fact_id", typed("string"))
+                }))
+                put("relationship_mutations", objArray(buildJsonObject {
+                    put("op", typed("string"))
+                    put("relationship_id", typed("string"))
+                    put("source_entity_id", typed("string"))
+                    put("target_entity_id", typed("string"))
+                    put("relationship_type", typed("string"))
+                    put("dynamic_status", typed("string"))
+                }))
+                put("location_mutations", objArray(buildJsonObject {
+                    put("op", typed("string"))
+                    put("location_id", typed("string"))
+                    put("canonical_name", typed("string"))
+                    put("description", typed("string"))
+                    put("environmental_modifiers", strArray())
+                }))
+                put("location_edge_mutations", objArray(buildJsonObject {
+                    put("op", typed("string"))
+                    put("edge_id", typed("string"))
+                    put("from_location_id", typed("string"))
+                    put("to_location_id", typed("string"))
+                    put("is_bidirectional", typed("boolean"))
+                }))
+                put("placement_mutations", objArray(buildJsonObject {
+                    put("op", typed("string"))
+                    put("entity_id", typed("string"))
+                    put("to_location_id", typed("string"))
+                    put("micro_position", typed("string"))
+                }))
+                put("narrative_thread_mutations", objArray(buildJsonObject {
+                    put("op", typed("string"))
+                    put("thread_id", typed("string"))
+                    put("objective", typed("string"))
+                }))
+                put("timeline_events", objArray(buildJsonObject {
+                    put("title", typed("string"))
+                    put("detail", typed("string"))
+                    put("importance", typed("integer"))
+                    put("event_type", typed("string"))
+                    put("affected_entity_ids", strArray())
+                    put("affected_relationship_ids", strArray())
+                }))
+            })
+        }
+    }
+
     suspend fun execute(
         connection: ConnectionRecord,
         modelId: String,
@@ -34,10 +124,15 @@ class RunContinuityExtractionUseCase(
         currentSnapshot: DurableMemorySnapshot,
         recentMessages: List<ChatMessage>,
         isFullMaterialization: Boolean = false,
-        forceJson: Boolean = false
+        forceJson: Boolean = false,
+        userPersona: UserPersonaRecord? = null,
+        supportingCast: List<CastMember> = emptyList(),
+        // The brain provider supports json_schema response_format (Mistral/Groq/OpenRouter). When
+        // true, pass 1 uses grammar-constrained decoding; if that call fails we retry without it.
+        structuredOutput: Boolean = false
     ): ExtractionOutput {
         val transcript = formatTranscript(recentMessages)
-        var systemPrompt = buildExtractionSystemPrompt(character.name)
+        var systemPrompt = buildExtractionSystemPrompt(character.name, userPersona, supportingCast)
 
         if (isFullMaterialization) {
             systemPrompt += "\n\n" + """
@@ -59,26 +154,20 @@ class RunContinuityExtractionUseCase(
 
         val userMessage = buildExtractionUserMessage(currentSnapshot, transcript)
 
-        // 1. LLM Extraction Pass 1 (T=0.15)
-        Log.d(TAG, "Running HCE extraction pass 1 on $modelId")
-        val rawResult = llmClient.generateText(
-            connection = connection,
-            modelId = modelId,
-            systemPrompt = systemPrompt,
-            messages = listOf(ChatMessage(role = "user", content = userMessage)),
-            temperature = 0.15,
-            topP = 0.9,
-            maxTokens = 8000,
-            jsonMode = forceJson
-        )
-
-        var extraction = try {
-            val jsonBody = normalizeExtractionJson(extractJsonFromText(rawResult))
-            json.decodeFromString(ExtractionOutput.serializer(), jsonBody)
-        } catch (e: Exception) {
-            Log.e(TAG, "Pass 1 failed to parse: $rawResult", e)
-            throw Exception("Failed to parse initial HCE state extraction response: ${e.message}", e)
+        // 1. LLM Extraction Pass 1 (T=0.15). Try schema-constrained decoding first (when the
+        // provider supports it), then fall back to loose json_object, then to a raw retry. This
+        // never throws on a bad response — a total failure yields an empty (no-op) extraction so
+        // the caller carries the previous snapshot forward instead of poisoning the thread.
+        Log.d(TAG, "Running HCE extraction pass 1 on $modelId (structured=$structuredOutput)")
+        val firstAttempt =
+            runExtractionAttempt(connection, modelId, systemPrompt, userMessage, forceJson, useSchema = structuredOutput && forceJson)
+                ?: runExtractionAttempt(connection, modelId, systemPrompt, userMessage, forceJson, useSchema = false)
+                ?: runExtractionAttempt(connection, modelId, systemPrompt, userMessage, forceJson, useSchema = false)
+        if (firstAttempt == null) {
+            Log.e(TAG, "All HCE extraction attempts failed to parse; returning empty (no-op) extraction.")
+            return ExtractionOutput()
         }
+        var extraction: ExtractionOutput = firstAttempt
 
         // 2. Validate mutations
         var validation = StateValidator.validateAllMutations(extraction, currentSnapshot)
@@ -104,7 +193,9 @@ class RunContinuityExtractionUseCase(
                 recentTranscript = transcript,
                 previousOutput = extraction,
                 validationResult = validation,
-                forceJson = forceJson
+                forceJson = forceJson,
+                userPersona = userPersona,
+                supportingCast = supportingCast
             )
             if (reflected != null) {
                 val reflectedValidation = StateValidator.validateAllMutations(reflected, currentSnapshot)
@@ -126,6 +217,44 @@ class RunContinuityExtractionUseCase(
         return stripInvalidMutations(extraction, currentSnapshot)
     }
 
+    /**
+     * One extraction call + parse. Returns null (never throws) if the network call fails or the
+     * response can't be coerced into [ExtractionOutput], so [execute] can fall back to another
+     * attempt. When [useSchema] is set, the request carries a json_schema response_format; a
+     * provider that rejects the schema fails this attempt, and the caller retries with useSchema=false.
+     */
+    private suspend fun runExtractionAttempt(
+        connection: ConnectionRecord,
+        modelId: String,
+        systemPrompt: String,
+        userMessage: String,
+        forceJson: Boolean,
+        useSchema: Boolean
+    ): ExtractionOutput? {
+        return try {
+            val raw = llmClient.generateText(
+                connection = connection,
+                modelId = modelId,
+                systemPrompt = systemPrompt,
+                messages = listOf(ChatMessage(role = "user", content = userMessage)),
+                temperature = 0.15,
+                topP = 0.9,
+                maxTokens = 8000,
+                jsonMode = forceJson,
+                jsonSchema = if (useSchema) EXTRACTION_SCHEMA else null
+            )
+            if (raw.isBlank()) {
+                Log.w(TAG, "HCE extraction attempt returned empty text (useSchema=$useSchema)")
+                return null
+            }
+            val jsonBody = normalizeExtractionJson(extractJsonFromText(raw))
+            json.decodeFromString(ExtractionOutput.serializer(), jsonBody)
+        } catch (e: Exception) {
+            Log.w(TAG, "HCE extraction attempt failed (useSchema=$useSchema): ${e.message}")
+            null
+        }
+    }
+
     private suspend fun reflectOnFailedExtraction(
         connection: ConnectionRecord,
         modelId: String,
@@ -134,7 +263,9 @@ class RunContinuityExtractionUseCase(
         recentTranscript: String,
         previousOutput: ExtractionOutput,
         validationResult: FullValidationResult,
-        forceJson: Boolean
+        forceJson: Boolean,
+        userPersona: UserPersonaRecord? = null,
+        supportingCast: List<CastMember> = emptyList()
     ): ExtractionOutput? {
         val allErrors = mutableListOf<String>()
         allErrors.addAll(validationResult.entityErrors)
@@ -184,7 +315,7 @@ class RunContinuityExtractionUseCase(
             val rawReflected = llmClient.generateText(
                 connection = connection,
                 modelId = modelId,
-                systemPrompt = buildExtractionSystemPrompt(character.name),
+                systemPrompt = buildExtractionSystemPrompt(character.name, userPersona, supportingCast),
                 messages = listOf(ChatMessage(role = "user", content = reflectionPrompt)),
                 temperature = 0.1,
                 topP = 0.9,
@@ -238,11 +369,36 @@ class RunContinuityExtractionUseCase(
         return messages.joinToString("\n\n") { "${it.role.uppercase()}: ${it.content}" }
     }
 
-    private fun buildExtractionSystemPrompt(characterName: String): String {
+    private fun buildExtractionSystemPrompt(
+        characterName: String,
+        userPersona: UserPersonaRecord? = null,
+        supportingCast: List<CastMember> = emptyList()
+    ): String {
+        val personaName = userPersona?.name?.takeIf { it.isNotBlank() }
+        val personaBlock = if (personaName != null) {
+            val identity = userPersona?.identity?.takeIf { it.isNotBlank() }?.let { " — $it" } ?: ""
+            "The user/player character (the \"user\" voice in the transcript; first-person \"I\"/\"me\" in USER turns) is \"$personaName\"$identity"
+        } else {
+            "The user/player character speaks in first person (\"I\"/\"me\" in USER turns). Their name may not appear in their own dialogue."
+        }
+        val castBlock = supportingCast
+            .filter { it.name.isNotBlank() }
+            .joinToString("\n") { "- ${it.name}: ${it.description.take(160)}" }
+            .takeIf { it.isNotBlank() }
+            ?.let { "\nOther known characters who may be referenced (they are NOT necessarily present in the current scene):\n$it" }
+            ?: ""
+
         return """
             You are the Hybrid Continuity Engine (HCE) state extractor for a private roleplay branch.
-            The roleplay character is "$characterName".
+            The roleplay character (the "assistant" voice in the transcript) is "$characterName".
+            $personaBlock$castBlock
             Return ONLY valid JSON matching the requested schema. No prose, no markdown fences.
+
+            # Identity rules (CRITICAL — these prevent entity corruption)
+            - Bind the first-person "I"/"me"/"my" in USER turns to the player character${personaName?.let { " (\"$it\")" } ?: ""}. That speaker is ONE consistent person across the whole transcript, even when the USER text never states their name.
+            - Use ONLY names that appear in the roster above or are stated literally in the transcript. NEVER invent, guess, or borrow a proper name for a character the text leaves unnamed. If a present character has no stated name, use a short descriptive placeholder (e.g. "the visitor") — do NOT assign them a real-sounding name.
+            - Each named person is exactly ONE entity. NEVER merge two distinct named characters into a single entity, and never stack the names of different people as aliases of one entity. If Current_State has already merged two people (e.g. one entity carrying two different proper names as aliases), SPLIT them: keep the correct name for the present character and remove the foreign name.
+            - A character merely mentioned in backstory or dialogue is NOT present. Only set presence/placement for characters actually in the current scene.
 
             # Exact output shape
             All keys are top-level. Every *_mutations field is a FLAT array whose items each carry an "op". Do NOT nest summaries under a "summaries" object. Do NOT group mutations by operation (never {"add":[...],"update":[...]}). emotion_intensity is an integer 0-100.

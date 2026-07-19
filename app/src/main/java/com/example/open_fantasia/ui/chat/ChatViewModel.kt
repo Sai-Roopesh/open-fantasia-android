@@ -1,6 +1,7 @@
 package com.example.open_fantasia.ui.chat
 
 import android.util.Log
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.open_fantasia.data.local.dao.CharacterDao
@@ -16,14 +17,25 @@ import com.example.open_fantasia.data.local.entity.SnapshotEntity
 import com.example.open_fantasia.data.local.entity.ThreadEntity
 import com.example.open_fantasia.data.local.entity.TurnEntity
 import com.example.open_fantasia.data.local.entity.TimelineEntity
+import com.example.open_fantasia.data.local.entity.ContinuityCheckpointEntity
+import com.example.open_fantasia.data.local.entity.CastSeedEntity
+import com.example.open_fantasia.data.local.entity.CastProfileOverrideEntity
+import com.example.open_fantasia.data.continuity.ContinuityCheckpointCoordinator
+import com.example.open_fantasia.data.continuity.ContinuityHostClient
+import com.example.open_fantasia.data.continuity.ContinuityHostState
+import com.example.open_fantasia.data.continuity.ContinuityCheckpointScheduler
 import com.example.open_fantasia.data.remote.ChatMessage
 import com.example.open_fantasia.data.remote.LLMClient
 import com.example.open_fantasia.domain.model.CharacterBundle
+import com.example.open_fantasia.domain.model.CastMember
+import com.example.open_fantasia.domain.model.CastProfile
+import com.example.open_fantasia.domain.model.UserPersonaRecord
 import com.example.open_fantasia.domain.model.parseSupportingCast
 import com.example.open_fantasia.domain.model.DurableMemorySnapshot
 import com.example.open_fantasia.domain.model.SnapshotMetadata
 import com.example.open_fantasia.domain.model.SpatialState
 import com.example.open_fantasia.domain.model.NarrativeState
+import com.example.open_fantasia.domain.model.resolveCastRoster
 import com.example.open_fantasia.domain.reducer.PromptBuilder
 import com.example.open_fantasia.domain.reducer.WorldStateReducer
 import com.example.open_fantasia.domain.usecase.RunContinuityExtractionUseCase
@@ -37,6 +49,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import java.time.Instant
 import java.util.UUID
 
@@ -57,7 +71,11 @@ sealed interface ChatUiState {
         val activePersona: PersonaEntity?,
         val isGenerating: Boolean,
         val generatingText: String,
-        val isScanning: Boolean
+        val isScanning: Boolean,
+        val checkpoint: ContinuityCheckpointEntity?,
+        val continuityHostState: ContinuityHostState,
+        val exchangesUntilCheckpoint: Int,
+        val castRoster: List<CastProfile>
     ) : ChatUiState
 }
 
@@ -68,7 +86,10 @@ class ChatViewModel(
     private val connectionDao: ConnectionDao,
     private val personaDao: PersonaDao,
     private val llmClient: LLMClient,
-    private val runContinuityExtractionUseCase: RunContinuityExtractionUseCase
+    private val runContinuityExtractionUseCase: RunContinuityExtractionUseCase,
+    private val continuityCheckpointCoordinator: ContinuityCheckpointCoordinator,
+    private val continuityHostClient: ContinuityHostClient,
+    private val context: Context
 ) : ViewModel() {
 
     private val FIXED_USER_ID = "00000000-0000-0000-0000-000000000000"
@@ -76,6 +97,33 @@ class ChatViewModel(
     init {
         viewModelScope.launch {
             chatDao.clearStaleLocks()
+            chatDao.markEmptyCommittedTurnsFailed(Instant.now().toString())
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            while (isActive) {
+                try {
+                    chatDao.getPendingCheckpoints().filter { it.thread_id == threadId }.forEach { request ->
+                        if (request.status != "failed") ContinuityCheckpointScheduler.enqueue(context)
+                        val thread = chatDao.getThread(threadId) ?: return@forEach
+                        val character = characterDao.getCharacter(thread.character_id) ?: return@forEach
+                        val persona = thread.persona_id?.let { personaDao.getPersona(it) }
+                        continuityCheckpointCoordinator.sync(
+                            request, character, persona,
+                            chatDao.getActivePins(threadId, request.branch_id), thread.director_notes
+                        )
+                    }
+                } catch (_: Exception) {
+                    // The database can close underneath instrumentation teardown; retry on the next tick in normal use.
+                }
+                delay(10_000)
+            }
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            while (isActive) {
+                try { continuityHostClient.checkHealth() }
+                catch (error: Throwable) { continuityHostClient.markUnavailable(error) }
+                delay(30_000)
+            }
         }
     }
 
@@ -88,12 +136,24 @@ class ChatViewModel(
     private val _isScanning = MutableStateFlow(false)
     val isScanning = _isScanning.asStateFlow()
 
+    // One-shot user-facing result of the last Deep Scan (success/failure). The UI shows it as a
+    // toast then calls consumeScanEvent(). Deep Scan used to fail silently — this makes it visible.
+    private val _scanEvent = MutableStateFlow<String?>(null)
+    val scanEvent = _scanEvent.asStateFlow()
+    fun consumeScanEvent() { _scanEvent.value = null }
+
+    // Turn ids we've already attempted to self-heal this session, so an empty snapshot doesn't
+    // re-trigger a rebuild on every slow-state re-emission.
+    private val selfHealAttempted = java.util.Collections.synchronizedSet(mutableSetOf<String>())
+
     private data class DbState(
         val thread: ThreadEntity?,
         val activeBranch: BranchEntity?,
         val branches: List<BranchEntity>,
         val turns: List<TurnEntity>,
-        val timelineEvents: List<TimelineEntity>
+        val timelineEvents: List<TimelineEntity>,
+        val castSeeds: List<CastSeedEntity> = emptyList(),
+        val castOverrides: List<CastProfileOverrideEntity> = emptyList()
     )
 
 
@@ -101,7 +161,7 @@ class ChatViewModel(
     // fast-changing stream flags (isGenerating/generatingText/isScanning) are layered on
     // afterwards, so a streamed token does NOT re-run getCharacter/getSnapshot/getActivePins.
     private val slowChatState = combine(
-        combine(
+        combine(combine(combine(
             chatDao.getThreadFlow(threadId),
             chatDao.getActiveBranchForThreadFlow(threadId),
             chatDao.getBranchesForThreadFlow(threadId),
@@ -109,12 +169,17 @@ class ChatViewModel(
             chatDao.getAllTimelineEventsForThreadFlow(threadId)
         ) { thread, activeBranch, branches, turns, timeline ->
             DbState(thread, activeBranch, branches, turns, timeline)
+        }, chatDao.getCastSeedsFlow(threadId)) { dbState, castSeeds ->
+            dbState.copy(castSeeds = castSeeds)
+        }, chatDao.getCastOverridesForThreadFlow(threadId)) { dbState, overrides ->
+            dbState.copy(castOverrides = overrides)
         },
         connectionDao.getAllConnectionsFlow(),
         personaDao.getAllPersonasFlow(),
         // Re-emits when a snapshot is saved (background HCE materialization) so currentSnapshot re-queries.
-        chatDao.getSnapshotSignalFlow(threadId)
-    ) { dbState, connections, personas, _ ->
+        chatDao.getSnapshotSignalFlow(threadId),
+        chatDao.getCheckpointsForThreadFlow(threadId)
+    ) { dbState, connections, personas, _, checkpoints ->
         val thread = dbState.thread
         val activeBranch = dbState.activeBranch
         if (thread == null || activeBranch == null) {
@@ -126,9 +191,20 @@ class ChatViewModel(
             } else {
                 val branchTurns = buildTurnPath(dbState.turns, activeBranch.head_turn_id)
                 val latestTurn = branchTurns.lastOrNull { it.generation_status == "committed" }
-                val snapshot = latestTurn?.let { chatDao.getSnapshot(it.id)?.world_state }
+                val snapshot = latestTurn?.let { chatDao.getNearestSnapshot(it.id)?.world_state }
+                val baselineIndex = snapshot?.metadata?.current_turn_id?.let { id -> branchTurns.indexOfFirst { it.id == id } } ?: -1
+                val exchangesSinceSnapshot = branchTurns.drop(baselineIndex + 1)
+                    .count { it.generation_status == "committed" && !it.starter_seed }
+                val lineageIds = branchTurns.map { it.id }.toSet()
+                val checkpoint = checkpoints.firstOrNull { it.status != "accepted" && it.target_turn_id in lineageIds }
                 val pins = chatDao.getActivePins(threadId, activeBranch.id)
                 val activePersona = thread.persona_id?.let { pid -> personas.find { it.id == pid } }
+                val castRoster = resolveCastRoster(
+                    snapshot = snapshot,
+                    seeds = dbState.castSeeds.map { it.toDomain() },
+                    overrides = dbState.castOverrides.filter { it.branch_id == activeBranch.id }.map { it.toDomain() },
+                    playerName = activePersona?.name
+                )
 
                 ChatUiState.Success(
                     thread = thread,
@@ -144,7 +220,11 @@ class ChatViewModel(
                     activePersona = activePersona,
                     isGenerating = false,
                     generatingText = "",
-                    isScanning = false
+                    isScanning = false,
+                    checkpoint = checkpoint,
+                    continuityHostState = continuityHostClient.state.value,
+                    exchangesUntilCheckpoint = (7 - exchangesSinceSnapshot).coerceAtLeast(0),
+                    castRoster = castRoster
                 )
             }
         }
@@ -154,11 +234,12 @@ class ChatViewModel(
         slowChatState,
         _isGenerating,
         _generatingText,
-        _isScanning
-    ) { slow, isGen, genText, isScan ->
+        _isScanning,
+        continuityHostClient.state
+    ) { slow, isGen, genText, isScan, hostState ->
         // Cheap overlay of fast-changing stream state — no DB work on each streamed token.
         if (slow is ChatUiState.Success) {
-            slow.copy(isGenerating = isGen, generatingText = genText, isScanning = isScan)
+            slow.copy(isGenerating = isGen, generatingText = genText, isScanning = isScan, continuityHostState = hostState)
         } else slow
     }.stateIn(
         scope = viewModelScope,
@@ -172,14 +253,42 @@ class ChatViewModel(
         parentTurnIdOverride: String? = null,
         forceParentOverride: Boolean = false,
         replaceTurnId: String? = null,
-        expectedHeadTurnIdOverride: String? = null
+        expectedHeadTurnIdOverride: String? = null,
+        requestedSpeakerIdOverride: String? = null,
+        speakerModeOverride: String? = null
     ) {
         if (inputText.isBlank()) return
         viewModelScope.launch {
             val state = uiState.value as? ChatUiState.Success ?: return@launch
             val thread = state.thread
             val activeBranch = state.activeBranch
+            if (state.checkpoint != null) return@launch
             val connection = connectionDao.getConnection(thread.connection_id) ?: return@launch
+
+            val shortcut = resolveSpeakerShortcut(inputText, state.castRoster)
+            val visibleInput = shortcut?.second ?: inputText
+            val speakerMode = speakerModeOverride ?: activeBranch.speaker_mode
+            val requestedSpeakerId = requestedSpeakerIdOverride ?: shortcut?.first?.cast_id
+                ?: activeBranch.active_speaker_id ?: "primary:${thread.id}"
+            val activeSpeaker = state.castRoster.firstOrNull { it.cast_id == requestedSpeakerId }
+                ?: state.castRoster.firstOrNull { it.provenance == "primary" }
+            val turnInputPayload = "{\"sticky_speaker_id\":\"${activeBranch.active_speaker_id ?: "primary:${thread.id}"}\",\"sticky_mode\":\"${activeBranch.speaker_mode}\",\"shortcut\":${shortcut != null}}"
+
+            val parentSnapshot = if (forceParentOverride && parentTurnIdOverride != null) {
+                chatDao.getNearestSnapshot(parentTurnIdOverride)?.world_state
+            } else {
+                state.currentSnapshot
+            }
+            val stateContext = PromptBuilder.buildStateContext(
+                snapshot = parentSnapshot,
+                pins = state.pins.map { it.toDomain() },
+                timeline = emptyList(),
+                replyLengthTokens = thread.max_output_tokens,
+                activeSpeaker = activeSpeaker,
+                castRoster = state.castRoster,
+                speakerMode = speakerMode
+            )
+            val renderedUserMessage = "$stateContext\n\n$visibleInput"
 
             _isGenerating.value = true
             _generatingText.value = ""
@@ -190,10 +299,14 @@ class ChatViewModel(
                     userId = FIXED_USER_ID,
                     branchId = activeBranch.id,
                     expectedHeadTurnId = expectedHeadTurnIdOverride ?: activeBranch.head_turn_id,
-                    userInputText = inputText,
-                    userInputPayload = "{}",
+                    userInputText = visibleInput,
+                    userInputPayload = turnInputPayload,
                     parentTurnIdOverride = parentTurnIdOverride,
-                    forceParentOverride = forceParentOverride
+                    forceParentOverride = forceParentOverride,
+                    requestedSpeakerId = activeSpeaker?.cast_id,
+                    requestedSpeakerName = if (speakerMode == "ensemble") "Ensemble" else activeSpeaker?.canonical_name,
+                    speakerMode = speakerMode,
+                    renderedUserMessage = renderedUserMessage
                 )
             } catch (e: Exception) {
                 _isGenerating.value = false
@@ -201,27 +314,11 @@ class ChatViewModel(
             }
 
             // 2. Build system prompt & messages context
-            val parentSnapshot = if (forceParentOverride && parentTurnIdOverride != null) {
-                chatDao.getSnapshot(parentTurnIdOverride)?.world_state
-            } else {
-                state.currentSnapshot
-            }
-
             // Static, per-thread system prompt = the cacheable prefix.
             val systemPrompt = PromptBuilder.buildSystemPrompt(
                 characterBundle = CharacterBundle(state.character.toDomain(), state.character.starters, state.character.example_conversations),
                 persona = state.activePersona?.toDomain(),
-                directorNotes = thread.director_notes,
-                supportingCast = parseSupportingCast(thread.supporting_cast)
-            )
-            // Volatile world state rides on the latest user turn (after the cached history),
-            // NOT in the system prompt — so the static system + conversation history prefix
-            // stays byte-identical across turns and gets a prompt-cache hit.
-            val stateContext = PromptBuilder.buildStateContext(
-                snapshot = parentSnapshot,
-                pins = state.pins.map { it.toDomain() },
-                timeline = emptyList(),
-                replyLengthTokens = thread.max_output_tokens
+                directorNotes = thread.director_notes
             )
 
             val allTurns = chatDao.getTurnsForThread(thread.id)
@@ -230,13 +327,13 @@ class ChatViewModel(
             val apiMessages = mutableListOf<ChatMessage>()
             historyTurns.forEach { turn ->
                 if (turn.generation_status == "committed") {
-                    apiMessages.add(ChatMessage(role = "user", content = turn.user_input_text))
+                    apiMessages.add(ChatMessage(role = "user", content = turn.rendered_user_message ?: turn.user_input_text))
                     turn.assistant_output_text?.let {
                         apiMessages.add(ChatMessage(role = "assistant", content = it))
                     }
                 }
             }
-            apiMessages.add(ChatMessage(role = "user", content = "$stateContext\n\n$inputText"))
+            apiMessages.add(ChatMessage(role = "user", content = renderedUserMessage))
 
             // Add steering guidance if provided
             val guidanceText = guidance?.trim()
@@ -253,6 +350,11 @@ class ChatViewModel(
 
             // 3. Stream from client
             var accumulatedText = ""
+            var providerTotalTokens: Int? = null
+            var providerPromptTokens: Int? = null
+            var providerCompletionTokens: Int? = null
+            var cacheHitTokens: Int? = null
+            var cacheMissTokens: Int? = null
             try {
                 llmClient.streamGenerateText(
                     connection = connection.toDomain(),
@@ -264,13 +366,27 @@ class ChatViewModel(
                     maxTokens = thread.max_output_tokens
                 ).collect { chunk ->
                     accumulatedText += chunk.text ?: ""
+                    providerTotalTokens = chunk.totalTokens ?: providerTotalTokens
+                    providerPromptTokens = chunk.promptTokens ?: providerPromptTokens
+                    providerCompletionTokens = chunk.completionTokens ?: providerCompletionTokens
+                    cacheHitTokens = chunk.promptCacheHitTokens ?: cacheHitTokens
+                    cacheMissTokens = chunk.promptCacheMissTokens ?: cacheMissTokens
                     _generatingText.value = accumulatedText
                 }
 
                 // Estimate token usage if the provider doesn't supply it
                 val generatedTokens = accumulatedText.split(Regex("\\s+")).size * 4 / 3
                 val promptTokens = systemPrompt.split(Regex("\\s+")).size * 4 / 3 + apiMessages.sumOf { it.content.split(Regex("\\s+")).size * 4 / 3 }
-                val totalTokens = generatedTokens + promptTokens
+                val finalPromptTokens = providerPromptTokens ?: promptTokens
+                val finalCompletionTokens = providerCompletionTokens ?: generatedTokens
+                val totalTokens = providerTotalTokens ?: (finalCompletionTokens + finalPromptTokens)
+                val assistantPayload = buildString {
+                    append("{\"prompt_cache_hit_tokens\":")
+                    append(cacheHitTokens ?: "null")
+                    append(",\"prompt_cache_miss_tokens\":")
+                    append(cacheMissTokens ?: "null")
+                    append('}')
+                }
 
                 // 4. Commit turn on success
                 chatDao.commitTurn(
@@ -278,26 +394,15 @@ class ChatViewModel(
                     branchId = activeBranch.id,
                     turnId = newTurn.id,
                     assistantText = accumulatedText,
-                    assistantPayload = "{}",
+                    assistantPayload = assistantPayload,
                     provider = connection.provider,
                     model = thread.model_id,
                     label = connection.label,
                     finishReason = "stop",
                     totalTokens = totalTokens,
-                    promptTokens = promptTokens,
-                    completionTokens = generatedTokens,
+                    promptTokens = finalPromptTokens,
+                    completionTokens = finalCompletionTokens,
                     replaceTurnId = replaceTurnId
-                )
-
-                // 5. Trigger background snapshot materialization
-                materializeSnapshotForTurnInBackground(
-                    thread = thread,
-                    character = state.character,
-                    connection = connection,
-                    turn = newTurn.copy(assistant_output_text = accumulatedText),
-                    previousSnapshot = parentSnapshot,
-                    recentMessages = apiMessages,
-                    historyTurns = historyTurns
                 )
 
             } catch (e: Exception) {
@@ -334,6 +439,8 @@ class ChatViewModel(
                 forceParentOverride = true,
                 replaceTurnId = latestTurn.id,
                 expectedHeadTurnIdOverride = latestTurn.id
+                , requestedSpeakerIdOverride = latestTurn.requested_speaker_id
+                , speakerModeOverride = latestTurn.speaker_mode
             )
         }
     }
@@ -352,8 +459,94 @@ class ChatViewModel(
                 forceParentOverride = true,
                 replaceTurnId = targetTurn.id,
                 expectedHeadTurnIdOverride = activeBranch.head_turn_id
+                , requestedSpeakerIdOverride = targetTurn.requested_speaker_id
+                , speakerModeOverride = targetTurn.speaker_mode
             )
         }
+    }
+
+    fun selectSpeaker(castId: String) {
+        viewModelScope.launch {
+            val state = uiState.value as? ChatUiState.Success ?: return@launch
+            val valid = state.castRoster.any { it.cast_id == castId && it.status == "active" && it.speaker_eligible && !it.player_controlled }
+            if (valid) chatDao.setActiveSpeaker(state.activeBranch.id, castId, "single", Instant.now().toString())
+        }
+    }
+
+    fun selectEnsemble() {
+        viewModelScope.launch {
+            val state = uiState.value as? ChatUiState.Success ?: return@launch
+            chatDao.setActiveSpeaker(state.activeBranch.id, state.activeBranch.active_speaker_id, "ensemble", Instant.now().toString())
+        }
+    }
+
+    fun saveCastProfile(profile: CastProfile) {
+        if (profile.provenance == "primary" || profile.canonical_name.isBlank()) return
+        viewModelScope.launch {
+            val state = uiState.value as? ChatUiState.Success ?: return@launch
+            val now = Instant.now().toString()
+            val locked = listOf(
+                "canonical_name", "aliases", "role_background", "personality", "voice_style",
+                "appearance", "goals", "boundaries", "status", "speaker_eligible"
+            )
+            if (profile.provenance == "manual_seed") {
+                chatDao.upsertCastSeed(
+                    CastSeedEntity(
+                        cast_id = profile.cast_id, thread_id = threadId, entity_id = profile.entity_id,
+                        canonical_name = profile.canonical_name.trim(), aliases = profile.aliases,
+                        role_background = profile.role_background.trim(), personality = profile.personality.trim(),
+                        voice_style = profile.voice_style.trim(), appearance = profile.appearance.trim(),
+                        goals = profile.goals.trim(), boundaries = profile.boundaries.trim(),
+                        provenance = profile.provenance, first_seen_turn_id = profile.first_seen_turn_id,
+                        evidence = profile.evidence, status = profile.status,
+                        speaker_eligible = profile.speaker_eligible, player_controlled = false,
+                        manual_locks = locked, created_at = now, updated_at = now
+                    )
+                )
+            } else {
+                chatDao.upsertCastOverride(
+                    CastProfileOverrideEntity(
+                        branch_id = state.activeBranch.id, cast_id = profile.cast_id, entity_id = profile.entity_id,
+                        canonical_name = profile.canonical_name.trim(), aliases = profile.aliases,
+                        role_background = profile.role_background.trim(), personality = profile.personality.trim(),
+                        voice_style = profile.voice_style.trim(), appearance = profile.appearance.trim(),
+                        goals = profile.goals.trim(), boundaries = profile.boundaries.trim(),
+                        provenance = profile.provenance, first_seen_turn_id = profile.first_seen_turn_id,
+                        evidence = profile.evidence, status = profile.status,
+                        speaker_eligible = profile.speaker_eligible, player_controlled = false,
+                        manual_locks = locked, updated_at = now
+                    )
+                )
+            }
+            if (profile.status == "archived" && state.activeBranch.active_speaker_id == profile.cast_id) {
+                chatDao.setActiveSpeaker(state.activeBranch.id, "primary:$threadId", "single", now)
+            }
+        }
+    }
+
+    fun addManualCast(name: String, roleBackground: String) {
+        val cleanName = name.trim()
+        if (cleanName.isEmpty()) return
+        saveCastProfile(
+            CastProfile(
+                cast_id = "seed:$threadId:${UUID.randomUUID()}", canonical_name = cleanName,
+                role_background = roleBackground.trim(), provenance = "manual_seed",
+                manual_locks = listOf("canonical_name", "role_background")
+            )
+        )
+    }
+
+    private fun resolveSpeakerShortcut(input: String, roster: List<CastProfile>): Pair<CastProfile, String>? {
+        if (!input.startsWith('@')) return null
+        val candidates = roster.filter { it.status == "active" && it.speaker_eligible && !it.player_controlled }
+            .flatMap { profile -> (listOf(profile.canonical_name) + profile.aliases).map { it to profile } }
+            .sortedByDescending { it.first.length }
+        val match = candidates.firstOrNull { (name, _) ->
+            input.regionMatches(1, name, 0, name.length, ignoreCase = true) &&
+                input.getOrNull(name.length + 1)?.let { it.isWhitespace() || it in ":,-" } != false
+        } ?: return null
+        val stripped = input.drop(match.first.length + 1).trimStart(' ', '\t', ':', ',', '-')
+        return match.second to stripped.ifBlank { input }
     }
 
     /** In-place edit of the assistant reply (web "Edit last reply"): rewrites the
@@ -361,6 +554,7 @@ class ChatViewModel(
     fun editAssistantText(turnId: String, newText: String) {
         viewModelScope.launch {
             val state = uiState.value as? ChatUiState.Success ?: return@launch
+            if (state.checkpoint != null) return@launch
             val turn = state.turns.find { it.id == turnId } ?: return@launch
             chatDao.updateTurn(
                 turn.copy(
@@ -374,6 +568,7 @@ class ChatViewModel(
     fun rewindToTurn(turnId: String) {
         viewModelScope.launch {
             val state = uiState.value as? ChatUiState.Success ?: return@launch
+            if (state.checkpoint != null) return@launch
             val activeBranch = state.activeBranch
             chatDao.rewindBranchToTurn(
                 userId = FIXED_USER_ID,
@@ -387,6 +582,7 @@ class ChatViewModel(
     fun createBranch(turnId: String, branchName: String) {
         viewModelScope.launch {
             val state = uiState.value as? ChatUiState.Success ?: return@launch
+            if (state.checkpoint != null) return@launch
             val activeBranch = state.activeBranch
             chatDao.createBranchFromTurn(
                 userId = FIXED_USER_ID,
@@ -411,6 +607,7 @@ class ChatViewModel(
     fun togglePin(turnId: String, body: String) {
         viewModelScope.launch {
             val state = uiState.value as? ChatUiState.Success ?: return@launch
+            if (state.checkpoint != null) return@launch
             val activeBranch = state.activeBranch
             val existing = state.pins.find { it.turn_id == turnId }
             if (existing != null) {
@@ -439,6 +636,7 @@ class ChatViewModel(
         if (text.isEmpty()) return
         viewModelScope.launch {
             val state = uiState.value as? ChatUiState.Success ?: return@launch
+            if (state.checkpoint != null) return@launch
             val activeBranch = state.activeBranch
             val now = Instant.now().toString()
             chatDao.insertPin(
@@ -460,6 +658,7 @@ class ChatViewModel(
     fun removePin(pinId: String) {
         viewModelScope.launch {
             val state = uiState.value as? ChatUiState.Success ?: return@launch
+            if (state.checkpoint != null) return@launch
             val existing = state.pins.find { it.id == pinId } ?: return@launch
             chatDao.insertPin(existing.copy(status = "inactive", updated_at = Instant.now().toString()))
         }
@@ -479,10 +678,11 @@ class ChatViewModel(
         personaId: String?,
         brainConnectionId: String?,
         brainModelId: String?,
-        directorNotes: String,
-        supportingCast: String
+        directorNotes: String
     ) {
         viewModelScope.launch {
+            val state = uiState.value as? ChatUiState.Success ?: return@launch
+            if (state.checkpoint != null) return@launch
             val thread = chatDao.getThread(threadId) ?: return@launch
             val updated = thread.copy(
                 connection_id = connectionId,
@@ -492,7 +692,6 @@ class ChatViewModel(
                 brain_connection_id = brainConnectionId,
                 brain_model_id = brainModelId,
                 director_notes = directorNotes.trim(),
-                supporting_cast = supportingCast,
                 updated_at = Instant.now().toString()
             )
             chatDao.updateThread(updated)
@@ -501,102 +700,18 @@ class ChatViewModel(
 
     fun runDeepScan() {
         val state = uiState.value as? ChatUiState.Success ?: return
-        if (_isScanning.value) return
-        _isScanning.value = true
-        viewModelScope.launch(Dispatchers.Default) {
-            try {
-                val thread = state.thread
-                val activeBranch = state.activeBranch
-                val connection = connectionDao.getConnection(thread.connection_id) ?: return@launch
-                val character = state.character
+        viewModelScope.launch {
+            try { chatDao.requestEarlyCheckpoint(state.activeBranch.id); _scanEvent.value = "Continuity update requested — waiting for Codex." }
+            catch (e: Exception) { _scanEvent.value = e.message ?: "Unable to request continuity update" }
+        }
+    }
 
-                val branchTurns = state.turns
-                val apiMessages = mutableListOf<ChatMessage>()
-                branchTurns.forEach { turn ->
-                    if (turn.generation_status == "committed") {
-                        apiMessages.add(ChatMessage(role = "user", content = turn.user_input_text))
-                        turn.assistant_output_text?.let {
-                            apiMessages.add(ChatMessage(role = "assistant", content = it))
-                        }
-                    }
-                }
-
-                val brainConnection = thread.brain_connection_id?.let { connectionDao.getConnection(it) } ?: connection
-                val brainModel = thread.brain_model_id ?: thread.model_id
-                val brainSupportsJson = brainConnection.model_cache.find { it.id == brainModel }?.supportsJson == true
-                val baseSnapshot = state.currentSnapshot ?: buildEmptyDurableSnapshot(activeBranch.head_turn_id ?: "turn-0")
-
-                val extraction = runContinuityExtractionUseCase.execute(
-                    connection = brainConnection.toDomain(),
-                    modelId = brainModel,
-                    character = character.toDomain(),
-                    currentSnapshot = baseSnapshot,
-                    recentMessages = apiMessages,
-                    isFullMaterialization = true,
-                    forceJson = brainSupportsJson
-                )
-
-                val reducerResult = WorldStateReducer.applyExtractionToSnapshot(
-                    previous = baseSnapshot,
-                    extraction = extraction,
-                    turnId = activeBranch.head_turn_id ?: ""
-                )
-
-                if (activeBranch.head_turn_id != null) {
-                    chatDao.upsertWorldSnapshot(
-                        turnId = activeBranch.head_turn_id,
-                        threadId = thread.id,
-                        branchId = activeBranch.id,
-                        basedOnTurnId = branchTurns.lastOrNull()?.parent_turn_id,
-                        worldState = reducerResult.snapshot,
-                        version = reducerResult.snapshot.metadata.version, // no double increment
-                        isFullMaterialization = true
-                    )
-
-                    // Persist timeline events
-                    val nowStr = Instant.now().toString()
-                    extraction.timeline_events.filter { it.title.isNotBlank() }.forEach { event ->
-                        val resolvedEntityIds = event.affected_entity_ids.map { id ->
-                            reducerResult.newEntityIds[id] ?: id
-                        }
-                        chatDao.insertTimelineEvent(
-                            TimelineEntity(
-                                id = UUID.randomUUID().toString(),
-                                thread_id = thread.id,
-                                branch_id = activeBranch.id,
-                                turn_id = activeBranch.head_turn_id,
-                                title = event.title,
-                                detail = event.detail,
-                                importance = event.importance,
-                                event_type = event.event_type,
-                                affected_entity_ids = resolvedEntityIds,
-                                affected_relationship_ids = event.affected_relationship_ids,
-                                created_at = nowStr
-                            )
-                        )
-                    }
-
-                    chatDao.insertTimelineEvent(
-                        TimelineEntity(
-                            id = UUID.randomUUID().toString(),
-                            thread_id = thread.id,
-                            branch_id = activeBranch.id,
-                            turn_id = activeBranch.head_turn_id,
-                            title = "Deep Scan Complete",
-                            detail = "Periodic defragmentation pass resolved character emotional drift, updated memories, and pruned stale entity relationships.",
-                            importance = 3,
-                            event_type = "beat",
-                            affected_entity_ids = emptyList(),
-                            affected_relationship_ids = emptyList(),
-                            created_at = nowStr
-                        )
-                    )
-                }
-            } catch (e: Exception) {
-                // Scan failed
-            } finally {
-                _isScanning.value = false
-            }
+    fun retryCheckpoint() {
+        val state = uiState.value as? ChatUiState.Success ?: return
+        val request = state.checkpoint ?: return
+        viewModelScope.launch {
+            continuityCheckpointCoordinator.retry(request)
+            ContinuityCheckpointScheduler.enqueue(context)
         }
     }
 
@@ -615,7 +730,89 @@ class ChatViewModel(
                 count++
             }
         }
-        return count >= 9
+        // Re-derive the full world state more often so incremental-diff drift (dropped entities,
+        // stale placements) gets audited and repaired sooner.
+        return count >= 6
+    }
+
+    /**
+     * Rebuilds the world state for the latest committed turn when it is missing or empty — the
+     * signature of a thread whose initial extraction failed and left an empty base that every
+     * incremental diff since has built on. Runs a full re-materialization once per turn per
+     * session, in the background, and only persists if it actually recovered state.
+     */
+    private fun selfHealSnapshotIfNeeded(
+        thread: ThreadEntity,
+        character: CharacterEntity,
+        activeBranch: BranchEntity,
+        branchTurns: List<TurnEntity>,
+        currentSnapshot: DurableMemorySnapshot?
+    ) {
+        val latestCommitted = branchTurns.lastOrNull { it.generation_status == "committed" } ?: return
+        val isEmpty = currentSnapshot == null ||
+            (currentSnapshot.entity_state.isEmpty() && currentSnapshot.narrative_state.story_summary.isBlank())
+        if (!isEmpty) return
+        // Don't fight an in-flight generation/scan (which will materialize on its own), and only
+        // try each turn once per session.
+        if (_isGenerating.value || _isScanning.value) return
+        if (!selfHealAttempted.add(latestCommitted.id)) return
+
+        viewModelScope.launch(Dispatchers.Default) {
+            try {
+                val connection = connectionDao.getConnection(thread.connection_id) ?: return@launch
+                val brainConnection = thread.brain_connection_id?.let { connectionDao.getConnection(it) } ?: connection
+                val brainModel = thread.brain_model_id ?: thread.model_id
+                val brainStructuredOutput = brainConnection.provider in setOf("mistral", "groq", "openrouter")
+
+                val apiMessages = mutableListOf<ChatMessage>()
+                branchTurns.forEach { t ->
+                    if (t.generation_status == "committed") {
+                        apiMessages.add(ChatMessage(role = "user", content = t.user_input_text))
+                        t.assistant_output_text?.let { apiMessages.add(ChatMessage(role = "assistant", content = it)) }
+                    }
+                }
+                if (apiMessages.isEmpty()) return@launch
+
+                Log.d("ChatViewModel", "Self-healing empty world state for turn ${latestCommitted.id}")
+                val baseSnapshot = buildEmptyDurableSnapshot(latestCommitted.id)
+                val extraction = runContinuityExtractionUseCase.execute(
+                    connection = brainConnection.toDomain(),
+                    modelId = brainModel,
+                    character = character.toDomain(),
+                    currentSnapshot = baseSnapshot,
+                    recentMessages = apiMessages,
+                    isFullMaterialization = true,
+                    forceJson = true,
+                    userPersona = null,
+                    supportingCast = parseSupportingCast(thread.supporting_cast),
+                    structuredOutput = brainStructuredOutput
+                )
+
+                // Only persist if we actually recovered something — never overwrite with another empty.
+                val recovered = extraction.entity_mutations.isNotEmpty() || extraction.story_summary.isNotBlank()
+                if (!recovered) {
+                    Log.w("ChatViewModel", "Self-heal produced no state for turn ${latestCommitted.id}")
+                    return@launch
+                }
+
+                val reducerResult = WorldStateReducer.applyExtractionToSnapshot(
+                    previous = baseSnapshot,
+                    extraction = extraction,
+                    turnId = latestCommitted.id
+                )
+                chatDao.upsertWorldSnapshot(
+                    turnId = latestCommitted.id,
+                    threadId = thread.id,
+                    branchId = latestCommitted.branch_origin_id,
+                    basedOnTurnId = latestCommitted.parent_turn_id,
+                    worldState = reducerResult.snapshot,
+                    version = reducerResult.snapshot.metadata.version,
+                    isFullMaterialization = true
+                )
+            } catch (e: Exception) {
+                Log.w("ChatViewModel", "Self-heal materialization failed for turn ${latestCommitted.id}", e)
+            }
+        }
     }
 
     private fun materializeSnapshotForTurnInBackground(
@@ -625,14 +822,23 @@ class ChatViewModel(
         turn: TurnEntity,
         previousSnapshot: DurableMemorySnapshot?,
         recentMessages: List<ChatMessage>,
-        historyTurns: List<TurnEntity>
+        historyTurns: List<TurnEntity>,
+        userPersona: UserPersonaRecord? = null,
+        supportingCast: List<CastMember> = emptyList()
     ) {
         viewModelScope.launch(Dispatchers.Default) {
             val baseSnapshot = previousSnapshot ?: buildEmptyDurableSnapshot(turn.parent_turn_id ?: "turn-0")
             try {
                 val brainConnection = thread.brain_connection_id?.let { connectionDao.getConnection(it) } ?: connection
+                if (thread.brain_model_id == null) {
+                    Log.w("ChatViewModel", "Thread has no brain_model_id; HCE is running on the roleplay model '${thread.model_id}'. Set a dedicated brain model for reliable extraction.")
+                }
                 val brainModel = thread.brain_model_id ?: thread.model_id
-                val brainSupportsJson = brainConnection.model_cache.find { it.id == brainModel }?.supportsJson == true
+                // HCE always wants JSON. The old supportsJson gate silently disabled it whenever the
+                // model_cache flag was stale/missing, which is a major cause of parse failures. The
+                // extraction use case degrades gracefully if a provider rejects the request.
+                val brainForceJson = true
+                val brainStructuredOutput = brainConnection.provider in setOf("mistral", "groq", "openrouter")
 
                 val isDefrag = shouldDefragment(turn, historyTurns)
                 val extractionMessages = if (isDefrag) {
@@ -647,7 +853,7 @@ class ChatViewModel(
                     )
                 } else {
                     val historyMessages = recentMessages.dropLast(1)
-                    historyMessages.takeLast(28) + listOf(
+                    historyMessages.takeLast(40) + listOf(
                         ChatMessage(role = "user", content = turn.user_input_text),
                         ChatMessage(role = "assistant", content = turn.assistant_output_text ?: "")
                     )
@@ -660,7 +866,10 @@ class ChatViewModel(
                     currentSnapshot = baseSnapshot,
                     recentMessages = extractionMessages,
                     isFullMaterialization = isDefrag,
-                    forceJson = brainSupportsJson
+                    forceJson = brainForceJson,
+                    userPersona = userPersona,
+                    supportingCast = supportingCast,
+                    structuredOutput = brainStructuredOutput
                 )
 
                 val reducerResult = WorldStateReducer.applyExtractionToSnapshot(

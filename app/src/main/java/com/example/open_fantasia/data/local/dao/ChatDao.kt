@@ -31,6 +31,33 @@ abstract class ChatDao {
     abstract suspend fun updateThread(thread: ThreadEntity)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun upsertCastSeed(seed: CastSeedEntity)
+
+    @Query("SELECT * FROM cast_seeds WHERE thread_id = :threadId ORDER BY CASE provenance WHEN 'primary' THEN 0 WHEN 'manual_seed' THEN 1 ELSE 2 END, canonical_name COLLATE NOCASE")
+    abstract suspend fun getCastSeeds(threadId: String): List<CastSeedEntity>
+
+    @Query("SELECT * FROM cast_seeds WHERE thread_id = :threadId ORDER BY CASE provenance WHEN 'primary' THEN 0 WHEN 'manual_seed' THEN 1 ELSE 2 END, canonical_name COLLATE NOCASE")
+    abstract fun getCastSeedsFlow(threadId: String): Flow<List<CastSeedEntity>>
+
+    @Query("DELETE FROM cast_seeds WHERE cast_id = :castId AND provenance != 'primary'")
+    abstract suspend fun deleteCastSeed(castId: String)
+
+    @Query("""
+        INSERT OR IGNORE INTO cast_seeds (
+            cast_id, thread_id, entity_id, canonical_name, aliases, role_background,
+            personality, voice_style, appearance, goals, boundaries, provenance,
+            evidence, manual_locks, created_at, updated_at
+        )
+        SELECT 'primary:' || t.id, t.id, c.id, c.name, '[]', c.story,
+               c.core_persona, c.style_rules, c.appearance, '', c.negative_guidance,
+               'primary', '[]',
+               '["canonical_name","role_background","personality","voice_style","appearance","boundaries"]',
+               t.created_at, t.updated_at
+        FROM chat_threads t JOIN characters c ON c.id = t.character_id WHERE t.id = :threadId
+    """)
+    abstract suspend fun seedPrimaryCast(threadId: String): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun insertBranch(branch: BranchEntity)
 
     @Query("SELECT * FROM chat_branches WHERE id = :id")
@@ -50,6 +77,18 @@ abstract class ChatDao {
 
     @Update
     abstract suspend fun updateBranch(branch: BranchEntity)
+
+    @Query("UPDATE chat_branches SET active_speaker_id = :castId, speaker_mode = :mode, updated_at = :timestamp WHERE id = :branchId")
+    abstract suspend fun setActiveSpeaker(branchId: String, castId: String?, mode: String, timestamp: String)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun upsertCastOverride(override: CastProfileOverrideEntity)
+
+    @Query("SELECT * FROM cast_profile_overrides WHERE branch_id = :branchId")
+    abstract suspend fun getCastOverrides(branchId: String): List<CastProfileOverrideEntity>
+
+    @Query("SELECT o.* FROM cast_profile_overrides o JOIN chat_branches b ON b.id = o.branch_id WHERE b.thread_id = :threadId")
+    abstract fun getCastOverridesForThreadFlow(threadId: String): Flow<List<CastProfileOverrideEntity>>
 
     @Query("DELETE FROM chat_branches WHERE id = :id")
     abstract suspend fun deleteBranch(id: String)
@@ -94,6 +133,61 @@ abstract class ChatDao {
 
     @Query("DELETE FROM world_snapshots WHERE turn_id = :turnId")
     abstract suspend fun deleteSnapshot(turnId: String)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun insertCheckpoint(request: ContinuityCheckpointEntity)
+
+    @Update
+    abstract suspend fun updateCheckpoint(request: ContinuityCheckpointEntity)
+
+    @Query("SELECT * FROM continuity_checkpoint_requests WHERE id = :id")
+    abstract suspend fun getCheckpoint(id: String): ContinuityCheckpointEntity?
+
+    @Query("SELECT * FROM continuity_checkpoint_requests WHERE thread_id = :threadId ORDER BY created_at DESC")
+    abstract fun getCheckpointsForThreadFlow(threadId: String): Flow<List<ContinuityCheckpointEntity>>
+
+    @Query("SELECT * FROM continuity_checkpoint_requests WHERE status != 'accepted' ORDER BY created_at ASC")
+    abstract suspend fun getPendingCheckpoints(): List<ContinuityCheckpointEntity>
+
+    @Query("""
+        WITH RECURSIVE path(id, parent_turn_id) AS (
+            SELECT id, parent_turn_id FROM chat_turns WHERE id = :headTurnId
+            UNION ALL
+            SELECT t.id, t.parent_turn_id FROM chat_turns t JOIN path ON path.parent_turn_id = t.id
+        )
+        SELECT c.* FROM continuity_checkpoint_requests c
+        WHERE c.status != 'accepted' AND c.target_turn_id IN (SELECT id FROM path)
+        ORDER BY c.created_at DESC LIMIT 1
+    """)
+    abstract suspend fun getBlockingCheckpoint(headTurnId: String): ContinuityCheckpointEntity?
+
+    @Query("""
+        WITH RECURSIVE path(id, parent_turn_id, depth) AS (
+            SELECT id, parent_turn_id, 0 FROM chat_turns WHERE id = :headTurnId
+            UNION ALL
+            SELECT t.id, t.parent_turn_id, path.depth + 1 FROM chat_turns t JOIN path ON path.parent_turn_id = t.id
+        )
+        SELECT s.* FROM world_snapshots s JOIN path ON path.id = s.turn_id
+        ORDER BY path.depth ASC LIMIT 1
+    """)
+    abstract suspend fun getNearestSnapshot(headTurnId: String): SnapshotEntity?
+
+    @Transaction
+    open suspend fun acceptCheckpoint(
+        requestId: String,
+        worldState: DurableMemorySnapshot,
+        timelineEvents: List<TimelineEntity> = emptyList()
+    ) {
+        val request = getCheckpoint(requestId) ?: error("Checkpoint not found")
+        require(request.status != "accepted")
+        val branch = getBranch(request.branch_id) ?: error("Branch not found")
+        require(branch.head_turn_id == request.target_turn_id) { "Branch changed while continuity was processing" }
+        upsertWorldSnapshot(request.target_turn_id, request.thread_id, request.branch_id, request.baseline_turn_id,
+            worldState, worldState.metadata.version, true)
+        timelineEvents.forEach { insertTimelineEvent(it) }
+        val now = Instant.now().toString()
+        updateCheckpoint(request.copy(status="accepted",failure_detail=null,updated_at=now,accepted_at=now))
+    }
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun insertPin(pin: PinEntity)
@@ -179,6 +273,7 @@ abstract class ChatDao {
             updated_at = now
         )
         insertThread(thread)
+        seedPrimaryCast(threadId)
 
         val branch = BranchEntity(
             id = UUID.randomUUID().toString(),
@@ -193,7 +288,8 @@ abstract class ChatDao {
             locked_at = null,
             created_by = userId,
             created_at = now,
-            updated_at = now
+            updated_at = now,
+            active_speaker_id = "primary:$threadId"
         )
         insertBranch(branch)
 
@@ -210,7 +306,11 @@ abstract class ChatDao {
         parentTurnIdOverride: String? = null,
         forceParentOverride: Boolean = false,
         userInputHidden: Boolean = false,
-        starterSeed: Boolean = false
+        starterSeed: Boolean = false,
+        requestedSpeakerId: String? = null,
+        requestedSpeakerName: String? = null,
+        speakerMode: String = "single",
+        renderedUserMessage: String? = null
     ): TurnEntity {
         val now = Instant.now().toString()
         val branch = getBranch(branchId) ?: throw IllegalArgumentException("Branch not found")
@@ -221,6 +321,12 @@ abstract class ChatDao {
 
         if (branch.generation_locked) {
             throw IllegalStateException("A turn is already generating on this branch.")
+        }
+
+        branch.head_turn_id?.let { head ->
+            if (getBlockingCheckpoint(head) != null) {
+                throw IllegalStateException("Continuity checkpoint must be completed before continuing.")
+            }
         }
 
         if (branch.head_turn_id != expectedHeadTurnId) {
@@ -256,7 +362,11 @@ abstract class ChatDao {
             failure_code = null,
             failure_message = null,
             created_at = now,
-            updated_at = now
+            updated_at = now,
+            requested_speaker_id = requestedSpeakerId,
+            requested_speaker_name = requestedSpeakerName,
+            speaker_mode = speakerMode,
+            rendered_user_message = renderedUserMessage
         )
         insertTurn(newTurn)
 
@@ -287,6 +397,7 @@ abstract class ChatDao {
         completionTokens: Int,
         replaceTurnId: String?
     ): TurnEntity {
+        require(assistantText.isNotBlank()) { "The model returned no visible reply. Regenerate to try again." }
         val now = Instant.now().toString()
         val branch = getBranch(branchId) ?: throw IllegalArgumentException("Branch not found")
         val thread = getThread(branch.thread_id) ?: throw IllegalArgumentException("Thread not found")
@@ -334,7 +445,50 @@ abstract class ChatDao {
 
         updateThread(thread.copy(updated_at = now))
 
+        createCheckpointIfDue(updatedTurn, branch.id, now)
+
         return updatedTurn
+    }
+
+    private suspend fun createCheckpointIfDue(turn: TurnEntity, branchId: String, now: String) {
+        if (getBlockingCheckpoint(turn.id) != null) return
+        val path = getAncestorTurns(turn.id).associateBy { it.id }
+        val ordered = mutableListOf<TurnEntity>()
+        var cursor: String? = turn.id
+        while (cursor != null) {
+            val item = path[cursor] ?: break
+            ordered += item
+            cursor = item.parent_turn_id
+        }
+        ordered.reverse()
+        var baseline: SnapshotEntity? = null
+        var baselineIndex = -1
+        ordered.forEachIndexed { index, item ->
+            getSnapshot(item.id)?.let { baseline = it; baselineIndex = index }
+        }
+        val since = ordered.drop(baselineIndex + 1).count { it.generation_status == "committed" && !it.starter_seed }
+        if (since < 7) return
+        insertCheckpoint(
+            ContinuityCheckpointEntity(
+                id = UUID.randomUUID().toString(), thread_id = turn.thread_id, branch_id = branchId,
+                target_turn_id = turn.id, baseline_turn_id = baseline?.turn_id,
+                baseline_version = baseline?.version ?: 0, trigger_reason = "cadence", created_at = now, updated_at = now
+            )
+        )
+    }
+
+    @Transaction
+    open suspend fun requestEarlyCheckpoint(branchId: String): ContinuityCheckpointEntity {
+        val branch = getBranch(branchId) ?: error("Branch not found")
+        val head = branch.head_turn_id ?: error("Nothing to update yet")
+        getBlockingCheckpoint(head)?.let { return it }
+        val baseline = getNearestSnapshot(head)
+        val now = Instant.now().toString()
+        return ContinuityCheckpointEntity(
+            id = UUID.randomUUID().toString(), thread_id = branch.thread_id, branch_id = branchId,
+            target_turn_id = head, baseline_turn_id = baseline?.turn_id,
+            baseline_version = baseline?.version ?: 0, trigger_reason = "manual", created_at = now, updated_at = now
+        ).also { insertCheckpoint(it) }
     }
 
     @Transaction
@@ -412,7 +566,9 @@ abstract class ChatDao {
             locked_at = null,
             created_by = userId,
             created_at = now,
-            updated_at = now
+            updated_at = now,
+            active_speaker_id = sourceBranch.active_speaker_id,
+            speaker_mode = sourceBranch.speaker_mode
         )
         insertBranch(newBranch)
 
@@ -472,6 +628,7 @@ abstract class ChatDao {
         }
 
         val headTurnId = branch.head_turn_id ?: throw IllegalStateException("Branch head is empty.")
+        if (headTurnId == targetTurnId) return branch
 
         // 1. Get path of ancestors from headTurnId backwards
         val ancestorTurns = getAncestorTurns(headTurnId)
@@ -479,6 +636,14 @@ abstract class ChatDao {
 
         if (!ancestorIds.contains(targetTurnId)) {
             throw IllegalStateException("Target turn is not reachable from the current branch head.")
+        }
+        val ancestorMap = ancestorTurns.associateBy { it.id }
+        var discardedCount = 0
+        var discardedCursor: String? = headTurnId
+        while (discardedCursor != null && discardedCursor != targetTurnId) {
+            val discarded = ancestorMap[discardedCursor] ?: break
+            if (discarded.generation_status == "committed" && !discarded.starter_seed) discardedCount++
+            discardedCursor = discarded.parent_turn_id
         }
 
         // 2. Find pruneRootTurnId: the turn whose parent_turn_id is targetTurnId and is on the path
@@ -500,14 +665,35 @@ abstract class ChatDao {
         }
 
         // 3. Update branch head
+        val targetTurn = getTurn(targetTurnId)
+        val restoredSpeakerId = targetTurn?.user_input_payload
+            ?.let { Regex("\\\"sticky_speaker_id\\\":\\\"([^\\\"]+)\\\"").find(it)?.groupValues?.getOrNull(1) }
+            ?: targetTurn?.requested_speaker_id
+            ?: "primary:${branch.thread_id}"
+        val restoredMode = targetTurn?.user_input_payload
+            ?.let { Regex("\\\"sticky_mode\\\":\\\"([^\\\"]+)\\\"").find(it)?.groupValues?.getOrNull(1) }
+            ?: targetTurn?.speaker_mode ?: "single"
         val updatedBranch = branch.copy(
             head_turn_id = targetTurnId,
-            updated_at = now
+            updated_at = now,
+            active_speaker_id = restoredSpeakerId,
+            speaker_mode = restoredMode
         )
         updateBranch(updatedBranch)
 
         // 4. Touch thread updated_at
         updateThread(thread.copy(updated_at = now))
+
+        val retainedBaseline = getNearestSnapshot(targetTurnId)
+        insertCheckpoint(
+            ContinuityCheckpointEntity(
+                id = UUID.randomUUID().toString(), thread_id = branch.thread_id, branch_id = branch.id,
+                target_turn_id = targetTurnId, baseline_turn_id = retainedBaseline?.turn_id,
+                baseline_version = retainedBaseline?.version ?: 0, trigger_reason = "rewind",
+                old_head_turn_id = headTurnId, discarded_exchange_count = discardedCount,
+                created_at = now, updated_at = now
+            )
+        )
 
         return updatedBranch
     }
@@ -537,6 +723,16 @@ abstract class ChatDao {
 
     @Query("UPDATE chat_turns SET generation_status = 'streaming' WHERE id = :turnId")
     abstract suspend fun markTurnStreaming(turnId: String)
+
+    @Query("""
+        UPDATE chat_turns
+        SET generation_status = 'failed', failure_code = 'EMPTY_RESPONSE',
+            failure_message = 'The model returned no visible reply. Regenerate to try again.',
+            generation_finished_at = :timestamp, updated_at = :timestamp
+        WHERE generation_status = 'committed' AND starter_seed = 0
+          AND TRIM(COALESCE(assistant_output_text, '')) = ''
+    """)
+    abstract suspend fun markEmptyCommittedTurnsFailed(timestamp: String): Int
 
     @Transaction
     open suspend fun clearStaleLocks(maxAgeMs: Long = 300_000): Int {
@@ -598,4 +794,3 @@ abstract class ChatDao {
     @Query("UPDATE chat_threads SET persona_id = :newPersonaId WHERE persona_id = :oldPersonaId")
     abstract suspend fun reassignPersona(oldPersonaId: String, newPersonaId: String?)
 }
-

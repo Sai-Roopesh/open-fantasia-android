@@ -8,7 +8,30 @@ data class DurableMemorySnapshot(
     val spatial_state: SpatialState,
     val entity_state: List<EntityState>,
     val relational_state: List<RelationalState>,
-    val narrative_state: NarrativeState
+    val narrative_state: NarrativeState,
+    /** Complete, branch-valid speakable cast at this snapshot. */
+    val cast_roster: List<CastProfile> = emptyList()
+)
+
+@Serializable
+data class CastProfile(
+    val cast_id: String,
+    val entity_id: String? = null,
+    val canonical_name: String,
+    val aliases: List<String> = emptyList(),
+    val role_background: String = "",
+    val personality: String = "",
+    val voice_style: String = "",
+    val appearance: String = "",
+    val goals: String = "",
+    val boundaries: String = "",
+    val provenance: String, // primary | manual_seed | continuity_discovered
+    val first_seen_turn_id: String? = null,
+    val evidence: List<String> = emptyList(),
+    val status: String = "active", // active | archived
+    val speaker_eligible: Boolean = true,
+    val player_controlled: Boolean = false,
+    val manual_locks: List<String> = emptyList()
 )
 
 @Serializable

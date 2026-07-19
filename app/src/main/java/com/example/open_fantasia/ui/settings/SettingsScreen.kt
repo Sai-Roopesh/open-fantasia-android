@@ -27,6 +27,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.open_fantasia.data.local.entity.ConnectionEntity
+import com.example.open_fantasia.data.continuity.ContinuityHostState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -35,8 +36,18 @@ fun SettingsScreen(
     modifier: Modifier = Modifier
 ) {
     val connections by viewModel.connections.collectAsState()
+    val hostState by viewModel.continuityHostState.collectAsState()
+    val continuityMessage by viewModel.continuityMessage.collectAsState()
     var editingConn by remember { mutableStateOf<ConnectionEntity?>(null) }
     var isCreating by remember { mutableStateOf(false) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    LaunchedEffect(continuityMessage) {
+        continuityMessage?.let {
+            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+            viewModel.consumeContinuityMessage()
+        }
+    }
 
 
     Box(
@@ -85,6 +96,15 @@ fun SettingsScreen(
                     }
                 }
 
+                ContinuityHostCard(
+                    state = hostState,
+                    onPair = viewModel::pairContinuityHost,
+                    onTest = viewModel::testContinuityHost,
+                    onForget = viewModel::forgetContinuityHost
+                )
+
+                Spacer(Modifier.height(20.dp))
+
                 Text(
                     text = "API CONNECTIONS",
                     color = Color.Gray,
@@ -117,6 +137,66 @@ fun SettingsScreen(
                     }
                 }
 
+            }
+        }
+    }
+}
+
+@Composable
+private fun ContinuityHostCard(
+    state: ContinuityHostState,
+    onPair: (String, String) -> Unit,
+    onTest: () -> Unit,
+    onForget: () -> Unit
+) {
+    var endpoint by remember { mutableStateOf("") }
+    var code by remember { mutableStateOf("") }
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1B1B1F)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("CONTINUITY HOST", color = Color(0xFF00FBFB), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text(
+                when (state) {
+                    ContinuityHostState.Unpaired -> "Not paired"
+                    ContinuityHostState.Checking -> "Checking your Mac…"
+                    is ContinuityHostState.Available -> "Available — continuity updates can run"
+                    is ContinuityHostState.Unavailable -> "Unavailable — chat will stay locked at a checkpoint"
+                    is ContinuityHostState.Incompatible -> "App and host versions do not match"
+                },
+                color = when (state) {
+                    is ContinuityHostState.Available -> Color(0xFF7EE2A8)
+                    else -> Color(0xFFFFC2D5)
+                },
+                fontSize = 14.sp
+            )
+            if (state is ContinuityHostState.Unpaired) {
+                OutlinedTextField(
+                    value = endpoint,
+                    onValueChange = { endpoint = it },
+                    label = { Text("Mac address") },
+                    placeholder = { Text("https://your-mac.tailnet.ts.net") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = code,
+                    onValueChange = { code = it },
+                    label = { Text("Pairing code") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Button(
+                    onClick = { onPair(endpoint, code) },
+                    enabled = endpoint.isNotBlank() && code.isNotBlank()
+                ) { Text("Pair with Mac") }
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = onTest) { Text("Check now") }
+                    TextButton(onClick = onForget) { Text("Remove pairing") }
+                }
             }
         }
     }

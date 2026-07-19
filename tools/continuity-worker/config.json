@@ -1,0 +1,8 @@
+{
+  "codexCandidates": ["/Applications/ChatGPT.app/Contents/Resources/codex", "/opt/homebrew/bin/codex", "codex"],
+  "model": "gpt-5.6-terra",
+  "reasoningEffort": "high",
+  "hostBind": "127.0.0.1",
+  "hostPort": 47831,
+  "jobTimeoutMilliseconds": 1800000
+}
