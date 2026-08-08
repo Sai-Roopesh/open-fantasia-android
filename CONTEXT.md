@@ -5,7 +5,7 @@ Open Fantasia provides ongoing character roleplay while preserving the facts and
 ## Language
 
 **Roleplay Exchange**:
-A user message together with the assistant reply it produces. An exchange is complete when the assistant reply has been committed.
+A user message together with the assistant reply it produces. An exchange is complete when the assistant reply has been committed. Persisted as `chat_turns`, and referenced as `fork_turn_id` and `head_turn_id`: those names are the stored spelling of this same concept, deliberately left unrenamed, and carry no separate meaning.
 _Avoid_: Turn, message
 
 **Primary Character**:

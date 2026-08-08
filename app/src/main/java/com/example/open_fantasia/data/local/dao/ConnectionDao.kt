@@ -23,7 +23,12 @@ abstract class ConnectionDao {
     @Delete
     protected abstract suspend fun deleteConnectionInternal(connection: ConnectionEntity)
 
-    @Query("SELECT COUNT(*) FROM chat_threads WHERE connection_id = :connectionId OR brain_connection_id = :connectionId")
+    // Only the Roleplay Model connection keeps a connection in use. brain_connection_id is the
+    // retired per-thread Continuity Engine picker: the app-wide Continuity Engine is authoritative
+    // now, new threads always write null, and threads created before that change still carry a
+    // stale value. Counting it here made a connection look in-use — and undeletable — because of
+    // a column nothing reads.
+    @Query("SELECT COUNT(*) FROM chat_threads WHERE connection_id = :connectionId")
     abstract suspend fun countDependentThreads(connectionId: String): Int
 
     @Transaction

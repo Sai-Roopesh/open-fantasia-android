@@ -10,7 +10,7 @@ import com.example.open_fantasia.data.local.entity.CharacterEntity
 import com.example.open_fantasia.data.local.entity.ConnectionEntity
 import com.example.open_fantasia.data.local.entity.ProfileEntity
 import com.example.open_fantasia.data.local.entity.TimelineEntity
-import com.example.open_fantasia.domain.model.TimelineEventOutput
+import com.example.open_fantasia.data.continuity.CheckpointTimelineEvent
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -92,7 +92,7 @@ class TimelineEventPersistenceTest {
     }
 
     @Test
-    fun testTimelineEventPersistence_resolvesNewPlaceholderIds() = runBlocking {
+    fun testTimelineEventPersistence_roundTripsCheckpointEvents() = runBlocking {
         val chatDao = db.chatDao()
         val thread = chatDao.createThreadWithBranch(
             userId, characterId, connectionId, "gemini-1.5-flash", null, null, null, 2048, "Test"
@@ -100,38 +100,34 @@ class TimelineEventPersistenceTest {
         val branch = chatDao.getActiveBranchForThread(thread.id)!!
         val turn = chatDao.beginTurn(userId, branch.id, null, "Hello", "[]")
 
-        // 1. Simulate HCE returning timeline events with a placeholder ID
-        val extractedTimelineEvents = listOf(
-            TimelineEventOutput(
+        // 1. A Continuity Update returns timeline events already bound to real entity IDs;
+        //    the Mac Host protocol rejects unresolved references before they reach the phone.
+        val checkpointTimelineEvents = listOf(
+            CheckpointTimelineEvent(
+                turn_id = turn.id,
                 title = "Met Valeria",
                 detail = "The protagonist met the alchemist Valeria at her laboratory.",
                 importance = 3,
                 event_type = "plot",
-                affected_entity_ids = listOf("NEW:Valeria"),
+                affected_entity_ids = listOf("real-uuid-valeria-1234"),
                 affected_relationship_ids = emptyList()
             )
         )
 
-        // 2. Mock the reducer newEntityIds mapping
-        val newEntityIds = mapOf("NEW:Valeria" to "real-uuid-valeria-1234")
-
-        // 3. Persist timeline events resolving placeholders
+        // 2. Persist them against the branch they were checkpointed on.
         val nowStr = Instant.now().toString()
-        extractedTimelineEvents.forEach { event ->
-            val resolvedEntityIds = event.affected_entity_ids.map { id ->
-                newEntityIds[id] ?: id
-            }
+        checkpointTimelineEvents.forEach { event ->
             chatDao.insertTimelineEvent(
                 TimelineEntity(
                     id = UUID.randomUUID().toString(),
                     thread_id = thread.id,
                     branch_id = branch.id,
-                    turn_id = turn.id,
+                    turn_id = event.turn_id,
                     title = event.title,
                     detail = event.detail,
                     importance = event.importance,
                     event_type = event.event_type,
-                    affected_entity_ids = resolvedEntityIds,
+                    affected_entity_ids = event.affected_entity_ids,
                     affected_relationship_ids = event.affected_relationship_ids,
                     created_at = nowStr
                 )
