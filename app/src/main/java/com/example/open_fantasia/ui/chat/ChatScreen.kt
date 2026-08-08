@@ -56,8 +56,14 @@ import com.example.open_fantasia.data.local.entity.PinEntity
 import com.example.open_fantasia.data.local.entity.TimelineEntity
 import com.example.open_fantasia.data.continuity.ContinuityHostState
 import com.example.open_fantasia.data.continuity.RoleplayProtocol
+import com.example.open_fantasia.domain.model.CAST_FORMAT
+import com.example.open_fantasia.domain.model.CAST_VERSION
+import com.example.open_fantasia.domain.model.CastDocument
 import com.example.open_fantasia.domain.model.CastProfile
 import com.example.open_fantasia.domain.model.DurableMemorySnapshot
+import com.example.open_fantasia.domain.portability.PortableJsonCodec
+import com.example.open_fantasia.ui.components.PortableKind
+import com.example.open_fantasia.ui.components.PromptPackPanel
 import com.example.open_fantasia.domain.model.RelationalState
 import com.example.open_fantasia.ui.components.MarkdownText
 import kotlin.math.roundToInt
@@ -581,8 +587,10 @@ fun ChatWorkspace(
                 if (showCastManager) {
                     CastManagerDialog(
                         roster = state.castRoster,
+                        threadId = state.thread.id,
                         onSave = viewModel::saveCastProfile,
                         onAdd = viewModel::addManualCast,
+                        newSeed = viewModel::newCastSeed,
                         onDismiss = { showCastManager = false }
                     )
                 }
@@ -1316,23 +1324,25 @@ fun ChatInputBar(
 @Composable
 fun CastManagerDialog(
     roster: List<CastProfile>,
+    threadId: String,
     onSave: (CastProfile) -> Unit,
-    onAdd: (String, String) -> Unit,
+    onAdd: (CastProfile) -> Unit,
+    newSeed: () -> CastProfile,
     onDismiss: () -> Unit
 ) {
     var editing by remember { mutableStateOf<CastProfile?>(null) }
-    var adding by remember { mutableStateOf(false) }
-    if (editing != null || adding) {
+    var draftSeed by remember { mutableStateOf<CastProfile?>(null) }
+    val target = editing ?: draftSeed
+    if (target != null) {
         CastProfileEditor(
-            initial = editing,
-            onSave = { profile, name, role, personality, voice, appearance, goals, boundaries ->
-                if (profile == null) onAdd(name, role) else onSave(profile.copy(
-                    canonical_name = name, role_background = role, personality = personality,
-                    voice_style = voice, appearance = appearance, goals = goals, boundaries = boundaries
-                ))
-                editing = null; adding = false
+            initial = target,
+            isNew = editing == null,
+            threadId = threadId,
+            onSave = { profile ->
+                if (editing == null) onAdd(profile) else onSave(profile)
+                editing = null; draftSeed = null
             },
-            onDismiss = { editing = null; adding = false }
+            onDismiss = { editing = null; draftSeed = null }
         )
         return
     }
@@ -1341,7 +1351,7 @@ fun CastManagerDialog(
         title = { Text("Cast manager", color = Color.White, fontFamily = Sora) },
         containerColor = Color(0xFF16161C),
         confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } },
-        dismissButton = { TextButton(onClick = { adding = true }) { Text("Add character", color = Color(0xFF00FBFB)) } },
+        dismissButton = { TextButton(onClick = { draftSeed = newSeed() }) { Text("Add character", color = Color(0xFF00FBFB)) } },
         text = {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.heightIn(max = 560.dp)) {
                 items(roster, key = { it.cast_id }) { member ->
@@ -1375,40 +1385,74 @@ fun CastManagerDialog(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CastProfileEditor(
-    initial: CastProfile?,
-    onSave: (CastProfile?, String, String, String, String, String, String, String) -> Unit,
+    initial: CastProfile,
+    isNew: Boolean,
+    threadId: String,
+    onSave: (CastProfile) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var name by remember(initial?.cast_id) { mutableStateOf(initial?.canonical_name.orEmpty()) }
-    var role by remember(initial?.cast_id) { mutableStateOf(initial?.role_background.orEmpty()) }
-    var personality by remember(initial?.cast_id) { mutableStateOf(initial?.personality.orEmpty()) }
-    var voice by remember(initial?.cast_id) { mutableStateOf(initial?.voice_style.orEmpty()) }
-    var appearance by remember(initial?.cast_id) { mutableStateOf(initial?.appearance.orEmpty()) }
-    var goals by remember(initial?.cast_id) { mutableStateOf(initial?.goals.orEmpty()) }
-    var boundaries by remember(initial?.cast_id) { mutableStateOf(initial?.boundaries.orEmpty()) }
+    // One CastProfile draft rather than seven loose strings: a pasted Cast Seed can then fill
+    // fields the form does not render (aliases) without them being dropped on save.
+    var draft by remember(initial.cast_id) { mutableStateOf(initial) }
     val colors = OutlinedTextFieldDefaults.colors(
         focusedTextColor = Color.White, unfocusedTextColor = Color.White,
         focusedBorderColor = Color(0xFF8A2BE2), unfocusedBorderColor = Color(0xFF4C4354)
     )
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (initial == null) "Add character" else "Edit ${initial.canonical_name}", color = Color.White) },
+        title = { Text(if (isNew) "Add character" else "Edit ${initial.canonical_name}", color = Color.White) },
         containerColor = Color(0xFF16161C),
-        confirmButton = { Button(onClick = { onSave(initial, name.trim(), role.trim(), personality.trim(), voice.trim(), appearance.trim(), goals.trim(), boundaries.trim()) }, enabled = name.isNotBlank()) { Text("Save") } },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onSave(
+                        draft.copy(
+                            canonical_name = draft.canonical_name.trim(),
+                            role_background = draft.role_background.trim(),
+                            personality = draft.personality.trim(),
+                            voice_style = draft.voice_style.trim(),
+                            appearance = draft.appearance.trim(),
+                            goals = draft.goals.trim(),
+                            boundaries = draft.boundaries.trim()
+                        )
+                    )
+                },
+                enabled = draft.canonical_name.isNotBlank()
+            ) { Text("Save") }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(
-                    "Name" to (name to { v: String -> name = v }),
-                    "Role / background" to (role to { v: String -> role = v }),
-                    "Personality" to (personality to { v: String -> personality = v }),
-                    "Voice style" to (voice to { v: String -> voice = v }),
-                    "Appearance" to (appearance to { v: String -> appearance = v }),
-                    "Goals" to (goals to { v: String -> goals = v }),
-                    "Boundaries" to (boundaries to { v: String -> boundaries = v })
-                ).forEach { (label, valueAndSetter) ->
+                PromptPackPanel(
+                    kind = PortableKind.CAST,
+                    accentColor = Color(0xFF00FBFB),
+                    currentJson = { PortableJsonCodec.serializeCast(draft) },
+                    onImportCast = { data ->
+                        draft = PortableJsonCodec.castDocumentToProfile(
+                            CastDocument(CAST_FORMAT, CAST_VERSION, data),
+                            existing = draft,
+                            threadId = threadId
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (draft.aliases.isNotEmpty()) {
+                    Text(
+                        "Aliases: ${draft.aliases.joinToString(", ")}",
+                        color = Color(0xFF9B95A1), fontSize = 11.sp
+                    )
+                }
+                listOf<Triple<String, String, (String) -> Unit>>(
+                    Triple("Name", draft.canonical_name) { v -> draft = draft.copy(canonical_name = v) },
+                    Triple("Role / background", draft.role_background) { v -> draft = draft.copy(role_background = v) },
+                    Triple("Personality", draft.personality) { v -> draft = draft.copy(personality = v) },
+                    Triple("Voice style", draft.voice_style) { v -> draft = draft.copy(voice_style = v) },
+                    Triple("Appearance", draft.appearance) { v -> draft = draft.copy(appearance = v) },
+                    Triple("Goals", draft.goals) { v -> draft = draft.copy(goals = v) },
+                    Triple("Boundaries", draft.boundaries) { v -> draft = draft.copy(boundaries = v) }
+                ).forEach { (label, value, setter) ->
                     OutlinedTextField(
-                        value = valueAndSetter.first, onValueChange = valueAndSetter.second,
+                        value = value, onValueChange = setter,
                         label = { Text(label) }, minLines = if (label == "Name") 1 else 2,
                         singleLine = label == "Name", colors = colors, modifier = Modifier.fillMaxWidth()
                     )

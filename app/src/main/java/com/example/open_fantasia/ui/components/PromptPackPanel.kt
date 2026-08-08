@@ -32,7 +32,7 @@ import com.example.open_fantasia.domain.portability.PortableJsonCodec
 
 // ─── Public types ───────────────────────────────────────────────────
 
-enum class PortableKind { CHARACTER, PERSONA }
+enum class PortableKind { CHARACTER, PERSONA, CAST }
 
 sealed class ImportState {
     data object Idle : ImportState()
@@ -49,6 +49,7 @@ fun PromptPackPanel(
     currentJson: () -> String,
     onImportCharacter: ((CharacterDocumentData) -> Unit)? = null,
     onImportPersona: ((PersonaDocumentData) -> Unit)? = null,
+    onImportCast: ((CastDocumentData) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -58,7 +59,16 @@ fun PromptPackPanel(
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
 
-    val kindLabel = if (kind == PortableKind.CHARACTER) "Character" else "Persona"
+    val kindLabel = when (kind) {
+        PortableKind.CHARACTER -> "Character"
+        PortableKind.PERSONA -> "Persona"
+        PortableKind.CAST -> "Cast"
+    }
+    val kindVersion = when (kind) {
+        PortableKind.CHARACTER -> CHARACTER_VERSION
+        PortableKind.PERSONA -> PERSONA_VERSION
+        PortableKind.CAST -> CAST_VERSION
+    }
 
     // File picker launcher
     val filePickerLauncher = rememberLauncherForActivityResult(
@@ -155,7 +165,7 @@ fun PromptPackPanel(
                             modifier = Modifier.weight(1f),
                             onClick = {
                                 val json = currentJson()
-                                shareText(context, json, "openfantasia-${kindLabel.lowercase()}-export.v${if (kind == PortableKind.CHARACTER) CHARACTER_VERSION else PERSONA_VERSION}.json")
+                                shareText(context, json, "openfantasia-${kindLabel.lowercase()}-export.v$kindVersion.json")
                             }
                         )
                     }
@@ -166,10 +176,11 @@ fun PromptPackPanel(
                         accentColor = accentColor,
                         modifier = Modifier.fillMaxWidth(),
                         onClick = {
-                            val template = if (kind == PortableKind.CHARACTER)
-                                PortableJsonCodec.buildBlankCharacterTemplate()
-                            else
-                                PortableJsonCodec.buildBlankPersonaTemplate()
+                            val template = when (kind) {
+                                PortableKind.CHARACTER -> PortableJsonCodec.buildBlankCharacterTemplate()
+                                PortableKind.PERSONA -> PortableJsonCodec.buildBlankPersonaTemplate()
+                                PortableKind.CAST -> PortableJsonCodec.buildBlankCastTemplate()
+                            }
                             shareText(context, template, "openfantasia-${kindLabel.lowercase()}-blank.json")
                         }
                     )
@@ -193,10 +204,11 @@ fun PromptPackPanel(
                                 accentColor = accentColor,
                                 modifier = Modifier.weight(1f),
                                 onClick = {
-                                    val pack = if (kind == PortableKind.CHARACTER)
-                                        PortableJsonCodec.buildCharacterPromptPack(variant)
-                                    else
-                                        PortableJsonCodec.buildPersonaPromptPack(variant)
+                                    val pack = when (kind) {
+                                        PortableKind.CHARACTER -> PortableJsonCodec.buildCharacterPromptPack(variant)
+                                        PortableKind.PERSONA -> PortableJsonCodec.buildPersonaPromptPack(variant)
+                                        PortableKind.CAST -> PortableJsonCodec.buildCastPromptPack(variant)
+                                    }
                                     shareText(context, pack, "openfantasia-${kindLabel.lowercase()}-${label.lowercase()}-prompt-pack.md")
                                 }
                             )
@@ -256,7 +268,7 @@ fun PromptPackPanel(
                             ) {
                                 Button(
                                     onClick = {
-                                        loadImportIntoEditor(kind, pastedText, onImportCharacter, onImportPersona)
+                                        loadImportIntoEditor(kind, pastedText, onImportCharacter, onImportPersona, onImportCast)
                                         importState = ImportState.Idle
                                         pastedText = ""
                                         Toast.makeText(context, "$kindLabel loaded into editor!", Toast.LENGTH_SHORT).show()
@@ -450,6 +462,22 @@ private fun validateImport(kind: PortableKind, raw: String): ImportState {
                 ImportState.Invalid(result.exceptionOrNull()?.message ?: "Unknown error")
             }
         }
+        PortableKind.CAST -> {
+            val result = PortableJsonCodec.parseCastDocument(raw)
+            if (result.isSuccess) {
+                val d = result.getOrThrow().data
+                val filled = listOf(
+                    d.role_background, d.personality, d.voice_style,
+                    d.appearance, d.goals, d.boundaries
+                ).count { it.isNotBlank() }
+                ImportState.Valid(
+                    name = d.canonical_name,
+                    detail = "$filled/6 fields · ${d.aliases.size} aliases"
+                )
+            } else {
+                ImportState.Invalid(result.exceptionOrNull()?.message ?: "Unknown error")
+            }
+        }
     }
 }
 
@@ -457,7 +485,8 @@ private fun loadImportIntoEditor(
     kind: PortableKind,
     raw: String,
     onImportCharacter: ((CharacterDocumentData) -> Unit)?,
-    onImportPersona: ((PersonaDocumentData) -> Unit)?
+    onImportPersona: ((PersonaDocumentData) -> Unit)?,
+    onImportCast: ((CastDocumentData) -> Unit)?
 ) {
     when (kind) {
         PortableKind.CHARACTER -> {
@@ -467,6 +496,10 @@ private fun loadImportIntoEditor(
         PortableKind.PERSONA -> {
             val doc = PortableJsonCodec.parsePersonaDocument(raw).getOrNull() ?: return
             onImportPersona?.invoke(doc.data)
+        }
+        PortableKind.CAST -> {
+            val doc = PortableJsonCodec.parseCastDocument(raw).getOrNull() ?: return
+            onImportCast?.invoke(doc.data)
         }
     }
 }

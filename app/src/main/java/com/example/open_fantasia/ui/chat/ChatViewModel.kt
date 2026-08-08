@@ -728,17 +728,27 @@ class ChatViewModel(
         }
     }
 
-    fun addManualCast(name: String, roleBackground: String) {
-        val cleanName = name.trim()
-        if (cleanName.isEmpty()) return
+    /**
+     * Adds a new Cast Seed from every field the editor collected. Earlier this took only name and
+     * role_background, so personality, voice, appearance, goals, and boundaries typed into the add
+     * form were discarded and had to be re-entered through a second edit pass.
+     */
+    fun addManualCast(profile: CastProfile) {
+        if (profile.canonical_name.isBlank()) return
         saveCastProfile(
-            CastProfile(
-                cast_id = "seed:$threadId:${UUID.randomUUID()}", canonical_name = cleanName,
-                role_background = roleBackground.trim(), provenance = "manual_seed",
-                manual_locks = listOf("canonical_name", "role_background")
+            profile.copy(
+                cast_id = profile.cast_id.ifBlank { "seed:$threadId:${UUID.randomUUID()}" },
+                provenance = "manual_seed"
             )
         )
     }
+
+    /** Builds a blank Cast Seed the editor can fill, so a new member always has a stable identity. */
+    fun newCastSeed(): CastProfile = CastProfile(
+        cast_id = "seed:$threadId:${UUID.randomUUID()}",
+        canonical_name = "",
+        provenance = "manual_seed"
+    )
 
     private fun resolveSpeakerShortcut(input: String, roster: List<CastProfile>): Pair<CastProfile, String>? {
         if (!input.startsWith('@')) return null

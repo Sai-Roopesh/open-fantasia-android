@@ -58,6 +58,24 @@ object PortableJsonCodec {
         return strictJson.encodeToString(PersonaDocument.serializer(), doc)
     }
 
+    fun serializeCast(profile: CastProfile): String {
+        val doc = CastDocument(
+            format = CAST_FORMAT,
+            version = CAST_VERSION,
+            data = CastDocumentData(
+                canonical_name = profile.canonical_name,
+                aliases = profile.aliases,
+                role_background = profile.role_background,
+                personality = profile.personality,
+                voice_style = profile.voice_style,
+                appearance = profile.appearance,
+                goals = profile.goals,
+                boundaries = profile.boundaries
+            )
+        )
+        return strictJson.encodeToString(CastDocument.serializer(), doc)
+    }
+
     // ─── Parse & Validate ───────────────────────────────────────────
 
     fun parseCharacterDocument(raw: String): Result<CharacterDocument> {
@@ -99,6 +117,30 @@ object PortableJsonCodec {
             Result.success(doc)
         } catch (e: Exception) {
             Result.failure(IllegalArgumentException("Malformed persona JSON: ${e.message}"))
+        }
+    }
+
+    fun parseCastDocument(raw: String): Result<CastDocument> {
+        return try {
+            val cleaned = stripMarkdownCodeFence(raw.trim())
+            val doc = strictJson.decodeFromString(CastDocument.serializer(), cleaned)
+
+            if (doc.format != CAST_FORMAT) {
+                return Result.failure(
+                    IllegalArgumentException("Invalid format: expected \"$CAST_FORMAT\", got \"${doc.format}\"")
+                )
+            }
+            if (doc.version != CAST_VERSION) {
+                return Result.failure(
+                    IllegalArgumentException("Invalid version: expected $CAST_VERSION, got ${doc.version}")
+                )
+            }
+            if (doc.data.canonical_name.isBlank()) {
+                return Result.failure(IllegalArgumentException("Cast member needs a canonical_name"))
+            }
+            Result.success(doc)
+        } catch (e: Exception) {
+            Result.failure(IllegalArgumentException("Malformed cast JSON: ${e.message}"))
         }
     }
 
@@ -149,6 +191,24 @@ object PortableJsonCodec {
             )
         )
         return strictJson.encodeToString(PersonaDocument.serializer(), doc)
+    }
+
+    fun buildBlankCastTemplate(): String {
+        val doc = CastDocument(
+            format = CAST_FORMAT,
+            version = CAST_VERSION,
+            data = CastDocumentData(
+                canonical_name = "",
+                aliases = emptyList(),
+                role_background = "",
+                personality = "",
+                voice_style = "",
+                appearance = "",
+                goals = "",
+                boundaries = ""
+            )
+        )
+        return strictJson.encodeToString(CastDocument.serializer(), doc)
     }
 
     // ─── Entity Mapping ─────────────────────────────────────────────
@@ -211,6 +271,30 @@ object PortableJsonCodec {
         )
     }
 
+    /**
+     * Applies a pasted Cast Seed onto a profile. Identity, provenance, status, evidence, and
+     * manual locks stay under app control so a pasted document can never promote itself to the
+     * Primary Character, resurrect an archived member, or claim continuity-discovered provenance.
+     */
+    fun castDocumentToProfile(doc: CastDocument, existing: CastProfile?, threadId: String): CastProfile {
+        val d = doc.data
+        val base = existing ?: CastProfile(
+            cast_id = "seed:$threadId:${UUID.randomUUID()}",
+            canonical_name = d.canonical_name,
+            provenance = "manual_seed"
+        )
+        return base.copy(
+            canonical_name = d.canonical_name.trim(),
+            aliases = d.aliases.map { it.trim() }.filter { it.isNotEmpty() },
+            role_background = d.role_background.trim(),
+            personality = d.personality.trim(),
+            voice_style = d.voice_style.trim(),
+            appearance = d.appearance.trim(),
+            goals = d.goals.trim(),
+            boundaries = d.boundaries.trim()
+        )
+    }
+
     // ─── Prompt Pack Builders ───────────────────────────────────────
 
     fun buildCharacterPromptPack(variant: PromptPackVariant): String {
@@ -264,6 +348,62 @@ The output must conform to:
 - `data.negative_guidance`: string (required)
 - `data.suggested_starters`: array of strings (required)
 - `data.example_conversations`: array of objects with `user_line` (string) and `character_line` (string) (required)
+- No additional properties allowed at any level.
+        """.trimIndent()
+    }
+
+    fun buildCastPromptPack(variant: PromptPackVariant): String {
+        val variantNote = when (variant) {
+            PromptPackVariant.GENERIC -> "Follow the JSON schema exactly. Do not add commentary."
+            PromptPackVariant.CLAUDE -> "You are Claude. Return only the JSON object. No markdown fences, no preamble, no sign-off."
+            PromptPackVariant.GEMINI -> "You are Gemini. Return only the JSON object. No markdown fences, no explanations."
+        }
+        val variantLabel = variant.name.lowercase().replaceFirstChar { it.uppercase() }
+
+        return """
+# Open-Fantasia Cast Prompt Pack ($variantLabel)
+
+## Instructions
+You are a creative writing assistant. Your task is to generate ONE supporting cast member for a thread
+in the Open-Fantasia roleplay engine. This is not the thread's primary character and not the player —
+it is a character the primary character shares the world with, who may be selected to speak.
+
+**Output Rules:**
+- Return exactly ONE JSON object matching the schema below, describing exactly ONE character.
+- Do NOT wrap the output in markdown code fences.
+- Do NOT add any commentary, explanations, or preamble.
+- $variantNote
+
+## Content Guidelines
+- **canonical_name**: The name the story uses for this character. Required and non-empty.
+- **aliases**: Other names, titles, or epithets they are called by. Use an empty array if none.
+- **role_background**: Who they are in this world and how they relate to the story so far.
+- **personality**: Temperament, values, contradictions, and how they behave under pressure.
+- **voice_style**: How they speak — register, rhythm, vocabulary, verbal tics.
+- **appearance**: Physical description. Also used to generate their portrait, so be concrete and visual.
+- **goals**: What they are trying to get, in and beyond the current scene.
+- **boundaries**: What this character will never do or say.
+
+Write every field as prose. Leave a field as an empty string only when you genuinely have nothing
+for it; blank fields simply give the model less to work with.
+
+## Blank Template
+```json
+${buildBlankCastTemplate()}
+```
+
+## JSON Schema
+The output must conform to:
+- `format`: must be exactly `"$CAST_FORMAT"`
+- `version`: must be exactly `$CAST_VERSION`
+- `data.canonical_name`: string (required, non-empty)
+- `data.aliases`: array of strings (required, may be empty)
+- `data.role_background`: string (required)
+- `data.personality`: string (required)
+- `data.voice_style`: string (required)
+- `data.appearance`: string (required)
+- `data.goals`: string (required)
+- `data.boundaries`: string (required)
 - No additional properties allowed at any level.
         """.trimIndent()
     }

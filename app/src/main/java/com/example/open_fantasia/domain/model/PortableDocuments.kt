@@ -51,6 +51,35 @@ data class PersonaDocumentData(
     val private_notes: String
 )
 
+// ─── Cast Seed Document (v1) ───────────────────────────────────────
+
+const val CAST_FORMAT = "openfantasia.cast"
+const val CAST_VERSION = 1
+
+@Serializable
+data class CastDocument(
+    val format: String,
+    val version: Int,
+    val data: CastDocumentData
+)
+
+/**
+ * One Cast Seed per document. Carries only the authorable Cast Profile fields: cast_id,
+ * provenance, status, evidence, and manual locks are assigned by the app when the seed is
+ * saved, never by a pasted document.
+ */
+@Serializable
+data class CastDocumentData(
+    val canonical_name: String,
+    val aliases: List<String>,
+    val role_background: String,
+    val personality: String,
+    val voice_style: String,
+    val appearance: String,
+    val goals: String,
+    val boundaries: String
+)
+
 // ─── Prompt Pack Variant ────────────────────────────────────────────
 
 enum class PromptPackVariant {
