@@ -6,7 +6,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { readFile } from "node:fs/promises";
 import {
-  DeviceRegistry, DurableJobStore, HOST_PROTOCOL_VERSION, MAX_REQUEST_BYTES
+  DeviceRegistry, DurableJobStore, HOST_PROTOCOL_VERSION, MAX_REQUEST_BYTES,
+  computeContractId, createContractGuard
 } from "./host-lib.mjs";
 import { createCodexRunner, firstWorkingExecutable } from "./codex-runner.mjs";
 import {
@@ -295,7 +296,16 @@ export async function createContinuityHost({
     if (activeRuns.size) await Promise.allSettled([...activeRuns]);
   }
 
-  return { start, stop, store, devices, get draining() { return draining; } };
+  return {
+    start,
+    stop,
+    store,
+    devices,
+    get draining() { return draining; },
+    // A contract restart waits on this: an in-flight checkpoint costs minutes and its result is
+    // still valid under the contract it started with.
+    get busy() { return activeRuns.size > 0; }
+  };
 }
 
 async function main() {
@@ -357,7 +367,8 @@ async function main() {
     ? spawn("/usr/bin/caffeinate", ["-dimsu", "-w", String(process.pid)], { stdio: "ignore" })
     : null;
   caffeine?.unref();
-  console.log(`Open Fantasia Mac Host ready on ${address.address}:${address.port}`);
+  const contractId = await computeContractId(here);
+  console.log(`Open Fantasia Mac Host ready on ${address.address}:${address.port} (contract ${contractId})`);
 
   let stopping = false;
   const stop = force => {
@@ -365,6 +376,19 @@ async function main() {
     stopping = true;
     host.stop({ force }).then(() => process.exit(0), () => process.exit(1));
   };
+
+  // Exit on a contract change so the launch agent restarts on current code. Without this a host
+  // keeps serving the version it booted with, and every prompt or validation fix silently does
+  // nothing until someone thinks to restart it.
+  createContractGuard({
+    dir: here,
+    contractId,
+    isBusy: () => host.busy,
+    onStale: () => {
+      console.warn("Mac Host restarting to load the updated contract");
+      stop(false);
+    }
+  }).start();
   process.on("SIGTERM", () => stop(false));
   process.on("SIGINT", () => stop(true));
 }

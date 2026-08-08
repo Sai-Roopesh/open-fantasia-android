@@ -21,6 +21,96 @@ export function renderContinuityModelInput(prompt, request) {
   ].join("\n");
 }
 
+/**
+ * Files whose contents decide how a Continuity Update is prompted, canonicalized, and validated.
+ * A change to any of them changes engine behaviour, so a host still running the previous copy is
+ * silently wrong.
+ */
+export const CONTRACT_FILES = [
+  "PROMPT.md",
+  "config.json",
+  "response.schema.json",
+  "host-lib.mjs",
+  "worker-lib.mjs",
+  "codex-runner.mjs",
+  "antigravity-runner.mjs"
+];
+
+/**
+ * Fingerprint of the loaded contract. Node caches ES modules for the life of the process, so
+ * editing these files does nothing until the host restarts — a host can drift arbitrarily far
+ * behind the working tree while continuing to answer requests and fail in ways the phone cannot
+ * explain. Hashing contents rather than mtimes means a touched-but-unchanged file is not a change.
+ */
+export async function computeContractId(dir, files = CONTRACT_FILES) {
+  const hash = createHash("sha256");
+  for (const name of [...files].sort()) {
+    hash.update(name);
+    hash.update("\0");
+    try {
+      hash.update(await readFile(join(dir, name)));
+    } catch {
+      hash.update("<missing>");
+    }
+    hash.update("\0");
+  }
+  return hash.digest("hex").slice(0, 16);
+}
+
+/**
+ * Exits the host when its contract files stop matching the code it loaded, so a launch agent can
+ * restart it on the current version. Staleness becomes self-correcting instead of something a
+ * person has to notice from a failure whose cause is invisible.
+ *
+ * An in-flight job is never interrupted: the guard waits for the host to go idle before exiting,
+ * because a checkpoint run costs minutes and its result is still valid under the old contract.
+ */
+export function createContractGuard({
+  dir,
+  contractId,
+  isBusy = () => false,
+  onStale,
+  intervalMillis = 5000,
+  setIntervalFn = setInterval,
+  clearIntervalFn = clearInterval,
+  compute = computeContractId
+}) {
+  let timer = null;
+  let stale = false;
+
+  const check = async () => {
+    try {
+      if (!stale) {
+        const current = await compute(dir);
+        if (current === contractId) return;
+        stale = true;
+        console.warn(`Mac Host contract changed (${contractId} -> ${current}); restarting when idle`);
+      }
+      if (!isBusy()) {
+        clearIntervalFn(timer);
+        timer = null;
+        await onStale();
+      }
+    } catch {
+      // A transient read failure must never take the host down.
+    }
+  };
+
+  return {
+    start() {
+      if (!timer) timer = setIntervalFn(() => { void check(); }, intervalMillis);
+      timer?.unref?.();
+      return this;
+    },
+    stop() {
+      if (timer) clearIntervalFn(timer);
+      timer = null;
+    },
+    check,
+    get stale() { return stale; }
+  };
+}
+
 export function requireDirectModelInputSize(value, label) {
   const bytes = Buffer.byteLength(value, "utf8");
   if (bytes > MAX_DIRECT_MODEL_INPUT_BYTES) {

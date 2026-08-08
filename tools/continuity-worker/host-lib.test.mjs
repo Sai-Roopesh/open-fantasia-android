@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   DeviceRegistry,
   DurableJobStore,
   MAX_DIRECT_MODEL_INPUT_BYTES,
+  computeContractId,
+  createContractGuard,
   renderContinuityModelInput,
   requestPayloadHash,
   requireDirectModelInputSize
@@ -192,3 +194,91 @@ test("privacy cleanup removes expired prose but keeps a retryable diagnostic tom
   assert.equal(await store.getRequest("expired-roleplay"), null);
   assert.equal(await store.getResponse("expired-roleplay"), null);
 }));
+
+// ─── Contract staleness guard ───────────────────────────────────────
+
+test("contract id changes when a contract file changes, and ignores unrelated files", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "contract-"));
+  await writeFile(join(dir, "PROMPT.md"), "rule one");
+  await writeFile(join(dir, "worker-lib.mjs"), "export const a = 1;");
+
+  const files = ["PROMPT.md", "worker-lib.mjs"];
+  const before = await computeContractId(dir, files);
+
+  await writeFile(join(dir, "unrelated.md"), "notes");
+  assert.equal(await computeContractId(dir, files), before, "unrelated file must not change the id");
+
+  await writeFile(join(dir, "PROMPT.md"), "rule one, amended");
+  assert.notEqual(await computeContractId(dir, files), before);
+});
+
+test("rewriting a contract file with identical bytes is not a change", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "contract-"));
+  await writeFile(join(dir, "PROMPT.md"), "rule one");
+  const files = ["PROMPT.md"];
+  const before = await computeContractId(dir, files);
+
+  await writeFile(join(dir, "PROMPT.md"), "rule one");
+
+  assert.equal(await computeContractId(dir, files), before);
+});
+
+test("guard restarts the host once the contract changes and the host is idle", async () => {
+  let current = "same";
+  let restarts = 0;
+  const guard = createContractGuard({
+    dir: "/unused",
+    contractId: "same",
+    isBusy: () => false,
+    onStale: async () => { restarts++; },
+    setIntervalFn: () => null,
+    clearIntervalFn: () => {},
+    compute: async () => current
+  });
+
+  await guard.check();
+  assert.equal(restarts, 0, "unchanged contract must not restart");
+
+  current = "different";
+  await guard.check();
+  assert.equal(restarts, 1);
+  assert.equal(guard.stale, true);
+});
+
+test("guard never interrupts an in-flight job", async () => {
+  let busy = true;
+  let restarts = 0;
+  const guard = createContractGuard({
+    dir: "/unused",
+    contractId: "same",
+    isBusy: () => busy,
+    onStale: async () => { restarts++; },
+    setIntervalFn: () => null,
+    clearIntervalFn: () => {},
+    compute: async () => "different"
+  });
+
+  await guard.check();
+  assert.equal(restarts, 0, "must wait for the running checkpoint");
+  assert.equal(guard.stale, true, "but must already know it is stale");
+
+  busy = false;
+  await guard.check();
+  assert.equal(restarts, 1);
+});
+
+test("a transient read failure never takes the host down", async () => {
+  let restarts = 0;
+  const guard = createContractGuard({
+    dir: "/unused",
+    contractId: "same",
+    onStale: async () => { restarts++; },
+    setIntervalFn: () => null,
+    clearIntervalFn: () => {},
+    compute: async () => { throw new Error("EIO"); }
+  });
+
+  await guard.check();
+  assert.equal(restarts, 0);
+  assert.equal(guard.stale, false);
+});

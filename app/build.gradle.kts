@@ -1,3 +1,5 @@
+import org.gradle.api.tasks.PathSensitivity
+
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.compose.compiler)
@@ -58,6 +60,15 @@ android {
 
 kotlin {
     jvmToolchain(17)
+}
+
+// ContinuityValidationParityTest reads the shared validation corpus from the Mac Host tree. Without
+// declaring it as an input, Gradle treats the test as up to date when only a fixture changes, and
+// the parity check silently stops running exactly when a rule has drifted.
+tasks.withType<Test>().configureEach {
+    inputs.dir(rootProject.file("tools/continuity-worker/fixtures/validation"))
+        .withPropertyName("continuityValidationFixtures")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
 }
 
 dependencies {

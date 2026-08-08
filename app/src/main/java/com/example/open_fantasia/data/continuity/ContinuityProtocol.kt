@@ -138,6 +138,20 @@ object ContinuityCheckpointProtocol {
         dao.acceptCheckpoint(request.id, env.world_state, timelineEvents)
     }
 
+    /**
+     * Exposed so the shared validation fixtures can be run against this implementation directly.
+     * The Mac Host validates the same corpus in JavaScript; the two must reach the same verdict on
+     * every case, or a snapshot the host accepts is rejected here after the engine run is already
+     * spent. Production callers go through [acceptResponse].
+     */
+    internal fun validateForParity(
+        snapshot: DurableMemorySnapshot,
+        target: String,
+        baselineVersion: Int,
+        seeds: List<CastProfile>,
+        reachableTurnIds: Set<String>
+    ) = validate(snapshot, target, baselineVersion, seeds, reachableTurnIds)
+
     private fun validate(
         s: DurableMemorySnapshot,
         target: String,

@@ -9,15 +9,10 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
-import androidx.work.BackoffPolicy
 import androidx.work.CoroutineWorker
-import androidx.work.ExistingWorkPolicy
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.example.open_fantasia.OpenFantasiaApplication
 import com.example.open_fantasia.R
-import java.util.concurrent.TimeUnit
 
 class RoleplayGenerationWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result {
@@ -32,9 +27,12 @@ class RoleplayGenerationWorker(appContext: Context, params: WorkerParameters) : 
             it.execution_mode == RoleplayGenerationCoordinator.EXECUTION_MODE_MAC_HOST
         }
         if (before.none { it.status == "accepted" } && after.size < before.size) notifyReady()
-        return if (after.any { it.status !in setOf("failed", "accepted", "superseded") } ||
+        if (after.any { it.status !in setOf("failed", "accepted", "superseded") } ||
             container.roleplayGenerationCoordinator.hasPendingAcknowledgements()
-        ) Result.retry() else Result.success()
+        ) {
+            RoleplayGenerationScheduler.enqueueNextPoll(applicationContext)
+        }
+        return Result.success()
     }
 
     private fun notifyReady() {
@@ -62,10 +60,12 @@ class RoleplayGenerationWorker(appContext: Context, params: WorkerParameters) : 
 
 object RoleplayGenerationScheduler {
     private const val UNIQUE_WORK = "roleplay-generation-sync"
-    fun enqueue(context: Context) {
-        val work = OneTimeWorkRequestBuilder<RoleplayGenerationWorker>()
-            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 10, TimeUnit.SECONDS)
-            .build()
-        WorkManager.getInstance(context).enqueueUniqueWork(UNIQUE_WORK, ExistingWorkPolicy.KEEP, work)
-    }
+
+    /** Polls now — a reply was just submitted to the Mac Host. */
+    fun enqueue(context: Context) =
+        DurableJobPoll.enqueue<RoleplayGenerationWorker>(context, UNIQUE_WORK)
+
+    /** Polls again in ten seconds because a reply is still generating on the Mac Host. */
+    fun enqueueNextPoll(context: Context) =
+        DurableJobPoll.enqueue<RoleplayGenerationWorker>(context, UNIQUE_WORK, DurableJobPoll.INTERVAL_SECONDS)
 }
