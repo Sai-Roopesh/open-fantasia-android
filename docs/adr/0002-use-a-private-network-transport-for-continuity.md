@@ -22,7 +22,7 @@ The host backend listens only on localhost and is exposed to the tailnet through
 
 The Mac command supports `on`, `off`, `off --force`, and `status`. Enabling starts Tailscale, private HTTPS, the Continuity Host, and a sleep-prevention lease. Normal shutdown drains and durably saves active work before disconnecting; forced shutdown interrupts safely and returns unfinished work to the queue.
 
-The app displays host reachability and warns when an unavailable host will be needed, but it preserves checkpoint semantics: the seventh reply remains visible before strict blocking begins. While blocked, foreground status checks run every ten seconds; background retries begin at ten seconds and use increasing delays without a permanent foreground service. A completed result is validated and accepted atomically, with a notification when Android permits it.
+The app displays host reachability and warns when an unavailable host will be needed, but it preserves checkpoint semantics: the fifteenth reply remains visible before strict blocking begins. While blocked, foreground status checks run every ten seconds; background retries begin at ten seconds and use increasing delays without a permanent foreground service. A completed result is validated and accepted atomically, with a notification when Android permits it.
 
 Each Terra High run has a thirty-minute watchdog and one automatic corrective run after output validation failure. Exhaustion reports failure, leaves the checkpoint in force, and permits a new explicit retry without any skip or continue-without-continuity path.
 
@@ -30,7 +30,7 @@ Both host and phone validate response identity, structure, references, and safet
 
 Branch changes and Rewinds supersede stale queued or running jobs. A stale result can never be accepted, and its replacement keeps the superseded job's queue position. Credentials are kept in Android Keystore and macOS Keychain, with Mac-owned commands to pair, list, and revoke phones.
 
-The HTTP protocol is versioned under `/v1`. Incompatible app and host versions remain blocked with an explicit upgrade message. Cutover occurs only with no active checkpoint and after a verified phone-data backup: install and pair the network build, test a private round trip, then disable the ADB runtime before enabling the network runtime. Terra High, full replacement snapshots, the seven-exchange cadence, Rewind pruning, timeline events, summary ceilings, and existing acceptance rules do not change.
+The HTTP protocol is versioned under `/v1`. Incompatible app and host versions remain blocked with an explicit upgrade message. Cutover occurs only with no active checkpoint and after a verified phone-data backup: install and pair the network build, test a private round trip, then disable the ADB runtime before enabling the network runtime. Terra High, full replacement snapshots, the fifteen-exchange cadence, Rewind pruning, timeline events, summary ceilings, and existing acceptance rules do not change.
 
 ## Considered Options
 

@@ -26,7 +26,7 @@ class CharacterDefinitionTest {
         db = Room.inMemoryDatabaseBuilder(context, OpenFantasiaDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        viewModel = CharacterViewModel(db.characterDao(), db.portraitTaskDao(), context)
+        viewModel = CharacterViewModel(db.characterDao())
         
         runBlocking {
             db.profileDao().insertProfile(

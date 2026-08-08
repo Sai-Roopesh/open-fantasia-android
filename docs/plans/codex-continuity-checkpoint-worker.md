@@ -1,22 +1,22 @@
 # Codex Continuity Checkpoint Worker Plan
 
-> Historical ADB implementation plan. Its runtime transport is superseded by [Tailscale Continuity Host](./tailscale-continuity-host.md); ADB remains only for development and maintenance.
+> Historical ADB implementation plan. Its runtime transport is superseded by [Tailscale Mac Host](./tailscale-continuity-host.md); ADB remains only for development and maintenance.
 
 ## Outcome
 
-Replace every paid in-app HCE path with an event-driven Mac worker. After the seventh committed Roleplay Exchange on a branch since its Continuity Baseline, the seventh reply remains visible but the affected lineage becomes read-only. The app publishes a checkpoint request; the worker detects it over ADB, runs Codex once, returns a complete validated Continuity Snapshot, and the app unlocks only after accepting it.
+Replace every paid in-app HCE path with an event-driven Mac worker. After the fifteenth committed Roleplay Exchange on a branch since its Continuity Baseline, the fifteenth reply remains visible but the affected lineage becomes read-only. The app publishes a checkpoint request; the worker detects it over ADB, runs Codex once, returns a complete validated Continuity Snapshot, and the app unlocks only after accepting it.
 
 This plan implements the language in [CONTEXT.md](../../CONTEXT.md) and the architecture recorded in [ADR 0001](../adr/0001-event-driven-continuity-checkpoint-worker.md).
 
 ## Locked Decisions
 
-- Checkpoints occur after seven committed exchanges on the active branch lineage, not from a lifetime or global counter.
+- Checkpoints occur after fifteen committed exchanges on the active branch lineage, not from a lifetime or global counter.
 - Regenerations replace an exchange; rewinds discard exchanges; branches inherit the baseline and count at their fork point.
 - A pending checkpoint is strict and non-bypassable. Failures and USB disconnections leave the lineage blocked.
 - Blocking follows the checkpointed lineage. Unrelated threads and branch lineages remain usable.
 - History-changing actions are frozen while the lineage is checkpointed. Reading, copying, inspecting, and switching to unrelated roleplays remain available.
 - The response is a new complete snapshot, not a mutation patch.
-- Codex receives the prior complete baseline plus the exact post-baseline exchanges, normally seven. It does not receive the full transcript.
+- Codex receives the prior complete baseline plus the complete retained branch transcript. The request separately identifies the post-baseline checkpoint exchanges.
 - Story Summary, Scene Summary, and Latest Beat are rewritten rather than appended. Their safety ceilings are 20,000, 8,000, and 4,000 characters respectively; there are no sentence-count targets and no mechanical truncation.
 - Stable IDs and still-valid facts are preserved; current state is replaced with the latest truth; historical timeline events append only when genuinely notable.
 - All paid automatic extraction, self-healing extraction, and Deep Scan extraction paths are removed. Deep Scan becomes an early `Update Continuity Now` checkpoint.
@@ -36,7 +36,7 @@ Add a `continuity_checkpoint_requests` table rather than encoding workflow state
 - status: `pending_export`, `waiting_for_worker`, `processing`, `validating`, `ready_to_import`, `accepted`, or `failed`;
 - worker attempt count, user-facing failure detail, and timestamps.
 
-Add indices for pending status, thread, branch, and target turn. Preserve all existing data with an explicit `MIGRATION_3_4`; do not use destructive migration. Existing latest reachable snapshots become initial baselines so installed users begin counting seven new exchanges from their current state.
+Add indices for pending status, thread, branch, and target turn. Preserve all existing data with an explicit `MIGRATION_3_4`; do not use destructive migration. Existing latest reachable snapshots become initial baselines so installed users begin counting fifteen new exchanges from their current state.
 
 ### Baseline lookup
 
@@ -48,7 +48,7 @@ Keep existing snapshot rows during migration. New worker snapshots are marked wi
 
 1. `commitTurn` commits the assistant reply normally.
 2. In the same database transaction, walk the committed active lineage from its latest accepted baseline and count post-baseline exchanges.
-3. On the seventh exchange, create exactly one pending request tied to the branch head and baseline hash.
+3. On the fifteenth exchange, create exactly one pending request tied to the branch head and baseline hash.
 4. The UI immediately observes the request and makes the affected lineage read-only.
 5. A repository service exports the request package atomically to app external storage and marks it `waiting_for_worker`.
 6. Worker status files advance the visible state through processing and validation.
@@ -70,7 +70,7 @@ The exported JSON contains no API keys or connection secrets. It contains:
 - thread, branch, target-turn, baseline-turn, version, and hash identity;
 - character definition, selected persona, supporting cast, director notes, and active pins;
 - the complete previous Continuity Snapshot, or an empty initial snapshot;
-- the exact ordered Continuity Source Window with turn IDs, parent IDs, user text, assistant text, and timestamps;
+- the complete ordered retained transcript with turn IDs, parent IDs, user text, assistant text, and timestamps, plus the exact checkpoint-turn IDs;
 - the complete output schema and semantic rules, including summary rewrite semantics and size ceilings.
 
 ### Response envelope
@@ -87,7 +87,7 @@ The app is the final authority. It rejects malformed, stale, mismatched, partial
 
 Codex treats the previous snapshot as compressed truth and the source window as evidence of change:
 
-- Rewrite Story Summary as one coherent causal account of old story knowledge plus the seven exchanges. Never concatenate the old summary and a new paragraph.
+- Rewrite Story Summary as one coherent causal account of old story knowledge plus the full retained branch transcript. Never concatenate the old summary and a new paragraph.
 - Rewrite Scene Summary from the situation after the checkpoint exchange only.
 - Replace Latest Beat with the change produced by the checkpoint exchange.
 - Preserve canonical entity, fact, relationship, location, edge, and narrative-thread IDs unless correcting a proven merge or duplicate.
@@ -149,17 +149,17 @@ Retry republishes the same immutable continuity payload with an incremented atte
 - Replace `runDeepScan` with early checkpoint creation.
 - Remove the HCE brain-model controls from thread settings; retain old database columns during this migration if dropping them would add risk, but make them unused.
 - Remove obsolete HCE call wiring only after checkpoint tests pass. Preserve unrelated uncommitted work currently present in the same files.
-- Add a regression test proving seven ordinary exchanges and an on-demand update make no extraction-provider requests.
+- Add a regression test proving fifteen ordinary exchanges and an on-demand update make no extraction-provider requests.
 
 ## Verification
 
 ### Unit and DAO tests
 
-- seven-exchange boundary, no gate at six, exactly one request at seven;
+- fifteen-exchange boundary, no gate at fourteen, exactly one request at fifteen;
 - regeneration replacement, rewinds, fork inheritance, descendant blocking, and unrelated-branch freedom;
 - nearest reachable baseline lookup;
 - transactional enforcement for every frozen mutation;
-- request export ordering and exact seven-exchange content;
+- request export ordering and exact fifteen-exchange content;
 - complete-snapshot schema, summary ceilings, stable IDs, graph references, hashes, and stale-response rejection;
 - idempotent duplicate response and process-restart handling;
 - early checkpoint cadence reset.
@@ -175,7 +175,7 @@ Retry republishes the same immutable continuity payload with an incremented atte
 
 ### UI and device tests
 
-- seventh reply remains visible while input and lineage mutations are disabled;
+- fifteenth reply remains visible while input and lineage mutations are disabled;
 - progress and failure states survive rotation and app restart;
 - unrelated threads and eligible branches remain usable;
 - accepted response updates the Inspector and unlocks without relaunching;
@@ -186,7 +186,7 @@ Retry republishes the same immutable continuity payload with an incremented atte
 1. Restore ADB visibility—the phone is physically connected but `adb devices -l` currently lists no device. Unlock it, select file-transfer mode, and accept the debugging authorization prompt.
 2. Build and install the migrated debug app without clearing its data.
 3. Run the worker manually first and verify a synthetic request/response round trip.
-4. Complete seven real exchanges and observe strict blocking, one Codex run, live import, and unlock.
+4. Complete fifteen real exchanges and observe strict blocking, one Codex run, live import, and unlock.
 5. Disconnect USB during processing, confirm the chat stays blocked, reconnect, and confirm automatic recovery.
 6. Test rewind, regeneration, and branching around a baseline.
 7. Install and enable the LaunchAgent only after the manual worker passes.
@@ -206,10 +206,10 @@ Retry republishes the same immutable continuity payload with an incremented atte
 
 ## Definition of Done
 
-- Exactly the seventh eligible exchange creates one durable checkpoint request.
+- Exactly the fifteenth eligible exchange creates one durable checkpoint request.
 - No affected lineage mutation can bypass a pending checkpoint.
 - Idle watching consumes no Codex run and ordinary chat makes no HCE provider call.
-- Codex receives no full transcript—only the previous snapshot and exact source window.
+- Codex receives the complete retained branch transcript and prior snapshot; Rewind-discarded exchanges are absent.
 - Only a complete, current, semantically valid snapshot can establish a new baseline.
 - Disconnects, crashes, invalid output, duplicate delivery, and stale responses never unlock or corrupt the chat.
 - A successful response updates the visible continuity state and unlocks the chat without restarting the app.

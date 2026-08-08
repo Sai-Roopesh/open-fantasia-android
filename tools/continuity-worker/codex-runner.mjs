@@ -1,15 +1,20 @@
-import { readFile, writeFile, mkdtemp, rm } from "node:fs/promises";
+import { readFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
-import { validateResponse } from "./worker-lib.mjs";
-import { JOB_TIMEOUT_MILLIS } from "./host-lib.mjs";
+import { applyAuthoritativeCastLocks, validateResponse } from "./worker-lib.mjs";
+import {
+  JOB_TIMEOUT_MILLIS,
+  renderContinuityModelInput,
+  requireDirectModelInputSize
+} from "./host-lib.mjs";
 
 class OutputValidationError extends Error {}
 
-function runProcess(bin, args, { cwd, timeoutMillis, signal } = {}) {
+export function runProcessCapture(bin, args, { cwd, timeoutMillis, signal, label = "Model" } = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(bin, args, { cwd, stdio: ["ignore", "ignore", "pipe"] });
+    const child = spawn(bin, args, { cwd, stdio: ["ignore", "pipe", "pipe"] });
+    let stdout = "";
     let stderr = "";
     let finished = false;
     const finish = callback => value => {
@@ -24,19 +29,20 @@ function runProcess(bin, args, { cwd, timeoutMillis, signal } = {}) {
     const abort = () => {
       child.kill("SIGTERM");
       setTimeout(() => child.kill("SIGKILL"), 5_000).unref();
-      fail(new Error("Codex run interrupted"));
+      fail(new Error(`${label} run interrupted`));
     };
     const timer = setTimeout(() => {
       child.kill("SIGTERM");
       setTimeout(() => child.kill("SIGKILL"), 5_000).unref();
-      fail(new Error("Codex run exceeded the 30-minute limit"));
+      fail(new Error(`${label} exceeded its time limit`));
     }, timeoutMillis ?? JOB_TIMEOUT_MILLIS);
     timer.unref();
-    child.stderr.on("data", chunk => { stderr = `${stderr}${chunk}`.slice(-2_000); });
+    child.stdout.on("data", chunk => { stdout += chunk; });
+    child.stderr.on("data", chunk => { stderr = `${stderr}${chunk}`.slice(-256 * 1024); });
     child.on("error", fail);
     child.on("close", code => {
-      if (code === 0) succeed();
-      else fail(new Error(`Codex exited with status ${code}${stderr.includes("not found") ? ": executable unavailable" : ""}`));
+      if (code === 0 && !stderr.includes("no output produced")) succeed(stdout.trim() ? stdout : stderr);
+      else fail(new Error(`${label} exited with status ${code}${stderr ? `: ${stderr.trim().slice(-500)}` : ""}`));
     });
     if (signal?.aborted) abort();
     else signal?.addEventListener("abort", abort, { once: true });
@@ -46,38 +52,39 @@ function runProcess(bin, args, { cwd, timeoutMillis, signal } = {}) {
 export async function firstWorkingExecutable(candidates, args = ["--version"]) {
   for (const candidate of candidates) {
     try {
-      await runProcess(candidate, args, { timeoutMillis: 10_000 });
+      await runProcessCapture(candidate, args, { timeoutMillis: 10_000, label: "Executable probe" });
       return candidate;
     } catch {}
   }
   throw new Error("Codex executable is unavailable");
 }
 
-export function createCodexRunner({ codex, model, reasoningEffort, prompt, responseSchema, timeoutMillis = JOB_TIMEOUT_MILLIS }) {
+export function createCodexRunner({ codex, model, reasoningEffort, prompt, responseSchema, validateSchema = () => {}, timeoutMillis = JOB_TIMEOUT_MILLIS }) {
   return async function runContinuity(request, { signal, onState = async () => {} } = {}) {
     const work = await mkdtemp(join(tmpdir(), `open-fantasia-${request.request_id}-`));
     try {
-      const requestPath = join(work, "request.json");
       const rawPath = join(work, "raw.txt");
-      await writeFile(requestPath, `${JSON.stringify(request, null, 2)}\n`, { mode: 0o600 });
-      const task = `${prompt}\n\nThe request is available at ${requestPath}. Read it and return the response JSON.`;
+      const task = renderContinuityModelInput(prompt, request);
+      requireDirectModelInputSize(task, "Canonical continuity context");
       let validationError = null;
 
       for (let attempt = 0; attempt < 2; attempt++) {
         await onState("generating");
         const correction = attempt === 0 ? "" : `\n\nYour previous response failed validation: ${validationError.message}. Correct it completely.`;
-        await runProcess(codex, [
+        await runProcessCapture(codex, [
           "exec", "--ephemeral", "--skip-git-repo-check", "--sandbox", "workspace-write",
           "--output-schema", responseSchema, "-m", model,
           "-c", `model_reasoning_effort=\"${reasoningEffort}\"`, "-o", rawPath, task + correction
-        ], { cwd: work, timeoutMillis, signal });
+        ], { cwd: work, timeoutMillis, signal, label: "Codex continuity" });
 
         await onState("validating");
         try {
           const text = (await readFile(rawPath, "utf8")).trim();
           const response = JSON.parse(text);
-          validateResponse(request, response);
-          return response;
+          validateSchema(response);
+          const canonical = applyAuthoritativeCastLocks(request, response);
+          validateResponse(request, canonical);
+          return canonical;
         } catch (error) {
           validationError = new OutputValidationError(error?.message || "Invalid Continuity response");
           if (attempt === 1) throw validationError;

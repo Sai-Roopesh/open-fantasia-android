@@ -19,8 +19,12 @@ class ContinuityCheckpointWorker(
         val chatDao = container.database.chatDao()
         val characterDao = container.database.characterDao()
         val personaDao = container.database.personaDao()
+        container.continuityCheckpointCoordinator.flushAcknowledgements()
         val pending = chatDao.getPendingCheckpoints()
-        if (pending.isEmpty()) return Result.success()
+        if (pending.isEmpty()) {
+            return if (container.continuityCheckpointCoordinator.hasPendingAcknowledgements()) Result.retry()
+            else Result.success()
+        }
 
         pending.forEach { request ->
             val thread = chatDao.getThread(request.thread_id) ?: return@forEach
@@ -30,12 +34,13 @@ class ContinuityCheckpointWorker(
                 request,
                 character,
                 persona,
-                chatDao.getActivePins(request.thread_id, request.branch_id),
                 thread.director_notes
             )
         }
         val remaining = chatDao.getPendingCheckpoints()
-        return if (remaining.any { it.status != "failed" }) Result.retry() else Result.success()
+        return if (remaining.any { it.status != "failed" } ||
+            container.continuityCheckpointCoordinator.hasPendingAcknowledgements()
+        ) Result.retry() else Result.success()
     }
 }
 

@@ -3,11 +3,16 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createContinuityHost } from "./host-server.mjs";
+import {
+  ANTIGRAVITY_PORTRAIT_MODEL,
+  ANTIGRAVITY_ROLEPLAY_MODEL,
+  CODEX_CONTINUITY_ENGINE,
+  createContinuityHost
+} from "./host-server.mjs";
 
 async function waitForReady(base, credential, id) {
   for (let attempt = 0; attempt < 100; attempt++) {
-    const response = await fetch(`${base}/v1/checkpoints/${id}`, { headers: { authorization: `Bearer ${credential}` } });
+    const response = await fetch(`${base}/v2/checkpoints/${id}`, { headers: { authorization: `Bearer ${credential}` } });
     const status = await response.json();
     if (status.status === "ready") return status;
     await new Promise(resolve => setTimeout(resolve, 5));
@@ -17,7 +22,9 @@ async function waitForReady(base, credential, id) {
 
 function request(id, hash = "baseline") {
   return {
-    protocol_version: 1,
+    protocol_version: 2,
+    job_type: "continuity",
+    engine_id: CODEX_CONTINUITY_ENGINE,
     request_id: id,
     thread_id: "thread-1",
     branch_id: "branch-1",
@@ -29,17 +36,36 @@ function request(id, hash = "baseline") {
   };
 }
 
-async function withHost(runContinuity, body) {
+async function withHost(runContinuity, body, options = {}) {
   const root = await mkdtemp(join(tmpdir(), "open-fantasia-server-test-"));
-  const host = await createContinuityHost({ root, port: 0, runContinuity });
+  const host = await createContinuityHost({ root, port: 0, runContinuity, ...options });
   const address = await host.start();
   const base = `http://127.0.0.1:${address.port}`;
   try { await body({ host, base }); } finally { await host.stop({ force: true }); await rm(root, { recursive: true, force: true }); }
 }
 
+test("running host enforces privacy retention periodically", async () => {
+  let now = 100;
+  await withHost(async input => input, async ({ host }) => {
+    await host.store.createOrGet({
+      ...request("periodic-expiry"),
+      job_type: "roleplay",
+      model_id: ANTIGRAVITY_ROLEPLAY_MODEL
+    }, "device-1", "roleplay");
+    await host.store.markReady("periodic-expiry", { private_story: "content" });
+    now += 24 * 60 * 60 * 1000 + 1;
+    for (let attempt = 0; attempt < 100; attempt++) {
+      if ((await host.store.getState("periodic-expiry"))?.status === "expired") break;
+      await new Promise(resolve => setTimeout(resolve, 2));
+    }
+    assert.equal((await host.store.getState("periodic-expiry")).status, "expired");
+    assert.equal(await host.store.getResponse("periodic-expiry"), null);
+  }, { now: () => now, cleanupIntervalMillis: 5 });
+});
+
 async function pair(host, base) {
   const pairing = await host.devices.createPairing({ endpoint: base });
-  const response = await fetch(`${base}/v1/pair`, {
+  const response = await fetch(`${base}/v2/pair`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ code: pairing.code, device_name: "Test phone" })
@@ -50,20 +76,20 @@ async function pair(host, base) {
 
 test("private API pairs, runs one idempotent job, returns and acknowledges result", async () => {
   await withHost(async input => ({ request_id: input.request_id, answer: "complete" }), async ({ host, base }) => {
-    assert.equal((await fetch(`${base}/v1/health`)).status, 401);
+    assert.equal((await fetch(`${base}/v2/health`)).status, 401);
     const paired = await pair(host, base);
     const headers = { authorization: `Bearer ${paired.credential}`, "content-type": "application/json" };
 
-    const submitted = await fetch(`${base}/v1/checkpoints`, { method: "POST", headers, body: JSON.stringify(request("one")) });
+    const submitted = await fetch(`${base}/v2/checkpoints`, { method: "POST", headers, body: JSON.stringify(request("one")) });
     assert.equal(submitted.status, 202);
     await waitForReady(base, paired.credential, "one");
 
-    const duplicate = await fetch(`${base}/v1/checkpoints`, { method: "POST", headers, body: JSON.stringify(request("one")) });
+    const duplicate = await fetch(`${base}/v2/checkpoints`, { method: "POST", headers, body: JSON.stringify(request("one")) });
     assert.equal(duplicate.status, 200);
-    const result = await (await fetch(`${base}/v1/checkpoints/one/result`, { headers })).json();
+    const result = await (await fetch(`${base}/v2/checkpoints/one/result`, { headers })).json();
     assert.equal(result.answer, "complete");
 
-    const ack = await fetch(`${base}/v1/checkpoints/one/ack`, { method: "POST", headers });
+    const ack = await fetch(`${base}/v2/checkpoints/one/ack`, { method: "POST", headers });
     assert.equal(ack.status, 200);
     assert.equal((await host.store.getState("one")).status, "acknowledged");
     assert.equal(await host.store.getRequest("one"), null);
@@ -74,8 +100,8 @@ test("same request identity with changed evidence returns conflict", async () =>
   await withHost(async input => input, async ({ host, base }) => {
     const paired = await pair(host, base);
     const headers = { authorization: `Bearer ${paired.credential}`, "content-type": "application/json" };
-    await fetch(`${base}/v1/checkpoints`, { method: "POST", headers, body: JSON.stringify(request("same")) });
-    const conflict = await fetch(`${base}/v1/checkpoints`, { method: "POST", headers, body: JSON.stringify(request("same", "changed")) });
+    await fetch(`${base}/v2/checkpoints`, { method: "POST", headers, body: JSON.stringify(request("same")) });
+    const conflict = await fetch(`${base}/v2/checkpoints`, { method: "POST", headers, body: JSON.stringify(request("same", "changed")) });
     assert.equal(conflict.status, 409);
   });
 });
@@ -84,7 +110,7 @@ test("concurrent duplicate submissions create one durable job", async () => {
   await withHost(async input => ({ request_id: input.request_id }), async ({ host, base }) => {
     const paired = await pair(host, base);
     const headers = { authorization: `Bearer ${paired.credential}`, "content-type": "application/json" };
-    const responses = await Promise.all(Array.from({ length: 8 }, () => fetch(`${base}/v1/checkpoints`, {
+    const responses = await Promise.all(Array.from({ length: 8 }, () => fetch(`${base}/v2/checkpoints`, {
       method: "POST", headers, body: JSON.stringify(request("concurrent"))
     })));
     assert.equal(responses.filter(response => response.status === 202).length, 1);
@@ -105,10 +131,140 @@ test("global queue never runs two Continuity jobs concurrently", async () => {
   }, async ({ host, base }) => {
     const paired = await pair(host, base);
     const headers = { authorization: `Bearer ${paired.credential}`, "content-type": "application/json" };
-    await Promise.all(["first", "second"].map(id => fetch(`${base}/v1/checkpoints`, {
+    await Promise.all(["first", "second"].map(id => fetch(`${base}/v2/checkpoints`, {
       method: "POST", headers, body: JSON.stringify(request(id))
     })));
     await Promise.all(["first", "second"].map(id => waitForReady(base, paired.credential, id)));
     assert.equal(maximum, 1);
   });
+});
+
+test("roleplay jobs use the same pairing and durable acknowledgement protocol", async () => {
+  const root = await mkdtemp(join(tmpdir(), "open-fantasia-roleplay-server-test-"));
+  const runRoleplay = async input => ({
+    protocol_version: 2,
+    job_type: "roleplay",
+    request_id: input.request_id,
+    thread_id: input.thread_id,
+    branch_id: input.branch_id,
+    turn_id: input.turn_id,
+    requested_speaker_id: input.requested_speaker_id,
+    speaker_mode: input.speaker_mode,
+    model_id: input.model_id,
+    reply_text: "In-character reply",
+    elapsed_millis: 12
+  });
+  const host = await createContinuityHost({ root, port: 0, runContinuity: async input => input, runRoleplay });
+  const address = await host.start();
+  const base = `http://127.0.0.1:${address.port}`;
+  try {
+    const paired = await pair(host, base);
+    const headers = { authorization: `Bearer ${paired.credential}`, "content-type": "application/json" };
+    const requestBody = {
+      protocol_version: 2,
+      job_type: "roleplay",
+      request_id: "roleplay-1",
+      thread_id: "thread-1",
+      branch_id: "branch-1",
+      turn_id: "turn-1",
+      requested_speaker_id: "cast-yunxi",
+      speaker_mode: "single",
+      model_id: ANTIGRAVITY_ROLEPLAY_MODEL,
+      attempt_count: 0,
+      request_hash: "canonical-hash",
+      generation_request: {
+        contract_version: 1,
+        system_prompt: "Stable prompt",
+        messages: [{ role: "user", content: "Hello" }],
+        requested_speaker_id: "cast-yunxi",
+        speaker_mode: "single",
+        settings: {
+          temperature: 0.9,
+          top_p: 0.95,
+          max_tokens: 2048,
+          presence_penalty: 0.4,
+          frequency_penalty: 0.4
+        }
+      }
+    };
+    const submitted = await fetch(`${base}/v2/roleplay-jobs`, { method: "POST", headers, body: JSON.stringify(requestBody) });
+    assert.equal(submitted.status, 202);
+    for (let attempt = 0; attempt < 100; attempt++) {
+      const status = await (await fetch(`${base}/v2/roleplay-jobs/roleplay-1`, { headers })).json();
+      if (status.status === "ready") break;
+      await new Promise(resolve => setTimeout(resolve, 5));
+    }
+    const result = await (await fetch(`${base}/v2/roleplay-jobs/roleplay-1/result`, { headers })).json();
+    assert.equal(result.reply_text, "In-character reply");
+    assert.equal(result.requested_speaker_id, "cast-yunxi");
+    assert.equal((await fetch(`${base}/v2/roleplay-jobs/roleplay-1/ack`, { method: "POST", headers })).status, 200);
+    assert.equal(await host.store.getRequest("roleplay-1"), null);
+  } finally {
+    await host.stop({ force: true });
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("portrait jobs use the shared host and return an immutable image envelope", async () => {
+  const root = await mkdtemp(join(tmpdir(), "open-fantasia-portrait-server-test-"));
+  const runPortrait = async input => ({
+    protocol_version: 2,
+    job_type: "portrait",
+    request_id: input.request_id,
+    subject_type: input.subject_type,
+    character_id: input.character_id,
+    thread_id: input.thread_id,
+    branch_id: input.branch_id,
+    cast_id: input.cast_id,
+    source_hash: input.source_hash,
+    prompt_version: input.prompt_version,
+    model_id: input.model_id,
+    mime_type: "image/jpeg",
+    width: 768,
+    height: 1376,
+    sha256: "a".repeat(64),
+    image_base64: "portrait-bytes"
+  });
+  const host = await createContinuityHost({
+    root,
+    port: 0,
+    runContinuity: async input => input,
+    runPortrait
+  });
+  const address = await host.start();
+  const base = `http://127.0.0.1:${address.port}`;
+  try {
+    const paired = await pair(host, base);
+    const headers = { authorization: `Bearer ${paired.credential}`, "content-type": "application/json" };
+    const body = {
+      protocol_version: 2,
+      job_type: "portrait",
+      request_id: "portrait-1",
+      subject_type: "cast",
+      character_id: "character-1",
+      thread_id: "thread-1",
+      branch_id: "branch-1",
+      cast_id: "cast-yunxi",
+      source_hash: "source",
+      prompt_version: 1,
+      model_id: ANTIGRAVITY_PORTRAIT_MODEL,
+      attempt_count: 0,
+      portrait_brief: { canonical_name: "Yunxi" }
+    };
+    const submitted = await fetch(`${base}/v2/portrait-jobs`, { method: "POST", headers, body: JSON.stringify(body) });
+    assert.equal(submitted.status, 202);
+    for (let attempt = 0; attempt < 100; attempt++) {
+      const status = await (await fetch(`${base}/v2/portrait-jobs/portrait-1`, { headers })).json();
+      if (status.status === "ready") break;
+      await new Promise(resolve => setTimeout(resolve, 5));
+    }
+    const result = await (await fetch(`${base}/v2/portrait-jobs/portrait-1/result`, { headers })).json();
+    assert.equal(result.subject_type, "cast");
+    assert.equal(result.cast_id, "cast-yunxi");
+    assert.equal(result.image_base64, "portrait-bytes");
+    assert.equal((await fetch(`${base}/v2/portrait-jobs/portrait-1/ack`, { method: "POST", headers })).status, 200);
+  } finally {
+    await host.stop({ force: true });
+    await rm(root, { recursive: true, force: true });
+  }
 });

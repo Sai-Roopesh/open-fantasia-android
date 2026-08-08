@@ -39,7 +39,7 @@ case "$command" in
     if ! launchctl print "$service" >/dev/null 2>&1; then launchctl bootstrap "$domain" "$plist"; fi
     launchctl kickstart -k "$service"
     "$tailscale_bin" serve --bg 47831
-    echo "Open Fantasia Continuity Host: on ($(endpoint))"
+    echo "Open Fantasia Mac Host: on ($(endpoint))"
     ;;
   off)
     require_tailscale
@@ -58,10 +58,10 @@ case "$command" in
     fi
     "$tailscale_bin" serve off 2>/dev/null || true
     "$tailscale_bin" down
-    echo "Open Fantasia Continuity Host: off"
+    echo "Open Fantasia Mac Host: off"
     ;;
   status)
-    if launchctl print "$service" >/dev/null 2>&1; then echo "Continuity Host: on (pid $(host_pid))"; else echo "Continuity Host: off"; fi
+    if launchctl print "$service" >/dev/null 2>&1; then echo "Mac Host: on (pid $(host_pid))"; else echo "Mac Host: off"; fi
     if [ -n "$tailscale_bin" ]; then "$tailscale_bin" status --self 2>/dev/null || true; else echo "Tailscale: not installed"; fi
     "$node_bin" "$here/host-cli.mjs" status
     ;;
@@ -76,7 +76,7 @@ case "$command" in
     "$node_bin" "$here/host-cli.mjs" revoke "${2:-}"
     ;;
   *)
-    echo "Usage: continuity-remote {on|off [--force]|status|pair|devices|revoke ID}" >&2
+    echo "Usage: fantasia-host {on|off [--force]|status|pair|devices|revoke ID}" >&2
     exit 2
     ;;
 esac

@@ -91,7 +91,7 @@ class RewindBranchDaoTest {
     }
 
     @Test
-    fun testRewindBranchDeletesOrphanedTurnsAndSiblingBranches() = runBlocking {
+    fun rewindPreservesSiblingBranchAndOnlyPrunesExclusiveSuffix() = runBlocking {
         val chatDao = db.chatDao()
 
         // 1. Create Thread and Branch
@@ -142,7 +142,8 @@ class RewindBranchDaoTest {
         assertNotNull(fetchedSiblingBefore)
         assertEquals(committed4.id, fetchedSiblingBefore!!.head_turn_id)
 
-        // 3. Rewind Main Branch back to Turn 1 (prunes turn2 and turn3, which should also orphan Branch B)
+        // 3. Rewind Main Branch back to Turn 1. Turn 2 remains physical storage because Branch B
+        // still depends on it, but it is no longer reachable from Main.
         val rewound = chatDao.rewindBranchToTurn(
             userId = userId,
             branchId = mainBranch.id,
@@ -152,15 +153,14 @@ class RewindBranchDaoTest {
 
         assertEquals(committed1.id, rewound.head_turn_id)
 
-        // Verify Turn 2 and Turn 3 are deleted from the database
-        assertNull(chatDao.getTurn(committed2.id))
+        // Only Main's exclusive suffix is deleted.
+        assertNotNull(chatDao.getTurn(committed2.id))
         assertNull(chatDao.getTurn(committed3.id))
 
-        // Verify Turn 4 is deleted as its parent (Turn 2) was cascade deleted
-        assertNull(chatDao.getTurn(committed4.id))
+        // Branch B and its continuation remain intact.
+        assertNotNull(chatDao.getTurn(committed4.id))
 
-        // Verify Sibling Branch B is deleted because it was based on a pruned turn (Turn 2)
-        assertNull(chatDao.getBranch(siblingBranch.id))
+        assertEquals(committed4.id, chatDao.getBranch(siblingBranch.id)?.head_turn_id)
 
         // Verify path of main branch after rewind is just turn1
         val pathAfter = chatDao.getAncestorTurns(committed1.id)

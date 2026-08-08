@@ -8,6 +8,7 @@ import com.example.open_fantasia.data.local.dao.CharacterDao
 import com.example.open_fantasia.data.local.dao.ChatDao
 import com.example.open_fantasia.data.local.dao.ConnectionDao
 import com.example.open_fantasia.data.local.dao.PersonaDao
+import com.example.open_fantasia.data.local.dao.PortraitTaskDao
 import com.example.open_fantasia.data.local.entity.BranchEntity
 import com.example.open_fantasia.data.local.entity.CharacterEntity
 import com.example.open_fantasia.data.local.entity.ConnectionEntity
@@ -20,29 +21,31 @@ import com.example.open_fantasia.data.local.entity.TimelineEntity
 import com.example.open_fantasia.data.local.entity.ContinuityCheckpointEntity
 import com.example.open_fantasia.data.local.entity.CastSeedEntity
 import com.example.open_fantasia.data.local.entity.CastProfileOverrideEntity
+import com.example.open_fantasia.data.local.entity.RoleplayGenerationJobEntity
+import com.example.open_fantasia.data.local.entity.CastPortraitEntity
 import com.example.open_fantasia.data.continuity.ContinuityCheckpointCoordinator
 import com.example.open_fantasia.data.continuity.ContinuityHostClient
 import com.example.open_fantasia.data.continuity.ContinuityHostState
 import com.example.open_fantasia.data.continuity.ContinuityCheckpointScheduler
-import com.example.open_fantasia.data.remote.ChatMessage
-import com.example.open_fantasia.data.remote.LLMClient
+import com.example.open_fantasia.data.continuity.ContinuityHostPreferences
+import com.example.open_fantasia.data.continuity.RoleplayGenerationCoordinator
+import com.example.open_fantasia.data.continuity.RoleplayGenerationScheduler
+import com.example.open_fantasia.data.continuity.RoleplayProtocol
+import com.example.open_fantasia.data.continuity.PortraitGenerationCoordinator
+import com.example.open_fantasia.domain.model.RoleplayContextAssembler
 import com.example.open_fantasia.domain.model.CharacterBundle
-import com.example.open_fantasia.domain.model.CastMember
 import com.example.open_fantasia.domain.model.CastProfile
-import com.example.open_fantasia.domain.model.UserPersonaRecord
-import com.example.open_fantasia.domain.model.parseSupportingCast
 import com.example.open_fantasia.domain.model.DurableMemorySnapshot
-import com.example.open_fantasia.domain.model.SnapshotMetadata
-import com.example.open_fantasia.domain.model.SpatialState
-import com.example.open_fantasia.domain.model.NarrativeState
+import com.example.open_fantasia.domain.model.RoleplayGenerationRequest
+import com.example.open_fantasia.domain.model.RoleplayGenerationSettings
+import com.example.open_fantasia.domain.model.RoleplayLineageEntry
+import com.example.open_fantasia.domain.model.BranchLineage
+import com.example.open_fantasia.domain.model.BranchLineageRef
+import com.example.open_fantasia.domain.model.TurnLineageRef
 import com.example.open_fantasia.domain.model.resolveCastRoster
 import com.example.open_fantasia.domain.reducer.PromptBuilder
-import com.example.open_fantasia.domain.reducer.WorldStateReducer
-import com.example.open_fantasia.domain.usecase.RunContinuityExtractionUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -75,7 +78,9 @@ sealed interface ChatUiState {
         val checkpoint: ContinuityCheckpointEntity?,
         val continuityHostState: ContinuityHostState,
         val exchangesUntilCheckpoint: Int,
-        val castRoster: List<CastProfile>
+        val castRoster: List<CastProfile>,
+        val castPortraits: List<CastPortraitEntity>,
+        val needsContinuityEngineChoice: Boolean
     ) : ChatUiState
 }
 
@@ -85,10 +90,12 @@ class ChatViewModel(
     private val characterDao: CharacterDao,
     private val connectionDao: ConnectionDao,
     private val personaDao: PersonaDao,
-    private val llmClient: LLMClient,
-    private val runContinuityExtractionUseCase: RunContinuityExtractionUseCase,
     private val continuityCheckpointCoordinator: ContinuityCheckpointCoordinator,
+    private val roleplayGenerationCoordinator: RoleplayGenerationCoordinator,
+    private val portraitGenerationCoordinator: PortraitGenerationCoordinator,
+    private val portraitTaskDao: PortraitTaskDao,
     private val continuityHostClient: ContinuityHostClient,
+    private val continuityHostPreferences: ContinuityHostPreferences,
     private val context: Context
 ) : ViewModel() {
 
@@ -104,17 +111,25 @@ class ChatViewModel(
                 try {
                     chatDao.getPendingCheckpoints().filter { it.thread_id == threadId }.forEach { request ->
                         if (request.status != "failed") ContinuityCheckpointScheduler.enqueue(context)
-                        val thread = chatDao.getThread(threadId) ?: return@forEach
-                        val character = characterDao.getCharacter(thread.character_id) ?: return@forEach
-                        val persona = thread.persona_id?.let { personaDao.getPersona(it) }
-                        continuityCheckpointCoordinator.sync(
-                            request, character, persona,
-                            chatDao.getActivePins(threadId, request.branch_id), thread.director_notes
-                        )
                     }
                 } catch (_: Exception) {
                     // The database can close underneath instrumentation teardown; retry on the next tick in normal use.
                 }
+                delay(10_000)
+            }
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            while (isActive) {
+                try {
+                    chatDao.getPendingRoleplayJobs().filter { it.thread_id == threadId }.forEach { job ->
+                        if (job.status !in setOf("failed", "accepted", "superseded")) {
+                            if (job.execution_mode == RoleplayGenerationCoordinator.EXECUTION_MODE_MAC_HOST) {
+                                RoleplayGenerationScheduler.enqueue(context)
+                            }
+                            roleplayGenerationCoordinator.resume(job)
+                        }
+                    }
+                } catch (_: Exception) {}
                 delay(10_000)
             }
         }
@@ -136,15 +151,28 @@ class ChatViewModel(
     private val _isScanning = MutableStateFlow(false)
     val isScanning = _isScanning.asStateFlow()
 
+    private val _needsContinuityEngineChoice = MutableStateFlow(false)
+    private data class PendingSend(
+        val inputText: String,
+        val guidance: String?,
+        val parentTurnIdOverride: String?,
+        val forceParentOverride: Boolean,
+        val replaceTurnId: String?,
+        val expectedHeadTurnIdOverride: String?,
+        val requestedSpeakerIdOverride: String?,
+        val speakerModeOverride: String?
+    )
+    private data class PendingAssistantEdit(val turnId: String, val text: String)
+    private var pendingSendForEngine: PendingSend? = null
+    private var pendingRewindForEngine: String? = null
+    private var pendingAssistantEditForEngine: PendingAssistantEdit? = null
+    private var pendingEarlyCheckpointForEngine = false
+
     // One-shot user-facing result of the last Deep Scan (success/failure). The UI shows it as a
     // toast then calls consumeScanEvent(). Deep Scan used to fail silently — this makes it visible.
     private val _scanEvent = MutableStateFlow<String?>(null)
     val scanEvent = _scanEvent.asStateFlow()
     fun consumeScanEvent() { _scanEvent.value = null }
-
-    // Turn ids we've already attempted to self-heal this session, so an empty snapshot doesn't
-    // re-trigger a rebuild on every slow-state re-emission.
-    private val selfHealAttempted = java.util.Collections.synchronizedSet(mutableSetOf<String>())
 
     private data class DbState(
         val thread: ThreadEntity?,
@@ -152,8 +180,11 @@ class ChatViewModel(
         val branches: List<BranchEntity>,
         val turns: List<TurnEntity>,
         val timelineEvents: List<TimelineEntity>,
+        val pins: List<PinEntity> = emptyList(),
         val castSeeds: List<CastSeedEntity> = emptyList(),
-        val castOverrides: List<CastProfileOverrideEntity> = emptyList()
+        val castOverrides: List<CastProfileOverrideEntity> = emptyList(),
+        val castPortraits: List<CastPortraitEntity> = emptyList(),
+        val characters: List<CharacterEntity> = emptyList()
     )
 
 
@@ -161,7 +192,7 @@ class ChatViewModel(
     // fast-changing stream flags (isGenerating/generatingText/isScanning) are layered on
     // afterwards, so a streamed token does NOT re-run getCharacter/getSnapshot/getActivePins.
     private val slowChatState = combine(
-        combine(combine(combine(
+        combine(combine(combine(combine(combine(combine(
             chatDao.getThreadFlow(threadId),
             chatDao.getActiveBranchForThreadFlow(threadId),
             chatDao.getBranchesForThreadFlow(threadId),
@@ -169,10 +200,16 @@ class ChatViewModel(
             chatDao.getAllTimelineEventsForThreadFlow(threadId)
         ) { thread, activeBranch, branches, turns, timeline ->
             DbState(thread, activeBranch, branches, turns, timeline)
+        }, chatDao.getAllActivePinsForThreadFlow(threadId)) { dbState, pins ->
+            dbState.copy(pins = pins)
         }, chatDao.getCastSeedsFlow(threadId)) { dbState, castSeeds ->
             dbState.copy(castSeeds = castSeeds)
         }, chatDao.getCastOverridesForThreadFlow(threadId)) { dbState, overrides ->
             dbState.copy(castOverrides = overrides)
+        }, portraitTaskDao.getCastPortraitsForThreadFlow(threadId)) { dbState, portraits ->
+            dbState.copy(castPortraits = portraits)
+        }, characterDao.getAllCharactersFlow()) { dbState, characters ->
+            dbState.copy(characters = characters)
         },
         connectionDao.getAllConnectionsFlow(),
         personaDao.getAllPersonasFlow(),
@@ -185,11 +222,17 @@ class ChatViewModel(
         if (thread == null || activeBranch == null) {
             ChatUiState.Loading
         } else {
-            val character = characterDao.getCharacter(thread.character_id)
+            val character = dbState.characters.firstOrNull { it.id == thread.character_id }
             if (character == null) {
                 ChatUiState.Error
             } else {
                 val branchTurns = buildTurnPath(dbState.turns, activeBranch.head_turn_id)
+                val lineage = BranchLineage.select(
+                    dbState.branches.map { BranchLineageRef(it.id, it.parent_branch_id) },
+                    dbState.turns.map { TurnLineageRef(it.id, it.parent_turn_id) },
+                    activeBranch.id,
+                    activeBranch.head_turn_id
+                )
                 val latestTurn = branchTurns.lastOrNull { it.generation_status == "committed" }
                 val snapshot = latestTurn?.let { chatDao.getNearestSnapshot(it.id)?.world_state }
                 val baselineIndex = snapshot?.metadata?.current_turn_id?.let { id -> branchTurns.indexOfFirst { it.id == id } } ?: -1
@@ -197,12 +240,30 @@ class ChatViewModel(
                     .count { it.generation_status == "committed" && !it.starter_seed }
                 val lineageIds = branchTurns.map { it.id }.toSet()
                 val checkpoint = checkpoints.firstOrNull { it.status !in setOf("accepted", "superseded") && it.target_turn_id in lineageIds }
-                val pins = chatDao.getActivePins(threadId, activeBranch.id)
+                val pins = BranchLineage.reachable(
+                    dbState.pins,
+                    lineage,
+                    branchId = { it.branch_id },
+                    turnId = { it.turn_id }
+                )
+                val timeline = BranchLineage.reachable(
+                    dbState.timelineEvents,
+                    lineage,
+                    branchId = { it.branch_id },
+                    turnId = { it.turn_id }
+                )
+                val overrides = BranchLineage.overlay(
+                    dbState.castOverrides,
+                    lineage,
+                    branchId = { it.branch_id },
+                    firstSeenTurnId = { it.first_seen_turn_id },
+                    key = { it.cast_id }
+                )
                 val activePersona = thread.persona_id?.let { pid -> personas.find { it.id == pid } }
                 val castRoster = resolveCastRoster(
                     snapshot = snapshot,
                     seeds = dbState.castSeeds.map { it.toDomain() },
-                    overrides = dbState.castOverrides.filter { it.branch_id == activeBranch.id }.map { it.toDomain() },
+                    overrides = overrides.map { it.toDomain() },
                     playerName = activePersona?.name
                 )
 
@@ -214,7 +275,7 @@ class ChatViewModel(
                     turns = branchTurns,
                     currentSnapshot = snapshot,
                     pins = pins,
-                    timelineEvents = dbState.timelineEvents.filter { it.branch_id == activeBranch.id },
+                    timelineEvents = timeline,
                     connections = connections,
                     personas = personas,
                     activePersona = activePersona,
@@ -223,23 +284,51 @@ class ChatViewModel(
                     isScanning = false,
                     checkpoint = checkpoint,
                     continuityHostState = continuityHostClient.state.value,
-                    exchangesUntilCheckpoint = (7 - exchangesSinceSnapshot).coerceAtLeast(0),
-                    castRoster = castRoster
+                    exchangesUntilCheckpoint = (15 - exchangesSinceSnapshot).coerceAtLeast(0),
+                    castRoster = castRoster,
+                    castPortraits = BranchLineage.overlay(
+                        dbState.castPortraits,
+                        lineage,
+                        branchId = { it.branch_id },
+                        firstSeenTurnId = { null },
+                        key = { it.cast_id }
+                    ),
+                    needsContinuityEngineChoice = false
                 )
             }
         }
     }
 
-    val uiState: StateFlow<ChatUiState> = combine(
-        slowChatState,
+    private data class FastState(
+        val isGenerating: Boolean,
+        val generatingText: String,
+        val isScanning: Boolean,
+        val hostState: ContinuityHostState,
+        val needsEngine: Boolean
+    )
+
+    private val fastState = combine(
         _isGenerating,
         _generatingText,
         _isScanning,
-        continuityHostClient.state
-    ) { slow, isGen, genText, isScan, hostState ->
+        continuityHostClient.state,
+        _needsContinuityEngineChoice
+    ) { isGen, genText, isScan, hostState, needsEngine ->
+        FastState(isGen, genText, isScan, hostState, needsEngine)
+    }
+
+    val uiState: StateFlow<ChatUiState> = combine(slowChatState, fastState) { slow, fast ->
         // Cheap overlay of fast-changing stream state — no DB work on each streamed token.
         if (slow is ChatUiState.Success) {
-            slow.copy(isGenerating = isGen, generatingText = genText, isScanning = isScan, continuityHostState = hostState)
+            val lockedTurn = slow.activeBranch.locked_by_turn_id?.let { id -> slow.turns.firstOrNull { it.id == id } }
+            val durableGenerationActive = slow.activeBranch.generation_locked && lockedTurn?.generation_status != "failed"
+            slow.copy(
+                isGenerating = fast.isGenerating || durableGenerationActive,
+                generatingText = fast.generatingText,
+                isScanning = fast.isScanning,
+                continuityHostState = fast.hostState,
+                needsContinuityEngineChoice = fast.needsEngine
+            )
         } else slow
     }.stateIn(
         scope = viewModelScope,
@@ -263,32 +352,97 @@ class ChatViewModel(
             val thread = state.thread
             val activeBranch = state.activeBranch
             if (state.checkpoint != null) return@launch
-            val connection = connectionDao.getConnection(thread.connection_id) ?: return@launch
+            if (state.exchangesUntilCheckpoint == 1 && continuityHostPreferences.continuityEngineId() == null) {
+                pendingSendForEngine = PendingSend(
+                    inputText, guidance, parentTurnIdOverride, forceParentOverride, replaceTurnId,
+                    expectedHeadTurnIdOverride, requestedSpeakerIdOverride, speakerModeOverride
+                )
+                _needsContinuityEngineChoice.value = true
+                return@launch
+            }
+            val connection = connectionDao.getConnection(thread.connection_id)
+            if (connection == null) {
+                _scanEvent.value = "The selected Roleplay Model connection no longer exists."
+                return@launch
+            }
+            if (!connection.enabled) {
+                _scanEvent.value = "The selected Roleplay Model connection is disabled."
+                return@launch
+            }
 
-            val shortcut = resolveSpeakerShortcut(inputText, state.castRoster)
+            val contextHeadTurnId = if (forceParentOverride) {
+                parentTurnIdOverride
+            } else {
+                activeBranch.head_turn_id
+            }
+            val contextSnapshot = contextHeadTurnId?.let { chatDao.getNearestSnapshot(it) }
+            val contextLineage = chatDao.resolveLineageState(activeBranch.id, contextHeadTurnId)
+            val contextCastRoster = resolveCastRoster(
+                snapshot = contextSnapshot?.world_state,
+                seeds = chatDao.getCastSeeds(thread.id).map { it.toDomain() },
+                overrides = contextLineage.castOverrides.map { it.toDomain() },
+                playerName = state.activePersona?.name
+            )
+            val shortcut = resolveSpeakerShortcut(inputText, contextCastRoster)
             val visibleInput = shortcut?.second ?: inputText
             val speakerMode = speakerModeOverride ?: activeBranch.speaker_mode
             val requestedSpeakerId = requestedSpeakerIdOverride ?: shortcut?.first?.cast_id
                 ?: activeBranch.active_speaker_id ?: "primary:${thread.id}"
-            val activeSpeaker = state.castRoster.firstOrNull { it.cast_id == requestedSpeakerId }
-                ?: state.castRoster.firstOrNull { it.provenance == "primary" }
+            val activeSpeaker = contextCastRoster.firstOrNull { it.cast_id == requestedSpeakerId }
+            if (speakerMode != "ensemble" && activeSpeaker == null) {
+                _scanEvent.value = "The selected Active Speaker is not valid at this point in the branch."
+                return@launch
+            }
             val turnInputPayload = "{\"sticky_speaker_id\":\"${activeBranch.active_speaker_id ?: "primary:${thread.id}"}\",\"sticky_mode\":\"${activeBranch.speaker_mode}\",\"shortcut\":${shortcut != null}}"
 
-            val parentSnapshot = if (forceParentOverride && parentTurnIdOverride != null) {
-                chatDao.getNearestSnapshot(parentTurnIdOverride)?.world_state
-            } else {
-                state.currentSnapshot
-            }
-            val stateContext = PromptBuilder.buildStateContext(
-                snapshot = parentSnapshot,
-                pins = state.pins.map { it.toDomain() },
-                timeline = emptyList(),
+            val replyControl = PromptBuilder.buildReplyControlContext(
                 replyLengthTokens = thread.max_output_tokens,
                 activeSpeaker = activeSpeaker,
-                castRoster = state.castRoster,
+                castRoster = contextCastRoster,
                 speakerMode = speakerMode
             )
-            val renderedUserMessage = "$stateContext\n\n$visibleInput"
+            val renderedUserMessage = "$replyControl\n\n$visibleInput"
+
+            // Build one provider-neutral context before reserving the turn. Every reply-producing
+            // action converges here, so normal send, regenerate, edit, branch, and post-rewind
+            // generation cannot select history differently.
+            val allTurns = chatDao.getTurnsForThread(thread.id)
+            val assembledContext = RoleplayContextAssembler.assemble(
+                lineage = allTurns.map { turn ->
+                    RoleplayLineageEntry(
+                        id = turn.id,
+                        parent_id = turn.parent_turn_id,
+                        user_text = turn.user_input_text,
+                        assistant_text = turn.assistant_output_text,
+                        generation_status = turn.generation_status,
+                        starter_seed = turn.starter_seed
+                    )
+                },
+                head_exchange_id = contextHeadTurnId,
+                continuity_baseline_exchange_id = contextSnapshot?.turn_id,
+                current_user_message = renderedUserMessage,
+                regeneration_direction = guidance
+            )
+            val continuityContext = PromptBuilder.buildContinuityContext(
+                snapshot = contextSnapshot?.world_state,
+                pins = contextLineage.pins
+                    .filter {
+                        it.turn_id == null ||
+                            it.turn_id in assembledContext.retained_lineage_exchange_ids
+                    }
+                    .map { it.toDomain() },
+                timeline = emptyList()
+            )
+            val staticSystemPrompt = PromptBuilder.buildSystemPrompt(
+                characterBundle = CharacterBundle(
+                    state.character.toDomain(),
+                    state.character.starters,
+                    state.character.example_conversations
+                ),
+                persona = state.activePersona?.toDomain(),
+                directorNotes = thread.director_notes
+            )
+            val systemPrompt = "$staticSystemPrompt\n\n$continuityContext"
 
             _isGenerating.value = true
             _generatingText.value = ""
@@ -313,114 +467,73 @@ class ChatViewModel(
                 return@launch
             }
 
-            // 2. Build system prompt & messages context
-            // Static, per-thread system prompt = the cacheable prefix.
-            val systemPrompt = PromptBuilder.buildSystemPrompt(
-                characterBundle = CharacterBundle(state.character.toDomain(), state.character.starters, state.character.example_conversations),
-                persona = state.activePersona?.toDomain(),
-                directorNotes = thread.director_notes
-            )
-
-            val allTurns = chatDao.getTurnsForThread(thread.id)
-            val historyTurns = buildTurnPath(allTurns, parentTurnIdOverride ?: activeBranch.head_turn_id)
-
-            val apiMessages = mutableListOf<ChatMessage>()
-            historyTurns.forEach { turn ->
-                if (turn.generation_status == "committed") {
-                    apiMessages.add(ChatMessage(role = "user", content = turn.rendered_user_message ?: turn.user_input_text))
-                    turn.assistant_output_text?.let {
-                        apiMessages.add(ChatMessage(role = "assistant", content = it))
-                    }
-                }
+            val modelId = if (connection.provider == RoleplayProtocol.PROVIDER) {
+                RoleplayProtocol.MODEL_ID
+            } else {
+                thread.model_id.trim()
             }
-            apiMessages.add(ChatMessage(role = "user", content = renderedUserMessage))
-
-            // Add steering guidance if provided
-            val guidanceText = guidance?.trim()
-            if (!guidanceText.isNullOrEmpty()) {
-                val guidancePrompt = """
-                    Hidden direction for how to regenerate your previous reply.
-                    This is out-of-character instruction from the user, not dialogue — do not quote it or acknowledge it in the scene.
-                    Rewrite your reply to the latest exchange so that it follows this direction while staying in character and consistent with the established state.
-                    
-                    Direction: $guidanceText
-                """.trimIndent()
-                apiMessages.add(ChatMessage(role = "user", content = guidancePrompt))
+            if (modelId.isBlank()) {
+                chatDao.discardUncommittedTurn(activeBranch.id, newTurn.id)
+                _isGenerating.value = false
+                _scanEvent.value = "Select a Roleplay Model before sending."
+                return@launch
             }
-
-            // 3. Stream from client
-            var accumulatedText = ""
-            var providerTotalTokens: Int? = null
-            var providerPromptTokens: Int? = null
-            var providerCompletionTokens: Int? = null
-            var cacheHitTokens: Int? = null
-            var cacheMissTokens: Int? = null
-            try {
-                llmClient.streamGenerateText(
-                    connection = connection.toDomain(),
-                    modelId = thread.model_id,
-                    systemPrompt = systemPrompt,
-                    messages = apiMessages,
+            val executionMode = if (connection.provider == RoleplayProtocol.PROVIDER) {
+                RoleplayGenerationCoordinator.EXECUTION_MODE_MAC_HOST
+            } else {
+                RoleplayGenerationCoordinator.EXECUTION_MODE_DIRECT
+            }
+            val request = RoleplayGenerationRequest(
+                system_prompt = systemPrompt,
+                messages = assembledContext.messages,
+                requested_speaker_id = newTurn.requested_speaker_id,
+                speaker_mode = newTurn.speaker_mode,
+                settings = RoleplayGenerationSettings(
                     temperature = state.character.temperature,
-                    topP = state.character.top_p,
-                    maxTokens = thread.max_output_tokens
-                ).collect { chunk ->
-                    accumulatedText += chunk.text ?: ""
-                    providerTotalTokens = chunk.totalTokens ?: providerTotalTokens
-                    providerPromptTokens = chunk.promptTokens ?: providerPromptTokens
-                    providerCompletionTokens = chunk.completionTokens ?: providerCompletionTokens
-                    cacheHitTokens = chunk.promptCacheHitTokens ?: cacheHitTokens
-                    cacheMissTokens = chunk.promptCacheMissTokens ?: cacheMissTokens
+                    top_p = state.character.top_p,
+                    max_tokens = thread.max_output_tokens
+                )
+            )
+            val now = Instant.now().toString()
+            val job = RoleplayGenerationJobEntity(
+                id = UUID.randomUUID().toString(),
+                turn_id = newTurn.id,
+                thread_id = thread.id,
+                branch_id = activeBranch.id,
+                expected_head_turn_id = expectedHeadTurnIdOverride ?: activeBranch.head_turn_id,
+                replace_turn_id = replaceTurnId,
+                requested_speaker_id = newTurn.requested_speaker_id,
+                speaker_mode = newTurn.speaker_mode,
+                model_id = modelId,
+                system_prompt = request.system_prompt,
+                messages_json = RoleplayProtocol.messagesJson(request.messages),
+                temperature = request.settings.temperature,
+                top_p = request.settings.top_p,
+                max_tokens = request.settings.max_tokens,
+                provider = connection.provider,
+                connection_id = connection.id,
+                connection_label = connection.label,
+                execution_mode = executionMode,
+                request_hash = request.sha256(),
+                status = if (executionMode == RoleplayGenerationCoordinator.EXECUTION_MODE_MAC_HOST) {
+                    "pending_export"
+                } else {
+                    "queued"
+                },
+                created_at = now,
+                updated_at = now
+            )
+            chatDao.insertRoleplayJob(job)
+            if (executionMode == RoleplayGenerationCoordinator.EXECUTION_MODE_MAC_HOST) {
+                chatDao.markTurnGenerationStatus(newTurn.id, "waiting_for_host", now)
+                RoleplayGenerationScheduler.enqueue(context)
+            }
+            try {
+                roleplayGenerationCoordinator.execute(job) { accumulatedText ->
                     _generatingText.value = accumulatedText
                 }
-
-                // Estimate token usage if the provider doesn't supply it
-                val generatedTokens = accumulatedText.split(Regex("\\s+")).size * 4 / 3
-                val promptTokens = systemPrompt.split(Regex("\\s+")).size * 4 / 3 + apiMessages.sumOf { it.content.split(Regex("\\s+")).size * 4 / 3 }
-                val finalPromptTokens = providerPromptTokens ?: promptTokens
-                val finalCompletionTokens = providerCompletionTokens ?: generatedTokens
-                val totalTokens = providerTotalTokens ?: (finalCompletionTokens + finalPromptTokens)
-                val assistantPayload = buildString {
-                    append("{\"prompt_cache_hit_tokens\":")
-                    append(cacheHitTokens ?: "null")
-                    append(",\"prompt_cache_miss_tokens\":")
-                    append(cacheMissTokens ?: "null")
-                    append('}')
-                }
-
-                // 4. Commit turn on success
-                chatDao.commitTurn(
-                    userId = FIXED_USER_ID,
-                    branchId = activeBranch.id,
-                    turnId = newTurn.id,
-                    assistantText = accumulatedText,
-                    assistantPayload = assistantPayload,
-                    provider = connection.provider,
-                    model = thread.model_id,
-                    label = connection.label,
-                    finishReason = "stop",
-                    totalTokens = totalTokens,
-                    promptTokens = finalPromptTokens,
-                    completionTokens = finalCompletionTokens,
-                    replaceTurnId = replaceTurnId
-                )
-
-            } catch (e: Exception) {
-                chatDao.failTurn(
-                    userId = FIXED_USER_ID,
-                    branchId = activeBranch.id,
-                    turnId = newTurn.id,
-                    failureCode = "API_ERROR",
-                    failureMessage = e.message ?: "Streaming failed"
-                )
             } finally {
                 _isGenerating.value = false
-                // Guarantee the branch is released even if this coroutine was cancelled
-                // mid-stream (navigation/rotation) — commitTurn/failTurn may not run on a
-                // cancelled coroutine, which would otherwise leave the branch locked.
-                withContext(NonCancellable) {
-                    chatDao.releaseBranchLock(activeBranch.id, newTurn.id, Instant.now().toString())
-                }
             }
         }
     }
@@ -431,6 +544,27 @@ class ChatViewModel(
             val latestTurn = state.turns.lastOrNull() ?: return@launch
             val parentTurnId = latestTurn.parent_turn_id
             val userText = latestTurn.user_input_text
+            val remoteJob = chatDao.getLatestRoleplayJobForTurn(latestTurn.id)
+            if (remoteJob != null && remoteJob.status !in setOf("accepted", "superseded")) {
+                if (!guidance.isNullOrBlank() ||
+                    remoteJob.execution_mode != RoleplayGenerationCoordinator.EXECUTION_MODE_MAC_HOST
+                ) {
+                    roleplayGenerationCoordinator.discard(remoteJob)
+                    sendUserMessage(
+                        inputText = userText,
+                        guidance = guidance,
+                        parentTurnIdOverride = parentTurnId,
+                        forceParentOverride = true,
+                        expectedHeadTurnIdOverride = parentTurnId,
+                        requestedSpeakerIdOverride = latestTurn.requested_speaker_id,
+                        speakerModeOverride = latestTurn.speaker_mode
+                    )
+                } else {
+                    roleplayGenerationCoordinator.retry(remoteJob)
+                    RoleplayGenerationScheduler.enqueue(context)
+                }
+                return@launch
+            }
 
             sendUserMessage(
                 inputText = userText,
@@ -445,12 +579,61 @@ class ChatViewModel(
         }
     }
 
+    fun selectContinuityEngine(engineId: String) {
+        continuityHostPreferences.saveContinuityEngineId(engineId)
+        _needsContinuityEngineChoice.value = false
+        pendingSendForEngine?.also { pending ->
+            pendingSendForEngine = null
+            sendUserMessage(
+                pending.inputText, pending.guidance, pending.parentTurnIdOverride,
+                pending.forceParentOverride, pending.replaceTurnId, pending.expectedHeadTurnIdOverride,
+                pending.requestedSpeakerIdOverride, pending.speakerModeOverride
+            )
+            return
+        }
+        pendingRewindForEngine?.also { turnId ->
+            pendingRewindForEngine = null
+            rewindToTurn(turnId)
+            return
+        }
+        pendingAssistantEditForEngine?.also { edit ->
+            pendingAssistantEditForEngine = null
+            editAssistantText(edit.turnId, edit.text)
+            return
+        }
+        if (pendingEarlyCheckpointForEngine) {
+            pendingEarlyCheckpointForEngine = false
+            runDeepScan()
+        }
+    }
+
+    fun dismissContinuityEngineChoice() {
+        pendingSendForEngine = null
+        pendingRewindForEngine = null
+        pendingAssistantEditForEngine = null
+        pendingEarlyCheckpointForEngine = false
+        _needsContinuityEngineChoice.value = false
+    }
+
     fun editTurnText(turnId: String, newUserText: String) {
         viewModelScope.launch {
             val state = uiState.value as? ChatUiState.Success ?: return@launch
             val activeBranch = state.activeBranch
             val targetTurn = state.turns.find { it.id == turnId } ?: return@launch
             val parentTurnId = targetTurn.parent_turn_id
+            val remoteJob = chatDao.getLatestRoleplayJobForTurn(targetTurn.id)
+            if (remoteJob != null && remoteJob.status !in setOf("accepted", "superseded")) {
+                roleplayGenerationCoordinator.discard(remoteJob)
+                sendUserMessage(
+                    inputText = newUserText,
+                    parentTurnIdOverride = parentTurnId,
+                    forceParentOverride = true,
+                    expectedHeadTurnIdOverride = parentTurnId,
+                    requestedSpeakerIdOverride = targetTurn.requested_speaker_id,
+                    speakerModeOverride = targetTurn.speaker_mode
+                )
+                return@launch
+            }
 
             sendUserMessage(
                 inputText = newUserText,
@@ -468,8 +651,27 @@ class ChatViewModel(
     fun selectSpeaker(castId: String) {
         viewModelScope.launch {
             val state = uiState.value as? ChatUiState.Success ?: return@launch
-            val valid = state.castRoster.any { it.cast_id == castId && it.status == "active" && it.speaker_eligible && !it.player_controlled }
-            if (valid) chatDao.setActiveSpeaker(state.activeBranch.id, castId, "single", Instant.now().toString())
+            val profile = state.castRoster.firstOrNull {
+                it.cast_id == castId && it.status == "active" && it.speaker_eligible && !it.player_controlled
+            }
+            if (profile != null) {
+                chatDao.setActiveSpeaker(state.activeBranch.id, castId, "single", Instant.now().toString())
+                portraitGenerationCoordinator.ensureCast(
+                    state.character.id,
+                    state.thread.id,
+                    state.activeBranch.id,
+                    profile
+                )
+            }
+        }
+    }
+
+    fun ensureActiveSpeakerPortrait() {
+        viewModelScope.launch {
+            val state = uiState.value as? ChatUiState.Success ?: return@launch
+            if (state.activeBranch.speaker_mode != "single") return@launch
+            val profile = state.castRoster.firstOrNull { it.cast_id == state.activeBranch.active_speaker_id } ?: return@launch
+            portraitGenerationCoordinator.ensureCast(state.character.id, state.thread.id, state.activeBranch.id, profile)
         }
     }
 
@@ -520,6 +722,8 @@ class ChatViewModel(
             }
             if (profile.status == "archived" && state.activeBranch.active_speaker_id == profile.cast_id) {
                 chatDao.setActiveSpeaker(state.activeBranch.id, "primary:$threadId", "single", now)
+            } else if (profile.status == "active" && profile.cast_id == state.activeBranch.active_speaker_id) {
+                portraitGenerationCoordinator.ensureCast(state.character.id, threadId, state.activeBranch.id, profile)
             }
         }
     }
@@ -549,33 +753,65 @@ class ChatViewModel(
         return match.second to stripped.ifBlank { input }
     }
 
-    /** In-place edit of the assistant reply (web "Edit last reply"): rewrites the
-     *  stored output without regenerating. The next prompt reads assistant_output_text. */
+    /** Creates a branch-local replacement lineage and blocks it until continuity is rebuilt. */
     fun editAssistantText(turnId: String, newText: String) {
+        if (newText.isBlank()) return
         viewModelScope.launch {
             val state = uiState.value as? ChatUiState.Success ?: return@launch
             if (state.checkpoint != null) return@launch
-            val turn = state.turns.find { it.id == turnId } ?: return@launch
-            chatDao.updateTurn(
-                turn.copy(
-                    assistant_output_text = newText,
-                    updated_at = Instant.now().toString()
+            if (state.turns.none { it.id == turnId }) return@launch
+            val engineId = continuityHostPreferences.continuityEngineId()
+            if (engineId == null) {
+                pendingAssistantEditForEngine = PendingAssistantEdit(turnId, newText)
+                _needsContinuityEngineChoice.value = true
+            } else {
+                chatDao.replaceAssistantReply(
+                    userId = FIXED_USER_ID,
+                    branchId = state.activeBranch.id,
+                    turnId = turnId,
+                    assistantText = newText,
+                    continuityEngineId = engineId
                 )
-            )
+                ContinuityCheckpointScheduler.enqueue(context)
+            }
         }
     }
 
     fun rewindToTurn(turnId: String) {
         viewModelScope.launch {
             val state = uiState.value as? ChatUiState.Success ?: return@launch
-            if (state.checkpoint != null) return@launch
+            if (state.checkpoint != null || state.activeBranch.generation_locked) return@launch
+            val engineId = continuityHostPreferences.continuityEngineId()
+            if (engineId == null) {
+                pendingRewindForEngine = turnId
+                _needsContinuityEngineChoice.value = true
+                return@launch
+            }
             val activeBranch = state.activeBranch
-            chatDao.rewindBranchToTurn(
-                userId = FIXED_USER_ID,
-                branchId = activeBranch.id,
-                targetTurnId = turnId,
-                expectedHeadTurnId = activeBranch.head_turn_id
-            )
+            try {
+                chatDao.rewindBranchToTurn(
+                    userId = FIXED_USER_ID,
+                    branchId = activeBranch.id,
+                    targetTurnId = turnId,
+                    expectedHeadTurnId = activeBranch.head_turn_id,
+                    continuityEngineId = engineId
+                )
+            } catch (_: IllegalStateException) {
+                // The branch can become locked or advance between the rendered UI state and
+                // this transaction. A stale history action must never terminate the app.
+            }
+        }
+    }
+
+    fun discardPendingReply(turnId: String) {
+        viewModelScope.launch {
+            val state = uiState.value as? ChatUiState.Success ?: return@launch
+            val job = chatDao.getLatestRoleplayJobForTurn(turnId)
+            if (job != null && job.status !in setOf("accepted", "superseded")) {
+                roleplayGenerationCoordinator.discard(job)
+            } else {
+                chatDao.discardUncommittedTurn(state.activeBranch.id, turnId)
+            }
         }
     }
 
@@ -676,22 +912,36 @@ class ChatViewModel(
         modelId: String,
         maxTokens: Int,
         personaId: String?,
-        brainConnectionId: String?,
-        brainModelId: String?,
-        directorNotes: String
+        directorNotes: String,
+        portraitBackgroundEnabled: Boolean,
+        portraitBackgroundDimness: Float
     ) {
         viewModelScope.launch {
             val state = uiState.value as? ChatUiState.Success ?: return@launch
             if (state.checkpoint != null) return@launch
+            val connection = connectionDao.getConnection(connectionId)
+            if (connection == null || !connection.enabled) {
+                _scanEvent.value = "Select an enabled Roleplay Model connection."
+                return@launch
+            }
+            val resolvedModelId = if (connection.provider == RoleplayProtocol.PROVIDER) {
+                RoleplayProtocol.MODEL_ID
+            } else {
+                modelId.trim()
+            }
+            if (resolvedModelId.isBlank()) {
+                _scanEvent.value = "Select a Roleplay Model."
+                return@launch
+            }
             val thread = chatDao.getThread(threadId) ?: return@launch
             val updated = thread.copy(
                 connection_id = connectionId,
-                model_id = modelId,
+                model_id = resolvedModelId,
                 max_output_tokens = maxTokens,
                 persona_id = personaId,
-                brain_connection_id = brainConnectionId,
-                brain_model_id = brainModelId,
                 director_notes = directorNotes.trim(),
+                portrait_background_enabled = portraitBackgroundEnabled,
+                portrait_background_dimness = portraitBackgroundDimness.coerceIn(0.35f, 0.80f),
                 updated_at = Instant.now().toString()
             )
             chatDao.updateThread(updated)
@@ -700,8 +950,14 @@ class ChatViewModel(
 
     fun runDeepScan() {
         val state = uiState.value as? ChatUiState.Success ?: return
+        val engineId = continuityHostPreferences.continuityEngineId()
+        if (engineId == null) {
+            pendingEarlyCheckpointForEngine = true
+            _needsContinuityEngineChoice.value = true
+            return
+        }
         viewModelScope.launch {
-            try { chatDao.requestEarlyCheckpoint(state.activeBranch.id); _scanEvent.value = "Continuity update requested — waiting for Codex." }
+            try { chatDao.requestEarlyCheckpoint(state.activeBranch.id, engineId); _scanEvent.value = "Continuity update requested — waiting for Mac Host." }
             catch (e: Exception) { _scanEvent.value = e.message ?: "Unable to request continuity update" }
         }
     }
@@ -715,229 +971,22 @@ class ChatViewModel(
         }
     }
 
-    private suspend fun shouldDefragment(turn: TurnEntity, historyTurns: List<TurnEntity>): Boolean {
-        val parentId = turn.parent_turn_id ?: return false
-        val index = historyTurns.indexOfFirst { it.id == parentId }
-        if (index == -1) return false
-        var count = 0
-        for (i in index downTo 0) {
-            val t = historyTurns[i]
-            val snapshot = chatDao.getSnapshot(t.id)
-            if (snapshot != null) {
-                if (snapshot.is_full_materialization) {
-                    break
-                }
-                count++
-            }
-        }
-        // Re-derive the full world state more often so incremental-diff drift (dropped entities,
-        // stale placements) gets audited and repaired sooner.
-        return count >= 6
-    }
-
-    /**
-     * Rebuilds the world state for the latest committed turn when it is missing or empty — the
-     * signature of a thread whose initial extraction failed and left an empty base that every
-     * incremental diff since has built on. Runs a full re-materialization once per turn per
-     * session, in the background, and only persists if it actually recovered state.
-     */
-    private fun selfHealSnapshotIfNeeded(
-        thread: ThreadEntity,
-        character: CharacterEntity,
-        activeBranch: BranchEntity,
-        branchTurns: List<TurnEntity>,
-        currentSnapshot: DurableMemorySnapshot?
-    ) {
-        val latestCommitted = branchTurns.lastOrNull { it.generation_status == "committed" } ?: return
-        val isEmpty = currentSnapshot == null ||
-            (currentSnapshot.entity_state.isEmpty() && currentSnapshot.narrative_state.story_summary.isBlank())
-        if (!isEmpty) return
-        // Don't fight an in-flight generation/scan (which will materialize on its own), and only
-        // try each turn once per session.
-        if (_isGenerating.value || _isScanning.value) return
-        if (!selfHealAttempted.add(latestCommitted.id)) return
-
-        viewModelScope.launch(Dispatchers.Default) {
-            try {
-                val connection = connectionDao.getConnection(thread.connection_id) ?: return@launch
-                val brainConnection = thread.brain_connection_id?.let { connectionDao.getConnection(it) } ?: connection
-                val brainModel = thread.brain_model_id ?: thread.model_id
-                val brainStructuredOutput = brainConnection.provider in setOf("mistral", "groq", "openrouter")
-
-                val apiMessages = mutableListOf<ChatMessage>()
-                branchTurns.forEach { t ->
-                    if (t.generation_status == "committed") {
-                        apiMessages.add(ChatMessage(role = "user", content = t.user_input_text))
-                        t.assistant_output_text?.let { apiMessages.add(ChatMessage(role = "assistant", content = it)) }
-                    }
-                }
-                if (apiMessages.isEmpty()) return@launch
-
-                Log.d("ChatViewModel", "Self-healing empty world state for turn ${latestCommitted.id}")
-                val baseSnapshot = buildEmptyDurableSnapshot(latestCommitted.id)
-                val extraction = runContinuityExtractionUseCase.execute(
-                    connection = brainConnection.toDomain(),
-                    modelId = brainModel,
-                    character = character.toDomain(),
-                    currentSnapshot = baseSnapshot,
-                    recentMessages = apiMessages,
-                    isFullMaterialization = true,
-                    forceJson = true,
-                    userPersona = null,
-                    supportingCast = parseSupportingCast(thread.supporting_cast),
-                    structuredOutput = brainStructuredOutput
-                )
-
-                // Only persist if we actually recovered something — never overwrite with another empty.
-                val recovered = extraction.entity_mutations.isNotEmpty() || extraction.story_summary.isNotBlank()
-                if (!recovered) {
-                    Log.w("ChatViewModel", "Self-heal produced no state for turn ${latestCommitted.id}")
-                    return@launch
-                }
-
-                val reducerResult = WorldStateReducer.applyExtractionToSnapshot(
-                    previous = baseSnapshot,
-                    extraction = extraction,
-                    turnId = latestCommitted.id
-                )
-                chatDao.upsertWorldSnapshot(
-                    turnId = latestCommitted.id,
-                    threadId = thread.id,
-                    branchId = latestCommitted.branch_origin_id,
-                    basedOnTurnId = latestCommitted.parent_turn_id,
-                    worldState = reducerResult.snapshot,
-                    version = reducerResult.snapshot.metadata.version,
-                    isFullMaterialization = true
-                )
-            } catch (e: Exception) {
-                Log.w("ChatViewModel", "Self-heal materialization failed for turn ${latestCommitted.id}", e)
-            }
-        }
-    }
-
-    private fun materializeSnapshotForTurnInBackground(
-        thread: ThreadEntity,
-        character: CharacterEntity,
-        connection: ConnectionEntity,
-        turn: TurnEntity,
-        previousSnapshot: DurableMemorySnapshot?,
-        recentMessages: List<ChatMessage>,
-        historyTurns: List<TurnEntity>,
-        userPersona: UserPersonaRecord? = null,
-        supportingCast: List<CastMember> = emptyList()
-    ) {
-        viewModelScope.launch(Dispatchers.Default) {
-            val baseSnapshot = previousSnapshot ?: buildEmptyDurableSnapshot(turn.parent_turn_id ?: "turn-0")
-            try {
-                val brainConnection = thread.brain_connection_id?.let { connectionDao.getConnection(it) } ?: connection
-                if (thread.brain_model_id == null) {
-                    Log.w("ChatViewModel", "Thread has no brain_model_id; HCE is running on the roleplay model '${thread.model_id}'. Set a dedicated brain model for reliable extraction.")
-                }
-                val brainModel = thread.brain_model_id ?: thread.model_id
-                // HCE always wants JSON. The old supportsJson gate silently disabled it whenever the
-                // model_cache flag was stale/missing, which is a major cause of parse failures. The
-                // extraction use case degrades gracefully if a provider rejects the request.
-                val brainForceJson = true
-                val brainStructuredOutput = brainConnection.provider in setOf("mistral", "groq", "openrouter")
-
-                val isDefrag = shouldDefragment(turn, historyTurns)
-                val extractionMessages = if (isDefrag) {
-                    historyTurns.flatMap { t ->
-                        listOf(
-                            ChatMessage(role = "user", content = t.user_input_text),
-                            ChatMessage(role = "assistant", content = t.assistant_output_text ?: "")
-                        )
-                    } + listOf(
-                        ChatMessage(role = "user", content = turn.user_input_text),
-                        ChatMessage(role = "assistant", content = turn.assistant_output_text ?: "")
-                    )
-                } else {
-                    val historyMessages = recentMessages.dropLast(1)
-                    historyMessages.takeLast(40) + listOf(
-                        ChatMessage(role = "user", content = turn.user_input_text),
-                        ChatMessage(role = "assistant", content = turn.assistant_output_text ?: "")
-                    )
-                }
-
-                val extraction = runContinuityExtractionUseCase.execute(
-                    connection = brainConnection.toDomain(),
-                    modelId = brainModel,
-                    character = character.toDomain(),
-                    currentSnapshot = baseSnapshot,
-                    recentMessages = extractionMessages,
-                    isFullMaterialization = isDefrag,
-                    forceJson = brainForceJson,
-                    userPersona = userPersona,
-                    supportingCast = supportingCast,
-                    structuredOutput = brainStructuredOutput
-                )
-
-                val reducerResult = WorldStateReducer.applyExtractionToSnapshot(
-                    previous = baseSnapshot,
-                    extraction = extraction,
-                    turnId = turn.id
-                )
-
-                chatDao.upsertWorldSnapshot(
-                    turnId = turn.id,
-                    threadId = thread.id,
-                    branchId = turn.branch_origin_id,
-                    basedOnTurnId = turn.parent_turn_id,
-                    worldState = reducerResult.snapshot,
-                    version = reducerResult.snapshot.metadata.version, // no double increment
-                    isFullMaterialization = isDefrag
-                )
-
-                // Persist timeline events
-                val nowStr = Instant.now().toString()
-                extraction.timeline_events.filter { it.title.isNotBlank() }.forEach { event ->
-                    val resolvedEntityIds = event.affected_entity_ids.map { id ->
-                        reducerResult.newEntityIds[id] ?: id
-                    }
-                    chatDao.insertTimelineEvent(
-                        TimelineEntity(
-                            id = UUID.randomUUID().toString(),
-                            thread_id = thread.id,
-                            branch_id = turn.branch_origin_id,
-                            turn_id = turn.id,
-                            title = event.title,
-                            detail = event.detail,
-                            importance = event.importance,
-                            event_type = event.event_type,
-                            affected_entity_ids = resolvedEntityIds,
-                            affected_relationship_ids = event.affected_relationship_ids,
-                            created_at = nowStr
-                        )
-                    )
-                }
-            } catch (e: Exception) {
-                // Carry-forward snapshot on HCE failure
-                try {
-                    val clonedSnapshot = baseSnapshot.copy(
-                        metadata = baseSnapshot.metadata.copy(
-                            current_turn_id = turn.id,
-                            version = baseSnapshot.metadata.version + 1,
-                            transition_type = "continuation"
-                        )
-                    )
-                    chatDao.upsertWorldSnapshot(
-                        turnId = turn.id,
-                        threadId = thread.id,
-                        branchId = turn.branch_origin_id,
-                        basedOnTurnId = turn.parent_turn_id,
-                        worldState = clonedSnapshot,
-                        version = clonedSnapshot.metadata.version,
-                        isFullMaterialization = false
-                    )
-                } catch (inner: Exception) {
-                    // Ignore DB failures
-                }
-            }
+    fun replaceCheckpointEngine() {
+        val state = uiState.value as? ChatUiState.Success ?: return
+        val request = state.checkpoint ?: return
+        val replacement = if (request.engine_id == ContinuityHostPreferences.CODEX_TERRA_HIGH)
+            ContinuityHostPreferences.ANTIGRAVITY_GEMINI_FLASH_HIGH else ContinuityHostPreferences.CODEX_TERRA_HIGH
+        viewModelScope.launch {
+            continuityCheckpointCoordinator.replaceEngine(request, replacement)
+            ContinuityCheckpointScheduler.enqueue(context)
         }
     }
 
     private fun buildTurnPath(turns: List<TurnEntity>, headTurnId: String?): List<TurnEntity> {
-        if (headTurnId == null) return emptyList()
+        if (headTurnId == null) {
+            return turns.filter { it.parent_turn_id == null && it.generation_status != "committed" }
+                .maxByOrNull { it.created_at }?.let(::listOf) ?: emptyList()
+        }
         val turnsMap = turns.associateBy { it.id }
         val path = mutableListOf<TurnEntity>()
         var currentId = headTurnId
@@ -947,23 +996,13 @@ class ChatViewModel(
             currentId = turn.parent_turn_id
         }
         val ordered = path.reversed().toMutableList()
-        // A failed generation does NOT advance the branch head, so its turn branches off the
-        // head and would otherwise be invisible — hiding the failure + Retry/Edit panel.
-        // Surface the most recent failed child of the head.
-        val failedChild = turns
-            .filter { it.parent_turn_id == headTurnId && it.generation_status == "failed" }
+        // A pending or failed generation does not advance the branch head. Surface its newest
+        // child so durable Mac Host work survives navigation, process death, and reconnects.
+        val pendingChild = turns
+            .filter { it.parent_turn_id == headTurnId && it.generation_status != "committed" }
             .maxByOrNull { it.created_at }
-        if (failedChild != null) ordered.add(failedChild)
+        if (pendingChild != null) ordered.add(pendingChild)
         return ordered
     }
 
-    private fun buildEmptyDurableSnapshot(turnId: String): DurableMemorySnapshot {
-        return DurableMemorySnapshot(
-            metadata = SnapshotMetadata(turnId, "", "continuation", 1),
-            spatial_state = SpatialState(null, emptyList(), emptyList(), emptyList(), emptyList()),
-            entity_state = emptyList(),
-            relational_state = emptyList(),
-            narrative_state = NarrativeState("", "", "", emptyList(), emptyList())
-        )
-    }
 }

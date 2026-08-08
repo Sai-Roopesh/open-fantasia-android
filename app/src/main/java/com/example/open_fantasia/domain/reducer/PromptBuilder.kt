@@ -5,7 +5,7 @@ import kotlinx.serialization.json.Json
 
 object PromptBuilder {
 
-    private val json = Json { prettyPrint = true }
+    private val json = Json
 
     private fun formatSection(tag: String, content: String): String {
         return "<$tag>\n$content\n</$tag>"
@@ -38,9 +38,9 @@ object PromptBuilder {
      * The STATIC, per-thread system prompt: role, setting, personas, directives, examples,
      * and the response/continuity contracts. This is byte-stable across turns (it changes
      * only when the character/persona/director-notes are edited), so it forms the cacheable
-     * prefix. The VOLATILE world state ([buildStateContext]) is deliberately NOT included
-     * here — it is appended to the latest user turn so the conversation history stays in the
-     * cached prefix instead of being invalidated by the per-turn state churn.
+     * prefix. The reachable Continuity Snapshot ([buildContinuityContext]) is appended after
+     * this stable prefix and remains byte-stable between Continuity Updates. Per-attempt speaker
+     * and style controls ([buildReplyControlContext]) live only on the latest user message.
      */
     fun buildSystemPrompt(
         characterBundle: CharacterBundle,
@@ -108,7 +108,8 @@ object PromptBuilder {
         val directives = """
             - You are a high-fidelity simulation engine executing a narrative reality.
             - You are bound absolutely by the constraints in <durable_state>.
-            - The latest user turn opens with the current <durable_state> (and any pinned facts) — authoritative system context, not the user speaking. Read it first, then respond to the user's message that follows it.
+            - The system prompt ends with the current <durable_state> and any pinned facts. They are authoritative continuity context, not story dialogue.
+            - The latest user turn opens with <reply_control>, which selects the speaker and reply mode for this reply only.
             - COGNITIVE BOUNDARY: Under no circumstances may an entity act upon, reference, or hint at information absent from their specific knowledge_boundary in the state JSON.
             - AFFECTIVE OVERRIDE: Do not allow genre tropes to override the emotional parameters in the state. The JSON state is absolute truth.
             - SPATIAL ENFORCEMENT: Characters can only interact with entities at their current location. Characters can only move to adjacent locations.
@@ -200,46 +201,47 @@ object PromptBuilder {
     }
 
     /**
-     * Narrows a full [DurableMemorySnapshot] to just what's relevant to the current scene, for the
-     * roleplay prompt: entities that are present (plus the protagonist character, always), the
-     * relationships between them, and the current + adjacent + occupied locations. Narrative
-     * summaries and thread lists (including resolved_threads, so the model knows what not to
-     * reopen) are kept verbatim. Off-stage NPCs and far-away locations are dropped as noise.
+     * Complete accepted Continuity Snapshot for the selected branch lineage. It changes only
+     * when a Continuity Update is accepted (or pins change), so placing it after the static
+     * system prefix keeps it authoritative and cacheable throughout the next checkpoint interval.
      */
-    private fun toRoleplayView(s: DurableMemorySnapshot): DurableMemorySnapshot {
-        val keptEntities = s.entity_state.filter { it.is_present || it.entity_type == "character" }
-        val keptEntityIds = keptEntities.map { it.entity_id }.toSet()
+    fun buildContinuityContext(
+        snapshot: DurableMemorySnapshot?,
+        pins: List<ChatPinRecord>,
+        timeline: List<TimelineEventRecord>
+    ): String {
+        val sections = mutableListOf<String>()
 
-        val keptPlacements = s.spatial_state.entity_placements.filter { it.entity_id in keptEntityIds }
-        val currentLocId = s.spatial_state.current_location?.id
-        val adjacentLocIds = s.spatial_state.adjacent_locations.map { it.id }.toSet()
-        val keptLocIds = (setOfNotNull(currentLocId) + adjacentLocIds + keptPlacements.map { it.location_id }.toSet())
+        val stateContent = if (snapshot != null) {
+            json.encodeToString(DurableMemorySnapshot.serializer(), snapshot)
+        } else {
+            "No world state has been materialized yet. This is the beginning of the story."
+        }
+        sections.add(formatSection("durable_state", stateContent))
 
-        val keptLocations = s.spatial_state.known_locations.filter { it.id in keptLocIds }
-        val keptEdges = s.spatial_state.edges.filter { it.from_location_id in keptLocIds && it.to_location_id in keptLocIds }
-        val keptRelationships = s.relational_state.filter { it.source_entity_id in keptEntityIds && it.target_entity_id in keptEntityIds }
+        if (pins.isNotEmpty() || timeline.isNotEmpty()) {
+            val lines = mutableListOf<String>()
+            if (pins.isNotEmpty()) {
+                lines.add("Pinned branch facts:")
+                lines.addAll(pins.map { "- ${it.body}" })
+            }
+            if (timeline.isNotEmpty()) {
+                if (lines.isNotEmpty()) lines.add("")
+                lines.add("Recent high-importance timeline beats:")
+                lines.addAll(timeline.map { "- [${it.importance}/5] ${it.title}: ${it.detail}" })
+            }
+            sections.add(formatSection("pins_timeline", lines.joinToString("\n")))
+        }
 
-        return s.copy(
-            spatial_state = s.spatial_state.copy(
-                known_locations = keptLocations,
-                edges = keptEdges,
-                entity_placements = keptPlacements
-            ),
-            entity_state = keptEntities,
-            relational_state = keptRelationships,
-            cast_roster = emptyList()
-        )
+        return sections.joinToString("\n\n")
     }
 
     /**
-     * The VOLATILE world-state block (durable_state + pins_timeline). Re-materialized every
-     * turn, so it must NOT live in the cached system prefix — append it to the latest user
-     * turn (ahead of the user's text) so the stable history stays cache-eligible.
+     * Per-attempt control carried exactly once on the latest user message. Historical user
+     * messages remain raw transcript prose, preventing old snapshots and speaker controls from
+     * accumulating in later Roleplay Generation Requests.
      */
-    fun buildStateContext(
-        snapshot: DurableMemorySnapshot?,
-        pins: List<ChatPinRecord>,
-        timeline: List<TimelineEventRecord>,
+    fun buildReplyControlContext(
         replyLengthTokens: Int = 4096,
         activeSpeaker: CastProfile? = null,
         castRoster: List<CastProfile> = emptyList(),
@@ -249,74 +251,33 @@ object PromptBuilder {
 
         val activeCast = castRoster.filter { it.status == "active" && it.speaker_eligible && !it.player_controlled }
             .sortedWith(compareBy<CastProfile>({ it.canonical_name.lowercase() }, { it.cast_id }))
-        val presentEntityIds = snapshot?.entity_state?.filter { it.is_present }?.map { it.entity_id }?.toSet().orEmpty()
-        val presentNames = snapshot?.entity_state?.filter { it.is_present }?.map { it.canonical_name.trim().lowercase() }?.toSet().orEmpty()
-        val presentCast = activeCast.filter {
-            it.entity_id in presentEntityIds || it.canonical_name.trim().lowercase() in presentNames
-        }
         val control = if (speakerMode == "ensemble") {
             """
                 Mode: ENSEMBLE
                 Multiple present cast members may speak and act. Keep voices distinct, obey each profile and knowledge boundary, and never control the player.
-                Present cast: ${presentCast.joinToString(", ") { it.canonical_name }.ifBlank { "No cast presence established" }}
+                Eligible cast: ${activeCast.joinToString(", ") { it.canonical_name }.ifBlank { "No eligible cast established" }}
             """.trimIndent()
         } else {
             val speaker = activeSpeaker ?: activeCast.firstOrNull()
             val profile = speaker?.let { formatCastProfile(it) } ?: "No eligible Active Speaker was resolved."
-            val offScene = speaker != null && speaker !in presentCast
             """
                 Mode: SINGLE SPEAKER
                 The Active Speaker exclusively owns dialogue, deliberate action, reaction, and interiority in this reply. Other characters remain silent and may not act. Neutral environmental events are allowed. Never control the player.
-                Active Speaker is off-scene: $offScene. If off-scene, write from their current perspective without teleporting them.
+                Use the authoritative Continuity Snapshot to determine whether the Active Speaker is present. If off-scene, write from their established current perspective without teleporting them.
 
                 Active Speaker profile:
                 $profile
 
-                Present silent cast: ${presentCast.filterNot { it.cast_id == speaker?.cast_id }.joinToString(", ") { it.canonical_name }.ifBlank { "None established" }}
+                Other eligible cast, silent in this reply: ${activeCast.filterNot { it.cast_id == speaker?.cast_id }.joinToString(", ") { it.canonical_name }.ifBlank { "None established" }}
             """.trimIndent()
         }
         sections.add(formatSection("reply_control", control))
 
-        // durable_state — filtered to the CURRENT scene before serializing. Dumping the entire
-        // world graph (every entity ever, resolved threads, off-screen locations) buries the facts
-        // that matter this turn in low-signal noise and hurts the roleplay model's adherence. The
-        // full graph still lives in the DB and drives the HCE; the model only needs what's on stage.
-        // This block rides on the volatile suffix, so filtering costs nothing in prompt-cache terms.
-        val stateContent = if (snapshot != null) {
-            json.encodeToString(DurableMemorySnapshot.serializer(), toRoleplayView(snapshot))
-        } else {
-            "No world state has been materialized yet. This is the beginning of the story."
-        }
-        sections.add(formatSection("durable_state", stateContent))
-
-        // pins_timeline
-        if (pins.isNotEmpty() || timeline.isNotEmpty()) {
-            val lines = mutableListOf<String>()
-            if (pins.isNotEmpty()) {
-                lines.add("Pinned branch facts:")
-                lines.addAll(pins.map { "- ${it.body}" })
-            }
-            if (timeline.isNotEmpty()) {
-                if (lines.isNotEmpty()) {
-                    lines.add("")
-                }
-                lines.add("Recent high-importance timeline beats:")
-                lines.addAll(timeline.map { "- [${it.importance}/5] ${it.title}: ${it.detail}" })
-            }
-            sections.add(formatSection("pins_timeline", lines.joinToString("\n")))
-        }
-
-        // style_override — slim per-turn recency reminder. Earlier assistant replies in the
-        // history may echo the user; this counters that without re-stating the full anti-echo
-        // contract already in the cached system prefix. Kept short because the suffix is NOT
-        // cached — every token here is paid in full on every turn.
         val styleOverride = """
             STYLE NOTE: Earlier assistant replies in this transcript may echo or recap the user's actions — that pattern is wrong, do not imitate it. React through your character's own fresh actions, dialogue, and emotion; never narrate the user's move back to them, and never verbally catalogue their habits.
         """.trimIndent()
         sections.add(formatSection("style_override", styleOverride))
 
-        // drive_this_turn — the positive forcing function. Placed last (closest to the user's
-        // text) so it carries maximum recency weight against the model's tendency to mirror.
         val driveThisTurn = """
             DRIVE THIS TURN — change the situation, do not reflect it back:
             - Introduce at least one NEW element the user did not supply: an action your character takes on their own initiative, an event that intrudes on the scene, a decision, a revelation, or a shift to an adjacent place.
@@ -333,6 +294,24 @@ object PromptBuilder {
         return sections.joinToString("\n\n")
     }
 
+    /**
+     * Back-compatible combined block for non-live callers. Live Roleplay Generation Requests use
+     * [buildContinuityContext] in the system prompt and [buildReplyControlContext] once on the
+     * latest user message.
+     */
+    fun buildStateContext(
+        snapshot: DurableMemorySnapshot?,
+        pins: List<ChatPinRecord>,
+        timeline: List<TimelineEventRecord>,
+        replyLengthTokens: Int = 4096,
+        activeSpeaker: CastProfile? = null,
+        castRoster: List<CastProfile> = emptyList(),
+        speakerMode: String = "single"
+    ): String = listOf(
+        buildContinuityContext(snapshot, pins, timeline),
+        buildReplyControlContext(replyLengthTokens, activeSpeaker, castRoster, speakerMode)
+    ).joinToString("\n\n")
+
     private fun formatCastProfile(profile: CastProfile): String = compactLabeledLines(listOf(
         "ID" to profile.cast_id,
         "Name" to profile.canonical_name,
@@ -346,10 +325,9 @@ object PromptBuilder {
     ))
 
     /**
-     * Back-compat: the full prompt with the state block inlined at the end of the system
-     * message (pre-cache-optimization layout). Retained for callers/tests that want a single
-     * combined string; the live chat path uses [buildSystemPrompt] + [buildStateContext]
-     * separately so the state can ride on the latest user turn for prefix-cache friendliness.
+     * Back-compat combined prompt retained for callers/tests that want one string. The live chat
+     * path appends [buildContinuityContext] to the system prompt and places only
+     * [buildReplyControlContext] on the latest user message.
      */
     fun buildRoleplaySystemPrompt(
         characterBundle: CharacterBundle,

@@ -2,6 +2,9 @@ package com.example.open_fantasia.data.local.dao
 
 import androidx.room.*
 import com.example.open_fantasia.data.local.entity.*
+import com.example.open_fantasia.domain.model.BranchLineage
+import com.example.open_fantasia.domain.model.BranchLineageRef
+import com.example.open_fantasia.domain.model.TurnLineageRef
 import com.example.open_fantasia.domain.model.DurableMemorySnapshot
 import kotlinx.coroutines.flow.Flow
 import java.time.Instant
@@ -12,7 +15,7 @@ abstract class ChatDao {
 
     // --- Core Queries ---
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.ABORT)
     abstract suspend fun insertThread(thread: ThreadEntity)
 
     @Query("SELECT * FROM chat_threads WHERE id = :id")
@@ -46,11 +49,12 @@ abstract class ChatDao {
         INSERT OR IGNORE INTO cast_seeds (
             cast_id, thread_id, entity_id, canonical_name, aliases, role_background,
             personality, voice_style, appearance, goals, boundaries, provenance,
-            evidence, manual_locks, created_at, updated_at
+            first_seen_turn_id, evidence, status, speaker_eligible, player_controlled,
+            manual_locks, created_at, updated_at
         )
         SELECT 'primary:' || t.id, t.id, c.id, c.name, '[]', c.story,
                c.core_persona, c.style_rules, c.appearance, '', c.negative_guidance,
-               'primary', '[]',
+               'primary', NULL, '[]', 'active', 1, 0,
                '["canonical_name","role_background","personality","voice_style","appearance","boundaries"]',
                t.created_at, t.updated_at
         FROM chat_threads t JOIN characters c ON c.id = t.character_id WHERE t.id = :threadId
@@ -75,6 +79,21 @@ abstract class ChatDao {
     @Query("SELECT * FROM chat_branches WHERE thread_id = :threadId AND is_active = 1 LIMIT 1")
     abstract fun getActiveBranchForThreadFlow(threadId: String): Flow<BranchEntity?>
 
+    @Query("""
+        SELECT b.* FROM chat_branches b
+        LEFT JOIN chat_turns h ON h.id = b.head_turn_id
+        WHERE b.head_turn_id IS NOT NULL AND h.id IS NULL
+    """)
+    abstract suspend fun getBranchesWithDanglingHeads(): List<BranchEntity>
+
+    @Query("""
+        SELECT * FROM chat_turns
+        WHERE branch_origin_id = :branchId AND generation_status = 'committed'
+        ORDER BY created_at DESC
+        LIMIT 1
+    """)
+    abstract suspend fun getLatestCommittedTurnCreatedOnBranch(branchId: String): TurnEntity?
+
     @Update
     abstract suspend fun updateBranch(branch: BranchEntity)
 
@@ -84,11 +103,11 @@ abstract class ChatDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun upsertCastOverride(override: CastProfileOverrideEntity)
 
-    @Query("SELECT * FROM cast_profile_overrides WHERE branch_id = :branchId")
-    abstract suspend fun getCastOverrides(branchId: String): List<CastProfileOverrideEntity>
-
     @Query("SELECT o.* FROM cast_profile_overrides o JOIN chat_branches b ON b.id = o.branch_id WHERE b.thread_id = :threadId")
     abstract fun getCastOverridesForThreadFlow(threadId: String): Flow<List<CastProfileOverrideEntity>>
+
+    @Query("SELECT o.* FROM cast_profile_overrides o JOIN chat_branches b ON b.id = o.branch_id WHERE b.thread_id = :threadId")
+    protected abstract suspend fun getAllCastOverridesForThread(threadId: String): List<CastProfileOverrideEntity>
 
     @Query("DELETE FROM chat_branches WHERE id = :id")
     abstract suspend fun deleteBranch(id: String)
@@ -115,7 +134,7 @@ abstract class ChatDao {
     abstract suspend fun updateTurn(turn: TurnEntity)
 
     @Query("DELETE FROM chat_turns WHERE id = :id")
-    abstract suspend fun deleteTurn(id: String)
+    protected abstract suspend fun deleteTurn(id: String)
 
     @Query("UPDATE chat_turns SET parent_turn_id = :newParentId WHERE parent_turn_id = :oldParentId")
     abstract suspend fun updateParentForChildren(oldParentId: String, newParentId: String?)
@@ -143,6 +162,21 @@ abstract class ChatDao {
     @Update
     abstract suspend fun updateCheckpoint(request: ContinuityCheckpointEntity)
 
+    @Query("""
+        UPDATE continuity_checkpoint_requests
+        SET status = :status,
+            failure_detail = :failureDetail,
+            updated_at = :updatedAt,
+            accepted_at = CASE WHEN :status = 'accepted' THEN COALESCE(accepted_at, :updatedAt) ELSE accepted_at END
+        WHERE id = :requestId AND status NOT IN ('accepted', 'superseded')
+    """)
+    abstract suspend fun transitionOpenCheckpoint(
+        requestId: String,
+        status: String,
+        failureDetail: String?,
+        updatedAt: String
+    ): Int
+
     @Query("SELECT * FROM continuity_checkpoint_requests WHERE id = :id")
     abstract suspend fun getCheckpoint(id: String): ContinuityCheckpointEntity?
 
@@ -151,6 +185,30 @@ abstract class ChatDao {
 
     @Query("SELECT * FROM continuity_checkpoint_requests WHERE status NOT IN ('accepted', 'superseded') ORDER BY created_at ASC")
     abstract suspend fun getPendingCheckpoints(): List<ContinuityCheckpointEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun insertRoleplayJob(job: RoleplayGenerationJobEntity)
+
+    @Update
+    abstract suspend fun updateRoleplayJob(job: RoleplayGenerationJobEntity)
+
+    @Query("SELECT * FROM roleplay_generation_jobs WHERE id = :id")
+    abstract suspend fun getRoleplayJob(id: String): RoleplayGenerationJobEntity?
+
+    @Query("SELECT * FROM roleplay_generation_jobs WHERE turn_id = :turnId ORDER BY created_at DESC LIMIT 1")
+    abstract suspend fun getLatestRoleplayJobForTurn(turnId: String): RoleplayGenerationJobEntity?
+
+    @Query("SELECT * FROM roleplay_generation_jobs WHERE thread_id = :threadId ORDER BY created_at DESC")
+    abstract fun getRoleplayJobsForThreadFlow(threadId: String): Flow<List<RoleplayGenerationJobEntity>>
+
+    @Query("SELECT * FROM roleplay_generation_jobs WHERE status NOT IN ('accepted', 'superseded') ORDER BY created_at ASC")
+    abstract suspend fun getPendingRoleplayJobs(): List<RoleplayGenerationJobEntity>
+
+    @Query("SELECT EXISTS(SELECT 1 FROM roleplay_generation_jobs WHERE turn_id = :turnId AND status NOT IN ('accepted', 'superseded'))")
+    abstract suspend fun hasBlockingRoleplayJob(turnId: String): Boolean
+
+    @Query("UPDATE chat_turns SET generation_status = :status, failure_code = NULL, failure_message = NULL, updated_at = :now WHERE id = :turnId")
+    abstract suspend fun markTurnGenerationStatus(turnId: String, status: String, now: String)
 
     @Query("""
         WITH RECURSIVE path(id, parent_turn_id) AS (
@@ -182,21 +240,27 @@ abstract class ChatDao {
         timelineEvents: List<TimelineEntity> = emptyList()
     ) {
         val request = getCheckpoint(requestId) ?: error("Checkpoint not found")
-        require(request.status != "accepted")
+        if (request.status == "accepted") return
+        require(request.status != "superseded") { "Checkpoint was superseded" }
         val branch = getBranch(request.branch_id) ?: error("Branch not found")
         require(branch.head_turn_id == request.target_turn_id) { "Branch changed while continuity was processing" }
         upsertWorldSnapshot(request.target_turn_id, request.thread_id, request.branch_id, request.baseline_turn_id,
             worldState, worldState.metadata.version, true)
         timelineEvents.forEach { insertTimelineEvent(it) }
         val now = Instant.now().toString()
-        updateCheckpoint(request.copy(status="accepted",failure_detail=null,updated_at=now,accepted_at=now))
+        check(transitionOpenCheckpoint(request.id, "accepted", null, now) == 1) {
+            "Checkpoint changed while continuity was being accepted"
+        }
     }
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun insertPin(pin: PinEntity)
 
-    @Query("SELECT * FROM chat_pins WHERE thread_id = :threadId AND branch_id = :branchId AND status = 'active'")
-    abstract suspend fun getActivePins(threadId: String, branchId: String): List<PinEntity>
+    @Query("SELECT * FROM chat_pins WHERE thread_id = :threadId AND status = 'active'")
+    abstract fun getAllActivePinsForThreadFlow(threadId: String): Flow<List<PinEntity>>
+
+    @Query("SELECT * FROM chat_pins WHERE thread_id = :threadId AND status = 'active'")
+    protected abstract suspend fun getAllActivePinsForThread(threadId: String): List<PinEntity>
 
     @Query("SELECT * FROM chat_pins WHERE id = :id")
     abstract suspend fun getPin(id: String): PinEntity?
@@ -215,6 +279,43 @@ abstract class ChatDao {
 
     @Query("SELECT * FROM chat_timeline_events WHERE thread_id = :threadId AND branch_id = :branchId")
     abstract suspend fun getTimelineEvents(threadId: String, branchId: String): List<TimelineEntity>
+
+    @Query("SELECT * FROM chat_timeline_events WHERE thread_id = :threadId")
+    protected abstract suspend fun getAllTimelineEventsForThread(threadId: String): List<TimelineEntity>
+
+    @Transaction
+    open suspend fun resolveLineageState(branchId: String, headTurnId: String?): ResolvedLineageState {
+        val branch = getBranch(branchId) ?: error("Branch not found")
+        val branches = getBranchesForThread(branch.thread_id)
+        val turns = getTurnsForThread(branch.thread_id)
+        val selection = BranchLineage.select(
+            branches.map { BranchLineageRef(it.id, it.parent_branch_id) },
+            turns.map { TurnLineageRef(it.id, it.parent_turn_id) },
+            branchId,
+            headTurnId
+        )
+        return ResolvedLineageState(
+            pins = BranchLineage.reachable(
+                getAllActivePinsForThread(branch.thread_id),
+                selection,
+                branchId = { it.branch_id },
+                turnId = { it.turn_id }
+            ),
+            timelineEvents = BranchLineage.reachable(
+                getAllTimelineEventsForThread(branch.thread_id),
+                selection,
+                branchId = { it.branch_id },
+                turnId = { it.turn_id }
+            ),
+            castOverrides = BranchLineage.overlay(
+                getAllCastOverridesForThread(branch.thread_id),
+                selection,
+                branchId = { it.branch_id },
+                firstSeenTurnId = { it.first_seen_turn_id },
+                key = { it.cast_id }
+            )
+        )
+    }
 
     // --- Recursive Path Helpers ---
 
@@ -395,10 +496,11 @@ abstract class ChatDao {
         model: String,
         label: String,
         finishReason: String,
-        totalTokens: Int,
-        promptTokens: Int,
-        completionTokens: Int,
-        replaceTurnId: String?
+        totalTokens: Int?,
+        promptTokens: Int?,
+        completionTokens: Int?,
+        replaceTurnId: String?,
+        continuityEngineId: String = "codex:gpt-5.6-terra:high"
     ): TurnEntity {
         require(assistantText.isNotBlank()) { "The model returned no visible reply. Regenerate to try again." }
         val now = Instant.now().toString()
@@ -413,6 +515,17 @@ abstract class ChatDao {
         }
 
         val turn = getTurn(turnId) ?: throw IllegalArgumentException("Turn not found")
+        val replacedTurn = replaceTurnId
+            ?.takeUnless { it == turnId }
+            ?.let { getTurn(it) ?: throw IllegalArgumentException("Replacement turn not found") }
+        if (replacedTurn != null) {
+            require(replacedTurn.thread_id == turn.thread_id) {
+                "Replacement turn belongs to another thread."
+            }
+            require(replacedTurn.parent_turn_id == turn.parent_turn_id) {
+                "A replacement must be a sibling of the turn it replaces."
+            }
+        }
         val updatedTurn = turn.copy(
             assistant_output_text = assistantText,
             assistant_output_payload = assistantPayload,
@@ -438,22 +551,18 @@ abstract class ChatDao {
         )
         updateBranch(updatedBranch)
 
-        if (replaceTurnId != null && replaceTurnId != turnId) {
-            // Edit & regenerate: the new turn is a SIBLING of the replaced turn (same parent),
-            // so delete the replaced turn — its FK-CASCADE removes the now-stale continuation
-            // below it. (Previously its children were reparented to the grandparent, which
-            // orphaned them off the active path: permanently hidden and leaking rows.)
-            deleteTurn(replaceTurnId)
-        }
+        // Replacement is intentionally non-destructive. Moving this branch's head to the new
+        // sibling hides the old continuation here while preserving it for any forked branch that
+        // still depends on that lineage.
 
         updateThread(thread.copy(updated_at = now))
 
-        createCheckpointIfDue(updatedTurn, branch.id, now)
+        createCheckpointIfDue(updatedTurn, branch.id, now, continuityEngineId)
 
         return updatedTurn
     }
 
-    private suspend fun createCheckpointIfDue(turn: TurnEntity, branchId: String, now: String) {
+    private suspend fun createCheckpointIfDue(turn: TurnEntity, branchId: String, now: String, continuityEngineId: String) {
         if (getBlockingCheckpoint(turn.id) != null) return
         val path = getAncestorTurns(turn.id).associateBy { it.id }
         val ordered = mutableListOf<TurnEntity>()
@@ -470,10 +579,10 @@ abstract class ChatDao {
             getSnapshot(item.id)?.let { baseline = it; baselineIndex = index }
         }
         val since = ordered.drop(baselineIndex + 1).count { it.generation_status == "committed" && !it.starter_seed }
-        if (since < 7) return
+        if (since < 15) return
         insertCheckpoint(
             ContinuityCheckpointEntity(
-                id = UUID.randomUUID().toString(), thread_id = turn.thread_id, branch_id = branchId,
+                id = UUID.randomUUID().toString(), engine_id = continuityEngineId, thread_id = turn.thread_id, branch_id = branchId,
                 target_turn_id = turn.id, baseline_turn_id = baseline?.turn_id,
                 baseline_version = baseline?.version ?: 0, trigger_reason = "cadence", created_at = now, updated_at = now
             )
@@ -481,16 +590,235 @@ abstract class ChatDao {
     }
 
     @Transaction
-    open suspend fun requestEarlyCheckpoint(branchId: String): ContinuityCheckpointEntity {
+    open suspend fun acceptRoleplayJob(
+        jobId: String,
+        replyText: String,
+        responseThreadId: String,
+        responseBranchId: String,
+        responseTurnId: String,
+        responseSpeakerId: String?,
+        responseSpeakerMode: String,
+        responseModelId: String,
+        elapsedMillis: Long,
+        continuityEngineId: String,
+        provider: String = "antigravity_host",
+        connectionLabel: String = "Antigravity (Mac)",
+        finishReason: String = "stop",
+        assistantPayload: String = "{\"usage_unavailable\":true,\"elapsed_millis\":$elapsedMillis}",
+        totalTokens: Int? = null,
+        promptTokens: Int? = null,
+        completionTokens: Int? = null
+    ): TurnEntity {
+        val job = getRoleplayJob(jobId) ?: error("Roleplay job not found")
+        require(job.status !in setOf("accepted", "superseded")) { "Roleplay job is stale" }
+        require(job.thread_id == responseThreadId && job.branch_id == responseBranchId && job.turn_id == responseTurnId) { "Roleplay response identity mismatch" }
+        require(job.requested_speaker_id == responseSpeakerId && job.speaker_mode == responseSpeakerMode) { "Roleplay response speaker mismatch" }
+        require(job.model_id == responseModelId) { "Roleplay response model mismatch" }
+        require(job.provider == provider) { "Roleplay response provider mismatch" }
+        require(replyText.isNotBlank()) { "The Roleplay Model returned no visible reply" }
+        val branch = getBranch(job.branch_id) ?: error("Branch not found")
+        require(branch.locked_by_turn_id == job.turn_id) { "Pending reply no longer owns the branch" }
+        require(branch.head_turn_id == job.expected_head_turn_id) { "Branch changed while the Roleplay Model was generating" }
+        val pendingTurn = getTurn(job.turn_id) ?: error("Pending reply no longer exists")
+        require(pendingTurn.requested_speaker_id == job.requested_speaker_id && pendingTurn.speaker_mode == job.speaker_mode) { "Pending speaker changed" }
+        val committed = commitTurn(
+            userId = getThread(job.thread_id)?.user_id ?: error("Thread not found"),
+            branchId = job.branch_id,
+            turnId = job.turn_id,
+            assistantText = replyText,
+            assistantPayload = assistantPayload,
+            provider = provider,
+            model = job.model_id,
+            label = connectionLabel,
+            finishReason = finishReason,
+            totalTokens = totalTokens,
+            promptTokens = promptTokens,
+            completionTokens = completionTokens,
+            replaceTurnId = job.replace_turn_id,
+            continuityEngineId = continuityEngineId
+        )
+        updateRoleplayJob(job.copy(status = "accepted", failure_detail = null, updated_at = Instant.now().toString(), accepted_at = Instant.now().toString()))
+        return committed
+    }
+
+    @Transaction
+    open suspend fun failRoleplayJob(jobId: String, detail: String) {
+        val job = getRoleplayJob(jobId) ?: return
+        if (job.status in setOf("accepted", "superseded")) return
+        val now = Instant.now().toString()
+        updateRoleplayJob(job.copy(status = "failed", failure_detail = detail, updated_at = now))
+        getTurn(job.turn_id)?.let { turn ->
+            updateTurn(turn.copy(
+                generation_status = "failed",
+                generation_finished_at = now,
+                failure_code = if (job.execution_mode == "mac_host") "MAC_HOST_ERROR" else "API_ERROR",
+                failure_message = detail,
+                updated_at = now
+            ))
+        }
+        releaseBranchLock(job.branch_id, job.turn_id, now)
+    }
+
+    @Transaction
+    open suspend fun discardRoleplayJob(jobId: String) {
+        val job = getRoleplayJob(jobId) ?: return
+        if (job.status in setOf("accepted", "superseded")) return
+        val turn = getTurn(job.turn_id) ?: return
+        val branch = getBranch(job.branch_id) ?: return
+        // The host can finish between a stale UI read and this transaction. Once accepted,
+        // committed, or installed as the branch head, this is durable history—not a draft.
+        if (turn.generation_status == "committed" || branch.head_turn_id == turn.id) return
+        val now = Instant.now().toString()
+        updateRoleplayJob(job.copy(status = "superseded", updated_at = now))
+        releaseBranchLock(job.branch_id, job.turn_id, now)
+        deleteTurn(job.turn_id)
+    }
+
+    @Transaction
+    open suspend fun discardUncommittedTurn(branchId: String, turnId: String): Boolean {
+        val branch = getBranch(branchId) ?: return false
+        val turn = getTurn(turnId) ?: return false
+        if (turn.branch_origin_id != branch.id) return false
+        if (turn.generation_status == "committed" || branch.head_turn_id == turn.id) return false
+        if (getLatestRoleplayJobForTurn(turn.id)?.status == "accepted") return false
+        val now = Instant.now().toString()
+        if (branch.locked_by_turn_id == turn.id) {
+            releaseBranchLock(branch.id, turn.id, now)
+        }
+        deleteTurn(turn.id)
+        return true
+    }
+
+    /**
+     * Repairs legacy/corrupt head pointers without inventing prose. Prefer the newest surviving
+     * turn created on that branch; otherwise fall back to its still-valid fork turn.
+     */
+    @Transaction
+    open suspend fun repairDanglingBranchHeads(): Int {
+        var repaired = 0
+        for (branch in getBranchesWithDanglingHeads()) {
+            val latestOwnTurn = getLatestCommittedTurnCreatedOnBranch(branch.id)
+            val validFork = branch.fork_turn_id?.let { getTurn(it) }
+            updateBranch(
+                branch.copy(
+                    head_turn_id = latestOwnTurn?.id ?: validFork?.id,
+                    generation_locked = false,
+                    locked_by_turn_id = null,
+                    locked_at = null,
+                    updated_at = Instant.now().toString()
+                )
+            )
+            repaired++
+        }
+        return repaired
+    }
+
+    @Transaction
+    open suspend fun requestEarlyCheckpoint(
+        branchId: String,
+        continuityEngineId: String = "codex:gpt-5.6-terra:high"
+    ): ContinuityCheckpointEntity {
         val branch = getBranch(branchId) ?: error("Branch not found")
         val head = branch.head_turn_id ?: error("Nothing to update yet")
         getBlockingCheckpoint(head)?.let { return it }
         val baseline = getNearestSnapshot(head)
         val now = Instant.now().toString()
         return ContinuityCheckpointEntity(
-            id = UUID.randomUUID().toString(), thread_id = branch.thread_id, branch_id = branchId,
+            id = UUID.randomUUID().toString(), engine_id = continuityEngineId, thread_id = branch.thread_id, branch_id = branchId,
             target_turn_id = head, baseline_turn_id = baseline?.turn_id,
             baseline_version = baseline?.version ?: 0, trigger_reason = "manual", created_at = now, updated_at = now
+        ).also { insertCheckpoint(it) }
+    }
+
+    /**
+     * Replaces committed prose by creating a new branch-local lineage. Shared ancestor exchanges
+     * remain immutable for sibling branches, and continuity is rebuilt from the last snapshot
+     * strictly before the edited exchange.
+     */
+    @Transaction
+    open suspend fun replaceAssistantReply(
+        userId: String,
+        branchId: String,
+        turnId: String,
+        assistantText: String,
+        continuityEngineId: String
+    ): ContinuityCheckpointEntity {
+        require(assistantText.isNotBlank()) { "Assistant reply cannot be empty" }
+        val branch = getBranch(branchId) ?: error("Branch not found")
+        val thread = getThread(branch.thread_id) ?: error("Thread not found")
+        require(thread.user_id == userId) { "Thread not owned by current user" }
+        require(!branch.generation_locked) { "Cannot edit while this branch is generating" }
+        val headId = branch.head_turn_id ?: error("Branch has no committed reply")
+        require(getBlockingCheckpoint(headId) == null) { "Continuity must finish before editing" }
+
+        val byId = getAncestorTurns(headId).associateBy { it.id }
+        val ordered = mutableListOf<TurnEntity>()
+        val seen = mutableSetOf<String>()
+        var cursor: String? = headId
+        while (cursor != null) {
+            check(seen.add(cursor)) { "Detected a Roleplay Exchange ancestry cycle" }
+            val exchange = byId[cursor] ?: error("Roleplay Exchange ancestry is incomplete")
+            ordered += exchange
+            cursor = exchange.parent_turn_id
+        }
+        ordered.reverse()
+        val editIndex = ordered.indexOfFirst { it.id == turnId }
+        require(editIndex >= 0) { "Edited reply is not reachable from this branch" }
+        require(ordered[editIndex].generation_status == "committed") { "Only committed prose can be edited" }
+
+        var baseline: SnapshotEntity? = null
+        for (candidate in ordered.take(editIndex).asReversed()) {
+            baseline = getSnapshot(candidate.id)
+            if (baseline != null) break
+        }
+
+        val now = Instant.now().toString()
+        val replacementIds = linkedMapOf<String, String>()
+        var replacementParentId = ordered[editIndex].parent_turn_id
+        ordered.drop(editIndex).forEachIndexed { offset, original ->
+            val replacementId = UUID.randomUUID().toString()
+            replacementIds[original.id] = replacementId
+            insertTurn(
+                original.copy(
+                    id = replacementId,
+                    branch_origin_id = branch.id,
+                    parent_turn_id = replacementParentId,
+                    assistant_output_text = if (offset == 0) assistantText else original.assistant_output_text,
+                    updated_at = now
+                )
+            )
+            replacementParentId = replacementId
+        }
+
+        // User-authored pins survive for unchanged cloned exchanges. Generated timeline rows do
+        // not: the mandatory Continuity Update rebuilds them from the replacement lineage.
+        val priorState = resolveLineageState(branch.id, headId)
+        priorState.pins.filter { it.turn_id in replacementIds }.forEach { pin ->
+            insertPin(
+                pin.copy(
+                    id = UUID.randomUUID().toString(),
+                    branch_id = branch.id,
+                    turn_id = replacementIds.getValue(pin.turn_id!!),
+                    updated_at = now
+                )
+            )
+        }
+
+        updateBranch(branch.copy(head_turn_id = replacementParentId, updated_at = now))
+        updateThread(thread.copy(updated_at = now))
+        return ContinuityCheckpointEntity(
+            id = UUID.randomUUID().toString(),
+            engine_id = continuityEngineId,
+            thread_id = branch.thread_id,
+            branch_id = branch.id,
+            target_turn_id = requireNotNull(replacementParentId),
+            baseline_turn_id = baseline?.turn_id,
+            baseline_version = baseline?.version ?: 0,
+            trigger_reason = "assistant_edit",
+            old_head_turn_id = headId,
+            discarded_exchange_count = ordered.size - editIndex,
+            created_at = now,
+            updated_at = now
         ).also { insertCheckpoint(it) }
     }
 
@@ -551,6 +879,17 @@ abstract class ChatDao {
         if (sourceTurn.thread_id != sourceBranch.thread_id) {
             throw IllegalArgumentException("Source turn not found on selected thread")
         }
+        val sourceHead = sourceBranch.head_turn_id ?: throw IllegalStateException("Source branch has no history")
+        require(getAncestorTurns(sourceHead).any { it.id == sourceTurn.id }) {
+            "Source exchange is not reachable from the selected branch"
+        }
+        val speakerAtFork = sourceTurn.user_input_payload
+            .let { Regex("\\\"sticky_speaker_id\\\":\\\"([^\\\"]+)\\\"").find(it)?.groupValues?.getOrNull(1) }
+            ?: sourceTurn.requested_speaker_id
+            ?: "primary:${sourceBranch.thread_id}"
+        val modeAtFork = sourceTurn.user_input_payload
+            .let { Regex("\\\"sticky_mode\\\":\\\"([^\\\"]+)\\\"").find(it)?.groupValues?.getOrNull(1) }
+            ?: sourceTurn.speaker_mode
 
         if (makeActive) {
             deactivateAllBranchesForThread(sourceBranch.thread_id, now)
@@ -570,8 +909,8 @@ abstract class ChatDao {
             created_by = userId,
             created_at = now,
             updated_at = now,
-            active_speaker_id = sourceBranch.active_speaker_id,
-            speaker_mode = sourceBranch.speaker_mode
+            active_speaker_id = speakerAtFork,
+            speaker_mode = modeAtFork
         )
         insertBranch(newBranch)
 
@@ -613,7 +952,8 @@ abstract class ChatDao {
         userId: String,
         branchId: String,
         targetTurnId: String,
-        expectedHeadTurnId: String?
+        expectedHeadTurnId: String?,
+        continuityEngineId: String = "codex:gpt-5.6-terra:high"
     ): BranchEntity {
         val now = Instant.now().toString()
         val branch = getBranch(branchId) ?: throw IllegalArgumentException("Branch not found")
@@ -649,22 +989,24 @@ abstract class ChatDao {
             discardedCursor = discarded.parent_turn_id
         }
 
-        // 2. Find pruneRootTurnId: the turn whose parent_turn_id is targetTurnId and is on the path
-        val pruneRootTurn = ancestorTurns.find { it.parent_turn_id == targetTurnId }
-        val pruneRootTurnId = pruneRootTurn?.id
-
-        if (pruneRootTurnId != null) {
-            // Find doomed branches: branches whose head or fork turn is a descendant of pruneRootTurnId
-            val doomedBranches = getDoomedBranchesInternal(branch.thread_id, branch.id, pruneRootTurnId)
-            val doomedBranchIds = doomedBranches.map { it.id }
-
-            // Delete doomed branches
-            if (doomedBranchIds.isNotEmpty()) {
-                deleteBranches(doomedBranchIds)
+        // 2. Rewind is branch-local: never delete another branch row or a turn that another
+        // branch still needs. The first subtree with no other branch dependency is this branch's
+        // exclusive suffix and is the only portion safe to cascade-delete.
+        val byId = ancestorTurns.associateBy { it.id }
+        val forwardShallowToDeep = buildList {
+            var cursor: String? = headTurnId
+            while (cursor != null && cursor != targetTurnId) {
+                val item = byId[cursor] ?: break
+                add(item)
+                cursor = item.parent_turn_id
             }
+        }.asReversed()
 
-            // Delete pruneRootTurnId (triggers SQLite cascade delete of descendant turns, snapshots, pins, timeline)
-            deleteTurn(pruneRootTurnId)
+        val pruneStartId = forwardShallowToDeep.firstOrNull { item ->
+            getDoomedBranchesInternal(branch.thread_id, branch.id, item.id).isEmpty()
+        }?.id
+        if (pruneStartId != null) {
+            deleteTurn(pruneStartId)
         }
 
         // 3. Update branch head
@@ -690,7 +1032,7 @@ abstract class ChatDao {
         val retainedBaseline = getNearestSnapshot(targetTurnId)
         insertCheckpoint(
             ContinuityCheckpointEntity(
-                id = UUID.randomUUID().toString(), thread_id = branch.thread_id, branch_id = branch.id,
+                id = UUID.randomUUID().toString(), engine_id = continuityEngineId, thread_id = branch.thread_id, branch_id = branch.id,
                 target_turn_id = targetTurnId, baseline_turn_id = retainedBaseline?.turn_id,
                 baseline_version = retainedBaseline?.version ?: 0, trigger_reason = "rewind",
                 old_head_turn_id = headTurnId, discarded_exchange_count = discardedCount,
@@ -744,6 +1086,8 @@ abstract class ChatDao {
         val lockedBranches = getLockedBranchesInternal()
         var clearedCount = 0
         for (branch in lockedBranches) {
+            val lockedTurnId = branch.locked_by_turn_id
+            if (lockedTurnId != null && hasBlockingRoleplayJob(lockedTurnId)) continue
             val lockedAtStr = branch.locked_at
             // A locked branch whose timestamp is missing or unparseable is, by definition, in a
             // broken state that no normal flow produced — and this function is the recovery net
@@ -794,6 +1138,10 @@ abstract class ChatDao {
     @Query("UPDATE chat_branches SET generation_locked = 0, locked_by_turn_id = null, locked_at = null, updated_at = :now WHERE id = :branchId AND locked_by_turn_id = :turnId")
     abstract suspend fun releaseBranchLock(branchId: String, turnId: String, now: String)
 
-    @Query("UPDATE chat_threads SET persona_id = :newPersonaId WHERE persona_id = :oldPersonaId")
-    abstract suspend fun reassignPersona(oldPersonaId: String, newPersonaId: String?)
 }
+
+data class ResolvedLineageState(
+    val pins: List<PinEntity>,
+    val timelineEvents: List<TimelineEntity>,
+    val castOverrides: List<CastProfileOverrideEntity>
+)

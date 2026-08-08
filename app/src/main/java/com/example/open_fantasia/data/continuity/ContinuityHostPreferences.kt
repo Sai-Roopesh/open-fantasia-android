@@ -1,8 +1,11 @@
 package com.example.open_fantasia.data.continuity
 
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import java.io.IOException
+import java.security.GeneralSecurityException
 
 data class ContinuityHostPairing(
     val endpoint: String,
@@ -14,12 +17,17 @@ class ContinuityHostPreferences(context: Context) {
     private val masterKey = MasterKey.Builder(context)
         .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
         .build()
-    private val preferences = EncryptedSharedPreferences.create(
-        context,
-        "continuity_host_credentials",
-        masterKey,
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+    private val preferences: SharedPreferences = recoverEncryptedCredentialStore(
+        open = {
+            EncryptedSharedPreferences.create(
+                context,
+                PREFERENCES_NAME,
+                masterKey,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+            )
+        },
+        clearCorruptStore = { context.deleteSharedPreferences(PREFERENCES_NAME) }
     )
 
     fun pairing(): ContinuityHostPairing? {
@@ -37,32 +45,80 @@ class ContinuityHostPreferences(context: Context) {
             .apply()
     }
 
-    fun clear() = preferences.edit().clear().apply()
+    fun clearPairing() = preferences.edit()
+        .remove("endpoint")
+        .remove("device_id")
+        .remove("credential")
+        .remove("pending_acknowledgements")
+        .apply()
 
-    fun pendingAcknowledgements(): Set<String> =
-        preferences.getStringSet("pending_acknowledgements", emptySet()).orEmpty().toSet()
+    fun continuityEngineId(): String? = preferences.getString("continuity_engine_id", null)
 
-    fun rememberAcknowledgement(requestId: String) {
+    fun saveContinuityEngineId(engineId: String) {
+        require(engineId in SUPPORTED_CONTINUITY_ENGINES) { "Unsupported Continuity Engine" }
+        preferences.edit().putString("continuity_engine_id", engineId).apply()
+    }
+
+    fun pendingAcknowledgements(jobType: String = JOB_CONTINUITY): Set<String> =
+        preferences.getStringSet("pending_acknowledgements", emptySet())
+            .orEmpty()
+            .map { encoded ->
+                if (':' in encoded) encoded.substringBefore(':') to encoded.substringAfter(':')
+                else JOB_CONTINUITY to encoded
+            }
+            .filter { it.first == jobType }
+            .map { it.second }
+            .toSet()
+
+    fun rememberAcknowledgement(requestId: String, jobType: String = JOB_CONTINUITY) {
+        val encoded = "$jobType:$requestId"
         preferences.edit().putStringSet(
             "pending_acknowledgements",
-            pendingAcknowledgements() + requestId
+            preferences.getStringSet("pending_acknowledgements", emptySet()).orEmpty() + encoded
         ).apply()
     }
 
-    fun forgetAcknowledgement(requestId: String) {
+    fun forgetAcknowledgement(requestId: String, jobType: String = JOB_CONTINUITY) {
+        val encoded = "$jobType:$requestId"
+        val stored = preferences.getStringSet("pending_acknowledgements", emptySet()).orEmpty()
         preferences.edit().putStringSet(
             "pending_acknowledgements",
-            pendingAcknowledgements() - requestId
+            stored - encoded - if (jobType == JOB_CONTINUITY) requestId else ""
         ).apply()
     }
 
     companion object {
+        private const val PREFERENCES_NAME = "continuity_host_credentials"
+        const val CODEX_TERRA_HIGH = "codex:gpt-5.6-terra:high"
+        const val ANTIGRAVITY_GEMINI_FLASH_HIGH = "antigravity:gemini-3.6-flash:high"
+        const val JOB_CONTINUITY = "continuity"
+        const val JOB_ROLEPLAY = "roleplay"
+        const val JOB_PORTRAIT = "portrait"
+        val SUPPORTED_CONTINUITY_ENGINES = setOf(CODEX_TERRA_HIGH, ANTIGRAVITY_GEMINI_FLASH_HIGH)
+
         fun normalizeEndpoint(raw: String): String {
             val value = raw.trim().trimEnd('/')
-            require(value.startsWith("https://")) { "Continuity Host must use private HTTPS" }
+            require(value.startsWith("https://")) { "Mac Host must use private HTTPS" }
             val host = java.net.URI(value).host.orEmpty()
-            require(host.endsWith(".ts.net")) { "Continuity Host must use a Tailscale address" }
+            require(host.endsWith(".ts.net")) { "Mac Host must use a Tailscale address" }
             return value
         }
     }
+}
+
+/**
+ * EncryptedSharedPreferences ciphertext is intentionally not portable across an app uninstall:
+ * Android deletes its Keystore key. A restored data backup may therefore contain healthy chat
+ * data alongside credentials that can no longer be decrypted. Reset only that credential store
+ * and let the user pair again; never crash chat or delete the database.
+ */
+internal fun <T> recoverEncryptedCredentialStore(
+    open: () -> T,
+    clearCorruptStore: () -> Boolean
+): T = try {
+    open()
+} catch (error: Exception) {
+    if (error !is GeneralSecurityException && error !is IOException) throw error
+    clearCorruptStore()
+    open()
 }

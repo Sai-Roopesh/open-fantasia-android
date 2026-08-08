@@ -203,7 +203,9 @@ data class ThreadEntity(
     val pinned_at: String?,
     val created_at: String,
     val updated_at: String,
-    val supporting_cast: String = ""
+    val supporting_cast: String = "",
+    val portrait_background_enabled: Boolean = true,
+    val portrait_background_dimness: Float = 0.55f
 ) {
     fun toDomain() = ThreadRecord(
         id, user_id, character_id, connection_id, model_id, persona_id, brain_connection_id, brain_model_id,
@@ -471,7 +473,8 @@ data class SnapshotEntity(
 )
 data class ContinuityCheckpointEntity(
     @PrimaryKey val id: String,
-    val protocol_version: Int = 1,
+    val protocol_version: Int = 2,
+    val engine_id: String = "codex:gpt-5.6-terra:high",
     val thread_id: String,
     val branch_id: String,
     val target_turn_id: String,
@@ -481,6 +484,44 @@ data class ContinuityCheckpointEntity(
     val trigger_reason: String = "cadence",
     val old_head_turn_id: String? = null,
     val discarded_exchange_count: Int = 0,
+    val status: String = "pending_export",
+    val attempt_count: Int = 0,
+    val failure_detail: String? = null,
+    val created_at: String,
+    val updated_at: String,
+    val accepted_at: String? = null
+)
+
+@Entity(
+    tableName = "roleplay_generation_jobs",
+    foreignKeys = [
+        ForeignKey(entity = TurnEntity::class, parentColumns = ["id"], childColumns = ["turn_id"], onDelete = ForeignKey.CASCADE),
+        ForeignKey(entity = ThreadEntity::class, parentColumns = ["id"], childColumns = ["thread_id"], onDelete = ForeignKey.CASCADE),
+        ForeignKey(entity = BranchEntity::class, parentColumns = ["id"], childColumns = ["branch_id"], onDelete = ForeignKey.CASCADE)
+    ],
+    indices = [Index("turn_id"), Index("thread_id"), Index("branch_id"), Index("status")]
+)
+data class RoleplayGenerationJobEntity(
+    @PrimaryKey val id: String,
+    val protocol_version: Int = 2,
+    val turn_id: String,
+    val thread_id: String,
+    val branch_id: String,
+    val expected_head_turn_id: String?,
+    val replace_turn_id: String?,
+    val requested_speaker_id: String?,
+    val speaker_mode: String,
+    val model_id: String,
+    val system_prompt: String,
+    val messages_json: String,
+    val temperature: Double,
+    val top_p: Double,
+    val max_tokens: Int,
+    val provider: String = "antigravity_host",
+    val connection_id: String = "builtin:mac-antigravity",
+    val connection_label: String = "Antigravity (Mac)",
+    val execution_mode: String = "mac_host",
+    val request_hash: String = "",
     val status: String = "pending_export",
     val attempt_count: Int = 0,
     val failure_detail: String? = null,
@@ -585,7 +626,7 @@ data class PinEntity(
 fun ChatPinRecord.toEntity() = PinEntity(id, thread_id, branch_id, turn_id, body, status, created_at, updated_at)
 
 @Entity(
-    tableName = "character_portrait_tasks",
+    tableName = "portrait_generation_jobs",
     foreignKeys = [
         ForeignKey(
             entity = CharacterEntity::class,
@@ -594,40 +635,74 @@ fun ChatPinRecord.toEntity() = PinEntity(id, thread_id, branch_id, turn_id, body
             onDelete = ForeignKey.CASCADE
         ),
         ForeignKey(
-            entity = ProfileEntity::class,
+            entity = ThreadEntity::class,
             parentColumns = ["id"],
-            childColumns = ["user_id"],
+            childColumns = ["thread_id"],
+            onDelete = ForeignKey.CASCADE
+        ),
+        ForeignKey(
+            entity = BranchEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["branch_id"],
             onDelete = ForeignKey.CASCADE
         )
     ],
     indices = [
         Index("character_id"),
-        Index("user_id")
+        Index("thread_id"),
+        Index("branch_id"),
+        Index("status")
     ]
 )
-data class PortraitTaskEntity(
+data class PortraitGenerationJobEntity(
     @PrimaryKey val id: String,
+    val protocol_version: Int = 2,
+    val subject_type: String,
     val character_id: String,
-    val user_id: String,
-    val prompt: String,
-    val seed: Long,
+    val thread_id: String?,
+    val branch_id: String?,
+    val cast_id: String?,
     val source_hash: String,
+    val prompt_version: Int,
+    val portrait_brief_json: String,
+    val model_id: String,
     val status: String,
-    val attempts: Int,
-    val max_attempts: Int,
-    val available_at: String,
-    val locked_at: String?,
-    val last_error: String?,
+    val attempt_count: Int,
+    val failure_detail: String?,
     val created_at: String,
-    val updated_at: String
-) {
-    fun toDomain() = CharacterPortraitTaskRecord(
-        id, character_id, user_id, prompt, seed, source_hash, status, attempts, max_attempts,
-        available_at, locked_at, last_error, created_at, updated_at
-    )
-}
+    val updated_at: String,
+    val accepted_at: String?
+)
 
-fun CharacterPortraitTaskRecord.toEntity() = PortraitTaskEntity(
-    id, character_id, user_id, prompt, seed, source_hash, status, attempts, max_attempts,
-    available_at, locked_at, last_error, created_at, updated_at
+@Entity(
+    tableName = "cast_portraits",
+    foreignKeys = [
+        ForeignKey(
+            entity = ThreadEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["thread_id"],
+            onDelete = ForeignKey.CASCADE
+        ),
+        ForeignKey(
+            entity = BranchEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["branch_id"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index("thread_id"), Index("branch_id"), Index("cast_id")]
+)
+data class CastPortraitEntity(
+    @PrimaryKey val id: String,
+    val thread_id: String,
+    val branch_id: String,
+    val cast_id: String,
+    val source_hash: String,
+    val portrait_path: String?,
+    val thumbnail_path: String?,
+    val portrait_brief_json: String,
+    val status: String,
+    val last_error: String?,
+    val generated_at: String?,
+    val updated_at: String
 )

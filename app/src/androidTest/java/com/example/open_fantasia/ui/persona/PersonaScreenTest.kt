@@ -12,6 +12,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import java.io.IOException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 
 class PersonaScreenTest {
@@ -28,7 +29,7 @@ class PersonaScreenTest {
         db = Room.inMemoryDatabaseBuilder(context, OpenFantasiaDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        viewModel = PersonaViewModel(db.personaDao(), db.chatDao())
+        viewModel = PersonaViewModel(db.personaDao())
     }
 
     @After
@@ -70,8 +71,14 @@ class PersonaScreenTest {
         // Toggle default favorite click
         composeTestRule.onNodeWithContentDescription("Default Persona").performClick()
 
-        // Verify that default status is modified (in database it should be default now)
-        // Wait for UI to update default state if applicable
+        runBlocking {
+            val deadline = System.currentTimeMillis() + 3_000
+            while (db.personaDao().getPersona(persona.id)?.is_default != true &&
+                System.currentTimeMillis() < deadline
+            ) {
+                delay(50)
+            }
+        }
         composeTestRule.onNodeWithContentDescription("Default Persona").assertExists()
     }
 }

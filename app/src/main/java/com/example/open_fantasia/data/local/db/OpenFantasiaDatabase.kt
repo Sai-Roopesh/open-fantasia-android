@@ -170,6 +170,118 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
     }
 }
 
+/** Protocol v2: frozen Continuity Engine identity and durable Mac-hosted roleplay jobs. */
+val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE continuity_checkpoint_requests ADD COLUMN engine_id TEXT NOT NULL DEFAULT 'codex:gpt-5.6-terra:high'")
+        db.execSQL("UPDATE continuity_checkpoint_requests SET protocol_version = 2")
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS roleplay_generation_jobs (
+                id TEXT NOT NULL PRIMARY KEY,
+                protocol_version INTEGER NOT NULL DEFAULT 2,
+                turn_id TEXT NOT NULL,
+                thread_id TEXT NOT NULL,
+                branch_id TEXT NOT NULL,
+                expected_head_turn_id TEXT,
+                replace_turn_id TEXT,
+                requested_speaker_id TEXT,
+                speaker_mode TEXT NOT NULL,
+                model_id TEXT NOT NULL,
+                system_prompt TEXT NOT NULL,
+                messages_json TEXT NOT NULL,
+                temperature REAL NOT NULL,
+                top_p REAL NOT NULL,
+                max_tokens INTEGER NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending_export',
+                attempt_count INTEGER NOT NULL DEFAULT 0,
+                failure_detail TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                accepted_at TEXT,
+                FOREIGN KEY(turn_id) REFERENCES chat_turns(id) ON DELETE CASCADE,
+                FOREIGN KEY(thread_id) REFERENCES chat_threads(id) ON DELETE CASCADE,
+                FOREIGN KEY(branch_id) REFERENCES chat_branches(id) ON DELETE CASCADE
+            )
+        """.trimIndent())
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_roleplay_generation_jobs_turn_id ON roleplay_generation_jobs(turn_id)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_roleplay_generation_jobs_thread_id ON roleplay_generation_jobs(thread_id)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_roleplay_generation_jobs_branch_id ON roleplay_generation_jobs(branch_id)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_roleplay_generation_jobs_status ON roleplay_generation_jobs(status)")
+    }
+}
+
+/** Mac-hosted portraits and per-thread speaker-aware chat backdrop preferences. */
+val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE chat_threads ADD COLUMN portrait_background_enabled INTEGER NOT NULL DEFAULT 1")
+        db.execSQL("ALTER TABLE chat_threads ADD COLUMN portrait_background_dimness REAL NOT NULL DEFAULT 0.55")
+
+        // Pending Pollinations work cannot be resumed by the new private Mac Host protocol.
+        db.execSQL("DROP TABLE IF EXISTS character_portrait_tasks")
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS portrait_generation_jobs (
+                id TEXT NOT NULL PRIMARY KEY,
+                protocol_version INTEGER NOT NULL DEFAULT 2,
+                subject_type TEXT NOT NULL,
+                character_id TEXT NOT NULL,
+                thread_id TEXT,
+                branch_id TEXT,
+                cast_id TEXT,
+                source_hash TEXT NOT NULL,
+                prompt_version INTEGER NOT NULL,
+                portrait_brief_json TEXT NOT NULL,
+                model_id TEXT NOT NULL,
+                status TEXT NOT NULL,
+                attempt_count INTEGER NOT NULL,
+                failure_detail TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                accepted_at TEXT,
+                FOREIGN KEY(character_id) REFERENCES characters(id) ON DELETE CASCADE,
+                FOREIGN KEY(thread_id) REFERENCES chat_threads(id) ON DELETE CASCADE,
+                FOREIGN KEY(branch_id) REFERENCES chat_branches(id) ON DELETE CASCADE
+            )
+        """.trimIndent())
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_portrait_generation_jobs_character_id ON portrait_generation_jobs(character_id)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_portrait_generation_jobs_thread_id ON portrait_generation_jobs(thread_id)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_portrait_generation_jobs_branch_id ON portrait_generation_jobs(branch_id)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_portrait_generation_jobs_status ON portrait_generation_jobs(status)")
+
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS cast_portraits (
+                id TEXT NOT NULL PRIMARY KEY,
+                thread_id TEXT NOT NULL,
+                branch_id TEXT NOT NULL,
+                cast_id TEXT NOT NULL,
+                source_hash TEXT NOT NULL,
+                portrait_path TEXT,
+                thumbnail_path TEXT,
+                portrait_brief_json TEXT NOT NULL,
+                status TEXT NOT NULL,
+                last_error TEXT,
+                generated_at TEXT,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY(thread_id) REFERENCES chat_threads(id) ON DELETE CASCADE,
+                FOREIGN KEY(branch_id) REFERENCES chat_branches(id) ON DELETE CASCADE
+            )
+        """.trimIndent())
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_cast_portraits_thread_id ON cast_portraits(thread_id)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_cast_portraits_branch_id ON cast_portraits(branch_id)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_cast_portraits_cast_id ON cast_portraits(cast_id)")
+    }
+}
+
+/** One provider-neutral Roleplay Generation Job lifecycle for direct and Mac-hosted models. */
+val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE roleplay_generation_jobs ADD COLUMN provider TEXT NOT NULL DEFAULT 'antigravity_host'")
+        db.execSQL("ALTER TABLE roleplay_generation_jobs ADD COLUMN connection_id TEXT NOT NULL DEFAULT 'builtin:mac-antigravity'")
+        db.execSQL("ALTER TABLE roleplay_generation_jobs ADD COLUMN connection_label TEXT NOT NULL DEFAULT 'Antigravity (Mac)'")
+        db.execSQL("ALTER TABLE roleplay_generation_jobs ADD COLUMN execution_mode TEXT NOT NULL DEFAULT 'mac_host'")
+        db.execSQL("ALTER TABLE roleplay_generation_jobs ADD COLUMN request_hash TEXT NOT NULL DEFAULT ''")
+    }
+}
+
 @Database(
     entities = [
         ProfileEntity::class,
@@ -183,11 +295,13 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
         TurnEntity::class,
         SnapshotEntity::class,
         ContinuityCheckpointEntity::class,
+        RoleplayGenerationJobEntity::class,
         TimelineEntity::class,
         PinEntity::class,
-        PortraitTaskEntity::class
+        PortraitGenerationJobEntity::class,
+        CastPortraitEntity::class
     ],
-    version = 6,
+    version = 9,
     exportSchema = false
 )
 @TypeConverters(Converters::class)

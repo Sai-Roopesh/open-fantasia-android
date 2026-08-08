@@ -22,7 +22,7 @@ abstract class PersonaDao {
     abstract fun getAllPersonasFlow(): Flow<List<PersonaEntity>>
 
     @Delete
-    abstract suspend fun deletePersona(persona: PersonaEntity)
+    protected abstract suspend fun deletePersonaInternal(persona: PersonaEntity)
 
     @Transaction
     open suspend fun setDefaultPersona(userId: String, personaId: String): PersonaEntity {
@@ -45,6 +45,25 @@ abstract class PersonaDao {
 
     @Query("SELECT * FROM user_personas WHERE id != :excludeId AND user_id = :userId ORDER BY is_default DESC, updated_at DESC LIMIT 1")
     abstract suspend fun findReplacementPersona(excludeId: String, userId: String): PersonaEntity?
+
+    /**
+     * Persona removal is one database operation: preserve historical threads through
+     * the SET_NULL foreign key and, when necessary, promote a replacement default.
+     */
+    @Transaction
+    open suspend fun deletePersonaPreservingThreads(persona: PersonaEntity): PersonaEntity? {
+        val stored = getPersona(persona.id) ?: return null
+        val replacement = if (stored.is_default) {
+            findReplacementPersona(stored.id, stored.user_id)
+        } else {
+            null
+        }
+        if (replacement != null) {
+            setDefaultPersona(stored.user_id, replacement.id)
+        }
+        deletePersonaInternal(stored)
+        return replacement
+    }
 
     @Query("SELECT * FROM user_personas WHERE user_id = :userId AND is_default = 1 LIMIT 1")
     abstract suspend fun getDefaultPersona(userId: String): PersonaEntity?

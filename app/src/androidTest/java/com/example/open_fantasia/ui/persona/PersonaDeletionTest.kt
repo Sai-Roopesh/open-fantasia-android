@@ -1,9 +1,10 @@
 package com.example.open_fantasia.ui.persona
 
-import android.content.Context
 import androidx.room.Room
 import androidx.test.platform.app.InstrumentationRegistry
 import com.example.open_fantasia.data.local.db.OpenFantasiaDatabase
+import com.example.open_fantasia.data.local.entity.CharacterEntity
+import com.example.open_fantasia.data.local.entity.ConnectionEntity
 import com.example.open_fantasia.data.local.entity.PersonaEntity
 import com.example.open_fantasia.data.local.entity.ProfileEntity
 import com.example.open_fantasia.data.local.entity.ThreadEntity
@@ -16,12 +17,10 @@ import org.junit.Test
 import java.io.IOException
 import kotlinx.coroutines.runBlocking
 import java.time.Instant
-import java.util.UUID
 
 class PersonaDeletionTest {
 
     private lateinit var db: OpenFantasiaDatabase
-    private lateinit var viewModel: PersonaViewModel
     private val fixedUserId = "00000000-0000-0000-0000-000000000000"
 
     @Before
@@ -30,10 +29,55 @@ class PersonaDeletionTest {
         db = Room.inMemoryDatabaseBuilder(context, OpenFantasiaDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        viewModel = PersonaViewModel(db.personaDao(), db.chatDao())
-        
         runBlocking {
             db.profileDao().insertProfile(ProfileEntity(fixedUserId, "LocalUser", "", ""))
+            db.connectionDao().insertConnection(
+                ConnectionEntity(
+                    id = "conn-1",
+                    user_id = fixedUserId,
+                    provider = "google",
+                    label = "Test",
+                    base_url = null,
+                    encrypted_api_key = "key",
+                    enabled = true,
+                    default_model_id = "model-1",
+                    model_cache = emptyList(),
+                    health_status = "healthy",
+                    health_message = "",
+                    last_checked_at = null,
+                    last_model_refresh_at = null,
+                    last_synced_at = null,
+                    created_at = "",
+                    updated_at = ""
+                )
+            )
+            db.characterDao().insertCharacter(
+                CharacterEntity(
+                    id = "char-1",
+                    user_id = fixedUserId,
+                    name = "Test Character",
+                    story = "",
+                    core_persona = "",
+                    greeting = "",
+                    appearance = "",
+                    style_rules = "",
+                    definition = "",
+                    negative_guidance = "",
+                    temperature = 0.9,
+                    top_p = 0.95,
+                    starters = emptyList(),
+                    example_conversations = emptyList(),
+                    portrait_status = "idle",
+                    portrait_path = null,
+                    portrait_prompt = null,
+                    portrait_seed = null,
+                    portrait_source_hash = null,
+                    portrait_last_error = null,
+                    portrait_generated_at = null,
+                    created_at = "",
+                    updated_at = ""
+                )
+            )
         }
     }
 
@@ -44,7 +88,7 @@ class PersonaDeletionTest {
     }
 
     @Test
-    fun deletePersona_reassignsThreads() = runBlocking {
+    fun deletePersona_preservesThreadHistoryWithoutChangingIdentity() = runBlocking {
         // Given: two personas
         val persona1 = createPersona("pers-1", "Persona 1", isDefault = false)
         val persona2 = createPersona("pers-2", "Persona 2", isDefault = true)
@@ -56,11 +100,11 @@ class PersonaDeletionTest {
         db.chatDao().insertThread(thread)
 
         // When: persona1 is deleted
-        viewModel.deletePersona(persona1)
+        db.personaDao().deletePersonaPreservingThreads(persona1)
 
-        // Then: the thread should be reassigned to the remaining default persona
+        // Then: the deleted identity is removed, never replaced by an unrelated Persona.
         val updatedThread = db.chatDao().getThread("thread-1")
-        assertEquals("pers-2", updatedThread?.persona_id)
+        assertNull(updatedThread?.persona_id)
     }
 
     @Test
@@ -72,7 +116,7 @@ class PersonaDeletionTest {
         db.personaDao().insertPersona(persona2)
 
         // When: default persona1 is deleted
-        viewModel.deletePersona(persona1)
+        db.personaDao().deletePersonaPreservingThreads(persona1)
 
         // Then: persona2 should be promoted to default
         val updatedPersona2 = db.personaDao().getPersona("pers-2")
@@ -90,7 +134,7 @@ class PersonaDeletionTest {
         db.chatDao().insertThread(thread)
 
         // When: the only persona is deleted
-        viewModel.deletePersona(persona1)
+        db.personaDao().deletePersonaPreservingThreads(persona1)
 
         // Then: the thread persona reference should be set to null (cascade set null or manual set null)
         val updatedThread = db.chatDao().getThread("thread-1")

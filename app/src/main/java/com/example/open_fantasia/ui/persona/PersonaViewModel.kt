@@ -15,8 +15,7 @@ import java.time.Instant
 import java.util.UUID
 
 class PersonaViewModel(
-    private val personaDao: PersonaDao,
-    private val chatDao: com.example.open_fantasia.data.local.dao.ChatDao
+    private val personaDao: PersonaDao
 ) : ViewModel() {
 
     private val FIXED_USER_ID = "00000000-0000-0000-0000-000000000000"
@@ -90,12 +89,7 @@ class PersonaViewModel(
 
     fun deletePersona(persona: PersonaEntity) {
         viewModelScope.launch {
-            val replacement = personaDao.findReplacementPersona(persona.id, FIXED_USER_ID)
-            chatDao.reassignPersona(persona.id, replacement?.id)
-            if (persona.is_default && replacement != null) {
-                personaDao.setDefaultPersona(FIXED_USER_ID, replacement.id)
-            }
-            personaDao.deletePersona(persona)
+            personaDao.deletePersonaPreservingThreads(persona)
             _snackbarMessage.emit("Persona deleted.")
         }
     }

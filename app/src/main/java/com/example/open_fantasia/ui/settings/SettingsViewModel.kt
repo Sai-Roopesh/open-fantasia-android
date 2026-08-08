@@ -7,6 +7,8 @@ import com.example.open_fantasia.data.local.entity.ConnectionEntity
 import com.example.open_fantasia.data.remote.LLMClient
 import com.example.open_fantasia.data.continuity.ContinuityHostClient
 import com.example.open_fantasia.data.continuity.ContinuityHostState
+import com.example.open_fantasia.data.continuity.ContinuityHostPreferences
+import com.example.open_fantasia.data.continuity.RoleplayProtocol
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -19,7 +21,8 @@ import java.util.UUID
 class SettingsViewModel(
     private val connectionDao: ConnectionDao,
     private val llmClient: LLMClient,
-    private val continuityHostClient: ContinuityHostClient
+    private val continuityHostClient: ContinuityHostClient,
+    private val continuityHostPreferences: ContinuityHostPreferences
 ) : ViewModel() {
 
     private val FIXED_USER_ID = "00000000-0000-0000-0000-000000000000"
@@ -33,15 +36,22 @@ class SettingsViewModel(
     val continuityHostState: StateFlow<ContinuityHostState> = continuityHostClient.state
     private val _continuityMessage = MutableStateFlow<String?>(null)
     val continuityMessage = _continuityMessage.asStateFlow()
+    private val _continuityEngineId = MutableStateFlow(continuityHostPreferences.continuityEngineId())
+    val continuityEngineId = _continuityEngineId.asStateFlow()
+
+    fun selectContinuityEngine(engineId: String) {
+        continuityHostPreferences.saveContinuityEngineId(engineId)
+        _continuityEngineId.value = engineId
+    }
 
     fun pairContinuityHost(endpoint: String, code: String) {
         viewModelScope.launch {
             try {
                 continuityHostClient.pair(endpoint, code)
-                _continuityMessage.value = "Continuity Host paired"
+                _continuityMessage.value = "Mac Host paired"
             } catch (error: Throwable) {
                 continuityHostClient.markUnavailable(error)
-                _continuityMessage.value = error.message ?: "Could not pair Continuity Host"
+                _continuityMessage.value = error.message ?: "Could not pair Mac Host"
             }
         }
     }
@@ -50,17 +60,17 @@ class SettingsViewModel(
         viewModelScope.launch {
             try {
                 continuityHostClient.checkHealth()
-                _continuityMessage.value = "Continuity Host is available"
+                _continuityMessage.value = "Mac Host is available"
             } catch (error: Throwable) {
                 continuityHostClient.markUnavailable(error)
-                _continuityMessage.value = error.message ?: "Continuity Host is unavailable"
+                _continuityMessage.value = error.message ?: "Mac Host is unavailable"
             }
         }
     }
 
     fun forgetContinuityHost() {
         continuityHostClient.forget()
-        _continuityMessage.value = "Continuity Host pairing removed"
+        _continuityMessage.value = "Mac Host pairing removed"
     }
 
     fun consumeContinuityMessage() { _continuityMessage.value = null }
@@ -114,8 +124,11 @@ class SettingsViewModel(
     }
 
     fun deleteConnection(connection: ConnectionEntity) {
+        if (connection.provider == RoleplayProtocol.PROVIDER) return
         viewModelScope.launch {
-            connectionDao.deleteConnection(connection)
+            if (!connectionDao.deleteConnectionIfUnused(connection)) {
+                _continuityMessage.value = "This connection is used by an existing thread. Change that thread’s Roleplay Model before deleting it."
+            }
         }
     }
 
@@ -125,6 +138,25 @@ class SettingsViewModel(
     fun testConnection(connectionId: String) {
         viewModelScope.launch {
             val connection = connectionDao.getConnection(connectionId) ?: return@launch
+            if (connection.provider == RoleplayProtocol.PROVIDER) {
+                try {
+                    continuityHostClient.checkHealth()
+                    connectionDao.insertConnection(connection.copy(
+                        health_status = "healthy",
+                        health_message = "Mac Host and Antigravity route are available.",
+                        last_checked_at = Instant.now().toString(),
+                        updated_at = Instant.now().toString()
+                    ))
+                } catch (e: Exception) {
+                    connectionDao.insertConnection(connection.copy(
+                        health_status = "failed",
+                        health_message = e.message ?: "Mac Host is unavailable.",
+                        last_checked_at = Instant.now().toString(),
+                        updated_at = Instant.now().toString()
+                    ))
+                }
+                return@launch
+            }
             try {
                 val discovered = llmClient.discoverModels(connection.toDomain())
                 val now = Instant.now().toString()
@@ -151,6 +183,10 @@ class SettingsViewModel(
     fun refreshModelCache(connectionId: String) {
         viewModelScope.launch {
             val connection = connectionDao.getConnection(connectionId) ?: return@launch
+            if (connection.provider == RoleplayProtocol.PROVIDER) {
+                testConnection(connectionId)
+                return@launch
+            }
             try {
                 // 1. Discover models via LLM client
                 val discovered = llmClient.discoverModels(connection.toDomain())

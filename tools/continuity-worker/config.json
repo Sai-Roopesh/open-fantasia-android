@@ -1,8 +1,13 @@
 {
   "codexCandidates": ["/Applications/ChatGPT.app/Contents/Resources/codex", "/opt/homebrew/bin/codex", "codex"],
-  "model": "gpt-5.6-terra",
-  "reasoningEffort": "high",
+  "codexModel": "gpt-5.6-terra",
+  "codexReasoningEffort": "high",
+  "antigravityCandidates": ["/Users/sairoopesh/.local/bin/agy", "/opt/homebrew/bin/agy", "agy"],
+  "antigravityModel": "gemini-3.6-flash-high",
+  "antigravityEffort": "high",
   "hostBind": "127.0.0.1",
   "hostPort": 47831,
-  "jobTimeoutMilliseconds": 1800000
+  "continuityTimeoutMilliseconds": 1800000,
+  "roleplayTimeoutMilliseconds": 600000,
+  "portraitTimeoutMilliseconds": 600000
 }

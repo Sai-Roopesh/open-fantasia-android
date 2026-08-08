@@ -44,7 +44,7 @@ class DashboardScreenTest {
         composeTestRule.setContent {
             DashboardScreen(viewModel = viewModel, onThreadSelected = {}, onNavigateToTab = {})
         }
-        composeTestRule.onNodeWithText("No active roleplay threads.").assertExists()
+        composeTestRule.onNodeWithText("No threads found.").assertExists()
     }
 
     @Test
@@ -159,6 +159,7 @@ class DashboardScreenTest {
 
         runBlocking {
             db.profileDao().insertProfile(ProfileEntity(fixedUserId, "LocalUser", now, now))
+            db.connectionDao().insertConnection(testConnection(fixedUserId, now))
             db.characterDao().insertCharacter(char)
             db.chatDao().insertThread(thread1)
             db.chatDao().insertThread(thread2)
@@ -208,6 +209,7 @@ class DashboardScreenTest {
 
         runBlocking {
             db.profileDao().insertProfile(ProfileEntity(fixedUserId, "LocalUser", now, now))
+            db.connectionDao().insertConnection(testConnection(fixedUserId, now))
             db.characterDao().insertCharacter(char)
             db.chatDao().insertThread(activeThread)
             db.chatDao().insertThread(archivedThread)
@@ -228,4 +230,23 @@ class DashboardScreenTest {
         composeTestRule.onNodeWithText("Archived Thread").assertExists()
         composeTestRule.onNodeWithText("Active Thread").assertDoesNotExist()
     }
+
+    private fun testConnection(userId: String, now: String) = ConnectionEntity(
+        id = "conn-1",
+        user_id = userId,
+        provider = "google",
+        label = "Google AI",
+        base_url = null,
+        encrypted_api_key = "key",
+        enabled = true,
+        default_model_id = "gemini-1.5-flash",
+        model_cache = emptyList(),
+        health_status = "healthy",
+        health_message = "",
+        last_checked_at = null,
+        last_model_refresh_at = null,
+        last_synced_at = null,
+        created_at = now,
+        updated_at = now
+    )
 }

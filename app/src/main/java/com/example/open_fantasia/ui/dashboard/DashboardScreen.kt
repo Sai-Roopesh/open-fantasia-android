@@ -37,12 +37,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.example.open_fantasia.data.continuity.RoleplayProtocol
 import com.example.open_fantasia.data.local.entity.CharacterEntity
 import com.example.open_fantasia.data.local.entity.ConnectionEntity
 import com.example.open_fantasia.theme.SpaceGrotesk
 import com.example.open_fantasia.theme.Sora
 import com.example.open_fantasia.theme.Inter
-import com.example.open_fantasia.ui.components.BrainModelDropdown
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -243,8 +243,8 @@ fun DashboardScreen(
                 characters = characters,
                 connections = connections,
                 onDismiss = { showCreateDialog = false },
-                onCreate = { charId, connId, modelId, title, brainConnId, brainModelId ->
-                    viewModel.createThread(charId, connId, modelId, title, brainConnId, brainModelId) { threadId ->
+                onCreate = { charId, connId, modelId, title ->
+                    viewModel.createThread(charId, connId, modelId, title) { threadId ->
                         showCreateDialog = false
                         onThreadSelected(threadId)
                     }
@@ -599,15 +599,13 @@ fun CreateThreadDialog(
     characters: List<CharacterEntity>,
     connections: List<ConnectionEntity>,
     onDismiss: () -> Unit,
-    onCreate: (String, String, String, String, String?, String?) -> Unit,
+    onCreate: (String, String, String, String) -> Unit,
     onRedirect: (String) -> Unit
 ) {
     var title by remember { mutableStateOf("") }
     var selectedChar by remember { mutableStateOf<CharacterEntity?>(null) }
     var selectedConn by remember { mutableStateOf<ConnectionEntity?>(null) }
     var selectedModel by remember { mutableStateOf("") }
-    var brainConnId by remember { mutableStateOf<String?>(null) }
-    var brainModelId by remember { mutableStateOf<String?>(null) }
 
     var charExpanded by remember { mutableStateOf(false) }
     var connExpanded by remember { mutableStateOf(false) }
@@ -631,9 +629,10 @@ fun CreateThreadDialog(
                     onClick = {
                         val charId = selectedChar?.id ?: return@Button
                         val connId = selectedConn?.id ?: return@Button
-                        onCreate(charId, connId, selectedModel, title, brainConnId, brainModelId)
+                        onCreate(charId, connId, selectedModel, title)
                     },
-                    enabled = selectedChar != null && selectedConn != null,
+                    enabled = selectedChar != null && selectedConn != null &&
+                        (selectedConn?.provider == RoleplayProtocol.PROVIDER || selectedModel.isNotBlank()),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8A2BE2))
                 ) {
                     Text("Start")
@@ -830,14 +829,14 @@ fun CreateThreadDialog(
                             }
                         }
                     }
+                    if (selectedConn?.provider == RoleplayProtocol.PROVIDER) {
+                        Text(
+                            "Antigravity receives the same roleplay prompt and history. Its CLI does not expose Temperature or Top P.",
+                            color = Color(0xFFB8B8C6),
+                            fontSize = 12.sp
+                        )
+                    }
 
-                    // HCE brain model (web parity — optional, inherits chat model by default)
-                    BrainModelDropdown(
-                        connections = connections,
-                        selectedConnId = brainConnId,
-                        selectedModelId = brainModelId,
-                        onSelect = { c, m -> brainConnId = c; brainModelId = m }
-                    )
                 }
             }
         }

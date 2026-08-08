@@ -25,7 +25,7 @@ class ExampleConversationTest {
         db = Room.inMemoryDatabaseBuilder(context, OpenFantasiaDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        viewModel = CharacterViewModel(db.characterDao(), db.portraitTaskDao(), context)
+        viewModel = CharacterViewModel(db.characterDao())
         
         runBlocking {
             db.profileDao().insertProfile(
@@ -145,7 +145,7 @@ class ExampleConversationTest {
     }
 
     @Test
-    fun sourceHash_matches24HexChars() = runBlocking {
+    fun savingWithoutPortraitGenerationDoesNotClaimASourceHash() = runBlocking {
         viewModel.saveCharacter(
             id = "test-hash",
             name = "Hash Name",
@@ -171,11 +171,7 @@ class ExampleConversationTest {
         }
 
         assertNotNull(char)
-        val hash = char?.portrait_source_hash
-        assertNotNull(hash)
-        assertEquals(24, hash?.length)
-        // Verify it is a valid hex string
-        assertTrue(hash!!.matches(Regex("[0-9a-f]{24}")))
+        assertNull(char?.portrait_source_hash)
     }
 
     @Test

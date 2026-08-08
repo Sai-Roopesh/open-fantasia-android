@@ -1,16 +1,10 @@
 package com.example.open_fantasia.ui.character
 
-import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.work.ExistingWorkPolicy
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkManager
+import com.example.open_fantasia.data.continuity.PortraitGenerationCoordinator
 import com.example.open_fantasia.data.local.dao.CharacterDao
-import com.example.open_fantasia.data.local.dao.PortraitTaskDao
 import com.example.open_fantasia.data.local.entity.CharacterEntity
-import com.example.open_fantasia.data.local.entity.PortraitTaskEntity
-import com.example.open_fantasia.data.worker.CharacterPortraitWorker
 import com.example.open_fantasia.domain.model.ExampleConversation
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -18,15 +12,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.security.MessageDigest
 import java.time.Instant
 import java.util.UUID
-import kotlin.random.Random
 
 class CharacterViewModel(
     private val characterDao: CharacterDao,
-    private val portraitTaskDao: PortraitTaskDao,
-    private val context: Context
+    private val portraitGenerationCoordinator: PortraitGenerationCoordinator? = null
 ) : ViewModel() {
 
     private val FIXED_USER_ID = "00000000-0000-0000-0000-000000000000"
@@ -62,7 +53,6 @@ class CharacterViewModel(
 
             val existingChar = id?.let { characterDao.getCharacter(it) }
 
-            val sourceHash = calculateSourceHash(name, appearance, corePersona)
             var portraitStatus = existingChar?.portrait_status ?: "none"
             var portraitPath = existingChar?.portrait_path
             var portraitPrompt = existingChar?.portrait_prompt
@@ -94,18 +84,16 @@ class CharacterViewModel(
                 portrait_path = portraitPath,
                 portrait_prompt = portraitPrompt,
                 portrait_seed = portraitSeed,
-                portrait_source_hash = existingChar?.portrait_source_hash ?: sourceHash,
+                portrait_source_hash = existingChar?.portrait_source_hash,
                 portrait_last_error = existingChar?.portrait_last_error,
                 portrait_generated_at = existingChar?.portrait_generated_at,
                 created_at = existingChar?.created_at ?: now,
                 updated_at = now
             )
 
-            characterDao.insertCharacter(character)
+            characterDao.saveCharacterAndSyncPrimarySeeds(character)
 
-            if (triggerPortraitGen || existingChar?.portrait_source_hash != sourceHash || existingChar?.portrait_path == null) {
-                enqueuePortraitGeneration(character, sourceHash)
-            }
+            portraitGenerationCoordinator?.ensurePrimary(character, force = triggerPortraitGen)
             _snackbarMessage.emit("Character saved.")
         }
     }
@@ -127,67 +115,19 @@ class CharacterViewModel(
                 _snackbarMessage.emit("Add an appearance and save before regenerating.")
                 return@launch
             }
-            val sourceHash = calculateSourceHash(
-                existingChar.name,
-                existingChar.appearance,
-                existingChar.core_persona
-            )
-            enqueuePortraitGeneration(existingChar, sourceHash)
+            portraitGenerationCoordinator?.ensurePrimary(existingChar, force = true)
             _snackbarMessage.emit("Portrait regeneration queued.")
         }
     }
 
     fun deleteCharacter(character: CharacterEntity) {
         viewModelScope.launch {
-            characterDao.deleteCharacter(character)
-            _snackbarMessage.emit("Character deleted.")
+            if (characterDao.deleteCharacterIfUnused(character)) {
+                _snackbarMessage.emit("Character deleted.")
+            } else {
+                _snackbarMessage.emit("This character owns an existing thread. Delete that thread before deleting the character.")
+            }
         }
     }
 
-    private fun calculateSourceHash(name: String, appearance: String, corePersona: String): String {
-        val input = "$name|$appearance|$corePersona"
-        val bytes = MessageDigest.getInstance("SHA-256").digest(input.toByteArray())
-        val hex = bytes.joinToString("") { "%02x".format(it) }
-        return hex.take(24)
-    }
-
-    private suspend fun enqueuePortraitGeneration(character: CharacterEntity, sourceHash: String) {
-        val prompt = if (character.appearance.isNotEmpty()) {
-            "A portrait of ${character.name}, appearance: ${character.appearance}, style: ${character.style_rules.ifEmpty { "digital art, high quality" }}"
-        } else {
-            "A portrait of ${character.name}, digital art, high quality, character design"
-        }
-        val seed = Random.nextLong(1000000)
-        val now = Instant.now().toString()
-
-        val task = PortraitTaskEntity(
-            id = UUID.randomUUID().toString(),
-            character_id = character.id,
-            user_id = FIXED_USER_ID,
-            prompt = prompt,
-            seed = seed,
-            source_hash = sourceHash,
-            status = "pending",
-            attempts = 0,
-            max_attempts = 3,
-            available_at = now,
-            locked_at = null,
-            last_error = null,
-            created_at = now,
-            updated_at = now
-        )
-
-        portraitTaskDao.insertTask(task)
-
-        // Update character status to pending
-        characterDao.insertCharacter(character.copy(portrait_status = "pending", portrait_source_hash = sourceHash))
-
-        // Trigger WorkManager
-        val request = OneTimeWorkRequestBuilder<CharacterPortraitWorker>().build()
-        WorkManager.getInstance(context).enqueueUniqueWork(
-            "portrait_generation_${character.id}",
-            ExistingWorkPolicy.REPLACE,
-            request
-        )
-    }
 }

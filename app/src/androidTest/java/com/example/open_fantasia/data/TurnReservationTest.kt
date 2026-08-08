@@ -197,7 +197,7 @@ class TurnReservationTest {
     }
 
     @Test
-    fun editFlow_doesNotDeleteOldTurnsUntilSuccess() = runBlocking {
+    fun replacementFlowNeverDeletesImmutablePriorProse() = runBlocking {
         val chatDao = db.chatDao()
         val thread = chatDao.createThreadWithBranch(
             userId, characterId, connectionId, "gemini-1.5-flash", null, null, null, 2048, "Test"
@@ -271,8 +271,8 @@ class TurnReservationTest {
         assertFalse(branchAfterSuccessEdit.generation_locked)
         assertEquals(turn3.id, branchAfterSuccessEdit.head_turn_id)
 
-        // Verify Turn 1 is now deleted
-        assertNull(chatDao.getTurn(turn1.id))
+        // The old exchange remains immutable for sibling branches and auditability.
+        assertNotNull(chatDao.getTurn(turn1.id))
     }
 
     @Test
@@ -295,7 +295,7 @@ class TurnReservationTest {
 
         // Manipulate branchStale.locked_at directly in DB to be 6 minutes ago
         val sixMinutesAgo = Instant.now().minusSeconds(360).toString()
-        val updatedBranchStale = branchStale.copy(
+        val updatedBranchStale = chatDao.getBranch(branchStale.id)!!.copy(
             locked_at = sixMinutesAgo
         )
         chatDao.updateBranch(updatedBranchStale)

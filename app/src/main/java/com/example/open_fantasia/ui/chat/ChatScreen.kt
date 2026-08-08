@@ -21,6 +21,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -54,11 +55,10 @@ import com.example.open_fantasia.data.local.entity.TurnEntity
 import com.example.open_fantasia.data.local.entity.PinEntity
 import com.example.open_fantasia.data.local.entity.TimelineEntity
 import com.example.open_fantasia.data.continuity.ContinuityHostState
+import com.example.open_fantasia.data.continuity.RoleplayProtocol
 import com.example.open_fantasia.domain.model.CastProfile
 import com.example.open_fantasia.domain.model.DurableMemorySnapshot
 import com.example.open_fantasia.domain.model.RelationalState
-import com.example.open_fantasia.domain.selector.filterBrainConnections
-import com.example.open_fantasia.ui.components.BrainModelDropdown
 import com.example.open_fantasia.ui.components.MarkdownText
 import kotlin.math.roundToInt
 import java.io.File
@@ -134,6 +134,9 @@ fun ChatWorkspace(
             viewModel.consumeScanEvent()
         }
     }
+    LaunchedEffect(state.activeBranch.id, state.activeBranch.active_speaker_id, state.activeBranch.speaker_mode, state.castRoster) {
+        viewModel.ensureActiveSpeakerPortrait()
+    }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -161,7 +164,37 @@ fun ChatWorkspace(
             }
         }
     ) {
-        Scaffold(
+        val castPortrait = if (state.activeBranch.speaker_mode == "single") {
+            state.castPortraits.firstOrNull {
+                it.cast_id == state.activeBranch.active_speaker_id && it.status == "ready"
+            }?.portrait_path
+        } else null
+        val backgroundPath = if (state.thread.portrait_background_enabled) {
+            castPortrait?.takeIf { File(it).exists() }
+                ?: state.character.portrait_path?.takeIf { File(it).exists() }
+        } else null
+
+        Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0F0F13))) {
+            backgroundPath?.let { path ->
+                AsyncImage(
+                    model = File(path),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize().blur(2.dp)
+                )
+                Box(
+                    Modifier.fillMaxSize().background(
+                        Brush.verticalGradient(
+                            listOf(
+                                Color.Black.copy(alpha = (state.thread.portrait_background_dimness + 0.10f).coerceAtMost(0.9f)),
+                                Color.Black.copy(alpha = state.thread.portrait_background_dimness),
+                                Color.Black.copy(alpha = (state.thread.portrait_background_dimness + 0.16f).coerceAtMost(0.92f))
+                            )
+                        )
+                    )
+                )
+            }
+            Scaffold(
             topBar = {
                 TopAppBar(
                     title = {
@@ -234,10 +267,10 @@ fun ChatWorkspace(
                             )
                         }
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF131317))
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xC7131317))
                 )
             },
-            containerColor = Color(0xFF0F0F13)
+            containerColor = Color.Transparent
         ) { paddingValues ->
             Box(
                 modifier = Modifier
@@ -316,7 +349,7 @@ fun ChatWorkspace(
                                 }
                             }
                         } else {
-                            val headTurnId = state.turns.lastOrNull { it.generation_status == "committed" }?.id
+                            val headTurnId = state.turns.lastOrNull()?.id
                             items(state.turns, key = { it.id }) { turn ->
                                 val isHead = turn.id == headTurnId
                                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -350,7 +383,10 @@ fun ChatWorkspace(
                                                 branchForkTurnId = turn.id
                                                 showBranchCreateDialog = true
                                             },
-                                            onRewind = { viewModel.rewindToTurn(turn.id) },
+                                            onRewind = {
+                                                if (turn.generation_status == "committed") viewModel.rewindToTurn(turn.id)
+                                                else viewModel.discardPendingReply(turn.id)
+                                            },
                                             onPinToggle = { pinTurnTarget = turn },
                                             onRate = { rating -> viewModel.setFeedbackRating(turn.id, rating) },
                                             onCopy = { value ->
@@ -362,6 +398,7 @@ fun ChatWorkspace(
                                                 editingTextVal = turn.user_input_text
                                             },
                                             onSwitchModel = { showThreadSettings = true },
+                                            rewindEnabled = !state.activeBranch.generation_locked && state.checkpoint == null,
                                             focusMode = focusMode
                                         )
                                     }
@@ -397,18 +434,24 @@ fun ChatWorkspace(
                                 Text(
                                     when (checkpoint.status) {
                                         "pending_export" -> if (state.continuityHostState is ContinuityHostState.Available)
-                                            "Preparing the seven-exchange continuity package…"
-                                        else "Waiting for your Mac Continuity Host. Turn it on, then this will continue automatically."
-                                        "waiting_for_worker", "waiting_for_host" -> "Waiting for your Mac Continuity Host…"
-                                        "processing" -> "Codex is rebuilding continuity…"
+                                            "Preparing the fifteen-exchange continuity package…"
+                                        else "Waiting for your Mac Host. Turn it on, then this will continue automatically."
+                                        "waiting_for_worker", "waiting_for_host" -> "Waiting for your Mac Host…"
+                                        "processing" -> if (checkpoint.engine_id.startsWith("antigravity:"))
+                                            "Gemini is rebuilding continuity…" else "Codex is rebuilding continuity…"
                                         "validating" -> "Validating and saving the complete continuity snapshot…"
-                                        "failed" -> "Update failed: ${checkpoint.failure_detail ?: "Codex response was invalid"}. The chat remains locked until you retry."
+                                        "failed" -> "Update failed: ${checkpoint.failure_detail ?: "The response was invalid"}. The chat remains locked until you retry."
                                         else -> "Validating the complete continuity snapshot…"
                                     },
                                     color = Color(0xFFFFC2D5), fontFamily = Inter, fontSize = 13.sp
                                 )
                                 if (checkpoint.status == "failed") {
-                                    TextButton(onClick = { viewModel.retryCheckpoint() }) { Text("Retry", color = Color(0xFFFF7AA8)) }
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        TextButton(onClick = { viewModel.retryCheckpoint() }) { Text("Retry", color = Color(0xFFFF7AA8)) }
+                                        TextButton(onClick = { viewModel.replaceCheckpointEngine() }) {
+                                            Text("Try other engine", color = Color(0xFFFFC857))
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -421,7 +464,7 @@ fun ChatWorkspace(
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
                         ) {
                             Text(
-                                "The next reply reaches a continuity checkpoint. Turn on your Mac Continuity Host first to avoid waiting.",
+                                "The next reply reaches a continuity checkpoint. Turn on your Mac Host first to avoid waiting.",
                                 color = Color(0xFFFFE2A8),
                                 fontFamily = Inter,
                                 fontSize = 13.sp,
@@ -435,7 +478,8 @@ fun ChatWorkspace(
                     )
                     ChatInputBar(
                         isGenerating = state.isGenerating,
-                        isBlocked = state.checkpoint != null,
+                        isBlocked = state.checkpoint != null || state.activeBranch.generation_locked ||
+                            state.needsContinuityEngineChoice,
                         onSend = { text -> viewModel.sendUserMessage(text) }
                     )
                 }
@@ -456,9 +500,12 @@ fun ChatWorkspace(
                                 items(state.branches) { branch ->
                                     Card(
                                         onClick = {
-                                            viewModel.switchBranch(branch.id)
+                                            if (branch.id != state.activeBranch.id) {
+                                                viewModel.switchBranch(branch.id)
+                                            }
                                             showBranchSelector = false
                                         },
+                                        enabled = branch.id != state.activeBranch.id,
                                         colors = CardDefaults.cardColors(
                                             containerColor = if (branch.id == state.activeBranch.id) Color(0xFF1F1F23) else Color(0xFF121217)
                                         ),
@@ -481,14 +528,40 @@ fun ChatWorkspace(
                     )
                 }
 
+                if (state.needsContinuityEngineChoice) {
+                    AlertDialog(
+                        onDismissRequest = viewModel::dismissContinuityEngineChoice,
+                        title = { Text("Choose continuity engine", color = Color.White, fontFamily = Sora) },
+                        text = {
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Text(
+                                    "This choice is frozen into the next checkpoint. You can change the default later in Settings.",
+                                    color = Color(0xFFCFC2D7), fontFamily = Inter, fontSize = 13.sp
+                                )
+                                Button(
+                                    onClick = { viewModel.selectContinuityEngine("codex:gpt-5.6-terra:high") },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) { Text("GPT-5.6 Terra High") }
+                                OutlinedButton(
+                                    onClick = { viewModel.selectContinuityEngine("antigravity:gemini-3.6-flash:high") },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) { Text("Gemini 3.6 Flash High") }
+                            }
+                        },
+                        confirmButton = {},
+                        dismissButton = { TextButton(onClick = viewModel::dismissContinuityEngineChoice) { Text("Cancel") } },
+                        containerColor = Color(0xFF16161C)
+                    )
+                }
+
                 if (showThreadSettings) {
                     ThreadSettingsDialog(
                         thread = state.thread,
                         connections = state.connections,
                         personas = state.personas,
                         onDismiss = { showThreadSettings = false },
-                        onSave = { connId, modelId, maxTokens, personaId, brainConnId, brainModelId, directorNotes ->
-                            viewModel.updateThreadSettings(connId, modelId, maxTokens, personaId, brainConnId, brainModelId, directorNotes)
+                        onSave = { connId, modelId, maxTokens, personaId, directorNotes, backgroundEnabled, dimness ->
+                            viewModel.updateThreadSettings(connId, modelId, maxTokens, personaId, directorNotes, backgroundEnabled, dimness)
                             showThreadSettings = false
                         }
                     )
@@ -737,6 +810,7 @@ fun ChatWorkspace(
                 }
             }
         }
+        }
     }
 }
 
@@ -754,7 +828,7 @@ private fun MessageActionPill(
         modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
             .border(1.dp, Color(0xFF2C2C35), RoundedCornerShape(8.dp))
-            .background(Color(0xFF17171C))
+            .background(Color(0xC717171C))
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -814,7 +888,7 @@ fun UserMessageRow(
                 modifier = Modifier
                     .widthIn(max = 300.dp)
                     .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomEnd = 4.dp, bottomStart = 16.dp))
-                    .background(Color(0xFF1F1F23))
+                    .background(Color(0xAD1F1F23))
                     .padding(horizontal = 16.dp, vertical = 12.dp)
             ) {
                 MessageLabelHeader("You", Color(0xFF00FBFB))
@@ -853,6 +927,7 @@ fun AssistantMessageRow(
     onCopy: (String) -> Unit,
     onEditDraft: () -> Unit,
     onSwitchModel: () -> Unit,
+    rewindEnabled: Boolean = true,
     focusMode: Boolean = false
 ) {
     val committed = turn.generation_status == "committed"
@@ -875,6 +950,13 @@ fun AssistantMessageRow(
             if (isNotEmpty()) append(" · ")
             append("cache $cacheHit")
         }
+        if (turn.assistant_output_payload.orEmpty().contains("\"usage_unavailable\":true")) {
+            if (isNotEmpty()) append(" · ")
+            append("usage unavailable")
+            val elapsed = Regex("\"elapsed_millis\":(\\d+)")
+                .find(turn.assistant_output_payload.orEmpty())?.groupValues?.getOrNull(1)?.toLongOrNull()
+            if (elapsed != null) append(" · ${elapsed / 1000}s")
+        }
     }
 
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -882,7 +964,7 @@ fun AssistantMessageRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(14.dp))
-                .background(Color(0xFF1B1B1F))
+                .background(Color(0x9E1B1B1F))
                 .padding(horizontal = 18.dp, vertical = 14.dp)
         ) {
             MessageLabelHeader(characterName, Color(0xFFDCB8FF), meta.ifEmpty { null }, modifier = Modifier.fillMaxWidth())
@@ -951,7 +1033,7 @@ fun AssistantMessageRow(
                     MessageActionPill("Edit reply", Icons.Default.Edit, onEditReply)
                     MessageActionPill("Regenerate", Icons.Default.Autorenew, onRegenerate)
                 }
-                MessageActionPill("Rewind", Icons.Default.Restore, onRewind)
+                MessageActionPill("Rewind", Icons.Default.Restore, onRewind, enabled = rewindEnabled)
                 MessageActionPill("Branch", Icons.Default.AccountTree, onBranch)
                 MessageActionPill("Copy", Icons.Default.ContentCopy, { onCopy(outputText) })
                 MessageActionPill(
@@ -982,7 +1064,7 @@ fun AssistantMessageRow(
                 MessageActionPill("Retry", Icons.Default.Autorenew, onRegenerate)
                 MessageActionPill("Edit draft", Icons.Default.Edit, onEditDraft)
                 MessageActionPill("Switch model", Icons.Default.Tune, onSwitchModel)
-                MessageActionPill("Rewind", Icons.Default.Restore, onRewind)
+                MessageActionPill("Discard", Icons.Default.Delete, onRewind)
             }
         }
     }
@@ -995,7 +1077,7 @@ fun TypingIndicator(characterName: String) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .background(Color(0xFF1B1B1F))
+            .background(Color(0x9E1B1B1F))
             .padding(horizontal = 18.dp, vertical = 14.dp)
     ) {
         MessageLabelHeader(characterName, Color(0xFFDCB8FF), "is writing", modifier = Modifier.fillMaxWidth())
@@ -1045,7 +1127,7 @@ fun StreamingAssistantRow(characterName: String, text: String) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .background(Color(0xFF1B1B1F))
+            .background(Color(0x9E1B1B1F))
             .padding(horizontal = 18.dp, vertical = 14.dp)
     ) {
         MessageLabelHeader(characterName, Color(0xFFDCB8FF))
@@ -1186,8 +1268,8 @@ fun ChatInputBar(
                 unfocusedBorderColor = Color(0xFF4C4354),
                 focusedTextColor = Color.White,
                 unfocusedTextColor = Color.White,
-                focusedContainerColor = Color(0xFF1F1F23),
-                unfocusedContainerColor = Color(0xFF1F1F23),
+                focusedContainerColor = Color(0xC71F1F23),
+                unfocusedContainerColor = Color(0xC71F1F23),
                 cursorColor = Color(0xFF8A2BE2)
             ),
             modifier = Modifier.weight(1f)
@@ -1343,7 +1425,15 @@ fun ThreadSettingsDialog(
     connections: List<ConnectionEntity>,
     personas: List<PersonaEntity>,
     onDismiss: () -> Unit,
-    onSave: (connectionId: String, modelId: String, maxTokens: Int, personaId: String?, brainConnectionId: String?, brainModelId: String?, directorNotes: String) -> Unit
+    onSave: (
+        connectionId: String,
+        modelId: String,
+        maxTokens: Int,
+        personaId: String?,
+        directorNotes: String,
+        portraitBackgroundEnabled: Boolean,
+        portraitBackgroundDimness: Float
+    ) -> Unit
 ) {
     var selectedConn by remember { mutableStateOf<ConnectionEntity?>(connections.find { it.id == thread.connection_id } ?: connections.firstOrNull()) }
     var selectedModel by remember { mutableStateOf(thread.model_id) }
@@ -1363,9 +1453,8 @@ fun ThreadSettingsDialog(
     var selectedPersona by remember { mutableStateOf<PersonaEntity?>(personas.find { it.id == thread.persona_id }) }
     var directorNotes by remember { mutableStateOf(thread.director_notes) }
     
-    // HCE brain model override (single combined picker — web parity)
-    var brainConnId by remember { mutableStateOf(thread.brain_connection_id) }
-    var brainModelId by remember { mutableStateOf(thread.brain_model_id) }
+    var portraitBackgroundEnabled by remember { mutableStateOf(thread.portrait_background_enabled) }
+    var portraitBackgroundDimness by remember { mutableFloatStateOf(thread.portrait_background_dimness) }
 
     var connExpanded by remember { mutableStateOf(false) }
     var modelExpanded by remember { mutableStateOf(false) }
@@ -1400,9 +1489,9 @@ fun ThreadSettingsDialog(
                         selectedModel,
                         tokens,
                         selectedPersona?.id,
-                        brainConnId,
-                        brainModelId,
-                        directorNotes
+                        directorNotes,
+                        portraitBackgroundEnabled,
+                        portraitBackgroundDimness
                     )
                 },
                 shape = RoundedCornerShape(8.dp),
@@ -1427,7 +1516,7 @@ fun ThreadSettingsDialog(
                         value = selectedConn?.label ?: "Select Connection",
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("API Provider") },
+                        label = { Text("Roleplay connection") },
                         shape = RoundedCornerShape(8.dp),
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = connExpanded) },
                         colors = dialogTextFieldColors,
@@ -1459,7 +1548,7 @@ fun ThreadSettingsDialog(
                             value = selectedModel,
                             onValueChange = {},
                             readOnly = true,
-                            label = { Text("Model ID") },
+                            label = { Text("Roleplay model") },
                             shape = RoundedCornerShape(8.dp),
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modelExpanded) },
                             colors = dialogTextFieldColors,
@@ -1481,6 +1570,14 @@ fun ThreadSettingsDialog(
                             }
                         }
                     }
+                }
+                if (selectedConn?.provider == RoleplayProtocol.PROVIDER) {
+                    Text(
+                        "Antigravity uses the same roleplay prompt and history, but its CLI does not expose Temperature or Top P. Response length and variation are enforced through the prompt.",
+                        color = Color(0xFFB8B8C6),
+                        fontFamily = Inter,
+                        fontSize = 12.sp
+                    )
                 }
 
                 // Persona Selector
@@ -1545,6 +1642,36 @@ fun ThreadSettingsDialog(
                         )
                     )
                     Text(preset.third, color = Color(0xFF8A8590), fontFamily = Inter, fontSize = 11.sp)
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Portrait background", color = Color.White, fontFamily = SpaceGrotesk)
+                            Text("Follow the active speaker", color = Color(0xFF8A8590), fontSize = 11.sp)
+                        }
+                        Switch(
+                            checked = portraitBackgroundEnabled,
+                            onCheckedChange = { portraitBackgroundEnabled = it }
+                        )
+                    }
+                    if (portraitBackgroundEnabled) {
+                        Text(
+                            "Background darkness · ${(portraitBackgroundDimness * 100).roundToInt()}%",
+                            color = Color(0xFFCFC2D7),
+                            fontFamily = SpaceGrotesk,
+                            fontSize = 12.sp
+                        )
+                        Slider(
+                            value = portraitBackgroundDimness,
+                            onValueChange = { portraitBackgroundDimness = it },
+                            valueRange = 0.35f..0.80f
+                        )
+                    }
                 }
 
                 // Director's Notes — per-thread out-of-character steering

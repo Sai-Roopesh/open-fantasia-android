@@ -40,7 +40,7 @@ async function registry() {
 async function main() {
   if (command === "init") {
     await ensureHostAuthPepper();
-    console.log("Continuity Host credentials initialized in macOS Keychain.");
+    console.log("Mac Host credentials initialized in macOS Keychain.");
     return;
   }
   if (command === "pair") {
@@ -70,12 +70,16 @@ async function main() {
   }
   if (command === "status") {
     const store = new DurableJobStore(join(root, "spool"));
-    await store.init();
+    // This process is an observer, not a replacement host. Recovering "interrupted" work here
+    // would relabel jobs that are still running in the launch-agent process.
+    await store.init({ recoverInterrupted: false });
     const summary = await store.summary();
-    console.log(`Queue: ${summary.queue_depth}`);
-    console.log(`Active request: ${summary.active_request_id ?? "none"}`);
-    console.log(`Active state: ${summary.active_status ?? "idle"}`);
-    if (summary.active_started_at) console.log(`Active elapsed: ${Math.max(0, Math.round((Date.now() - summary.active_started_at) / 1000))}s`);
+    console.log(`Queue: ${summary.queue_depth} (${summary.continuity_queue_depth} continuity, ${summary.roleplay_queue_depth} roleplay, ${summary.portrait_queue_depth} portrait)`);
+    if (summary.active_jobs.length === 0) console.log("Active: idle");
+    else summary.active_jobs.forEach(job => {
+      const elapsed = job.started_at ? `, ${Math.max(0, Math.round((Date.now() - job.started_at) / 1000))}s` : "";
+      console.log(`Active: ${job.job_type} ${job.request_id} (${job.status}${elapsed})`);
+    });
     return;
   }
   throw new Error("Usage: host-cli.mjs {init|pair --endpoint URL|devices|revoke ID|status}");

@@ -38,7 +38,7 @@ class ContinuityPairingActivity : ComponentActivity() {
                     result = try {
                         client.pair(endpoint, code)
                         succeeded = true
-                        "Your phone is paired with the Continuity Host."
+                        "Your phone is paired with the Mac Host."
                     } catch (error: Throwable) {
                         error.message ?: "Pairing failed. Create a new code on your Mac and try again."
                     }
@@ -48,7 +48,7 @@ class ContinuityPairingActivity : ComponentActivity() {
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text("Continuity Host", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text("Mac Host", color = Color.White, fontWeight = FontWeight.Bold)
                     if (result == null) {
                         CircularProgressIndicator(Modifier.padding(24.dp), color = Color(0xFF00FBFB))
                         Text("Pairing securely with your Mac…", color = Color.LightGray)

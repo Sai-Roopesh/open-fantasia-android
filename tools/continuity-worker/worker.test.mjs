@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { requestRevision, validateResponse } from "./worker-lib.mjs";
+import { applyAuthoritativeCastLocks, requestRevision, validateResponse } from "./worker-lib.mjs";
 
 function fixture() {
   const request = {
-    protocol_version: 1,
+    protocol_version: 2,
     request_id: "request-1",
     thread_id: "thread-1",
     branch_id: "branch-1",
@@ -12,7 +12,11 @@ function fixture() {
     baseline_hash: "baseline-hash",
     baseline_version: 1,
     attempt_count: 0,
-    exchanges: [{ turn_id: "turn-7", parent_turn_id: "turn-6", user: "Hello", assistant: "Hi", created_at: "now" }],
+    exchanges: [
+      { turn_id: "old-turn", parent_turn_id: null, user: "Earlier", assistant: "Earlier reply", created_at: "before" },
+      { turn_id: "turn-7", parent_turn_id: "old-turn", user: "Hello", assistant: "Hi", created_at: "now" }
+    ],
+    checkpoint_turn_ids: ["turn-7"],
     cast_seeds: [{
       cast_id: "primary:thread-1", entity_id: "hero", canonical_name: "Hero", aliases: [],
       role_background: "Lead", personality: "Steady", voice_style: "", appearance: "",
@@ -22,7 +26,7 @@ function fixture() {
     }]
   };
   const response = {
-    protocol_version: 1,
+    protocol_version: 2,
     request_id: request.request_id,
     attempt_count: request.attempt_count,
     thread_id: request.thread_id,
@@ -93,6 +97,33 @@ test("rejects a roster that changes a locked seed field", () => {
   const { request, response } = fixture();
   response.world_state.cast_roster[0].personality = "Changed";
   assert.throws(() => validateResponse(request, response), /Locked cast field changed/);
+});
+
+test("restores locked cast fields from the authoritative seed before validation", () => {
+  const { request, response } = fixture();
+  response.world_state.cast_roster[0].canonical_name = "Rewritten Hero";
+  response.world_state.cast_roster[0].personality = "Rewritten personality";
+  response.world_state.cast_roster[0].provenance = "manual_seed";
+  response.world_state.cast_roster[0].first_seen_turn_id = "turn-7";
+  response.world_state.cast_roster[0].manual_locks = [];
+
+  const canonical = applyAuthoritativeCastLocks(request, response);
+
+  assert.equal(canonical.world_state.cast_roster[0].canonical_name, "Hero");
+  assert.equal(canonical.world_state.cast_roster[0].personality, "Steady");
+  assert.equal(canonical.world_state.cast_roster[0].provenance, "primary");
+  assert.equal(canonical.world_state.cast_roster[0].first_seen_turn_id, null);
+  assert.deepEqual(canonical.world_state.cast_roster[0].manual_locks, ["canonical_name", "personality"]);
+  assert.doesNotThrow(() => validateResponse(request, canonical));
+});
+
+test("authoritative projection never recreates a cast seed the model dropped", () => {
+  const { request, response } = fixture();
+  response.world_state.cast_roster = [];
+
+  const canonical = applyAuthoritativeCastLocks(request, response);
+
+  assert.throws(() => validateResponse(request, canonical), /Missing Cast Roster/);
 });
 
 test("rejects the player persona in the cast roster", () => {

@@ -2,11 +2,37 @@ import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypt
 import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
-export const HOST_PROTOCOL_VERSION = 1;
+export const HOST_PROTOCOL_VERSION = 2;
 export const MAX_REQUEST_BYTES = 8 * 1024 * 1024;
+export const MAX_DIRECT_MODEL_INPUT_BYTES = 768 * 1024;
+
+export function renderContinuityModelInput(prompt, request) {
+  return [
+    prompt,
+    "",
+    "The complete authoritative Continuity Request is the JSON value below. Read every field and every exchange; do not skip, sample, summarize, or retrieve it through a tool.",
+    "<continuity_request_json>",
+    JSON.stringify(request),
+    "</continuity_request_json>",
+    "",
+    "Return only the required response JSON object."
+  ].join("\n");
+}
+
+export function requireDirectModelInputSize(value, label) {
+  const bytes = Buffer.byteLength(value, "utf8");
+  if (bytes > MAX_DIRECT_MODEL_INPUT_BYTES) {
+    throw new Error(
+      `${label} is ${bytes} bytes, above the ${MAX_DIRECT_MODEL_INPUT_BYTES}-byte direct-delivery limit`
+    );
+  }
+  return bytes;
+}
 export const JOB_TIMEOUT_MILLIS = 30 * 60 * 1000;
 export const DIAGNOSTIC_RETENTION_MILLIS = 7 * 24 * 60 * 60 * 1000;
 export const UNACKNOWLEDGED_RETENTION_MILLIS = 30 * 24 * 60 * 60 * 1000;
+export const ROLEPLAY_UNACKNOWLEDGED_RETENTION_MILLIS = 24 * 60 * 60 * 1000;
+export const PORTRAIT_UNACKNOWLEDGED_RETENTION_MILLIS = 24 * 60 * 60 * 1000;
 
 function canonicalize(value) {
   if (Array.isArray(value)) return value.map(canonicalize);
@@ -148,12 +174,13 @@ export class DurableJobStore {
     this.nextSequence = 0;
   }
 
-  async init() {
+  async init({ recoverInterrupted = true } = {}) {
     await mkdir(this.jobsRoot, { recursive: true, mode: 0o700 });
     for (const id of await this.#jobIds()) {
       const state = await this.getState(id);
       this.nextSequence = Math.max(this.nextSequence, Number(state?.sequence ?? 0) + 1);
-      if (state?.status === "running" || state?.status === "generating" || state?.status === "validating") {
+      if (recoverInterrupted &&
+          (state?.status === "running" || state?.status === "generating" || state?.status === "validating")) {
         await this.updateState(id, { status: "queued", recovered_after_restart: true });
       }
     }
@@ -175,7 +202,7 @@ export class DurableJobStore {
     }
   }
 
-  async createOrGet(request, deviceId) {
+  async createOrGet(request, deviceId, expectedJobType = "continuity") {
     if (request.protocol_version !== HOST_PROTOCOL_VERSION) {
       const error = new Error("Protocol version mismatch");
       error.code = "INCOMPATIBLE";
@@ -183,6 +210,8 @@ export class DurableJobStore {
     }
     const id = request.request_id;
     if (!id || !/^[A-Za-z0-9._:-]{1,160}$/.test(id)) throw new Error("Invalid request identity");
+    const jobType = request.job_type ?? "continuity";
+    if (jobType !== expectedJobType || !["continuity", "roleplay", "portrait"].includes(jobType)) throw new Error("Invalid job type");
     const payloadHash = requestPayloadHash(request);
     const existing = await this.getState(id);
     if (existing) {
@@ -207,6 +236,8 @@ export class DurableJobStore {
         acknowledged_at: null,
         error: null,
         attempt_count: request.attempt_count,
+        engine_id: request.engine_id ?? existing.engine_id ?? null,
+        model_id: request.model_id ?? existing.model_id ?? null,
         recovered_after_restart: false
       };
       await atomicWriteJson(this.#requestPath(id), request);
@@ -219,6 +250,7 @@ export class DurableJobStore {
     this.nextSequence = sequence + 1;
     const state = {
       protocol_version: HOST_PROTOCOL_VERSION,
+      job_type: jobType,
       request_id: id,
       device_id: deviceId,
       payload_hash: payloadHash,
@@ -230,7 +262,9 @@ export class DurableJobStore {
       completed_at: null,
       acknowledged_at: null,
       error: null,
-      attempt_count: request.attempt_count ?? 0
+      attempt_count: request.attempt_count ?? 0,
+      engine_id: request.engine_id ?? null,
+      model_id: request.model_id ?? null
     };
     await mkdir(this.#jobDir(id), { recursive: true, mode: 0o700 });
     await atomicWriteJson(this.#requestPath(id), request);
@@ -252,15 +286,15 @@ export class DurableJobStore {
 
   async updateState(id, patch) {
     const state = await this.getState(id);
-    if (!state) throw new Error("Unknown checkpoint request");
+    if (!state) throw new Error("Unknown Mac Host request");
     const updated = { ...state, ...patch, updated_at: this.now() };
     await atomicWriteJson(this.#statePath(id), updated);
     return updated;
   }
 
-  async nextQueued() {
+  async nextQueued(jobTypes = ["continuity", "roleplay", "portrait"]) {
     const states = (await Promise.all((await this.#jobIds()).map(id => this.getState(id))))
-      .filter(state => state?.status === "queued")
+      .filter(state => state?.status === "queued" && jobTypes.includes(state.job_type ?? "continuity"))
       .sort((left, right) => left.sequence - right.sequence || left.received_at - right.received_at);
     return states[0] ?? null;
   }
@@ -282,14 +316,14 @@ export class DurableJobStore {
     return this.updateState(id, {
       status: "failed",
       completed_at: this.now(),
-      error: String(error || "Continuity Host failed").slice(0, 500)
+      error: String(error || "Mac Host failed").slice(0, 500)
     });
   }
 
   async acknowledge(id, deviceId) {
     const state = await this.getState(id);
-    if (!state || state.device_id !== deviceId) throw new Error("Unknown checkpoint request");
-    if (state.status !== "ready" && state.status !== "acknowledged") throw new Error("Checkpoint result is not ready");
+    if (!state || state.device_id !== deviceId) throw new Error("Unknown Mac Host request");
+    if (state.status !== "ready" && state.status !== "acknowledged") throw new Error("Mac Host result is not ready");
     await rm(this.#requestPath(id), { force: true });
     await rm(this.#responsePath(id), { force: true });
     return this.updateState(id, { status: "acknowledged", acknowledged_at: this.now(), error: null });
@@ -297,7 +331,7 @@ export class DurableJobStore {
 
   async supersede(id, replacementId, deviceId) {
     const state = await this.getState(id);
-    if (!state || state.device_id !== deviceId) throw new Error("Unknown checkpoint request");
+    if (!state || state.device_id !== deviceId) throw new Error("Unknown Mac Host request");
     return this.updateState(id, { status: "superseded", superseded_by: replacementId, completed_at: this.now() });
   }
 
@@ -316,6 +350,7 @@ export class DurableJobStore {
     if (!state || state.device_id !== deviceId) return null;
     return {
       protocol_version: state.protocol_version,
+      job_type: state.job_type ?? "continuity",
       request_id: state.request_id,
       status: state.status,
       queue_position: await this.queuePosition(id),
@@ -323,18 +358,26 @@ export class DurableJobStore {
       started_at: state.started_at,
       completed_at: state.completed_at,
       error: state.error,
-      attempt_count: state.attempt_count
+      attempt_count: state.attempt_count,
+      engine_id: state.engine_id ?? null,
+      model_id: state.model_id ?? null
     };
   }
 
   async summary() {
     const states = (await Promise.all((await this.#jobIds()).map(id => this.getState(id)))).filter(Boolean);
-    const active = states.find(state => ["generating", "validating"].includes(state.status)) ?? null;
+    const active = states.filter(state => ["generating", "validating"].includes(state.status));
     return {
       queue_depth: states.filter(state => state.status === "queued").length,
-      active_request_id: active?.request_id ?? null,
-      active_status: active?.status ?? null,
-      active_started_at: active?.started_at ?? null
+      continuity_queue_depth: states.filter(state => state.status === "queued" && (state.job_type ?? "continuity") === "continuity").length,
+      roleplay_queue_depth: states.filter(state => state.status === "queued" && state.job_type === "roleplay").length,
+      portrait_queue_depth: states.filter(state => state.status === "queued" && state.job_type === "portrait").length,
+      active_jobs: active.map(state => ({
+        request_id: state.request_id,
+        job_type: state.job_type ?? "continuity",
+        status: state.status,
+        started_at: state.started_at
+      }))
     };
   }
 
@@ -343,10 +386,22 @@ export class DurableJobStore {
     for (const id of await this.#jobIds()) {
       const state = await this.getState(id);
       if (!state) continue;
-      if (state.status === "acknowledged" && state.acknowledged_at && now - state.acknowledged_at > DIAGNOSTIC_RETENTION_MILLIS) {
+      const diagnosticSince = state.acknowledged_at ?? state.expired_at;
+      if (["acknowledged", "expired"].includes(state.status) && diagnosticSince &&
+          now - diagnosticSince > DIAGNOSTIC_RETENTION_MILLIS) {
         await rm(this.#jobDir(id), { recursive: true, force: true });
-      } else if (state.status !== "acknowledged" && now - state.updated_at > UNACKNOWLEDGED_RETENTION_MILLIS) {
-        await rm(this.#jobDir(id), { recursive: true, force: true });
+      } else if (!["acknowledged", "expired"].includes(state.status) && now - state.updated_at >
+          (state.job_type === "roleplay" ? ROLEPLAY_UNACKNOWLEDGED_RETENTION_MILLIS :
+            state.job_type === "portrait" ? PORTRAIT_UNACKNOWLEDGED_RETENTION_MILLIS :
+            UNACKNOWLEDGED_RETENTION_MILLIS)) {
+        await rm(this.#requestPath(id), { force: true });
+        await rm(this.#responsePath(id), { force: true });
+        await this.updateState(id, {
+          status: "expired",
+          expired_at: now,
+          completed_at: state.completed_at ?? now,
+          error: "Result expired before the phone acknowledged it. Retry creates a new immutable job."
+        });
       }
     }
   }

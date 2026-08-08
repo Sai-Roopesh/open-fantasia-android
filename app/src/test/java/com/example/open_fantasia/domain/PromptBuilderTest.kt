@@ -103,6 +103,63 @@ class PromptBuilderTest {
     }
 
     @Test
+    fun testLiveSplitSendsCompleteSnapshotOnceAndReplyControlSeparately() {
+        val remoteEntity = EntityState(
+            entity_id = "remote-object",
+            canonical_name = "Remote Archive Key",
+            entity_type = "object",
+            aliases = emptyList(),
+            is_present = false,
+            primary_emotion = "",
+            emotion_intensity = 0,
+            emotion_catalyst = "",
+            knowledge_boundary = emptyList(),
+            traits = listOf(FactRef("remote-fact", "Unlocks the mountain archive")),
+            goals = emptyList(),
+            secrets = emptyList(),
+            abilities = emptyList(),
+            possessions = emptyList()
+        )
+        val snapshot = makeDurableSnapshot().copy(
+            spatial_state = SpatialState(
+                current_location = null,
+                adjacent_locations = emptyList(),
+                known_locations = listOf(
+                    LocationState("remote-location", "Mountain Archive", "Far from the current scene", emptyList())
+                ),
+                edges = emptyList(),
+                entity_placements = listOf(
+                    EntityPlacement("remote-object", "Remote Archive Key", "remote-location", "Mountain Archive", "vault")
+                )
+            ),
+            entity_state = listOf(remoteEntity),
+            cast_roster = listOf(
+                CastProfile(
+                    cast_id = "cast-remote",
+                    entity_id = "remote-person",
+                    canonical_name = "Yunxi",
+                    provenance = "continuity_discovered"
+                )
+            )
+        )
+
+        val continuity = PromptBuilder.buildContinuityContext(snapshot, emptyList(), emptyList())
+        val reply = PromptBuilder.buildReplyControlContext(
+            activeSpeaker = snapshot.cast_roster.single(),
+            castRoster = snapshot.cast_roster
+        )
+
+        assertTrue(continuity.contains("Remote Archive Key"))
+        assertTrue(continuity.contains("Mountain Archive"))
+        assertTrue(continuity.contains("Unlocks the mountain archive"))
+        assertTrue(continuity.contains("\"cast_roster\""))
+        assertTrue(continuity.contains("Yunxi"))
+        assertFalse(continuity.contains("<reply_control>"))
+        assertTrue(reply.contains("<reply_control>"))
+        assertFalse(reply.contains("<durable_state>"))
+    }
+
+    @Test
     fun testEmptyLoreSkipsStorySetting() {
         val charBundle = makeCharacterBundle(story = "")
         

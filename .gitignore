@@ -22,3 +22,6 @@ captures/
 /.device-backups/
 /backups/
 /tools/continuity-worker/.runtime/
+/tools/continuity-worker/node_modules/
+/tools/continuity-worker/.portrait-work/
+/tools/continuity-worker/.portrait-spike.*/

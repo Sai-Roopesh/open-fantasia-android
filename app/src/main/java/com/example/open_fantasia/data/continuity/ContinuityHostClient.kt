@@ -25,15 +25,17 @@ sealed interface ContinuityHostState {
     data object Unpaired : ContinuityHostState
     data object Checking : ContinuityHostState
     data class Available(val queueDepth: Int = 0, val activeRequestId: String? = null) : ContinuityHostState
-    data class Unavailable(val detail: String = "Continuity Host is off or unreachable") : ContinuityHostState
+    data class Unavailable(val detail: String = "Mac Host is off or unreachable") : ContinuityHostState
     data class Incompatible(val detail: String) : ContinuityHostState
 }
 
 @Serializable data class PairHostRequest(val code: String, val device_name: String = "Open Fantasia Android")
 @Serializable data class PairHostResponse(val protocol_version: Int, val endpoint: String, val device_id: String, val credential: String)
-@Serializable data class HostHealth(val protocol_version: Int, val state: String, val queue_depth: Int = 0, val active_request_id: String? = null)
+@Serializable data class ActiveHostJob(val request_id: String, val job_type: String, val status: String, val started_at: Long? = null)
+@Serializable data class HostHealth(val protocol_version: Int, val state: String, val queue_depth: Int = 0, val active_jobs: List<ActiveHostJob> = emptyList())
 @Serializable data class HostJobStatus(
-    val protocol_version: Int = 1,
+    val protocol_version: Int = 2,
+    val job_type: String = "continuity",
     val request_id: String,
     val status: String,
     val queue_position: Int? = null,
@@ -62,15 +64,15 @@ class ContinuityHostClient(private val preferences: ContinuityHostPreferences) {
 
     suspend fun pair(endpoint: String, code: String): ContinuityHostPairing {
         val normalized = ContinuityHostPreferences.normalizeEndpoint(endpoint)
-        val response = client.post("$normalized/v1/pair") {
+        val response = client.post("$normalized/v2/pair") {
             contentType(ContentType.Application.Json)
             setBody(PairHostRequest(code.trim()))
         }
         requireSuccess(response)
         val body = response.body<PairHostResponse>()
-        if (body.protocol_version != 1) {
+        if (body.protocol_version != 2) {
             _state.value = ContinuityHostState.Incompatible("Host protocol ${body.protocol_version} is not supported")
-            error("Continuity Host protocol is incompatible")
+            error("Mac Host protocol is incompatible")
         }
         val pairing = ContinuityHostPairing(normalized, body.device_id, body.credential)
         preferences.save(pairing)
@@ -79,26 +81,26 @@ class ContinuityHostClient(private val preferences: ContinuityHostPreferences) {
     }
 
     suspend fun checkHealth(): HostHealth {
-        val response = authenticatedGet("/v1/health")
+        val response = authenticatedGet("/v2/health")
         requireSuccess(response)
         val health = response.body<HostHealth>()
-        if (health.protocol_version != 1) {
+        if (health.protocol_version != 2) {
             _state.value = ContinuityHostState.Incompatible("Host protocol ${health.protocol_version} is not supported")
         } else {
-            _state.value = ContinuityHostState.Available(health.queue_depth, health.active_request_id)
+            _state.value = ContinuityHostState.Available(health.queue_depth, health.active_jobs.firstOrNull()?.request_id)
         }
         return health
     }
 
     suspend fun submit(request: ContinuityRequestEnvelope): HostJobStatus {
-        val response = authenticatedPost("/v1/checkpoints", request)
+        val response = authenticatedPost("/v2/checkpoints", request)
         requireSuccess(response)
         markAvailable()
         return response.body()
     }
 
     suspend fun status(requestId: String): HostJobStatus? {
-        val response = authenticatedGet("/v1/checkpoints/${encode(requestId)}")
+        val response = authenticatedGet("/v2/checkpoints/${encode(requestId)}")
         if (response.status == HttpStatusCode.NotFound) return null
         requireSuccess(response)
         markAvailable()
@@ -106,45 +108,113 @@ class ContinuityHostClient(private val preferences: ContinuityHostPreferences) {
     }
 
     suspend fun result(requestId: String): ContinuityResponseEnvelope {
-        val response = authenticatedGet("/v1/checkpoints/${encode(requestId)}/result")
+        val response = authenticatedGet("/v2/checkpoints/${encode(requestId)}/result")
         requireSuccess(response)
         markAvailable()
         return response.body()
     }
 
     suspend fun acknowledge(requestId: String) {
-        val response = authenticatedPost("/v1/checkpoints/${encode(requestId)}/ack")
+        val response = authenticatedPost("/v2/checkpoints/${encode(requestId)}/ack")
         requireSuccess(response)
     }
 
     suspend fun supersede(requestId: String, replacementRequestId: String) {
         val response = authenticatedPost(
-            "/v1/checkpoints/${encode(requestId)}/supersede",
+            "/v2/checkpoints/${encode(requestId)}/supersede",
+            HostSupersedeRequest(replacementRequestId)
+        )
+        if (response.status != HttpStatusCode.NotFound) requireSuccess(response)
+    }
+
+    suspend fun submitRoleplay(request: RoleplayRequestEnvelope): HostJobStatus {
+        val response = authenticatedPost("/v2/roleplay-jobs", request)
+        requireSuccess(response)
+        markAvailable()
+        return response.body()
+    }
+
+    suspend fun roleplayStatus(requestId: String): HostJobStatus? {
+        val response = authenticatedGet("/v2/roleplay-jobs/${encode(requestId)}")
+        if (response.status == HttpStatusCode.NotFound) return null
+        requireSuccess(response)
+        markAvailable()
+        return response.body()
+    }
+
+    suspend fun roleplayResult(requestId: String): RoleplayResponseEnvelope {
+        val response = authenticatedGet("/v2/roleplay-jobs/${encode(requestId)}/result")
+        requireSuccess(response)
+        markAvailable()
+        return response.body()
+    }
+
+    suspend fun acknowledgeRoleplay(requestId: String) {
+        requireSuccess(authenticatedPost("/v2/roleplay-jobs/${encode(requestId)}/ack"))
+    }
+
+    suspend fun supersedeRoleplay(requestId: String, replacementRequestId: String) {
+        val response = authenticatedPost(
+            "/v2/roleplay-jobs/${encode(requestId)}/supersede",
+            HostSupersedeRequest(replacementRequestId)
+        )
+        if (response.status != HttpStatusCode.NotFound) requireSuccess(response)
+    }
+
+    suspend fun submitPortrait(request: PortraitRequestEnvelope): HostJobStatus {
+        val response = authenticatedPost("/v2/portrait-jobs", request)
+        requireSuccess(response)
+        markAvailable()
+        return response.body()
+    }
+
+    suspend fun portraitStatus(requestId: String): HostJobStatus? {
+        val response = authenticatedGet("/v2/portrait-jobs/${encode(requestId)}")
+        if (response.status == HttpStatusCode.NotFound) return null
+        requireSuccess(response)
+        markAvailable()
+        return response.body()
+    }
+
+    suspend fun portraitResult(requestId: String): PortraitResponseEnvelope {
+        val response = authenticatedGet("/v2/portrait-jobs/${encode(requestId)}/result")
+        requireSuccess(response)
+        markAvailable()
+        return response.body()
+    }
+
+    suspend fun acknowledgePortrait(requestId: String) {
+        requireSuccess(authenticatedPost("/v2/portrait-jobs/${encode(requestId)}/ack"))
+    }
+
+    suspend fun supersedePortrait(requestId: String, replacementRequestId: String) {
+        val response = authenticatedPost(
+            "/v2/portrait-jobs/${encode(requestId)}/supersede",
             HostSupersedeRequest(replacementRequestId)
         )
         if (response.status != HttpStatusCode.NotFound) requireSuccess(response)
     }
 
     fun forget() {
-        preferences.clear()
+        preferences.clearPairing()
         _state.value = ContinuityHostState.Unpaired
     }
 
     fun markUnavailable(error: Throwable) {
         if (_state.value !is ContinuityHostState.Incompatible && preferences.pairing() != null) {
-            _state.value = ContinuityHostState.Unavailable(error.message ?: "Continuity Host is unreachable")
+            _state.value = ContinuityHostState.Unavailable(error.message ?: "Mac Host is unreachable")
         }
     }
 
     private fun markAvailable() { _state.value = ContinuityHostState.Available() }
 
     private suspend fun authenticatedGet(path: String): HttpResponse {
-        val pairing = preferences.pairing() ?: throw IllegalStateException("Continuity Host is not paired")
+        val pairing = preferences.pairing() ?: throw IllegalStateException("Mac Host is not paired")
         return client.get(pairing.endpoint + path) { bearerAuth(pairing.credential) }
     }
 
     private suspend inline fun <reified T> authenticatedPost(path: String, body: T): HttpResponse {
-        val pairing = preferences.pairing() ?: throw IllegalStateException("Continuity Host is not paired")
+        val pairing = preferences.pairing() ?: throw IllegalStateException("Mac Host is not paired")
         return client.post(pairing.endpoint + path) {
             bearerAuth(pairing.credential)
             contentType(ContentType.Application.Json)
@@ -153,19 +223,19 @@ class ContinuityHostClient(private val preferences: ContinuityHostPreferences) {
     }
 
     private suspend fun authenticatedPost(path: String): HttpResponse {
-        val pairing = preferences.pairing() ?: throw IllegalStateException("Continuity Host is not paired")
+        val pairing = preferences.pairing() ?: throw IllegalStateException("Mac Host is not paired")
         return client.post(pairing.endpoint + path) { bearerAuth(pairing.credential) }
     }
 
     private suspend fun requireSuccess(response: HttpResponse) {
         if (response.status == HttpStatusCode.UpgradeRequired) {
-            _state.value = ContinuityHostState.Incompatible("Continuity Host protocol is incompatible")
+            _state.value = ContinuityHostState.Incompatible("Mac Host protocol is incompatible")
         }
         if (!response.status.isSuccess()) {
             val detail = try { response.body<ContinuityHostError>().message } catch (_: Throwable) { "" }
             throw ContinuityHostHttpException(
                 response.status.value,
-                detail.ifBlank { "Continuity Host returned ${response.status.value}" }
+                detail.ifBlank { "Mac Host returned ${response.status.value}" }
             )
         }
     }
