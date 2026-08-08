@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { runProcessCapture } from "./codex-runner.mjs";
-import { applyAuthoritativeCastLocks, validateResponse } from "./worker-lib.mjs";
+import { canonicalizeCastRoster, validateResponse } from "./worker-lib.mjs";
 import {
   MAX_DIRECT_MODEL_INPUT_BYTES,
   renderContinuityModelInput,
@@ -44,7 +44,7 @@ export function createAntigravityContinuityRunner({
         try {
           const response = JSON.parse(cleanJsonOutput(output));
           validateSchema(response);
-          const canonical = applyAuthoritativeCastLocks(request, response);
+          const canonical = canonicalizeCastRoster(request, response);
           validateResponse(request, canonical);
           return canonical;
         } catch (error) {

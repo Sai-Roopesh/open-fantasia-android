@@ -31,6 +31,76 @@ export function applyAuthoritativeCastLocks(request, response) {
   return canonical;
 }
 
+function mentionsName(text, needle) {
+  const haystack = (text ?? "").toLocaleLowerCase();
+  const name = (needle ?? "").trim().toLocaleLowerCase();
+  if (!haystack || !name) return false;
+  const isWordChar = ch => Boolean(ch) && /[\p{L}\p{N}]/u.test(ch);
+  for (let i = haystack.indexOf(name); i !== -1; i = haystack.indexOf(name, i + 1)) {
+    if (!isWordChar(haystack[i - 1]) && !isWordChar(haystack[i + name.length])) return true;
+  }
+  return false;
+}
+
+/**
+ * Resolves lineage provenance for discovered Cast Members deterministically.
+ *
+ * `first_seen_turn_id` must be a turn UUID copied exactly out of the retained transcript, and a
+ * model asked to reproduce a 36-character identifier will eventually get one wrong — which failed
+ * the whole checkpoint after a full engine run and left the lineage blocked. Identity is host-owned
+ * data, so the host resolves it rather than asking the engine to transcribe it:
+ *
+ *   1. a member already on the authoritative roster keeps its established first-seen exchange;
+ *   2. a genuinely new member is dated to the earliest retained exchange whose prose names them;
+ *   3. anything still unresolved falls back to the first post-baseline checkpoint exchange, since a
+ *      newly discovered member must have appeared within the window under review.
+ *
+ * A value the engine supplied is kept whenever it is already reachable, so a correct answer is
+ * never overwritten. This only ever assigns a reachable turn id, so it cannot mask a real
+ * violation: validateResponse still rejects anything this cannot ground.
+ */
+export function repairDiscoveredCastLineage(request, response) {
+  const canonical = cloneJsonValue(response);
+  const roster = canonical?.world_state?.cast_roster;
+  const exchanges = request.exchanges ?? [];
+  if (!Array.isArray(roster) || !exchanges.length) return canonical;
+
+  const reachable = new Set(exchanges.map(exchange => exchange.turn_id));
+  const established = new Map(
+    (request.current_cast_roster ?? [])
+      .filter(member => member.first_seen_turn_id && reachable.has(member.first_seen_turn_id))
+      .map(member => [member.cast_id, member.first_seen_turn_id])
+  );
+  const checkpointTurnIds = (request.checkpoint_turn_ids ?? []).filter(id => reachable.has(id));
+  const fallbackTurnId = checkpointTurnIds[0] ?? exchanges[exchanges.length - 1].turn_id;
+
+  for (const member of roster) {
+    if (member.provenance !== "continuity_discovered") continue;
+    if (member.first_seen_turn_id && reachable.has(member.first_seen_turn_id)) continue;
+
+    const carried = established.get(member.cast_id);
+    if (carried) {
+      member.first_seen_turn_id = carried;
+      continue;
+    }
+
+    const names = [member.canonical_name, ...(Array.isArray(member.aliases) ? member.aliases : [])];
+    const firstMention = exchanges.find(exchange =>
+      names.some(name => mentionsName(exchange.user, name) || mentionsName(exchange.assistant, name))
+    );
+    member.first_seen_turn_id = firstMention?.turn_id ?? fallbackTurnId;
+  }
+  return canonical;
+}
+
+/**
+ * One canonicalization pass over model output before semantic validation: authoritative seed data
+ * is projected back over the roster, then discovered lineage is grounded in a reachable exchange.
+ */
+export function canonicalizeCastRoster(request, response) {
+  return repairDiscoveredCastLineage(request, applyAuthoritativeCastLocks(request, response));
+}
+
 export function validateResponse(request, response) {
   if (response.protocol_version !== request.protocol_version) throw new Error("Response protocol version mismatch");
   if (response.attempt_count !== request.attempt_count) throw new Error("Response attempt mismatch");

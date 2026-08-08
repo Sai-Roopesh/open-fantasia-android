@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { applyAuthoritativeCastLocks, requestRevision, validateResponse } from "./worker-lib.mjs";
+import { applyAuthoritativeCastLocks, canonicalizeCastRoster, requestRevision, validateResponse } from "./worker-lib.mjs";
 
 function fixture() {
   const request = {
@@ -130,4 +130,95 @@ test("rejects the player persona in the cast roster", () => {
   const { request, response } = fixture();
   response.world_state.cast_roster[0].player_controlled = true;
   assert.throws(() => validateResponse(request, response), /Player persona/);
+});
+
+// ─── Discovered cast lineage repair ─────────────────────────────────
+
+/** Adds a discovered member whose introducing exchange is `old-turn`. */
+function withDiscovered({ request, response }, firstSeen) {
+  request.exchanges[0].assistant = "Earlier reply where Vera pours the wine";
+  response.world_state.entity_state.push({
+    entity_id: "vera", canonical_name: "Vera", entity_type: "character", aliases: [], is_present: true,
+    primary_emotion: "wary", emotion_intensity: 40, emotion_catalyst: "",
+    knowledge_boundary: [], traits: [], goals: [], secrets: [], abilities: [], possessions: []
+  });
+  response.world_state.spatial_state.entity_placements.push({
+    entity_id: "vera", entity_name: "Vera", location_id: "room", location_name: "Room", micro_position: "at the bar"
+  });
+  response.world_state.cast_roster.push({
+    cast_id: "cast:vera:abc", entity_id: "vera", canonical_name: "Vera", aliases: [],
+    role_background: "Innkeeper", personality: "Blunt", voice_style: "", appearance: "",
+    goals: "", boundaries: "", provenance: "continuity_discovered", first_seen_turn_id: firstSeen,
+    evidence: [], status: "active", speaker_eligible: true, player_controlled: false, manual_locks: []
+  });
+  return { request, response };
+}
+
+test("dates a discovered member from the earliest exchange naming them", () => {
+  const { request, response } = withDiscovered(fixture(), null);
+
+  const canonical = canonicalizeCastRoster(request, response);
+
+  const vera = canonical.world_state.cast_roster.find(m => m.cast_id === "cast:vera:abc");
+  assert.equal(vera.first_seen_turn_id, "old-turn");
+  assert.doesNotThrow(() => validateResponse(request, canonical));
+});
+
+test("repairs a hallucinated turn id instead of failing the whole checkpoint", () => {
+  const { request, response } = withDiscovered(fixture(), "turn-7-b4d-uuid-the-model-invented");
+
+  const canonical = canonicalizeCastRoster(request, response);
+
+  const vera = canonical.world_state.cast_roster.find(m => m.cast_id === "cast:vera:abc");
+  assert.equal(vera.first_seen_turn_id, "old-turn");
+  assert.doesNotThrow(() => validateResponse(request, canonical));
+});
+
+test("keeps a correct turn id the engine supplied", () => {
+  const { request, response } = withDiscovered(fixture(), "turn-7");
+
+  const canonical = canonicalizeCastRoster(request, response);
+
+  assert.equal(canonical.world_state.cast_roster.find(m => m.cast_id === "cast:vera:abc").first_seen_turn_id, "turn-7");
+});
+
+test("carries forward the established first-seen exchange for an existing discovered member", () => {
+  const { request, response } = withDiscovered(fixture(), null);
+  request.current_cast_roster = [{ cast_id: "cast:vera:abc", canonical_name: "Vera", first_seen_turn_id: "turn-7" }];
+
+  const canonical = canonicalizeCastRoster(request, response);
+
+  assert.equal(canonical.world_state.cast_roster.find(m => m.cast_id === "cast:vera:abc").first_seen_turn_id, "turn-7");
+});
+
+test("falls back to the first checkpoint exchange when no exchange names the member", () => {
+  const { request, response } = withDiscovered(fixture(), null);
+  request.exchanges[0].assistant = "Earlier reply";
+
+  const canonical = canonicalizeCastRoster(request, response);
+
+  assert.equal(canonical.world_state.cast_roster.find(m => m.cast_id === "cast:vera:abc").first_seen_turn_id, "turn-7");
+  assert.doesNotThrow(() => validateResponse(request, canonical));
+});
+
+test("matches a member by alias, and only on a whole word", () => {
+  const { request, response } = withDiscovered(fixture(), null);
+  request.exchanges[0].assistant = "Earlier reply mentioning silverware but no innkeeper";
+  request.exchanges[1].assistant = "Hi, says Ash";
+  const vera = response.world_state.cast_roster.find(m => m.cast_id === "cast:vera:abc");
+  vera.aliases = ["Ash"];
+
+  const canonical = canonicalizeCastRoster(request, response);
+
+  // "Ash" must not match inside "silverware"-style prose on the earlier exchange.
+  assert.equal(canonical.world_state.cast_roster.find(m => m.cast_id === "cast:vera:abc").first_seen_turn_id, "turn-7");
+});
+
+test("repair still cannot ground a member with no reachable exchanges at all", () => {
+  const { request, response } = withDiscovered(fixture(), null);
+  request.exchanges = [];
+
+  const canonical = canonicalizeCastRoster(request, response);
+
+  assert.throws(() => validateResponse(request, canonical), /invalid lineage provenance/);
 });
