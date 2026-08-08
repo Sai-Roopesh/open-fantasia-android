@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { applyAuthoritativeCastLocks, canonicalizeResponse, requestRevision, validateResponse } from "./worker-lib.mjs";
+import { applyAuthoritativeCastLocks, canonicalizeResponse, requestRevision, resolveExchangeReferences, toModelFacingRequest, validateResponse } from "./worker-lib.mjs";
 
 function fixture() {
   const request = {
@@ -282,4 +282,71 @@ test("an oversized timeline array is still a protocol violation", () => {
   const canonical = canonicalizeResponse(request, response);
 
   assert.throws(() => validateResponse(request, canonical), /Too many timeline events/);
+});
+
+// ─── Ordinal exchange references ────────────────────────────────────
+
+test("model-facing request numbers exchanges and flags checkpoint ordinals", () => {
+  const { request } = fixture();
+
+  const view = toModelFacingRequest(request);
+
+  assert.deepEqual(view.exchanges.map(e => e.exchange_index), [1, 2]);
+  assert.deepEqual(view.checkpoint_exchange_indexes, [2]);
+  assert.equal(view.exchanges[1].turn_id, "turn-7");
+  // The stored request must stay untouched — it is what validation runs against.
+  assert.equal(request.exchanges[0].exchange_index, undefined);
+});
+
+test("resolves an ordinal cast reference to its turn id", () => {
+  const { request, response } = withDiscovered(fixture(), "#1");
+
+  const canonical = canonicalizeResponse(request, response);
+
+  assert.equal(canonical.world_state.cast_roster.find(m => m.cast_id === "cast:vera:abc").first_seen_turn_id, "old-turn");
+  assert.doesNotThrow(() => validateResponse(request, canonical));
+});
+
+test("accepts every ordinal spelling an engine might emit", () => {
+  for (const spelling of ["#2", "2", "exchange 2", "exchange:2", "  #2  "]) {
+    const { request, response } = withDiscovered(fixture(), spelling);
+    const canonical = canonicalizeResponse(request, response);
+    assert.equal(
+      canonical.world_state.cast_roster.find(m => m.cast_id === "cast:vera:abc").first_seen_turn_id,
+      "turn-7",
+      `spelling ${spelling}`
+    );
+  }
+});
+
+test("resolves an ordinal timeline reference", () => {
+  const { request, response } = fixture();
+  response.timeline_events = [{
+    turn_id: "#2", title: "A reveal", detail: "", importance: 3, event_type: "plot",
+    affected_entity_ids: [], affected_relationship_ids: []
+  }];
+
+  const canonical = canonicalizeResponse(request, response);
+
+  assert.equal(canonical.timeline_events.length, 1);
+  assert.equal(canonical.timeline_events[0].turn_id, "turn-7");
+  assert.doesNotThrow(() => validateResponse(request, canonical));
+});
+
+test("an out-of-range ordinal is not invented into a real exchange", () => {
+  const { request, response } = withDiscovered(fixture(), "#99");
+
+  const canonical = canonicalizeResponse(request, response);
+
+  // Unresolvable, so lineage repair dates it from the transcript instead of fabricating turn 99.
+  assert.equal(canonical.world_state.cast_roster.find(m => m.cast_id === "cast:vera:abc").first_seen_turn_id, "old-turn");
+  assert.doesNotThrow(() => validateResponse(request, canonical));
+});
+
+test("a correctly transcribed turn id is still honoured", () => {
+  const { request, response } = withDiscovered(fixture(), "old-turn");
+
+  const canonical = canonicalizeResponse(request, response);
+
+  assert.equal(canonical.world_state.cast_roster.find(m => m.cast_id === "cast:vera:abc").first_seen_turn_id, "old-turn");
 });

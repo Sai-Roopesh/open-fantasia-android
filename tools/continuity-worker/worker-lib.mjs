@@ -31,6 +31,59 @@ export function applyAuthoritativeCastLocks(request, response) {
   return canonical;
 }
 
+/**
+ * Model-facing view of a Continuity Request: every exchange gains a 1-based `exchange_index`.
+ *
+ * The engine cites exchanges by that ordinal instead of transcribing a 36-character turn UUID.
+ * An ordinal is short, meaningful in context, and — critically — checkable: "#12" is either inside
+ * the window or it is not, and a host holding the ordered exchange list can always tell. A UUID is
+ * neither, which is why mistranscription used to be undetectable until it was fatal.
+ *
+ * The stored request is untouched; this view exists only for prompt rendering.
+ */
+export function toModelFacingRequest(request) {
+  const exchanges = (request.exchanges ?? []).map((exchange, index) => ({
+    exchange_index: index + 1,
+    ...exchange
+  }));
+  const checkpointIndexes = exchanges
+    .filter(exchange => (request.checkpoint_turn_ids ?? []).includes(exchange.turn_id))
+    .map(exchange => exchange.exchange_index);
+  return { ...request, exchanges, checkpoint_exchange_indexes: checkpointIndexes };
+}
+
+/**
+ * Rewrites exchange references the engine expressed as ordinals into canonical turn ids.
+ *
+ * Accepts `#12`, `12`, `exchange 12`, or `exchange:12`, and leaves an already-correct turn id
+ * alone, so an engine that does copy the UUID correctly is never punished for it. Anything that
+ * resolves to no exchange is left exactly as written, where the existing canonicalization and
+ * validation stack decides its fate — this layer removes the hazard, it never hides one.
+ */
+export function resolveExchangeReferences(request, response) {
+  const canonical = cloneJsonValue(response);
+  const exchanges = request.exchanges ?? [];
+  if (!exchanges.length) return canonical;
+
+  const byTurnId = new Set(exchanges.map(exchange => exchange.turn_id));
+  const byOrdinal = new Map(exchanges.map((exchange, index) => [index + 1, exchange.turn_id]));
+
+  const resolve = value => {
+    if (typeof value !== "string" || byTurnId.has(value)) return value;
+    const match = /^\s*(?:#|exchange[\s:]*)?(\d{1,4})\s*$/i.exec(value);
+    if (!match) return value;
+    return byOrdinal.get(Number(match[1])) ?? value;
+  };
+
+  for (const member of canonical?.world_state?.cast_roster ?? []) {
+    member.first_seen_turn_id = resolve(member.first_seen_turn_id);
+  }
+  for (const event of canonical?.timeline_events ?? []) {
+    if (event && typeof event === "object") event.turn_id = resolve(event.turn_id);
+  }
+  return canonical;
+}
+
 function mentionsName(text, needle) {
   const haystack = (text ?? "").toLocaleLowerCase();
   const name = (needle ?? "").trim().toLocaleLowerCase();
@@ -150,7 +203,10 @@ export function dropUngroundedTimelineEvents(request, response) {
 export function canonicalizeResponse(request, response) {
   return dropUngroundedTimelineEvents(
     request,
-    repairDiscoveredCastLineage(request, applyAuthoritativeCastLocks(request, response))
+    repairDiscoveredCastLineage(
+      request,
+      applyAuthoritativeCastLocks(request, resolveExchangeReferences(request, response))
+    )
   );
 }
 

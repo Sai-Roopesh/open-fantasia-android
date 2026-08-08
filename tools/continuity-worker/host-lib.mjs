@@ -1,6 +1,7 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { toModelFacingRequest } from "./worker-lib.mjs";
 
 export const HOST_PROTOCOL_VERSION = 2;
 export const MAX_REQUEST_BYTES = 8 * 1024 * 1024;
@@ -11,8 +12,9 @@ export function renderContinuityModelInput(prompt, request) {
     prompt,
     "",
     "The complete authoritative Continuity Request is the JSON value below. Read every field and every exchange; do not skip, sample, summarize, or retrieve it through a tool.",
+    "Every exchange carries an `exchange_index`. Cite exchanges by that ordinal — `\"#12\"` — wherever a turn reference is required. Never transcribe a turn UUID.",
     "<continuity_request_json>",
-    JSON.stringify(request),
+    JSON.stringify(toModelFacingRequest(request)),
     "</continuity_request_json>",
     "",
     "Return only the required response JSON object."
