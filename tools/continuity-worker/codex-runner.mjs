@@ -2,7 +2,7 @@ import { readFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
-import { canonicalizeCastRoster, validateResponse } from "./worker-lib.mjs";
+import { canonicalizeResponse, validateResponse } from "./worker-lib.mjs";
 import {
   JOB_TIMEOUT_MILLIS,
   renderContinuityModelInput,
@@ -82,7 +82,7 @@ export function createCodexRunner({ codex, model, reasoningEffort, prompt, respo
           const text = (await readFile(rawPath, "utf8")).trim();
           const response = JSON.parse(text);
           validateSchema(response);
-          const canonical = canonicalizeCastRoster(request, response);
+          const canonical = canonicalizeResponse(request, response);
           validateResponse(request, canonical);
           return canonical;
         } catch (error) {

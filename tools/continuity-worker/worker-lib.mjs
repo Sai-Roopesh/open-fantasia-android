@@ -94,11 +94,64 @@ export function repairDiscoveredCastLineage(request, response) {
 }
 
 /**
- * One canonicalization pass over model output before semantic validation: authoritative seed data
- * is projected back over the roster, then discovered lineage is grounded in a reachable exchange.
+ * Discards timeline events that cannot be grounded, instead of failing the checkpoint over them.
+ *
+ * A timeline event names the exchange it occurred in, so it carries the same transcription hazard
+ * as cast lineage — but unlike lineage it has no deterministic correct answer. The host cannot know
+ * which exchange a betrayal happened in without interpreting prose, and inventing one would write a
+ * false beat into the story record. So these are dropped rather than repaired.
+ *
+ * The snapshot is the product; timeline events are at most seven optional highlights, and the beat
+ * itself survives in the rewritten story summary. Losing one highlight is strictly better than
+ * losing a full engine run and leaving the lineage blocked. Only per-event grounding is forgiving:
+ * a malformed or oversized `timeline_events` array is still a protocol violation and still throws.
+ *
+ * Importance is clamped rather than dropped, because there the correct value is unambiguous.
  */
-export function canonicalizeCastRoster(request, response) {
-  return repairDiscoveredCastLineage(request, applyAuthoritativeCastLocks(request, response));
+export function dropUngroundedTimelineEvents(request, response) {
+  const canonical = cloneJsonValue(response);
+  if (!Array.isArray(canonical.timeline_events)) return canonical;
+
+  const state = canonical.world_state;
+  const entityIds = new Set((state?.entity_state ?? []).map(entity => entity.entity_id));
+  const relationshipIds = new Set((state?.relational_state ?? []).map(rel => rel.relationship_id));
+  const groundedTurnIds = new Set(request.checkpoint_turn_ids ?? (request.exchanges ?? []).map(e => e.turn_id));
+
+  const kept = canonical.timeline_events.filter(event => {
+    if (!groundedTurnIds.has(event?.turn_id)) return false;
+    const entities = event.affected_entity_ids;
+    const relationships = event.affected_relationship_ids;
+    if (!Array.isArray(entities) || entities.some(id => !entityIds.has(id))) return false;
+    if (!Array.isArray(relationships) || relationships.some(id => !relationshipIds.has(id))) return false;
+    return true;
+  });
+
+  for (const event of kept) {
+    event.importance = Number.isInteger(event.importance)
+      ? Math.min(5, Math.max(1, event.importance))
+      : 3;
+  }
+
+  const droppedCount = canonical.timeline_events.length - kept.length;
+  // Diagnostics carry counts only, never story prose.
+  if (droppedCount > 0) {
+    console.warn(`continuity: dropped ${droppedCount} ungrounded timeline event(s) for request ${request.request_id}`);
+  }
+  canonical.timeline_events = kept;
+  return canonical;
+}
+
+/**
+ * One canonicalization pass over model output before semantic validation: authoritative seed data
+ * is projected back over the roster, discovered lineage is grounded in a reachable exchange, and
+ * timeline events that cannot be grounded are discarded. Everything validateResponse checks after
+ * this is a genuine protocol violation rather than a transcription slip.
+ */
+export function canonicalizeResponse(request, response) {
+  return dropUngroundedTimelineEvents(
+    request,
+    repairDiscoveredCastLineage(request, applyAuthoritativeCastLocks(request, response))
+  );
 }
 
 export function validateResponse(request, response) {

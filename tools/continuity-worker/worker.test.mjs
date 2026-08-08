@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { applyAuthoritativeCastLocks, canonicalizeCastRoster, requestRevision, validateResponse } from "./worker-lib.mjs";
+import { applyAuthoritativeCastLocks, canonicalizeResponse, requestRevision, validateResponse } from "./worker-lib.mjs";
 
 function fixture() {
   const request = {
@@ -157,7 +157,7 @@ function withDiscovered({ request, response }, firstSeen) {
 test("dates a discovered member from the earliest exchange naming them", () => {
   const { request, response } = withDiscovered(fixture(), null);
 
-  const canonical = canonicalizeCastRoster(request, response);
+  const canonical = canonicalizeResponse(request, response);
 
   const vera = canonical.world_state.cast_roster.find(m => m.cast_id === "cast:vera:abc");
   assert.equal(vera.first_seen_turn_id, "old-turn");
@@ -167,7 +167,7 @@ test("dates a discovered member from the earliest exchange naming them", () => {
 test("repairs a hallucinated turn id instead of failing the whole checkpoint", () => {
   const { request, response } = withDiscovered(fixture(), "turn-7-b4d-uuid-the-model-invented");
 
-  const canonical = canonicalizeCastRoster(request, response);
+  const canonical = canonicalizeResponse(request, response);
 
   const vera = canonical.world_state.cast_roster.find(m => m.cast_id === "cast:vera:abc");
   assert.equal(vera.first_seen_turn_id, "old-turn");
@@ -177,7 +177,7 @@ test("repairs a hallucinated turn id instead of failing the whole checkpoint", (
 test("keeps a correct turn id the engine supplied", () => {
   const { request, response } = withDiscovered(fixture(), "turn-7");
 
-  const canonical = canonicalizeCastRoster(request, response);
+  const canonical = canonicalizeResponse(request, response);
 
   assert.equal(canonical.world_state.cast_roster.find(m => m.cast_id === "cast:vera:abc").first_seen_turn_id, "turn-7");
 });
@@ -186,7 +186,7 @@ test("carries forward the established first-seen exchange for an existing discov
   const { request, response } = withDiscovered(fixture(), null);
   request.current_cast_roster = [{ cast_id: "cast:vera:abc", canonical_name: "Vera", first_seen_turn_id: "turn-7" }];
 
-  const canonical = canonicalizeCastRoster(request, response);
+  const canonical = canonicalizeResponse(request, response);
 
   assert.equal(canonical.world_state.cast_roster.find(m => m.cast_id === "cast:vera:abc").first_seen_turn_id, "turn-7");
 });
@@ -195,7 +195,7 @@ test("falls back to the first checkpoint exchange when no exchange names the mem
   const { request, response } = withDiscovered(fixture(), null);
   request.exchanges[0].assistant = "Earlier reply";
 
-  const canonical = canonicalizeCastRoster(request, response);
+  const canonical = canonicalizeResponse(request, response);
 
   assert.equal(canonical.world_state.cast_roster.find(m => m.cast_id === "cast:vera:abc").first_seen_turn_id, "turn-7");
   assert.doesNotThrow(() => validateResponse(request, canonical));
@@ -208,7 +208,7 @@ test("matches a member by alias, and only on a whole word", () => {
   const vera = response.world_state.cast_roster.find(m => m.cast_id === "cast:vera:abc");
   vera.aliases = ["Ash"];
 
-  const canonical = canonicalizeCastRoster(request, response);
+  const canonical = canonicalizeResponse(request, response);
 
   // "Ash" must not match inside "silverware"-style prose on the earlier exchange.
   assert.equal(canonical.world_state.cast_roster.find(m => m.cast_id === "cast:vera:abc").first_seen_turn_id, "turn-7");
@@ -218,7 +218,68 @@ test("repair still cannot ground a member with no reachable exchanges at all", (
   const { request, response } = withDiscovered(fixture(), null);
   request.exchanges = [];
 
-  const canonical = canonicalizeCastRoster(request, response);
+  const canonical = canonicalizeResponse(request, response);
 
   assert.throws(() => validateResponse(request, canonical), /invalid lineage provenance/);
+});
+
+// ─── Timeline event grounding ───────────────────────────────────────
+
+function withTimelineEvent({ request, response }, overrides) {
+  response.timeline_events = [{
+    turn_id: "turn-7", title: "A reveal", detail: "Something changed", importance: 3,
+    event_type: "plot", affected_entity_ids: [], affected_relationship_ids: [],
+    ...overrides
+  }];
+  return { request, response };
+}
+
+test("drops a timeline event whose turn id was mistranscribed, keeping the snapshot", () => {
+  const { request, response } = withTimelineEvent(fixture(), { turn_id: "turn-7-invented-by-model" });
+
+  const canonical = canonicalizeResponse(request, response);
+
+  assert.deepEqual(canonical.timeline_events, []);
+  assert.equal(canonical.world_state.narrative_state.story_summary, "Story");
+  assert.doesNotThrow(() => validateResponse(request, canonical));
+});
+
+test("keeps a grounded timeline event untouched", () => {
+  const { request, response } = withTimelineEvent(fixture(), {});
+
+  const canonical = canonicalizeResponse(request, response);
+
+  assert.equal(canonical.timeline_events.length, 1);
+  assert.equal(canonical.timeline_events[0].title, "A reveal");
+});
+
+test("drops a timeline event referencing an entity absent from the snapshot", () => {
+  const { request, response } = withTimelineEvent(fixture(), { affected_entity_ids: ["ghost"] });
+
+  const canonical = canonicalizeResponse(request, response);
+
+  assert.deepEqual(canonical.timeline_events, []);
+  assert.doesNotThrow(() => validateResponse(request, canonical));
+});
+
+test("clamps timeline importance rather than dropping the event", () => {
+  const { request, response } = withTimelineEvent(fixture(), { importance: 9 });
+
+  const canonical = canonicalizeResponse(request, response);
+
+  assert.equal(canonical.timeline_events.length, 1);
+  assert.equal(canonical.timeline_events[0].importance, 5);
+  assert.doesNotThrow(() => validateResponse(request, canonical));
+});
+
+test("an oversized timeline array is still a protocol violation", () => {
+  const { request, response } = fixture();
+  response.timeline_events = Array.from({ length: 8 }, () => ({
+    turn_id: "turn-7", title: "Beat", detail: "", importance: 3, event_type: "plot",
+    affected_entity_ids: [], affected_relationship_ids: []
+  }));
+
+  const canonical = canonicalizeResponse(request, response);
+
+  assert.throws(() => validateResponse(request, canonical), /Too many timeline events/);
 });

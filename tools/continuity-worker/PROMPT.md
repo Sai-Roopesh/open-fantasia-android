@@ -22,6 +22,6 @@ When `trigger_reason` is `rewind`, later exchanges were deliberately pruned. The
 - Set `metadata.current_turn_id` to `target_turn_id`, and version to `baseline_version + 1`.
 - Ensure all relationship, placement, location-edge, and fact references point to objects present in the complete snapshot.
 - Return `timeline_events` only for genuinely notable beats whose turn IDs appear in `checkpoint_turn_ids`: reveals, betrayals, discoveries, combat, scene changes, time skips, major relationship shifts, significant emotional turns, or meaningful movement. Routine dialogue gets no event; do not repeat older timeline events from the rest of the transcript.
-- Each timeline event must use the exact `turn_id` of the exchange where it occurred, importance 1–5, and only entity/relationship IDs present in the completed `world_state`. Return at most seven events in chronological order.
+- Each timeline event must use the exact `turn_id` of the exchange where it occurred, copied verbatim from `exchanges`, importance 1–5, and only entity/relationship IDs present in the completed `world_state`. Return at most seven events in chronological order. If you cannot copy the `turn_id` exactly, omit that event entirely — an ungrounded event is discarded, and the beat is preserved in `story_summary` regardless.
 
 Response envelope keys: `protocol_version`, `request_id`, `attempt_count`, `thread_id`, `branch_id`, `target_turn_id`, `baseline_hash`, `world_state`, `timeline_events`. Copy every identity value exactly from the request.
