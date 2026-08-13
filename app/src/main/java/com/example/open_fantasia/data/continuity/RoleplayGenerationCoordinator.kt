@@ -5,6 +5,7 @@ import com.example.open_fantasia.data.local.dao.ConnectionDao
 import com.example.open_fantasia.data.local.entity.RoleplayGenerationJobEntity
 import com.example.open_fantasia.data.remote.ChatMessage
 import com.example.open_fantasia.data.remote.LLMClient
+import com.example.open_fantasia.domain.model.ReplyBudget
 import com.example.open_fantasia.domain.model.RoleplayProviderCapabilities
 import com.example.open_fantasia.domain.model.RoleplayOutputValidator
 import java.time.Instant
@@ -187,7 +188,9 @@ class RoleplayGenerationCoordinator(
                 messages = request.messages.map { ChatMessage(it.role, it.content) },
                 temperature = request.settings.temperature,
                 topP = request.settings.top_p,
-                maxTokens = request.settings.max_tokens
+                // The frozen request records the requested prose length; the wire needs that plus
+                // room for reasoning the transcript never sees, or the reply is cut mid-sentence.
+                maxTokens = ReplyBudget.transportCeiling(request.settings.max_tokens, connection.provider)
             ).collect { chunk ->
                 accumulatedText += chunk.text.orEmpty()
                 providerTotalTokens = chunk.totalTokens ?: providerTotalTokens
