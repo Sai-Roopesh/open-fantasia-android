@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import {
+  createAntigravityContinuityRunner,
   createAntigravityRoleplayRunner,
   MAX_ANTIGRAVITY_ROLEPLAY_PROMPT_BYTES,
   renderRoleplayTask,
@@ -182,4 +183,85 @@ test("portrait validation accepts a sufficiently large vertical JPEG", () => {
 test("portrait validation rejects landscape and tiny artifacts", () => {
   assert.throws(() => validatePortraitImage(jpeg(1376, 768)), /resolution|vertical/);
   assert.throws(() => validatePortraitImage(jpeg(768, 1376, 100)), /too small/);
+});
+
+// The failure this adapter exists to survive: headless mode auto-denies a tool the agent reached for,
+// the CLI exits 0 having produced nothing, and the run is lost. That throw used to escape the attempt
+// loop entirely — no second attempt, and the raw CLI text went to the phone as the failure reason.
+const DENIED = 'jetski: no output produced — a tool required the "read_file" permission that headless ' +
+  'mode cannot prompt for, so it was auto-denied. Add an allow-rule under permissions.allow in settings.json.';
+
+function continuityRequest() {
+  return {
+    protocol_version: 2, request_id: "agy-1", thread_id: "t", branch_id: "b",
+    target_turn_id: "turn-1", baseline_version: 0, baseline_hash: "h", attempt_count: 0,
+    trigger_reason: "cadence", discarded_exchange_count: 0,
+    character: { name: "Hero", story: "", core_persona: "", appearance: "", definition: "", style_rules: "", negative_guidance: "" },
+    persona: null, director_notes: "", pins: [],
+    // A snapshot with an empty Cast Roster is rejected, so the request carries the Primary Character
+    // the compiler will project — the same shape a real thread always has.
+    cast_seeds: [{
+      cast_id: "primary:t", entity_id: null, canonical_name: "Hero", aliases: [],
+      role_background: "Lead", personality: "Steady", voice_style: "", appearance: "", goals: "",
+      boundaries: "", provenance: "primary", first_seen_turn_id: null, evidence: [], status: "active",
+      speaker_eligible: true, player_controlled: false, manual_locks: ["canonical_name"]
+    }],
+    current_cast_roster: [],
+    baseline_snapshot: null,
+    exchanges: [{ turn_id: "turn-1", parent_turn_id: null, user: "Hello", assistant: "Hi", created_at: "1" }],
+    checkpoint_turn_ids: ["turn-1"]
+  };
+}
+
+const VALID_DRAFT = JSON.stringify({
+  narrative: {
+    story_summary: "A complete causal account.", scene_summary: "The situation now.",
+    last_turn_beat: "What just changed.", narrative_timestamp: "now", transition_type: "continuation"
+  },
+  scene: { current_location: null, adjacent_locations: [], present: [] },
+  operations: [], timeline_events: []
+});
+
+test("an auto-denied tool permission is retried, not surfaced raw", async () => {
+  const calls = [];
+  const runner = createAntigravityContinuityRunner({
+    agy: "agy", model: "m", effort: "high", prompt: "INSTRUCTIONS",
+    validateSchema: () => {}, timeoutMillis: 1000, workspaceRoot: tmpdir(),
+    runProcess: async () => {
+      calls.push(1);
+      if (calls.length === 1) throw new Error(`Antigravity continuity exited with status 0: ${DENIED}`);
+      return VALID_DRAFT;
+    }
+  });
+
+  const response = await runner(continuityRequest());
+  assert.equal(calls.length, 2, "the denied attempt is retried rather than ending the run");
+  assert.equal(response.request_id, "agy-1");
+  assert.equal(response.world_state.narrative_state.story_summary, "A complete causal account.");
+});
+
+test("a permission failure on both attempts explains itself instead of quoting the CLI", async () => {
+  const runner = createAntigravityContinuityRunner({
+    agy: "agy", model: "m", effort: "high", prompt: "INSTRUCTIONS",
+    validateSchema: () => {}, timeoutMillis: 1000, workspaceRoot: tmpdir(),
+    runProcess: async () => { throw new Error(`Antigravity continuity exited with status 0: ${DENIED}`); }
+  });
+
+  await assert.rejects(() => runner(continuityRequest()), error => {
+    assert.match(error.message, /tried to use a tool that headless mode auto-denies/);
+    assert.doesNotMatch(error.message, /permissions\.allow|jetski/, "no raw CLI remediation reaches the phone");
+    return true;
+  });
+});
+
+test("the no-tools instruction reaches the model with the task", async () => {
+  let seen = "";
+  const runner = createAntigravityContinuityRunner({
+    agy: "agy", model: "m", effort: "high", prompt: "INSTRUCTIONS",
+    validateSchema: () => {}, timeoutMillis: 1000, workspaceRoot: tmpdir(),
+    runProcess: async (_bin, args) => { seen = args[1]; return VALID_DRAFT; }
+  });
+  await runner(continuityRequest());
+  assert.match(seen, /running headless with no tool access/);
+  assert.match(seen, /INSTRUCTIONS/);
 });

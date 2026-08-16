@@ -71,7 +71,8 @@ export function createAntigravityProbe({ agy, model, effort, timeoutMillis = PRE
 }
 
 export function createAntigravityContinuityRunner({
-  agy, model, effort, prompt, validateSchema, timeoutMillis, workspaceRoot = process.cwd()
+  agy, model, effort, prompt, validateSchema, timeoutMillis, workspaceRoot = process.cwd(),
+  runProcess = runProcessCapture
 }) {
   return async function runContinuity(request, { signal, onState = async () => {}, drafts } = {}) {
     const work = await mkdtemp(join(workspaceRoot, ".open-fantasia-continuity-"));
@@ -88,22 +89,26 @@ export function createAntigravityContinuityRunner({
           prompt, request, priorDraft,
           validationError?.message ?? "A previous run was interrupted before its draft could be validated."
         );
-        const output = await runProcessCapture(agy, [
-          "--print",
-          (repair ?? task) + ANTIGRAVITY_NO_TOOLS,
-          "--new-project",
-          "--model", model,
-          "--effort", effort,
-          "--sandbox",
-          "--print-timeout", "30m"
-        ], { cwd: work, timeoutMillis, signal, label: "Antigravity continuity" });
-        await onState("validating");
         let draft = null;
         try {
+          // The process call belongs inside the attempt, not before it. An auto-denied tool
+          // permission makes the CLI exit 0 having produced nothing, and that throw used to escape
+          // the loop entirely: no second attempt, and the raw CLI text went to the phone unread.
+          const output = await runProcess(agy, [
+            "--print",
+            (repair ?? task) + ANTIGRAVITY_NO_TOOLS,
+            "--new-project",
+            "--model", model,
+            "--effort", effort,
+            "--sandbox",
+            "--print-timeout", "30m"
+          ], { cwd: work, timeoutMillis, signal, label: "Antigravity continuity" });
+          await onState("validating");
           draft = JSON.parse(cleanJsonOutput(output));
           validateSchema(draft);
           return acceptContinuityDraft(request, draft);
         } catch (error) {
+          if (signal?.aborted) throw error;
           validationError = new Error(describeAntigravityFailure({ message: describeContinuityFailure(error) }));
           if (draft) {
             priorDraft = draft;
