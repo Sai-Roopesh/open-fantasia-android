@@ -384,6 +384,7 @@ async function main() {
     model: config.antigravityModel,
     effort: config.antigravityEffort,
     prompt,
+    draftSchemaJson: await readFile(draftSchema, "utf8"),
     validateSchema,
     timeoutMillis: config.continuityTimeoutMilliseconds,
     workspaceRoot: here

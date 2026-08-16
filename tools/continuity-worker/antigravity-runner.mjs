@@ -29,6 +29,39 @@ function cleanJsonOutput(value) {
  * through a tool; this says the stronger thing, that no tool exists to call, and it lives in the
  * adapter because it is a property of this CLI rather than of the Continuity Draft contract.
  */
+/**
+ * Codex is handed `--output-schema` and the CLI enforces it. Antigravity has no equivalent, so the
+ * only thing standing between it and the right JSON shape is the prose in PROMPT.md — which describes
+ * the vocabulary but never the literal keys.
+ *
+ * On a real request it produced a genuinely good draft twice over and failed both times on shape:
+ * every one of forty operations missing `op`, every presence entry using its own key names, every
+ * timeline event missing `exchange` and giving `importance` as a non-integer. The work was right and
+ * the envelope was wrong, which is the most wasteful way to fail.
+ *
+ * So this adapter delivers the schema itself, plus one filled-in operation, because a flat object with
+ * eighteen nullable keys is easy to describe and hard to guess.
+ */
+function antigravityDraftShape(draftSchemaJson) {
+  return [
+    "",
+    "Your reply must match this JSON Schema exactly. Every key listed in a `required` array must be",
+    "present on every object, including the ones that do not apply — write `null` for those rather than",
+    "omitting them. Integers must be integers, not strings or decimals.",
+    "<continuity_draft_schema>",
+    draftSchemaJson,
+    "</continuity_draft_schema>",
+    "",
+    "One complete operation object, for shape only:",
+    JSON.stringify({
+      op: "assert_fact", handle: null, entity: "vera", bucket: "traits", from: null, to: null,
+      name: null, kind: null, body: "Keeps to high ground", status: null, aliases: null,
+      modifiers: null, bidirectional: null, profile: null, evidence: null,
+      first_seen_exchange: null, dependencies: null, reason: null
+    })
+  ].join("\n");
+}
+
 const ANTIGRAVITY_NO_TOOLS =
   "\n\nYou are running headless with no tool access. Do not call read_file, run a terminal command, " +
   "search, or use any other tool: every one of them is auto-denied and a denied call wastes the entire " +
@@ -71,13 +104,14 @@ export function createAntigravityProbe({ agy, model, effort, timeoutMillis = PRE
 }
 
 export function createAntigravityContinuityRunner({
-  agy, model, effort, prompt, validateSchema, timeoutMillis, workspaceRoot = process.cwd(),
-  runProcess = runProcessCapture
+  agy, model, effort, prompt, draftSchemaJson = "", validateSchema, timeoutMillis,
+  workspaceRoot = process.cwd(), runProcess = runProcessCapture
 }) {
   return async function runContinuity(request, { signal, onState = async () => {}, drafts } = {}) {
     const work = await mkdtemp(join(workspaceRoot, ".open-fantasia-continuity-"));
     try {
-      const task = renderContinuityModelInput(prompt, request);
+      const shape = draftSchemaJson ? antigravityDraftShape(draftSchemaJson) : "";
+      const task = renderContinuityModelInput(prompt, request) + shape;
       requireDirectModelInputSize(task, "Canonical continuity context");
       let validationError = null;
       // Same resumable, section-scoped repair as the Codex adapter: the draft an earlier run authored
@@ -89,6 +123,7 @@ export function createAntigravityContinuityRunner({
           prompt, request, priorDraft,
           validationError?.message ?? "A previous run was interrupted before its draft could be validated."
         );
+        const attemptInput = repair ? repair + shape : task;
         let draft = null;
         try {
           // The process call belongs inside the attempt, not before it. An auto-denied tool
@@ -96,7 +131,7 @@ export function createAntigravityContinuityRunner({
           // the loop entirely: no second attempt, and the raw CLI text went to the phone unread.
           const output = await runProcess(agy, [
             "--print",
-            (repair ?? task) + ANTIGRAVITY_NO_TOOLS,
+            attemptInput + ANTIGRAVITY_NO_TOOLS,
             "--new-project",
             "--model", model,
             "--effort", effort,

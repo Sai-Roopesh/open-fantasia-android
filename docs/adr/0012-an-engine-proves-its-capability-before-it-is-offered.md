@@ -28,6 +28,15 @@ CLI plainly that it is running without tools and that every call will be denied,
 resulting error into a message naming the cause. Preflight makes the knowable failures fast; it does not
 turn an unknowable one into a guarantee.
 
+Capability differs in a second way preflight cannot see. Codex is handed `--output-schema` and its CLI
+enforces the Continuity Draft shape; Antigravity has no equivalent, and was originally given only the
+prose in PROMPT.md, which names the operation vocabulary but never the literal JSON keys. It authored
+two genuinely good drafts for a real request and both were rejected on shape alone — every operation
+missing `op`, every presence entry using its own key names, every timeline event missing `exchange`.
+An adapter without structured output therefore carries the schema in its prompt, together with one
+filled-in operation, because a flat object with eighteen nullable keys is easy to describe and hard to
+guess. The contract is the same for every engine; how each is made to satisfy it is adapter-local.
+
 ## Considered Options
 
 - Granting broad tool permissions would stop the denial, at the cost of giving a headless agent file
