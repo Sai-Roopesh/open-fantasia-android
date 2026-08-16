@@ -69,6 +69,24 @@ import com.example.open_fantasia.ui.components.MarkdownText
 import kotlin.math.roundToInt
 import java.io.File
 
+internal fun macRoleplayStatusText(
+    modelId: String,
+    hostState: ContinuityHostState
+): String? {
+    if (!RoleplayProtocol.isSupportedModel(modelId)) return null
+    return when (hostState) {
+        ContinuityHostState.Unpaired -> "Mac Host is not paired. Open Settings to pair it."
+        ContinuityHostState.Checking -> "Checking the Mac Host…"
+        is ContinuityHostState.Unavailable ->
+            "Waiting for Mac Host — turn on Tailscale on this phone and the Mac."
+        is ContinuityHostState.Incompatible -> "Mac Host and app versions are incompatible."
+        is ContinuityHostState.Available -> when (modelId) {
+            RoleplayProtocol.CLAUDE_CODE_MODEL_ID -> "Claude Sonnet is writing on your Mac…"
+            else -> "Gemini is writing on your Mac…"
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(
@@ -138,6 +156,16 @@ fun ChatWorkspace(
         scanEvent?.let {
             Toast.makeText(context, it, Toast.LENGTH_LONG).show()
             viewModel.consumeScanEvent()
+        }
+    }
+
+    // Why a Cast Seed was refused — a duplicate name, or a missing one. Without this the editor looked
+    // like it had saved and the thread failed its next Continuity Update instead.
+    val castEvent by viewModel.castEvent.collectAsState()
+    LaunchedEffect(castEvent) {
+        castEvent?.let {
+            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+            viewModel.consumeCastEvent()
         }
     }
     LaunchedEffect(state.activeBranch.id, state.activeBranch.active_speaker_id, state.activeBranch.speaker_mode, state.castRoster) {
@@ -418,7 +446,22 @@ fun ChatWorkspace(
                                     state.castRoster.firstOrNull { it.cast_id == state.activeBranch.active_speaker_id }?.canonical_name
                                         ?: state.character.name
                                 if (state.generatingText.isEmpty()) {
-                                    TypingIndicator(characterName = liveSpeaker)
+                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        TypingIndicator(characterName = liveSpeaker)
+                                        macRoleplayStatusText(
+                                            modelId = state.thread.model_id,
+                                            hostState = state.continuityHostState
+                                        )?.let { status ->
+                                            Text(
+                                                text = status,
+                                                color = if (state.continuityHostState is ContinuityHostState.Unavailable)
+                                                    Color(0xFFFFC857) else Color(0xFFB8B8C6),
+                                                fontFamily = Inter,
+                                                fontSize = 12.sp,
+                                                modifier = Modifier.padding(horizontal = 20.dp)
+                                            )
+                                        }
+                                    }
                                 } else {
                                     StreamingAssistantRow(
                                         characterName = liveSpeaker,
@@ -1589,7 +1632,7 @@ fun ThreadSettingsDialog(
                 if (models.isNotEmpty()) {
                     ExposedDropdownMenuBox(expanded = modelExpanded, onExpandedChange = { modelExpanded = it }) {
                         OutlinedTextField(
-                            value = selectedModel,
+                            value = models.find { it.id == selectedModel }?.name ?: selectedModel,
                             onValueChange = {},
                             readOnly = true,
                             label = { Text("Roleplay model") },
@@ -1605,7 +1648,14 @@ fun ThreadSettingsDialog(
                         ) {
                             models.forEach { model ->
                                 DropdownMenuItem(
-                                    text = { Text(model.id, color = Color.White) },
+                                    text = {
+                                        Column {
+                                            Text(model.name, color = Color.White)
+                                            model.hint?.let { hint ->
+                                                Text(hint, color = Color(0xFFB8B8C6), fontSize = 11.sp)
+                                            }
+                                        }
+                                    },
                                     onClick = {
                                         selectedModel = model.id
                                         modelExpanded = false
@@ -1617,7 +1667,7 @@ fun ThreadSettingsDialog(
                 }
                 if (selectedConn?.provider == RoleplayProtocol.PROVIDER) {
                     Text(
-                        "Antigravity uses the same roleplay prompt and history, but its CLI does not expose Temperature or Top P. Response length and variation are enforced through the prompt.",
+                        "Mac-hosted models receive the same complete roleplay prompt, Continuity Snapshot, and transcript. CLI models do not expose every sampler control, so response length and variation are also enforced through the prompt.",
                         color = Color(0xFFB8B8C6),
                         fontFamily = Inter,
                         fontSize = 12.sp

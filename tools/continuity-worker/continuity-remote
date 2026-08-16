@@ -9,6 +9,21 @@ plist="$HOME/Library/LaunchAgents/$label.plist"
 node_bin="$(command -v node)"
 export TAILSCALE_BE_CLI=1
 
+claude_bin=""
+for candidate in "$HOME/.local/bin/claude" /opt/homebrew/bin/claude; do
+  if [ -x "$candidate" ]; then claude_bin="$candidate"; break; fi
+done
+
+run_claude_subscription() {
+  if [ -z "$claude_bin" ]; then
+    echo "Claude Code is not installed. Install the official Claude Code CLI first." >&2
+    exit 1
+  fi
+  env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN -u ANTHROPIC_BASE_URL \
+    -u CLAUDE_CODE_USE_BEDROCK -u CLAUDE_CODE_USE_VERTEX -u CLAUDE_CODE_USE_FOUNDRY \
+    "$claude_bin" "$@"
+}
+
 tailscale_bin=""
 for candidate in /usr/local/bin/tailscale /Applications/Tailscale.app/Contents/MacOS/Tailscale; do
   if [ -x "$candidate" ]; then tailscale_bin="$candidate"; break; fi
@@ -65,6 +80,12 @@ case "$command" in
     if [ -n "$tailscale_bin" ]; then "$tailscale_bin" status --self 2>/dev/null || true; else echo "Tailscale: not installed"; fi
     "$node_bin" "$here/host-cli.mjs" status
     ;;
+  claude-login)
+    run_claude_subscription auth login
+    ;;
+  claude-status)
+    run_claude_subscription auth status --text
+    ;;
   pair)
     require_tailscale
     "$node_bin" "$here/host-cli.mjs" pair --endpoint "$(endpoint)"
@@ -76,7 +97,7 @@ case "$command" in
     "$node_bin" "$here/host-cli.mjs" revoke "${2:-}"
     ;;
   *)
-    echo "Usage: fantasia-host {on|off [--force]|status|pair|devices|revoke ID}" >&2
+    echo "Usage: fantasia-host {on|off [--force]|status|claude-login|claude-status|pair|devices|revoke ID}" >&2
     exit 2
     ;;
 esac

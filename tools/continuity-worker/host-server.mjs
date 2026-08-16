@@ -9,12 +9,14 @@ import {
   DeviceRegistry, DurableJobStore, HOST_PROTOCOL_VERSION, MAX_REQUEST_BYTES,
   computeContractId, createContractGuard
 } from "./host-lib.mjs";
-import { createCodexRunner, firstWorkingExecutable } from "./codex-runner.mjs";
+import { createCodexProbe, createCodexRunner, firstWorkingExecutable } from "./codex-runner.mjs";
 import {
   createAntigravityContinuityRunner,
+  createAntigravityProbe,
   createAntigravityPortraitRunner,
   createAntigravityRoleplayRunner
 } from "./antigravity-runner.mjs";
+import { createClaudeRoleplayRunner } from "./claude-runner.mjs";
 import { createSchemaValidator } from "./schema-validator.mjs";
 import { ensureHostAuthPepper } from "./keychain.mjs";
 
@@ -22,6 +24,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 export const CODEX_CONTINUITY_ENGINE = "codex:gpt-5.6-terra:high";
 export const ANTIGRAVITY_CONTINUITY_ENGINE = "antigravity:gemini-3.6-flash:high";
 export const ANTIGRAVITY_ROLEPLAY_MODEL = "antigravity:gemini-3.6-flash:high";
+export const CLAUDE_CODE_ROLEPLAY_MODEL = "claude-code:sonnet:high";
 export const ANTIGRAVITY_PORTRAIT_MODEL = "antigravity:managed-image";
 
 function jsonResponse(response, status, value) {
@@ -70,7 +73,12 @@ export async function createContinuityHost({
   runContinuity,
   continuityRunners,
   runRoleplay,
+  roleplayRunners,
   runPortrait,
+  // Why a Continuity Engine is not on offer, keyed by engine id. A checkpoint for an engine that
+  // failed preflight is refused at submission with that reason instead of being queued for a run
+  // nobody can complete.
+  continuityEngineFailures = new Map(),
   now = () => Date.now(),
   authPepper = "",
   cleanupIntervalMillis = 15 * 60 * 1000
@@ -87,6 +95,7 @@ export async function createContinuityHost({
   let continuityActive = false;
   let codexActive = false;
   let antigravityActive = false;
+  let claudeActive = false;
   let pumpPromise = null;
   let pumpRequested = false;
   let submitQueue = Promise.resolve();
@@ -102,12 +111,20 @@ export async function createContinuityHost({
   };
 
   const runners = continuityRunners ?? new Map([[CODEX_CONTINUITY_ENGINE, runContinuity]]);
+  const roleplay = roleplayRunners ?? new Map(
+    runRoleplay ? [[ANTIGRAVITY_ROLEPLAY_MODEL, runRoleplay]] : []
+  );
+
+  const laneForRoleplayModel = modelId =>
+    modelId === CLAUDE_CODE_ROLEPLAY_MODEL ? "claude" : "antigravity";
+  const laneAvailable = lane => lane === "claude" ? !claudeActive : !antigravityActive;
 
   const launch = (job, request, runner, lane) => {
     const isContinuity = (job.job_type ?? "continuity") === "continuity";
     if (isContinuity) continuityActive = true;
     if (lane === "codex") codexActive = true;
     if (lane === "antigravity") antigravityActive = true;
+    if (lane === "claude") claudeActive = true;
     const controller = new AbortController();
     active.set(job.request_id, { controller, lane, isContinuity });
     const execution = (async () => {
@@ -115,6 +132,12 @@ export async function createContinuityHost({
       try {
         const result = await runner(request, {
           signal: controller.signal,
+          // Continuity work is the only kind expensive enough for a corrective run to be worth
+          // resuming rather than restarting.
+          drafts: isContinuity ? {
+            load: () => store.getDraft(job.request_id),
+            save: (draft, defects) => store.saveDraft(job.request_id, draft, defects)
+          } : undefined,
           onState: async state => {
             if (state === "validating") await store.markValidating(job.request_id);
             else if (state === "generating") await store.updateState(job.request_id, { status: "generating" });
@@ -130,6 +153,7 @@ export async function createContinuityHost({
         if (isContinuity) continuityActive = false;
         if (lane === "codex") codexActive = false;
         if (lane === "antigravity") antigravityActive = false;
+        if (lane === "claude") claudeActive = false;
       }
     })();
     activeRuns.add(execution);
@@ -158,14 +182,27 @@ export async function createContinuityHost({
           }
         }
       }
-      if (!antigravityActive) {
-        const job = await store.nextQueued(["roleplay"]);
+      for (const [modelId, runner] of roleplay) {
+        const lane = laneForRoleplayModel(modelId);
+        if (!runner || !laneAvailable(lane)) continue;
+        const job = await store.nextQueued(["roleplay"], state => state.model_id === modelId);
         if (job) {
           const request = await store.getRequest(job.request_id);
           if (!request) await store.markFailed(job.request_id, "Roleplay request content is unavailable");
-          else if (!runRoleplay) await store.markFailed(job.request_id, "Antigravity roleplay is unavailable");
-          else launch(job, request, runRoleplay, "antigravity");
+          else launch(job, request, runner, lane);
         }
+      }
+      const unavailableRoleplay = await store.nextQueued(
+        ["roleplay"],
+        state => !roleplay.has(state.model_id)
+      );
+      if (unavailableRoleplay) {
+        await store.markFailed(
+          unavailableRoleplay.request_id,
+          unavailableRoleplay.model_id === CLAUDE_CODE_ROLEPLAY_MODEL
+            ? "Claude Code is not installed or not available to the Mac Host"
+            : `Unsupported Roleplay Model: ${unavailableRoleplay.model_id || "missing"}`
+        );
       }
       if (!antigravityActive) {
         const job = await store.nextQueued(["portrait"]);
@@ -202,6 +239,9 @@ export async function createContinuityHost({
         return jsonResponse(response, 200, {
           protocol_version: HOST_PROTOCOL_VERSION,
           state: draining ? "draining" : "enabled",
+          roleplay_models: [...roleplay.keys()],
+          continuity_engines: [...runners.keys()],
+          continuity_engines_unavailable: Object.fromEntries(continuityEngineFailures),
           ...(await store.summary())
         });
       }
@@ -210,6 +250,8 @@ export async function createContinuityHost({
         if (draining) return jsonResponse(response, 503, { code: "draining", message: "Mac Host is shutting down" });
         const body = await readJsonBody(request);
         if (![CODEX_CONTINUITY_ENGINE, ANTIGRAVITY_CONTINUITY_ENGINE].includes(body.engine_id)) throw new Error("Unsupported Continuity Engine");
+        const engineFailure = continuityEngineFailures.get(body.engine_id);
+        if (engineFailure) throw new Error(`Continuity Engine is unavailable: ${engineFailure}`);
         const result = await serialize("submit", () => store.createOrGet(body, device.id, "continuity"));
         pump();
         return jsonResponse(response, result.created ? 202 : 200, await store.statusForDevice(body.request_id, device.id));
@@ -218,7 +260,9 @@ export async function createContinuityHost({
       if (request.method === "POST" && url.pathname === "/v2/roleplay-jobs") {
         if (draining) return jsonResponse(response, 503, { code: "draining", message: "Mac Host is shutting down" });
         const body = await readJsonBody(request);
-        if (body.model_id !== ANTIGRAVITY_ROLEPLAY_MODEL) throw new Error("Unsupported Roleplay Model");
+        if (![ANTIGRAVITY_ROLEPLAY_MODEL, CLAUDE_CODE_ROLEPLAY_MODEL].includes(body.model_id)) {
+          throw new Error("Unsupported Roleplay Model");
+        }
         const result = await serialize("submit", () => store.createOrGet(body, device.id, "roleplay"));
         pump();
         return jsonResponse(response, result.created ? 202 : 200, await store.statusForDevice(body.request_id, device.id));
@@ -313,15 +357,24 @@ async function main() {
   const root = process.env.OPEN_FANTASIA_HOST_ROOT || join(homedir(), "Library", "Application Support", "OpenFantasia", "continuity-host", "v1");
   const codex = await firstWorkingExecutable(config.codexCandidates);
   const agy = await firstWorkingExecutable(config.antigravityCandidates);
+  let claude = null;
+  try {
+    claude = await firstWorkingExecutable(config.claudeCandidates);
+  } catch {
+    console.warn("Claude Code is not installed; Claude roleplay will remain unavailable");
+  }
   const prompt = await readFile(join(here, "PROMPT.md"), "utf8");
-  const responseSchema = join(here, "response.schema.json");
-  const validateSchema = await createSchemaValidator(responseSchema);
+  // Engines produce a Continuity Draft; the Continuity Compiler produces the snapshot. The response
+  // schema still governs what leaves the host, but no model is ever asked to satisfy it. See ADR-0010.
+  const draftSchema = join(here, "draft.schema.json");
+  const probeSchema = join(here, "probe.schema.json");
+  const validateSchema = await createSchemaValidator(draftSchema);
   const runCodexContinuity = createCodexRunner({
     codex,
     model: config.codexModel,
     reasoningEffort: config.codexReasoningEffort,
     prompt,
-    responseSchema,
+    draftSchema,
     validateSchema,
     timeoutMillis: config.continuityTimeoutMilliseconds,
     workspaceRoot: here
@@ -342,6 +395,13 @@ async function main() {
     timeoutMillis: config.roleplayTimeoutMilliseconds,
     workspaceRoot: here
   });
+  const runClaudeRoleplay = claude ? createClaudeRoleplayRunner({
+    claude,
+    model: config.claudeModel,
+    effort: config.claudeEffort,
+    timeoutMillis: config.roleplayTimeoutMilliseconds,
+    workspaceRoot: here
+  }) : null;
   const runPortrait = createAntigravityPortraitRunner({
     agy,
     model: config.antigravityModel,
@@ -349,16 +409,41 @@ async function main() {
     timeoutMillis: config.portraitTimeoutMilliseconds,
     workspaceRoot: here
   });
+  // Each Continuity Engine proves its exact execution path before it is offered. An engine that fails
+  // here is refused at submission with the reason, instead of accepting a checkpoint and failing after
+  // the wait — which is how a permission Antigravity could not prompt for stayed invisible.
+  const continuityEngineFailures = new Map();
+  const healthyContinuityRunners = new Map();
+  for (const [engineId, runner, preflight] of [
+    [CODEX_CONTINUITY_ENGINE, runCodexContinuity, createCodexProbe({
+      codex, model: config.codexModel, reasoningEffort: config.codexReasoningEffort, probeSchema
+    })],
+    [ANTIGRAVITY_CONTINUITY_ENGINE, runAntigravityContinuity, createAntigravityProbe({
+      agy, model: config.antigravityModel, effort: config.antigravityEffort
+    })]
+  ]) {
+    try {
+      await preflight();
+      healthyContinuityRunners.set(engineId, runner);
+      console.log(`Continuity Engine ready: ${engineId}`);
+    } catch (error) {
+      const reason = String(error?.message || "preflight failed").slice(0, 300);
+      continuityEngineFailures.set(engineId, reason);
+      console.warn(`Continuity Engine unavailable: ${engineId} — ${reason}`);
+    }
+  }
+
   const authPepper = await ensureHostAuthPepper();
   const host = await createContinuityHost({
     root,
     bind: config.hostBind ?? "127.0.0.1",
     port: config.hostPort ?? 47831,
-    continuityRunners: new Map([
-      [CODEX_CONTINUITY_ENGINE, runCodexContinuity],
-      [ANTIGRAVITY_CONTINUITY_ENGINE, runAntigravityContinuity]
+    continuityRunners: healthyContinuityRunners,
+    continuityEngineFailures,
+    roleplayRunners: new Map([
+      [ANTIGRAVITY_ROLEPLAY_MODEL, runRoleplay],
+      ...(runClaudeRoleplay ? [[CLAUDE_CODE_ROLEPLAY_MODEL, runClaudeRoleplay]] : [])
     ]),
-    runRoleplay,
     runPortrait,
     authPepper
   });

@@ -6,6 +6,7 @@ import { join } from "node:path";
 import {
   ANTIGRAVITY_PORTRAIT_MODEL,
   ANTIGRAVITY_ROLEPLAY_MODEL,
+  CLAUDE_CODE_ROLEPLAY_MODEL,
   CODEX_CONTINUITY_ENGINE,
   createContinuityHost
 } from "./host-server.mjs";
@@ -205,6 +206,67 @@ test("roleplay jobs use the same pairing and durable acknowledgement protocol", 
   }
 });
 
+test("Claude Code roleplay uses its own runner while preserving the shared host protocol", async () => {
+  const root = await mkdtemp(join(tmpdir(), "open-fantasia-claude-server-test-"));
+  let invoked = false;
+  const runClaude = async input => {
+    invoked = true;
+    return {
+      protocol_version: 2,
+      job_type: "roleplay",
+      request_id: input.request_id,
+      thread_id: input.thread_id,
+      branch_id: input.branch_id,
+      turn_id: input.turn_id,
+      requested_speaker_id: input.requested_speaker_id,
+      speaker_mode: input.speaker_mode,
+      model_id: input.model_id,
+      reply_text: "Claude reply",
+      elapsed_millis: 8
+    };
+  };
+  const host = await createContinuityHost({
+    root,
+    port: 0,
+    runContinuity: async input => input,
+    roleplayRunners: new Map([[CLAUDE_CODE_ROLEPLAY_MODEL, runClaude]])
+  });
+  const address = await host.start();
+  const base = `http://127.0.0.1:${address.port}`;
+  try {
+    const paired = await pair(host, base);
+    const headers = { authorization: `Bearer ${paired.credential}`, "content-type": "application/json" };
+    const requestBody = {
+      protocol_version: 2,
+      job_type: "roleplay",
+      request_id: "claude-roleplay-server-1",
+      thread_id: "thread-1",
+      branch_id: "branch-1",
+      turn_id: "turn-1",
+      requested_speaker_id: null,
+      speaker_mode: "single",
+      model_id: CLAUDE_CODE_ROLEPLAY_MODEL,
+      attempt_count: 0,
+      request_hash: "hash",
+      generation_request: {}
+    };
+    assert.equal((await fetch(`${base}/v2/roleplay-jobs`, {
+      method: "POST", headers, body: JSON.stringify(requestBody)
+    })).status, 202);
+    for (let attempt = 0; attempt < 100; attempt++) {
+      const status = await (await fetch(`${base}/v2/roleplay-jobs/${requestBody.request_id}`, { headers })).json();
+      if (status.status === "ready") break;
+      await new Promise(resolve => setTimeout(resolve, 5));
+    }
+    const result = await (await fetch(`${base}/v2/roleplay-jobs/${requestBody.request_id}/result`, { headers })).json();
+    assert.equal(result.reply_text, "Claude reply");
+    assert.equal(invoked, true);
+  } finally {
+    await host.stop({ force: true });
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("portrait jobs use the shared host and return an immutable image envelope", async () => {
   const root = await mkdtemp(join(tmpdir(), "open-fantasia-portrait-server-test-"));
   const runPortrait = async input => ({
@@ -267,4 +329,39 @@ test("portrait jobs use the shared host and return an immutable image envelope",
     await host.stop({ force: true });
     await rm(root, { recursive: true, force: true });
   }
+});
+
+// A Continuity Engine that failed its capability preflight is refused where the phone can act on it,
+// not after a checkpoint has sat in the queue waiting for a run that cannot happen. Antigravity spent
+// a full Continuity Update discovering a headless permission it could never have been granted.
+test("a checkpoint for an engine that failed preflight is refused with the reason", async () => {
+  await withHost(async input => input, async ({ host, base }) => {
+    const paired = await pair(host, base);
+    const response = await fetch(`${base}/v2/checkpoints`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${paired.credential}` },
+      body: JSON.stringify(request("preflight-refused"))
+    });
+    assert.equal(response.status, 400);
+    const body = await response.json();
+    assert.match(body.message, /Continuity Engine is unavailable: read_file permission auto-denied/);
+    assert.equal(await host.store.getState("preflight-refused"), null, "nothing is queued");
+  }, {
+    continuityRunners: new Map(),
+    continuityEngineFailures: new Map([[CODEX_CONTINUITY_ENGINE, "read_file permission auto-denied"]])
+  });
+});
+
+test("health reports which Continuity Engines are available and why others are not", async () => {
+  await withHost(async input => input, async ({ host, base }) => {
+    const paired = await pair(host, base);
+    const health = await (await fetch(`${base}/v2/health`, {
+      headers: { authorization: `Bearer ${paired.credential}` }
+    })).json();
+    assert.deepEqual(health.continuity_engines, [CODEX_CONTINUITY_ENGINE]);
+    assert.deepEqual(health.continuity_engines_unavailable, { "antigravity:gemini-3.6-flash:high": "not signed in" });
+  }, {
+    continuityRunners: new Map([[CODEX_CONTINUITY_ENGINE, async input => input]]),
+    continuityEngineFailures: new Map([["antigravity:gemini-3.6-flash:high", "not signed in"]])
+  });
 });

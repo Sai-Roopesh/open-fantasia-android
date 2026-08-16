@@ -143,7 +143,7 @@ class SettingsViewModel(
                     continuityHostClient.checkHealth()
                     connectionDao.insertConnection(connection.copy(
                         health_status = "healthy",
-                        health_message = "Mac Host and Antigravity route are available.",
+                        health_message = "Mac Host is available for subscription-backed models.",
                         last_checked_at = Instant.now().toString(),
                         updated_at = Instant.now().toString()
                     ))

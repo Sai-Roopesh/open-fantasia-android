@@ -1,7 +1,8 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { toModelFacingRequest } from "./worker-lib.mjs";
+import { ContinuityCompileError, compileContinuityDraft, projectContinuityEvidence } from "./compiler.mjs";
+import { validateResponse } from "./worker-lib.mjs";
 
 export const HOST_PROTOCOL_VERSION = 2;
 export const MAX_REQUEST_BYTES = 8 * 1024 * 1024;
@@ -12,13 +13,79 @@ export function renderContinuityModelInput(prompt, request) {
     prompt,
     "",
     "The complete authoritative Continuity Request is the JSON value below. Read every field and every exchange; do not skip, sample, summarize, or retrieve it through a tool.",
-    "Every exchange carries an `exchange_index`. Cite exchanges by that ordinal — `\"#12\"` — wherever a turn reference is required. Never transcribe a turn UUID.",
+    "Every object is addressed by its `handle`. Every exchange is addressed by its `index`, written `\"#12\"`. Those are the only references that exist; there are no stored identifiers to copy.",
     "<continuity_request_json>",
-    JSON.stringify(toModelFacingRequest(request)),
+    JSON.stringify(projectContinuityEvidence(request)),
     "</continuity_request_json>",
     "",
-    "Return only the required response JSON object."
+    "Return only the Continuity Draft JSON object."
   ].join("\n");
+}
+
+/**
+ * The corrective run's input: the same request, plus the draft that failed and why.
+ *
+ * A retry used to be a stateless regeneration — the engine was told what went wrong and then asked to
+ * author the whole state transition again from nothing, discarding every sentence that was correct
+ * along with the one operation that was not. Handing back the draft turns the second run into a repair
+ * of a specific section, which is both cheaper and far more likely to keep the prose a person will
+ * actually read.
+ *
+ * Returns null when the repair input would exceed the direct-delivery limit, because a partially
+ * delivered draft is worse than a clean regeneration.
+ */
+export function renderContinuityRepairInput(prompt, request, previousDraft, failure) {
+  const input = [
+    renderContinuityModelInput(prompt, request),
+    "",
+    "## Repair a draft you already wrote",
+    "",
+    "You authored the Continuity Draft below for this exact request. It could not be compiled:",
+    "",
+    failure,
+    "",
+    "Return one corrected, complete Continuity Draft. Keep everything the defects do not implicate —",
+    "the prose, the scene, and every operation that compiled — and change only what is named above.",
+    "Do not start over, and do not drop work to be safe.",
+    "<previous_continuity_draft>",
+    JSON.stringify(previousDraft),
+    "</previous_continuity_draft>"
+  ].join("\n");
+  return Buffer.byteLength(input, "utf8") > MAX_DIRECT_MODEL_INPUT_BYTES ? null : input;
+}
+
+/**
+ * Turns one Continuity Draft into an accepted Continuity Snapshot: compile it over the baseline, then
+ * gate the result through the same semantic validation Android runs independently.
+ *
+ * Recoverable Continuity Defects are logged as counts and codes only. Diagnostics never carry story
+ * prose, and an operation the compiler could not apply is not a reason to spend another engine run.
+ */
+export function acceptContinuityDraft(request, draft) {
+  const { response, defects } = compileContinuityDraft(request, draft);
+  validateResponse(request, response);
+  const recoverable = defects.filter(defect => defect.severity === "recoverable");
+  if (recoverable.length) {
+    const summary = [...new Set(recoverable.map(defect => defect.code))].sort().join(", ");
+    console.warn(`continuity: compiled request ${request.request_id} with ${recoverable.length} recoverable defect(s): ${summary}`);
+  }
+  return response;
+}
+
+/**
+ * The correction handed to an engine on its second attempt. Typed defects name the operation that
+ * failed, so the engine is told what to fix rather than asked to regenerate everything and hope.
+ */
+export function describeContinuityFailure(error) {
+  if (!(error instanceof ContinuityCompileError)) {
+    return String(error?.message || "The draft could not be compiled into a Continuity Snapshot");
+  }
+  return error.defects
+    .map(defect => {
+      const where = defect.operation_index === null ? "draft" : `operation ${defect.operation_index}`;
+      return `${defect.severity} ${defect.code} in ${where}: ${defect.message}`;
+    })
+    .join("; ");
 }
 
 /**
@@ -29,7 +96,10 @@ export function renderContinuityModelInput(prompt, request) {
 export const CONTRACT_FILES = [
   "PROMPT.md",
   "config.json",
+  "draft.schema.json",
+  "probe.schema.json",
   "response.schema.json",
+  "compiler.mjs",
   "host-lib.mjs",
   "worker-lib.mjs",
   "codex-runner.mjs",
@@ -282,6 +352,7 @@ export class DurableJobStore {
   #statePath(id) { return join(this.#jobDir(id), "state.json"); }
   #requestPath(id) { return join(this.#jobDir(id), "request.json"); }
   #responsePath(id) { return join(this.#jobDir(id), "response.json"); }
+  #draftPath(id) { return join(this.#jobDir(id), "draft.json"); }
 
   async #jobIds() {
     try {
@@ -376,6 +447,25 @@ export class DurableJobStore {
     return readJson(this.#responsePath(id), null);
   }
 
+  /**
+   * The Continuity Draft an engine authored, kept with its typed Continuity Defects until the job is
+   * acknowledged or expires.
+   *
+   * A corrective run used to discard the draft and generate a new one from nothing, which threw away
+   * every correct sentence alongside the one operation that failed and cost another full run. Keeping
+   * it durably rather than in memory also means a host restarted mid-checkpoint resumes from the work
+   * already paid for instead of starting over.
+   *
+   * It holds story prose, so it lives under the same retention and deletion rules as the request.
+   */
+  async saveDraft(id, draft, defects = []) {
+    await atomicWriteJson(this.#draftPath(id), { draft, defects, saved_at: this.now() });
+  }
+
+  async getDraft(id) {
+    return readJson(this.#draftPath(id), null);
+  }
+
   async updateState(id, patch) {
     const state = await this.getState(id);
     if (!state) throw new Error("Unknown Mac Host request");
@@ -384,9 +474,10 @@ export class DurableJobStore {
     return updated;
   }
 
-  async nextQueued(jobTypes = ["continuity", "roleplay", "portrait"]) {
+  async nextQueued(jobTypes = ["continuity", "roleplay", "portrait"], predicate = () => true) {
     const states = (await Promise.all((await this.#jobIds()).map(id => this.getState(id))))
-      .filter(state => state?.status === "queued" && jobTypes.includes(state.job_type ?? "continuity"))
+      .filter(state => state?.status === "queued" &&
+        jobTypes.includes(state.job_type ?? "continuity") && predicate(state))
       .sort((left, right) => left.sequence - right.sequence || left.received_at - right.received_at);
     return states[0] ?? null;
   }
@@ -418,6 +509,7 @@ export class DurableJobStore {
     if (state.status !== "ready" && state.status !== "acknowledged") throw new Error("Mac Host result is not ready");
     await rm(this.#requestPath(id), { force: true });
     await rm(this.#responsePath(id), { force: true });
+    await rm(this.#draftPath(id), { force: true });
     return this.updateState(id, { status: "acknowledged", acknowledged_at: this.now(), error: null });
   }
 
@@ -488,6 +580,7 @@ export class DurableJobStore {
             UNACKNOWLEDGED_RETENTION_MILLIS)) {
         await rm(this.#requestPath(id), { force: true });
         await rm(this.#responsePath(id), { force: true });
+        await rm(this.#draftPath(id), { force: true });
         await this.updateState(id, {
           status: "expired",
           expired_at: now,

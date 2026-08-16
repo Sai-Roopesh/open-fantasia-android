@@ -189,12 +189,13 @@ class DashboardViewModel(
                 "Select an existing Roleplay Model connection"
             }
             require(connection.enabled) { "The selected Roleplay Model connection is disabled" }
-            val finalModelId = if (connection.provider == com.example.open_fantasia.data.continuity.RoleplayProtocol.PROVIDER) {
-                com.example.open_fantasia.data.continuity.RoleplayProtocol.MODEL_ID
-            } else {
-                modelId.trim()
-            }
+            val finalModelId = modelId.trim()
             require(finalModelId.isNotBlank()) { "Select a Roleplay Model" }
+            if (connection.provider == com.example.open_fantasia.data.continuity.RoleplayProtocol.PROVIDER) {
+                require(com.example.open_fantasia.data.continuity.RoleplayProtocol.isSupportedModel(finalModelId)) {
+                    "Select a supported Mac-hosted Roleplay Model"
+                }
+            }
             // Apply the user's default persona to new threads (was hardcoded null, ignoring it).
             val defaultPersonaId = personaDao.getDefaultPersona(FIXED_USER_ID)?.id
             val newThread = chatDao.createThreadWithBranch(

@@ -10,6 +10,7 @@ import com.example.open_fantasia.data.local.db.MIGRATION_5_6
 import com.example.open_fantasia.data.local.db.MIGRATION_6_7
 import com.example.open_fantasia.data.local.db.MIGRATION_7_8
 import com.example.open_fantasia.data.local.db.MIGRATION_8_9
+import com.example.open_fantasia.data.local.db.MIGRATION_9_10
 import com.example.open_fantasia.data.local.db.OpenFantasiaDatabase
 import com.example.open_fantasia.data.remote.KtorLLMClient
 import com.example.open_fantasia.data.remote.LLMClient
@@ -44,7 +45,8 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             MIGRATION_5_6,
             MIGRATION_6_7,
             MIGRATION_7_8,
-            MIGRATION_8_9
+            MIGRATION_8_9,
+            MIGRATION_9_10
         ).build()
     }
 

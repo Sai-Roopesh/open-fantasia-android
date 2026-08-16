@@ -8,7 +8,6 @@ import com.example.open_fantasia.data.continuity.RoleplayProtocol
 import com.example.open_fantasia.data.continuity.PortraitGenerationScheduler
 import com.example.open_fantasia.data.continuity.ContinuityCheckpointScheduler
 import com.example.open_fantasia.data.continuity.RoleplayGenerationScheduler
-import com.example.open_fantasia.domain.model.ModelCatalogEntry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -55,14 +54,14 @@ class OpenFantasiaApplication : Application() {
                         id = RoleplayProtocol.CONNECTION_ID,
                         user_id = fixedUserId,
                         provider = RoleplayProtocol.PROVIDER,
-                        label = "Antigravity (Mac)",
+                        label = "Mac Roleplay Host",
                         base_url = null,
                         encrypted_api_key = null,
                         enabled = true,
                         default_model_id = RoleplayProtocol.MODEL_ID,
-                        model_cache = listOf(ModelCatalogEntry(RoleplayProtocol.MODEL_ID, "Gemini 3.6 Flash High", RoleplayProtocol.PROVIDER)),
+                        model_cache = RoleplayProtocol.models,
                         health_status = existing?.health_status ?: "untested",
-                        health_message = existing?.health_message ?: "Uses the paired Mac Host and Antigravity credits.",
+                        health_message = existing?.health_message ?: "Uses subscription-backed model CLIs through the paired Mac Host.",
                         last_checked_at = existing?.last_checked_at,
                         last_model_refresh_at = existing?.last_model_refresh_at,
                         last_synced_at = existing?.last_synced_at,

@@ -10,6 +10,7 @@ import {
   computeContractId,
   createContractGuard,
   renderContinuityModelInput,
+  renderContinuityRepairInput,
   requestPayloadHash,
   requireDirectModelInputSize
 } from "./host-lib.mjs";
@@ -281,4 +282,52 @@ test("a transient read failure never takes the host down", async () => {
   await guard.check();
   assert.equal(restarts, 0);
   assert.equal(guard.stale, false);
+});
+
+// A corrective run used to regenerate the whole state transition from nothing, discarding every
+// correct sentence alongside the one operation that failed. The draft is durable so repair can be
+// section-scoped, and so a host restarted mid-checkpoint resumes work already paid for.
+test("a Continuity Draft survives to the corrective run and is deleted on acknowledgement", async () => withTemp(async root => {
+  const store = new DurableJobStore(root);
+  await store.init();
+  await store.createOrGet(request({ request_id: "draft-job" }), "device-1");
+
+  await store.saveDraft("draft-job", { narrative: { story_summary: "expensive prose" } }, [
+    { severity: "fatal", code: "handle_exists", message: "vera already exists", operation_index: 3 }
+  ]);
+
+  const stored = await store.getDraft("draft-job");
+  assert.equal(stored.draft.narrative.story_summary, "expensive prose");
+  assert.equal(stored.defects[0].operation_index, 3, "the defect names the operation to repair");
+
+  await store.markReady("draft-job", { world_state: {} });
+  await store.acknowledge("draft-job", "device-1");
+  assert.equal(await store.getDraft("draft-job"), null, "story prose never outlives acknowledgement");
+}));
+
+test("a draft is discarded with the request when privacy retention expires", async () => withTemp(async root => {
+  let now = 1_000;
+  const store = new DurableJobStore(root, () => now);
+  await store.init();
+  await store.createOrGet(request({ request_id: "draft-expiry" }), "device-1");
+  await store.saveDraft("draft-expiry", { narrative: { story_summary: "prose" } });
+
+  now += 31 * 24 * 60 * 60 * 1000;
+  await store.cleanup();
+
+  assert.equal((await store.getState("draft-expiry")).status, "expired");
+  assert.equal(await store.getDraft("draft-expiry"), null);
+}));
+
+test("repair input carries the previous draft and refuses to exceed the delivery limit", () => {
+  const evidence = request({ exchanges: [{ turn_id: "t", user: "SENTINEL", assistant: "reply" }] });
+  const small = renderContinuityRepairInput("INSTRUCTIONS", evidence, { narrative: { story_summary: "PRIOR-DRAFT" } }, "fatal handle_exists in operation 3");
+
+  assert.match(small, /PRIOR-DRAFT/);
+  assert.match(small, /fatal handle_exists in operation 3/);
+  assert.match(small, /<previous_continuity_draft>/);
+  assert.match(small, /SENTINEL/, "the complete request is still delivered alongside the repair");
+
+  const huge = renderContinuityRepairInput("INSTRUCTIONS", evidence, { blob: "x".repeat(MAX_DIRECT_MODEL_INPUT_BYTES) }, "too big");
+  assert.equal(huge, null, "a partially delivered draft is worse than a clean regeneration");
 });

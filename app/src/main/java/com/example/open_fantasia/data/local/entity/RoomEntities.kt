@@ -226,13 +226,21 @@ fun ThreadRecord.toEntity() = ThreadEntity(
         childColumns = ["thread_id"],
         onDelete = ForeignKey.CASCADE
     )],
-    indices = [Index("thread_id")]
+    indices = [
+        Index("thread_id"),
+        // Two Cast Seeds sharing a name make the Continuity Snapshot rules unsatisfiable, so the
+        // database refuses to hold them. `canonical_name_key` exists because Room indexes columns
+        // rather than expressions, and the comparison has to be trimmed and case-insensitive to match
+        // the rule the Mac Host and snapshot validation both apply.
+        Index(value = ["thread_id", "canonical_name_key"], unique = true)
+    ]
 )
 data class CastSeedEntity(
     @PrimaryKey val cast_id: String,
     val thread_id: String,
     val entity_id: String? = null,
     val canonical_name: String,
+    val canonical_name_key: String,
     val aliases: List<String> = emptyList(),
     val role_background: String = "",
     val personality: String = "",

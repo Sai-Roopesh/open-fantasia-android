@@ -1,7 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { applyAuthoritativeCastLocks, canonicalizeResponse, requestRevision, resolveExchangeReferences, toModelFacingRequest, validateResponse } from "./worker-lib.mjs";
+import { requestRevision, validateResponse } from "./worker-lib.mjs";
 
+/**
+ * Semantic validation only.
+ *
+ * Under ADR-0010 the repairs that used to live beside these rules moved into the Continuity Compiler,
+ * and their coverage moved with them into `compiler.test.mjs`. What remains here is the decision half:
+ * given a complete snapshot, is it acceptable? These rules are deliberately unforgiving, because the
+ * compiler has already had its chance to make the snapshot right and Android enforces the same rules
+ * again before anything becomes continuity truth.
+ */
 function fixture() {
   const request = {
     protocol_version: 2,
@@ -62,6 +71,11 @@ function fixture() {
   return { request, response };
 }
 
+test("accepts a complete, referentially whole snapshot", () => {
+  const { request, response } = fixture();
+  assert.doesNotThrow(() => validateResponse(request, response));
+});
+
 test("rejects a placement that references a missing entity", () => {
   const { request, response } = fixture();
   response.world_state.spatial_state.entity_placements[0].entity_id = "missing";
@@ -93,260 +107,38 @@ test("rejects timeline events that reference a turn outside the checkpoint windo
   assert.throws(() => validateResponse(request, response), /Invalid timeline turn reference/);
 });
 
+test("an oversized timeline array is still a protocol violation", () => {
+  const { request, response } = fixture();
+  response.timeline_events = Array.from({ length: 8 }, () => ({
+    turn_id: "turn-7", title: "Beat", detail: "", importance: 3, event_type: "beat",
+    affected_entity_ids: [], affected_relationship_ids: []
+  }));
+  assert.throws(() => validateResponse(request, response), /Too many timeline events/);
+});
+
 test("rejects a roster that changes a locked seed field", () => {
   const { request, response } = fixture();
   response.world_state.cast_roster[0].personality = "Changed";
   assert.throws(() => validateResponse(request, response), /Locked cast field changed/);
 });
 
-test("restores locked cast fields from the authoritative seed before validation", () => {
-  const { request, response } = fixture();
-  response.world_state.cast_roster[0].canonical_name = "Rewritten Hero";
-  response.world_state.cast_roster[0].personality = "Rewritten personality";
-  response.world_state.cast_roster[0].provenance = "manual_seed";
-  response.world_state.cast_roster[0].first_seen_turn_id = "turn-7";
-  response.world_state.cast_roster[0].manual_locks = [];
-
-  const canonical = applyAuthoritativeCastLocks(request, response);
-
-  assert.equal(canonical.world_state.cast_roster[0].canonical_name, "Hero");
-  assert.equal(canonical.world_state.cast_roster[0].personality, "Steady");
-  assert.equal(canonical.world_state.cast_roster[0].provenance, "primary");
-  assert.equal(canonical.world_state.cast_roster[0].first_seen_turn_id, null);
-  assert.deepEqual(canonical.world_state.cast_roster[0].manual_locks, ["canonical_name", "personality"]);
-  assert.doesNotThrow(() => validateResponse(request, canonical));
-});
-
-test("authoritative projection never recreates a cast seed the model dropped", () => {
+// The compiler makes this unreachable by construction, which is exactly why the rule stays: it is the
+// independent check that the compiler did its job, not a redundant one.
+test("rejects a roster that dropped a seed", () => {
   const { request, response } = fixture();
   response.world_state.cast_roster = [];
-
-  const canonical = applyAuthoritativeCastLocks(request, response);
-
-  assert.throws(() => validateResponse(request, canonical), /Missing Cast Roster/);
+  assert.throws(() => validateResponse(request, response), /Missing Cast Roster/);
 });
 
 test("rejects the player persona in the cast roster", () => {
   const { request, response } = fixture();
   response.world_state.cast_roster[0].player_controlled = true;
-  assert.throws(() => validateResponse(request, response), /Player persona/);
+  assert.throws(() => validateResponse(request, response), /Player persona cannot enter Cast Roster/);
 });
 
-// ─── Discovered cast lineage repair ─────────────────────────────────
-
-/** Adds a discovered member whose introducing exchange is `old-turn`. */
-function withDiscovered({ request, response }, firstSeen) {
-  request.exchanges[0].assistant = "Earlier reply where Vera pours the wine";
-  response.world_state.entity_state.push({
-    entity_id: "vera", canonical_name: "Vera", entity_type: "character", aliases: [], is_present: true,
-    primary_emotion: "wary", emotion_intensity: 40, emotion_catalyst: "",
-    knowledge_boundary: [], traits: [], goals: [], secrets: [], abilities: [], possessions: []
-  });
-  response.world_state.spatial_state.entity_placements.push({
-    entity_id: "vera", entity_name: "Vera", location_id: "room", location_name: "Room", micro_position: "at the bar"
-  });
-  response.world_state.cast_roster.push({
-    cast_id: "cast:vera:abc", entity_id: "vera", canonical_name: "Vera", aliases: [],
-    role_background: "Innkeeper", personality: "Blunt", voice_style: "", appearance: "",
-    goals: "", boundaries: "", provenance: "continuity_discovered", first_seen_turn_id: firstSeen,
-    evidence: [], status: "active", speaker_eligible: true, player_controlled: false, manual_locks: []
-  });
-  return { request, response };
-}
-
-test("dates a discovered member from the earliest exchange naming them", () => {
-  const { request, response } = withDiscovered(fixture(), null);
-
-  const canonical = canonicalizeResponse(request, response);
-
-  const vera = canonical.world_state.cast_roster.find(m => m.cast_id === "cast:vera:abc");
-  assert.equal(vera.first_seen_turn_id, "old-turn");
-  assert.doesNotThrow(() => validateResponse(request, canonical));
-});
-
-test("repairs a hallucinated turn id instead of failing the whole checkpoint", () => {
-  const { request, response } = withDiscovered(fixture(), "turn-7-b4d-uuid-the-model-invented");
-
-  const canonical = canonicalizeResponse(request, response);
-
-  const vera = canonical.world_state.cast_roster.find(m => m.cast_id === "cast:vera:abc");
-  assert.equal(vera.first_seen_turn_id, "old-turn");
-  assert.doesNotThrow(() => validateResponse(request, canonical));
-});
-
-test("keeps a correct turn id the engine supplied", () => {
-  const { request, response } = withDiscovered(fixture(), "turn-7");
-
-  const canonical = canonicalizeResponse(request, response);
-
-  assert.equal(canonical.world_state.cast_roster.find(m => m.cast_id === "cast:vera:abc").first_seen_turn_id, "turn-7");
-});
-
-test("carries forward the established first-seen exchange for an existing discovered member", () => {
-  const { request, response } = withDiscovered(fixture(), null);
-  request.current_cast_roster = [{ cast_id: "cast:vera:abc", canonical_name: "Vera", first_seen_turn_id: "turn-7" }];
-
-  const canonical = canonicalizeResponse(request, response);
-
-  assert.equal(canonical.world_state.cast_roster.find(m => m.cast_id === "cast:vera:abc").first_seen_turn_id, "turn-7");
-});
-
-test("falls back to the first checkpoint exchange when no exchange names the member", () => {
-  const { request, response } = withDiscovered(fixture(), null);
-  request.exchanges[0].assistant = "Earlier reply";
-
-  const canonical = canonicalizeResponse(request, response);
-
-  assert.equal(canonical.world_state.cast_roster.find(m => m.cast_id === "cast:vera:abc").first_seen_turn_id, "turn-7");
-  assert.doesNotThrow(() => validateResponse(request, canonical));
-});
-
-test("matches a member by alias, and only on a whole word", () => {
-  const { request, response } = withDiscovered(fixture(), null);
-  request.exchanges[0].assistant = "Earlier reply mentioning silverware but no innkeeper";
-  request.exchanges[1].assistant = "Hi, says Ash";
-  const vera = response.world_state.cast_roster.find(m => m.cast_id === "cast:vera:abc");
-  vera.aliases = ["Ash"];
-
-  const canonical = canonicalizeResponse(request, response);
-
-  // "Ash" must not match inside "silverware"-style prose on the earlier exchange.
-  assert.equal(canonical.world_state.cast_roster.find(m => m.cast_id === "cast:vera:abc").first_seen_turn_id, "turn-7");
-});
-
-test("repair still cannot ground a member with no reachable exchanges at all", () => {
-  const { request, response } = withDiscovered(fixture(), null);
-  request.exchanges = [];
-
-  const canonical = canonicalizeResponse(request, response);
-
-  assert.throws(() => validateResponse(request, canonical), /invalid lineage provenance/);
-});
-
-// ─── Timeline event grounding ───────────────────────────────────────
-
-function withTimelineEvent({ request, response }, overrides) {
-  response.timeline_events = [{
-    turn_id: "turn-7", title: "A reveal", detail: "Something changed", importance: 3,
-    event_type: "plot", affected_entity_ids: [], affected_relationship_ids: [],
-    ...overrides
-  }];
-  return { request, response };
-}
-
-test("drops a timeline event whose turn id was mistranscribed, keeping the snapshot", () => {
-  const { request, response } = withTimelineEvent(fixture(), { turn_id: "turn-7-invented-by-model" });
-
-  const canonical = canonicalizeResponse(request, response);
-
-  assert.deepEqual(canonical.timeline_events, []);
-  assert.equal(canonical.world_state.narrative_state.story_summary, "Story");
-  assert.doesNotThrow(() => validateResponse(request, canonical));
-});
-
-test("keeps a grounded timeline event untouched", () => {
-  const { request, response } = withTimelineEvent(fixture(), {});
-
-  const canonical = canonicalizeResponse(request, response);
-
-  assert.equal(canonical.timeline_events.length, 1);
-  assert.equal(canonical.timeline_events[0].title, "A reveal");
-});
-
-test("drops a timeline event referencing an entity absent from the snapshot", () => {
-  const { request, response } = withTimelineEvent(fixture(), { affected_entity_ids: ["ghost"] });
-
-  const canonical = canonicalizeResponse(request, response);
-
-  assert.deepEqual(canonical.timeline_events, []);
-  assert.doesNotThrow(() => validateResponse(request, canonical));
-});
-
-test("clamps timeline importance rather than dropping the event", () => {
-  const { request, response } = withTimelineEvent(fixture(), { importance: 9 });
-
-  const canonical = canonicalizeResponse(request, response);
-
-  assert.equal(canonical.timeline_events.length, 1);
-  assert.equal(canonical.timeline_events[0].importance, 5);
-  assert.doesNotThrow(() => validateResponse(request, canonical));
-});
-
-test("an oversized timeline array is still a protocol violation", () => {
+test("rejects a discovered member whose lineage is not reachable", () => {
   const { request, response } = fixture();
-  response.timeline_events = Array.from({ length: 8 }, () => ({
-    turn_id: "turn-7", title: "Beat", detail: "", importance: 3, event_type: "plot",
-    affected_entity_ids: [], affected_relationship_ids: []
-  }));
-
-  const canonical = canonicalizeResponse(request, response);
-
-  assert.throws(() => validateResponse(request, canonical), /Too many timeline events/);
-});
-
-// ─── Ordinal exchange references ────────────────────────────────────
-
-test("model-facing request numbers exchanges and flags checkpoint ordinals", () => {
-  const { request } = fixture();
-
-  const view = toModelFacingRequest(request);
-
-  assert.deepEqual(view.exchanges.map(e => e.exchange_index), [1, 2]);
-  assert.deepEqual(view.checkpoint_exchange_indexes, [2]);
-  assert.equal(view.exchanges[1].turn_id, "turn-7");
-  // The stored request must stay untouched — it is what validation runs against.
-  assert.equal(request.exchanges[0].exchange_index, undefined);
-});
-
-test("resolves an ordinal cast reference to its turn id", () => {
-  const { request, response } = withDiscovered(fixture(), "#1");
-
-  const canonical = canonicalizeResponse(request, response);
-
-  assert.equal(canonical.world_state.cast_roster.find(m => m.cast_id === "cast:vera:abc").first_seen_turn_id, "old-turn");
-  assert.doesNotThrow(() => validateResponse(request, canonical));
-});
-
-test("accepts every ordinal spelling an engine might emit", () => {
-  for (const spelling of ["#2", "2", "exchange 2", "exchange:2", "  #2  "]) {
-    const { request, response } = withDiscovered(fixture(), spelling);
-    const canonical = canonicalizeResponse(request, response);
-    assert.equal(
-      canonical.world_state.cast_roster.find(m => m.cast_id === "cast:vera:abc").first_seen_turn_id,
-      "turn-7",
-      `spelling ${spelling}`
-    );
-  }
-});
-
-test("resolves an ordinal timeline reference", () => {
-  const { request, response } = fixture();
-  response.timeline_events = [{
-    turn_id: "#2", title: "A reveal", detail: "", importance: 3, event_type: "plot",
-    affected_entity_ids: [], affected_relationship_ids: []
-  }];
-
-  const canonical = canonicalizeResponse(request, response);
-
-  assert.equal(canonical.timeline_events.length, 1);
-  assert.equal(canonical.timeline_events[0].turn_id, "turn-7");
-  assert.doesNotThrow(() => validateResponse(request, canonical));
-});
-
-test("an out-of-range ordinal is not invented into a real exchange", () => {
-  const { request, response } = withDiscovered(fixture(), "#99");
-
-  const canonical = canonicalizeResponse(request, response);
-
-  // Unresolvable, so lineage repair dates it from the transcript instead of fabricating turn 99.
-  assert.equal(canonical.world_state.cast_roster.find(m => m.cast_id === "cast:vera:abc").first_seen_turn_id, "old-turn");
-  assert.doesNotThrow(() => validateResponse(request, canonical));
-});
-
-test("a correctly transcribed turn id is still honoured", () => {
-  const { request, response } = withDiscovered(fixture(), "old-turn");
-
-  const canonical = canonicalizeResponse(request, response);
-
-  assert.equal(canonical.world_state.cast_roster.find(m => m.cast_id === "cast:vera:abc").first_seen_turn_id, "old-turn");
+  response.world_state.cast_roster[0].provenance = "continuity_discovered";
+  response.world_state.cast_roster[0].first_seen_turn_id = "turn-99";
+  assert.throws(() => validateResponse(request, response), /invalid lineage provenance/);
 });

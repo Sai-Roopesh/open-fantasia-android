@@ -1,8 +1,18 @@
 ---
 status: accepted
+extended-by: 0010-the-continuity-engine-authors-a-state-transition
 ---
 
 # The Continuity Engine never handles identifiers
+
+> ADR-0010 generalizes this decision. The principle below is unchanged and still holds; what changed is
+> its scope. This ADR applied it to two fields and left the engine reproducing the whole snapshot around
+> them, which made a dropped Cast Seed fatal in exactly the way a mistyped identifier used to be. The
+> engine now emits a Continuity Draft and the Host compiles it over the baseline. Where this document
+> describes the engine returning a complete `world_state`, or the host's four-stage canonicalization
+> pass over that response, read ADR-0010 instead: both were replaced by the Continuity Compiler. The
+> ordinal citation rule, the separation of repair from validation, and Android's final authority all
+> survive intact.
 
 Open Fantasia will stop asking the Continuity Engine to reproduce host-owned identifiers. The engine
 authors content — prose, judgement about what changed, descriptions of people — and the Mac Host owns

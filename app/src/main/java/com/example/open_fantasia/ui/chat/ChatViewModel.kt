@@ -42,6 +42,7 @@ import com.example.open_fantasia.domain.model.RoleplayLineageEntry
 import com.example.open_fantasia.domain.model.BranchLineage
 import com.example.open_fantasia.domain.model.BranchLineageRef
 import com.example.open_fantasia.domain.model.TurnLineageRef
+import com.example.open_fantasia.domain.model.castSeedNameKey
 import com.example.open_fantasia.domain.model.resolveCastRoster
 import com.example.open_fantasia.domain.reducer.PromptBuilder
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -173,6 +174,12 @@ class ChatViewModel(
     private val _scanEvent = MutableStateFlow<String?>(null)
     val scanEvent = _scanEvent.asStateFlow()
     fun consumeScanEvent() { _scanEvent.value = null }
+
+    // Why a Cast Seed could not be saved. Rejected writes used to return silently, so a duplicate name
+    // looked like a save that worked until a Continuity Update failed on it minutes later.
+    private val _castEvent = MutableStateFlow<String?>(null)
+    val castEvent = _castEvent.asStateFlow()
+    fun consumeCastEvent() { _castEvent.value = null }
 
     private data class DbState(
         val thread: ThreadEntity?,
@@ -467,15 +474,17 @@ class ChatViewModel(
                 return@launch
             }
 
-            val modelId = if (connection.provider == RoleplayProtocol.PROVIDER) {
-                RoleplayProtocol.MODEL_ID
-            } else {
-                thread.model_id.trim()
-            }
+            val modelId = thread.model_id.trim()
             if (modelId.isBlank()) {
                 chatDao.discardUncommittedTurn(activeBranch.id, newTurn.id)
                 _isGenerating.value = false
                 _scanEvent.value = "Select a Roleplay Model before sending."
+                return@launch
+            }
+            if (connection.provider == RoleplayProtocol.PROVIDER && !RoleplayProtocol.isSupportedModel(modelId)) {
+                chatDao.discardUncommittedTurn(activeBranch.id, newTurn.id)
+                _isGenerating.value = false
+                _scanEvent.value = "The selected Mac-hosted Roleplay Model is unsupported."
                 return@launch
             }
             val executionMode = if (connection.provider == RoleplayProtocol.PROVIDER) {
@@ -682,10 +691,34 @@ class ChatViewModel(
         }
     }
 
+    /**
+     * Saves a Cast Profile, refusing a name another Cast Seed on this thread already holds.
+     *
+     * Two Cast Seeds with one name make the Continuity Snapshot rules unsatisfiable, and the failure
+     * used to surface minutes later as a Continuity Update that could never succeed. The database now
+     * refuses the write outright; this catches it first so the reason reaches the person who typed it
+     * instead of arriving as a constraint violation.
+     */
     fun saveCastProfile(profile: CastProfile) {
-        if (profile.provenance == "primary" || profile.canonical_name.isBlank()) return
+        if (profile.provenance == "primary") return
+        if (profile.canonical_name.isBlank()) {
+            _castEvent.value = "A Cast Member needs a name."
+            return
+        }
         viewModelScope.launch {
             val state = uiState.value as? ChatUiState.Success ?: return@launch
+            val key = castSeedNameKey(profile.canonical_name)
+            // Checked against the whole Cast Roster rather than the Cast Seeds alone, because the rule
+            // a Continuity Snapshot enforces is roster-wide: a seed may not collide with a Discovered
+            // Cast Member either.
+            val clash = state.castRoster.firstOrNull {
+                it.cast_id != profile.cast_id && castSeedNameKey(it.canonical_name) == key
+            }
+            if (clash != null) {
+                _castEvent.value = "${clash.canonical_name.trim()} is already on this thread's cast. " +
+                    "Edit that member, or give this one a different name."
+                return@launch
+            }
             val now = Instant.now().toString()
             val locked = listOf(
                 "canonical_name", "aliases", "role_background", "personality", "voice_style",
@@ -695,7 +728,9 @@ class ChatViewModel(
                 chatDao.upsertCastSeed(
                     CastSeedEntity(
                         cast_id = profile.cast_id, thread_id = threadId, entity_id = profile.entity_id,
-                        canonical_name = profile.canonical_name.trim(), aliases = profile.aliases,
+                        canonical_name = profile.canonical_name.trim(),
+                        canonical_name_key = castSeedNameKey(profile.canonical_name),
+                        aliases = profile.aliases,
                         role_background = profile.role_background.trim(), personality = profile.personality.trim(),
                         voice_style = profile.voice_style.trim(), appearance = profile.appearance.trim(),
                         goals = profile.goals.trim(), boundaries = profile.boundaries.trim(),
@@ -734,7 +769,6 @@ class ChatViewModel(
      * form were discarded and had to be re-entered through a second edit pass.
      */
     fun addManualCast(profile: CastProfile) {
-        if (profile.canonical_name.isBlank()) return
         saveCastProfile(
             profile.copy(
                 cast_id = profile.cast_id.ifBlank { "seed:$threadId:${UUID.randomUUID()}" },
@@ -934,13 +968,13 @@ class ChatViewModel(
                 _scanEvent.value = "Select an enabled Roleplay Model connection."
                 return@launch
             }
-            val resolvedModelId = if (connection.provider == RoleplayProtocol.PROVIDER) {
-                RoleplayProtocol.MODEL_ID
-            } else {
-                modelId.trim()
-            }
+            val resolvedModelId = modelId.trim()
             if (resolvedModelId.isBlank()) {
                 _scanEvent.value = "Select a Roleplay Model."
+                return@launch
+            }
+            if (connection.provider == RoleplayProtocol.PROVIDER && !RoleplayProtocol.isSupportedModel(resolvedModelId)) {
+                _scanEvent.value = "Select a supported Mac-hosted Roleplay Model."
                 return@launch
             }
             val thread = chatDao.getThread(threadId) ?: return@launch

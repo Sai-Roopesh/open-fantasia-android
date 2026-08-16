@@ -36,6 +36,10 @@ _Avoid_: Auto NPC, hallucinated character
 The Cast Member explicitly selected to own dialogue, action, reaction, and interiority in assistant replies on a branch until another selection is made.
 _Avoid_: Point of view, target bot
 
+**Reply Length**:
+How much prose an assistant reply should contain, chosen per roleplay thread. It states an intention about visible story text only. A Roleplay Model that spends part of its generation budget on hidden reasoning the transcript never receives must still be able to produce the requested prose.
+_Avoid_: Max tokens, token budget, output cap
+
 **Roleplay Model**:
 The model selected for a roleplay thread to author assistant dialogue and action for each Roleplay Exchange. It is independent of the Continuity Engine that creates Continuity Snapshots.
 _Avoid_: Chat model, HCE model, brain model
@@ -115,6 +119,26 @@ _Avoid_: Continuity Host, Mac worker, HCE worker, Codex machine
 **Continuity Engine**:
 The user-selected model-backed producer the Mac Host uses to create a Continuity Snapshot. Changing engines never changes checkpoint enforcement or snapshot acceptance rules.
 _Avoid_: HCE model, provider, worker
+
+**Continuity Draft**:
+The provider-neutral semantic state transition a Continuity Engine authors for one Continuity Update: replacement prose, the complete present scene, the operations that add, amend, or remove durable state, and new timeline events. It carries no stored identifier, no envelope identity, and no copy of authoritative input, and it never crosses the wire to Android.
+_Avoid_: Model response, patch, diff, delta blob
+
+**Continuity Compiler**:
+The deterministic Mac Host module that applies a Continuity Draft to the Continuity Baseline to produce a complete Continuity Snapshot. It preserves authoritative records, assigns every identifier, resolves every reference, performs the cascades referential integrity forces, and reports what it could not apply as typed defects. It contains no model and is exercised directly by fixtures.
+_Avoid_: Post-processor, canonicalization pass, repair step
+
+**Model-facing Handle**:
+The short readable slug through which a Continuity Draft refers to a story object. Handles are derived fresh from the baseline for one Continuity Update and are meaningful only inside it; a `new:` prefix declares that the object does not exist yet and asks the Continuity Compiler to assign its identity.
+_Avoid_: Entity ID, temporary ID, reference key
+
+**Engine Preflight**:
+The smallest schema-constrained job the Mac Host runs through a Continuity Engine's exact execution path before advertising it. It proves the executable, account, model, headless permissions, and structured output; an engine that fails is not offered and a checkpoint naming it is refused with the reason.
+_Avoid_: Health check, version check, ping
+
+**Continuity Defect**:
+A named reason the Continuity Compiler could not apply part of a Continuity Draft. A recoverable defect drops the offending operation and is reported; a fatal defect means the draft is incoherent and the Continuity Update fails.
+_Avoid_: Validation error, warning, parse failure
 
 **Story Summary**:
 A causally ordered synthesis of the important story so far, using as much detail as continuity quality requires up to a 20,000-character safety ceiling. It is rewritten at every Continuity Update from the prior story knowledge and complete retained transcript; it is never an append-only transcript or event log.

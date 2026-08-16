@@ -7,6 +7,9 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.open_fantasia.data.local.dao.*
 import com.example.open_fantasia.data.local.entity.*
+import com.example.open_fantasia.domain.model.CastSeedHealAction
+import com.example.open_fantasia.domain.model.CastSeedRow
+import com.example.open_fantasia.domain.model.planCastSeedDeduplication
 
 /** v1 -> v2: per-thread director's notes (free-text prompt instructions). */
 val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -282,6 +285,70 @@ val MIGRATION_8_9 = object : Migration(8, 9) {
     }
 }
 
+/**
+ * Cast Seed names become unique per thread.
+ *
+ * The unique index cannot be created while duplicates exist, and threads in the wild have them, so the
+ * migration heals first. Healing never discards authored work: a duplicate whose content matches the
+ * seed it collides with is a re-paste of the same character and is removed, while one that genuinely
+ * differs keeps everything it has and is given a numbered name so a person can tell the two apart and
+ * decide. The oldest seed always keeps its name.
+ */
+val MIGRATION_9_10 = object : Migration(9, 10) {
+    private val contentColumns = listOf(
+        "entity_id", "aliases", "role_background", "personality", "voice_style", "appearance",
+        "goals", "boundaries", "provenance", "first_seen_turn_id", "evidence", "status",
+        "speaker_eligible", "player_controlled", "manual_locks"
+    )
+
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE cast_seeds ADD COLUMN canonical_name_key TEXT NOT NULL DEFAULT ''")
+        db.execSQL("UPDATE cast_seeds SET canonical_name_key = lower(trim(canonical_name))")
+        healDuplicateNames(db)
+        db.execSQL(
+            "CREATE UNIQUE INDEX IF NOT EXISTS index_cast_seeds_thread_id_canonical_name_key " +
+                "ON cast_seeds(thread_id, canonical_name_key)"
+        )
+    }
+
+    private fun healDuplicateNames(db: SupportSQLiteDatabase) {
+        val columns = listOf("cast_id", "thread_id", "canonical_name", "created_at") + contentColumns
+        val rows = mutableListOf<CastSeedRow>()
+        db.query("SELECT " + columns.joinToString(", ") + " FROM cast_seeds").use { cursor ->
+            val read = { name: String ->
+                cursor.getColumnIndex(name).let { if (it < 0 || cursor.isNull(it)) null else cursor.getString(it) }
+            }
+            while (cursor.moveToNext()) {
+                rows += CastSeedRow(
+                    castId = read("cast_id").orEmpty(),
+                    threadId = read("thread_id").orEmpty(),
+                    canonicalName = read("canonical_name").orEmpty(),
+                    createdAt = read("created_at").orEmpty(),
+                    content = contentColumns.map(read)
+                )
+            }
+        }
+
+        for (action in planCastSeedDeduplication(rows)) when (action) {
+            is CastSeedHealAction.Remove -> {
+                // Branch-valid side state that pointed at the removed seed goes with it, and a branch
+                // speaking as it falls back to the Primary Character rather than to a dangling id.
+                db.execSQL("DELETE FROM cast_profile_overrides WHERE cast_id = ?", arrayOf(action.castId))
+                db.execSQL("DELETE FROM cast_portraits WHERE cast_id = ?", arrayOf(action.castId))
+                db.execSQL(
+                    "UPDATE chat_branches SET active_speaker_id = 'primary:' || thread_id WHERE active_speaker_id = ?",
+                    arrayOf(action.castId)
+                )
+                db.execSQL("DELETE FROM cast_seeds WHERE cast_id = ?", arrayOf(action.castId))
+            }
+            is CastSeedHealAction.Rename -> db.execSQL(
+                "UPDATE cast_seeds SET canonical_name = ?, canonical_name_key = ? WHERE cast_id = ?",
+                arrayOf(action.canonicalName, action.canonicalNameKey, action.castId)
+            )
+        }
+    }
+}
+
 @Database(
     entities = [
         ProfileEntity::class,
@@ -301,7 +368,7 @@ val MIGRATION_8_9 = object : Migration(8, 9) {
         PortraitGenerationJobEntity::class,
         CastPortraitEntity::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = false
 )
 @TypeConverters(Converters::class)

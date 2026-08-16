@@ -1,12 +1,14 @@
 import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
-import { runProcessCapture } from "./codex-runner.mjs";
-import { canonicalizeResponse, validateResponse } from "./worker-lib.mjs";
+import { PREFLIGHT_TASK, PREFLIGHT_TIMEOUT_MILLIS, runProcessCapture } from "./codex-runner.mjs";
 import {
   MAX_DIRECT_MODEL_INPUT_BYTES,
+  acceptContinuityDraft,
+  describeContinuityFailure,
   renderContinuityModelInput,
+  renderContinuityRepairInput,
   requireDirectModelInputSize
 } from "./host-lib.mjs";
 
@@ -18,22 +20,77 @@ function cleanJsonOutput(value) {
   return (fenced?.[1] ?? text).trim();
 }
 
+/**
+ * Antigravity reaches for tools it cannot be granted.
+ *
+ * A Continuity Update arrives complete in the prompt — there is nothing to fetch — but the agent still
+ * called `read_file`, which headless mode auto-denies because it cannot prompt, and the run produced
+ * nothing after minutes of work. The shared instructions already say not to retrieve the request
+ * through a tool; this says the stronger thing, that no tool exists to call, and it lives in the
+ * adapter because it is a property of this CLI rather than of the Continuity Draft contract.
+ */
+const ANTIGRAVITY_NO_TOOLS =
+  "\n\nYou are running headless with no tool access. Do not call read_file, run a terminal command, " +
+  "search, or use any other tool: every one of them is auto-denied and a denied call wastes the entire " +
+  "run. Everything you need is already in this message. Think, then write the JSON object directly.";
+
+/** Turns an auto-denied permission into a message that names the cause instead of an empty result. */
+function describeAntigravityFailure(error) {
+  const message = String(error?.message ?? "");
+  if (/permission|auto-denied|no output produced/i.test(message)) {
+    return "Antigravity tried to use a tool that headless mode auto-denies and produced no output. " +
+      "The Continuity Request is delivered complete in the prompt and needs no tool.";
+  }
+  return message || "Invalid Continuity Draft";
+}
+
+/**
+ * The Antigravity half of the preflight in ADR-0010's terms: prove this adapter's exact invocation
+ * before the host advertises the engine.
+ *
+ * This adapter is the reason preflight exists. Antigravity ran a full Continuity Update and returned
+ * `no output produced — a tool required the "read_file" permission that headless mode cannot prompt
+ * for, so it was auto-denied`, after the wait rather than before it. Running the same `--print
+ * --sandbox` path against a trivial job surfaces that class of failure in seconds, and the adapter
+ * difference stays local to the adapter.
+ */
+export function createAntigravityProbe({ agy, model, effort, timeoutMillis = PREFLIGHT_TIMEOUT_MILLIS, runProcess = runProcessCapture }) {
+  return async function preflight() {
+    const work = await mkdtemp(join(tmpdir(), "open-fantasia-preflight-"));
+    try {
+      const output = await runProcess(agy, [
+        "--print", PREFLIGHT_TASK, "--new-project", "--model", model, "--effort", effort,
+        "--sandbox", "--print-timeout", "2m"
+      ], { cwd: work, timeoutMillis, label: "Antigravity preflight" });
+      const value = JSON.parse(cleanJsonOutput(output));
+      if (value?.ready !== true) throw new Error("preflight returned an unexpected value");
+    } finally {
+      await rm(work, { recursive: true, force: true });
+    }
+  };
+}
+
 export function createAntigravityContinuityRunner({
   agy, model, effort, prompt, validateSchema, timeoutMillis, workspaceRoot = process.cwd()
 }) {
-  return async function runContinuity(request, { signal, onState = async () => {} } = {}) {
+  return async function runContinuity(request, { signal, onState = async () => {}, drafts } = {}) {
     const work = await mkdtemp(join(workspaceRoot, ".open-fantasia-continuity-"));
     try {
       const task = renderContinuityModelInput(prompt, request);
       requireDirectModelInputSize(task, "Canonical continuity context");
       let validationError = null;
+      // Same resumable, section-scoped repair as the Codex adapter: the draft an earlier run authored
+      // is handed back for correction instead of being regenerated from nothing.
+      let priorDraft = (await drafts?.load?.())?.draft ?? null;
       for (let attempt = 0; attempt < 2; attempt++) {
         await onState("generating");
-        const correction = attempt === 0 ? "" :
-          `\n\nThe previous response failed validation: ${validationError.message}. Return a completely corrected JSON object from the same complete request.`;
+        const repair = priorDraft && renderContinuityRepairInput(
+          prompt, request, priorDraft,
+          validationError?.message ?? "A previous run was interrupted before its draft could be validated."
+        );
         const output = await runProcessCapture(agy, [
           "--print",
-          task + correction,
+          (repair ?? task) + ANTIGRAVITY_NO_TOOLS,
           "--new-project",
           "--model", model,
           "--effort", effort,
@@ -41,18 +98,21 @@ export function createAntigravityContinuityRunner({
           "--print-timeout", "30m"
         ], { cwd: work, timeoutMillis, signal, label: "Antigravity continuity" });
         await onState("validating");
+        let draft = null;
         try {
-          const response = JSON.parse(cleanJsonOutput(output));
-          validateSchema(response);
-          const canonical = canonicalizeResponse(request, response);
-          validateResponse(request, canonical);
-          return canonical;
+          draft = JSON.parse(cleanJsonOutput(output));
+          validateSchema(draft);
+          return acceptContinuityDraft(request, draft);
         } catch (error) {
-          validationError = new Error(error?.message || "Invalid continuity response");
+          validationError = new Error(describeAntigravityFailure({ message: describeContinuityFailure(error) }));
+          if (draft) {
+            priorDraft = draft;
+            await drafts?.save?.(draft, error?.defects ?? []);
+          }
           if (attempt === 1) throw validationError;
         }
       }
-      throw validationError ?? new Error("Invalid continuity response");
+      throw validationError ?? new Error("Invalid Continuity Draft");
     } finally {
       await rm(work, { recursive: true, force: true });
     }
@@ -124,7 +184,7 @@ export function renderRoleplayTask(generationRequest) {
     `Requested temperature: ${settings.temperature ?? "unsupported"}`,
     `Requested top-p: ${settings.top_p ?? "unsupported"}`,
     `Maximum output-token budget: ${settings.max_tokens ?? "unspecified"}`,
-    "The Antigravity CLI may not expose these sampler controls. Follow the model-visible length_target and style instructions exactly; never mention these preferences.",
+    "The selected Mac-hosted CLI may not expose these sampler controls. Follow the model-visible length_target and style instructions exactly; never mention these preferences.",
     "</generation_preferences>",
     "",
     "<conversation>",
@@ -137,14 +197,14 @@ export function renderRoleplayTask(generationRequest) {
 
 export function validateRoleplayOutput(value) {
   const output = String(value ?? "").trim();
-  if (!output) throw new Error("Antigravity returned no visible reply");
-  if (/^```[\s\S]*```$/i.test(output)) throw new Error("Antigravity wrapped the reply in a Markdown fence");
-  if (/^\s*\{[\s\S]*\}\s*$/.test(output)) throw new Error("Antigravity returned JSON instead of roleplay prose");
+  if (!output) throw new Error("Roleplay Model returned no visible reply");
+  if (/^```[\s\S]*```$/i.test(output)) throw new Error("Roleplay Model wrapped the reply in a Markdown fence");
+  if (/^\s*\{[\s\S]*\}\s*$/.test(output)) throw new Error("Roleplay Model returned JSON instead of roleplay prose");
   if (/^(here(?:'s| is)|certainly|of course)[,:]?\s+(?:the|an|your)\s+(?:reply|response)/i.test(output)) {
-    throw new Error("Antigravity prefaced the roleplay reply with agent commentary");
+    throw new Error("Roleplay Model prefaced the reply with agent commentary");
   }
   if (Buffer.byteLength(output, "utf8") > 256 * 1024) {
-    throw new Error("Antigravity reply exceeded the transport safety limit");
+    throw new Error("Roleplay Model reply exceeded the transport safety limit");
   }
   return output;
 }

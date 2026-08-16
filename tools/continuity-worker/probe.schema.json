@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Continuity Engine preflight",
+  "description": "The smallest possible schema-constrained job. Proving an engine can satisfy it proves the exact path a Continuity Update takes: the executable exists, the account is signed in, the model is reachable, headless mode runs without a permission prompt, and structured output comes back parseable.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ready"],
+  "properties": {
+    "ready": { "type": "boolean" }
+  }
+}

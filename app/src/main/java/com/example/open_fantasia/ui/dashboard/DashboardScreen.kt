@@ -759,7 +759,7 @@ fun CreateThreadDialog(
                             value = selectedConn?.label ?: "Select Connection",
                             onValueChange = {},
                             readOnly = true,
-                            label = { Text("API Provider") },
+                            label = { Text("Roleplay connection") },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = connExpanded) },
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = Color(0xFF8A2BE2),
@@ -797,7 +797,8 @@ fun CreateThreadDialog(
                             onExpandedChange = { modelExpanded = it }
                         ) {
                             OutlinedTextField(
-                                value = selectedModel.ifEmpty { "Select Model" },
+                                value = models.find { it.id == selectedModel }?.name
+                                    ?: selectedModel.ifEmpty { "Select Model" },
                                 onValueChange = {},
                                 readOnly = true,
                                 label = { Text("Model") },
@@ -819,7 +820,14 @@ fun CreateThreadDialog(
                             ) {
                                 models.forEach { model ->
                                     DropdownMenuItem(
-                                        text = { Text(model.id, color = Color.White) },
+                                        text = {
+                                            Column {
+                                                Text(model.name, color = Color.White)
+                                                model.hint?.let { hint ->
+                                                    Text(hint, color = Color(0xFFB8B8C6), fontSize = 11.sp)
+                                                }
+                                            }
+                                        },
                                         onClick = {
                                             selectedModel = model.id
                                             modelExpanded = false
@@ -831,7 +839,7 @@ fun CreateThreadDialog(
                     }
                     if (selectedConn?.provider == RoleplayProtocol.PROVIDER) {
                         Text(
-                            "Antigravity receives the same roleplay prompt and history. Its CLI does not expose Temperature or Top P.",
+                            "Mac-hosted models receive the same complete prompt, Continuity Snapshot, and transcript. CLI models do not expose every sampler control.",
                             color = Color(0xFFB8B8C6),
                             fontSize = 12.sp
                         )
