@@ -633,6 +633,7 @@ fun ChatWorkspace(
                         threadId = state.thread.id,
                         onSave = viewModel::saveCastProfile,
                         onAdd = viewModel::addManualCast,
+                        onDelete = viewModel::deleteCastSeed,
                         newSeed = viewModel::newCastSeed,
                         onDismiss = { showCastManager = false }
                     )
@@ -1370,11 +1371,13 @@ fun CastManagerDialog(
     threadId: String,
     onSave: (CastProfile) -> Unit,
     onAdd: (CastProfile) -> Unit,
+    onDelete: (CastProfile) -> Unit,
     newSeed: () -> CastProfile,
     onDismiss: () -> Unit
 ) {
     var editing by remember { mutableStateOf<CastProfile?>(null) }
     var draftSeed by remember { mutableStateOf<CastProfile?>(null) }
+    var confirmingDelete by remember { mutableStateOf<String?>(null) }
     val target = editing ?: draftSeed
     if (target != null) {
         CastProfileEditor(
@@ -1414,9 +1417,23 @@ fun CastManagerDialog(
                                 if (member.provenance != "primary") TextButton(onClick = { editing = member }) { Text("Edit") }
                             }
                             if (member.role_background.isNotBlank()) Text(member.role_background, color = Color(0xFFCFC2D7), fontSize = 12.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
-                            if (member.provenance != "primary") TextButton(onClick = {
-                                onSave(member.copy(status = if (member.status == "archived") "active" else "archived"))
-                            }) { Text(if (member.status == "archived") "Restore" else "Archive", color = Color(0xFFFFC857), fontSize = 11.sp) }
+                            if (member.provenance != "primary") Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                TextButton(onClick = {
+                                    onSave(member.copy(status = if (member.status == "archived") "active" else "archived"))
+                                }) { Text(if (member.status == "archived") "Restore" else "Archive", color = Color(0xFFFFC857), fontSize = 11.sp) }
+                                // Archiving keeps a Cast Member in the roster with `status: archived`, so it
+                                // cannot resolve a duplicate name — only removal can. Two taps, because a Cast
+                                // Seed is hand-authored and this cannot be undone.
+                                if (member.provenance == "manual_seed") TextButton(onClick = {
+                                    if (confirmingDelete == member.cast_id) { onDelete(member); confirmingDelete = null }
+                                    else confirmingDelete = member.cast_id
+                                }) {
+                                    Text(
+                                        if (confirmingDelete == member.cast_id) "Tap again to delete" else "Delete",
+                                        color = Color(0xFFFF6B81), fontSize = 11.sp
+                                    )
+                                }
+                            }
                         }
                     }
                 }

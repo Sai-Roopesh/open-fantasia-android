@@ -764,6 +764,28 @@ class ChatViewModel(
     }
 
     /**
+     * Permanently removes a Cast Seed, along with the branch state that pointed at it.
+     *
+     * Archiving is not a substitute: an archived Cast Member stays in the Cast Roster with
+     * `status: archived`, so it keeps its name, and a duplicate name still makes this thread's
+     * Continuity Snapshot rules unsatisfiable. The DAO has been able to do this since Cast Seeds
+     * existed and nothing ever called it, which left a duplicated seed unfixable from inside the app.
+     */
+    fun deleteCastSeed(profile: CastProfile) {
+        if (profile.provenance != "manual_seed") return
+        viewModelScope.launch {
+            val state = uiState.value as? ChatUiState.Success
+            if (state?.activeBranch?.active_speaker_id == profile.cast_id) {
+                chatDao.setActiveSpeaker(
+                    state.activeBranch.id, "primary:" + threadId, "single", Instant.now().toString()
+                )
+            }
+            chatDao.deleteCastSeed(profile.cast_id)
+            _castEvent.value = profile.canonical_name.trim() + " removed from this thread's cast."
+        }
+    }
+
+    /**
      * Adds a new Cast Seed from every field the editor collected. Earlier this took only name and
      * role_background, so personality, voice, appearance, goals, and boundaries typed into the add
      * form were discarded and had to be re-entered through a second edit pass.
