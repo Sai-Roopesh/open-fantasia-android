@@ -952,8 +952,7 @@ abstract class ChatDao {
         userId: String,
         branchId: String,
         targetTurnId: String,
-        expectedHeadTurnId: String?,
-        continuityEngineId: String = "codex:gpt-5.6-terra:high"
+        expectedHeadTurnId: String?
     ): BranchEntity {
         val now = Instant.now().toString()
         val branch = getBranch(branchId) ?: throw IllegalArgumentException("Branch not found")
@@ -980,15 +979,6 @@ abstract class ChatDao {
         if (!ancestorIds.contains(targetTurnId)) {
             throw IllegalStateException("Target turn is not reachable from the current branch head.")
         }
-        val ancestorMap = ancestorTurns.associateBy { it.id }
-        var discardedCount = 0
-        var discardedCursor: String? = headTurnId
-        while (discardedCursor != null && discardedCursor != targetTurnId) {
-            val discarded = ancestorMap[discardedCursor] ?: break
-            if (discarded.generation_status == "committed" && !discarded.starter_seed) discardedCount++
-            discardedCursor = discarded.parent_turn_id
-        }
-
         // 2. Rewind is branch-local: never delete another branch row or a turn that another
         // branch still needs. The first subtree with no other branch dependency is this branch's
         // exclusive suffix and is the only portion safe to cascade-delete.
@@ -1029,17 +1019,12 @@ abstract class ChatDao {
         // 4. Touch thread updated_at
         updateThread(thread.copy(updated_at = now))
 
-        val retainedBaseline = getNearestSnapshot(targetTurnId)
-        insertCheckpoint(
-            ContinuityCheckpointEntity(
-                id = UUID.randomUUID().toString(), engine_id = continuityEngineId, thread_id = branch.thread_id, branch_id = branch.id,
-                target_turn_id = targetTurnId, baseline_turn_id = retainedBaseline?.turn_id,
-                baseline_version = retainedBaseline?.version ?: 0, trigger_reason = "rewind",
-                old_head_turn_id = headTurnId, discarded_exchange_count = discardedCount,
-                created_at = now, updated_at = now
-            )
-        )
-
+        // 5. No Continuity Checkpoint. A Rewind only removes exchanges, so what it leaves behind —
+        // the reachable Continuity Baseline plus the exchanges retained after it — is the state this
+        // branch is in for fourteen exchanges out of every fifteen. getNearestSnapshot walks ancestors
+        // only, so a Snapshot belonging to a discarded exchange is unreachable rather than merely
+        // deleted, and the cadence counter is derived, so the next Update lands where it always would.
+        // See ADR-0013.
         return updatedBranch
     }
 

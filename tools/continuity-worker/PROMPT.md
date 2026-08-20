@@ -45,8 +45,8 @@ an operation or it is lost: who someone is, what they now know, want, fear, or c
 stand toward each other, where the story can go next. Write `assert_fact` for what the transcript
 establishes about a person, and `relate` for a connection the story has actually shown.
 
-Read `baseline` before deciding. When it is empty — a first snapshot, or the checkpoint straight after a
-Rewind — you are not recording changes to a world, you are building the world: every established person,
+Read `baseline` before deciding. When it is empty — a first snapshot, or one where a Rewind left no
+earlier snapshot reachable — you are not recording changes to a world, you are building the world: every established person,
 place, relationship, fact and open thread has to be created here, because nothing is carried forward
 from anywhere. A world of named people with no facts and no relationships between them is a failed
 update even when it validates.
@@ -88,7 +88,7 @@ empty. But leaving every bucket empty for a character the transcript clearly cha
 update, not a cautious one.
 
 Removals are explicit and each one must set `reason`: the exchange ordinal that justifies it, or
-`rewind` when the state belonged to discarded prose, or `superseded` when a newer assertion replaces it.
+`superseded` when a newer assertion replaces it.
 
 - `retract_fact`, `retire_entity`, `remove_relationship`, `forget_location`, `remove_edge`,
   `archive_cast_member`, `resolve_thread`.
@@ -116,11 +116,3 @@ handle to update them — do not introduce a `new:` handle for someone already i
 the exchanges reveal far more about them than the catalogue records. Two Cast Members can never share a
 name. If you believe two genuinely different people share one, keep the established profile and describe
 the second person in `story_summary` rather than forcing both onto the roster.
-
-## Rewind
-
-When `trigger.reason` is `rewind`, later exchanges were deliberately pruned. They are absent from the
-retained transcript and must remain completely unknowable. Rebuild continuity only from the retained
-baseline and retained exchanges, and never infer or recreate discarded events.
-`trigger.discarded_exchange_count` is proof that pruning happened and nothing more. Use `rewind` as the
-`reason` on removals of state that belonged to discarded prose.

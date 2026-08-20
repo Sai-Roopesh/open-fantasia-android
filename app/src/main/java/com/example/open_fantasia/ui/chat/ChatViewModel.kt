@@ -58,6 +58,20 @@ import kotlinx.coroutines.isActive
 import java.time.Instant
 import java.util.UUID
 
+/**
+ * Whether this branch can be rewound.
+ *
+ * Only a Continuity Update actually in flight holds a Rewind off — a failed one must not, because
+ * retreating is how a person gets out of a Continuity Update that cannot succeed. A Rewind creates no
+ * Update of its own, so it bypasses nothing: it deletes the exchange that demanded one, and the fifteen
+ * have to be earned again before another is due. See ADR-0013.
+ */
+fun canRewind(generationLocked: Boolean, checkpointStatus: String?): Boolean =
+    !generationLocked && (checkpointStatus == null || checkpointStatus == "failed")
+
+fun canRewind(state: ChatUiState.Success): Boolean =
+    canRewind(state.activeBranch.generation_locked, state.checkpoint?.status)
+
 sealed interface ChatUiState {
     object Loading : ChatUiState
     object Error : ChatUiState
@@ -165,7 +179,6 @@ class ChatViewModel(
     )
     private data class PendingAssistantEdit(val turnId: String, val text: String)
     private var pendingSendForEngine: PendingSend? = null
-    private var pendingRewindForEngine: String? = null
     private var pendingAssistantEditForEngine: PendingAssistantEdit? = null
     private var pendingEarlyCheckpointForEngine = false
 
@@ -600,11 +613,6 @@ class ChatViewModel(
             )
             return
         }
-        pendingRewindForEngine?.also { turnId ->
-            pendingRewindForEngine = null
-            rewindToTurn(turnId)
-            return
-        }
         pendingAssistantEditForEngine?.also { edit ->
             pendingAssistantEditForEngine = null
             editAssistantText(edit.turnId, edit.text)
@@ -618,7 +626,6 @@ class ChatViewModel(
 
     fun dismissContinuityEngineChoice() {
         pendingSendForEngine = null
-        pendingRewindForEngine = null
         pendingAssistantEditForEngine = null
         pendingEarlyCheckpointForEngine = false
         _needsContinuityEngineChoice.value = false
@@ -843,24 +850,23 @@ class ChatViewModel(
         }
     }
 
+    /**
+     * Retreating is always free. A Rewind creates no Continuity Update, so it needs no Continuity
+     * Engine and cannot be blocked by a failed one — retreating out of a failure is the way back that
+     * the lineage lock used to deny. Only an Update actually in flight holds it off, which also means
+     * no Rewind can strand a running Mac Host job. See ADR-0013.
+     */
     fun rewindToTurn(turnId: String) {
         viewModelScope.launch {
             val state = uiState.value as? ChatUiState.Success ?: return@launch
-            if (state.checkpoint != null || state.activeBranch.generation_locked) return@launch
-            val engineId = continuityHostPreferences.continuityEngineId()
-            if (engineId == null) {
-                pendingRewindForEngine = turnId
-                _needsContinuityEngineChoice.value = true
-                return@launch
-            }
+            if (!canRewind(state)) return@launch
             val activeBranch = state.activeBranch
             try {
                 chatDao.rewindBranchToTurn(
                     userId = FIXED_USER_ID,
                     branchId = activeBranch.id,
                     targetTurnId = turnId,
-                    expectedHeadTurnId = activeBranch.head_turn_id,
-                    continuityEngineId = engineId
+                    expectedHeadTurnId = activeBranch.head_turn_id
                 )
             } catch (_: IllegalStateException) {
                 // The branch can become locked or advance between the rendered UI state and

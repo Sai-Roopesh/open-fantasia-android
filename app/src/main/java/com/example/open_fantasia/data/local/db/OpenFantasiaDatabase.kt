@@ -349,6 +349,30 @@ val MIGRATION_9_10 = object : Migration(9, 10) {
     }
 }
 
+/**
+ * Releases lineages a Rewind locked under the old rule.
+ *
+ * Every Rewind used to mint a Continuity Checkpoint and make the branch read-only until a Continuity
+ * Engine had produced a fresh snapshot. ADR-0013 removed that: a Rewind only ever removes exchanges, and
+ * what it leaves behind is a state the app is already in between checkpoints. Requests created under the
+ * old rule would otherwise keep their threads read-only under a rule that no longer exists.
+ *
+ * They are superseded rather than deleted, which is the existing vocabulary for a checkpoint that no
+ * longer applies and keeps the row readable as a diagnostic. A Rewind-triggered request that is genuinely
+ * running on the Mac Host is left alone, so nothing is superseded out from under a live job.
+ */
+val MIGRATION_10_11 = object : Migration(10, 11) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            UPDATE continuity_checkpoint_requests
+            SET status = 'superseded', failure_detail = NULL
+            WHERE trigger_reason = 'rewind' AND status IN ('failed', 'pending_export')
+            """.trimIndent()
+        )
+    }
+}
+
 @Database(
     entities = [
         ProfileEntity::class,
@@ -368,7 +392,7 @@ val MIGRATION_9_10 = object : Migration(9, 10) {
         PortraitGenerationJobEntity::class,
         CastPortraitEntity::class
     ],
-    version = 10,
+    version = 11,
     exportSchema = false
 )
 @TypeConverters(Converters::class)

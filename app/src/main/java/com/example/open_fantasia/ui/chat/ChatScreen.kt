@@ -432,7 +432,7 @@ fun ChatWorkspace(
                                                 editingTextVal = turn.user_input_text
                                             },
                                             onSwitchModel = { showThreadSettings = true },
-                                            rewindEnabled = !state.activeBranch.generation_locked && state.checkpoint == null,
+                                            rewindEnabled = canRewind(state),
                                             focusMode = focusMode
                                         )
                                     }

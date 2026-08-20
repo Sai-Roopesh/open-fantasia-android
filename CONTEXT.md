@@ -105,7 +105,7 @@ The complete retained Roleplay Exchange lineage from the branch beginning throug
 _Avoid_: Partial context, discarded transcript
 
 **Rewind**:
-Moving a branch head to an earlier retained Roleplay Exchange and permanently discarding every later exchange on that lineage. Discarded content is no longer story truth, and the retained lineage requires an immediate Continuity Update before roleplay can continue.
+Moving a branch head to an earlier retained Roleplay Exchange and permanently discarding every later exchange on that lineage. Discarded content is no longer story truth. Continuity after a Rewind is whichever Continuity Snapshot is still reachable from the new head together with the exchanges retained after it, so a Rewind never requires a Continuity Update of its own; it can only reduce the distance to the Continuity Baseline, never increase it.
 _Avoid_: Undo, temporary rollback
 
 **Continuity Update**:
