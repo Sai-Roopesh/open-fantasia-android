@@ -48,6 +48,10 @@ _Avoid_: Chat model, HCE model, brain model
 The immutable, provider-neutral model input frozen for one reply attempt: the authoritative system prompt containing the reachable Continuity Snapshot, the Roleplay Transcript Window, the current user message and reply controls, Active Speaker selection, generation preferences, and output contract. Provider, transport, queue, request-identity, and timing metadata are never part of its model-visible content.
 _Avoid_: API payload, agent task, prompt file
 
+**Roleplay Context**:
+The complete, provider-neutral account of everything a Roleplay Model is given for one reply: Character Sheet, Persona, director notes, the reachable Continuity Snapshot, the complete branch-valid Cast Roster, pins, timeline beats, the Roleplay Transcript Window, the player's prose, and the reply controls. It is total — every part is required — so context cannot be omitted by being forgotten. Which action asked for the reply never changes what it contains.
+_Avoid_: Prompt, payload, system prompt
+
 **Roleplay Transcript Window**:
 The latest fifteen complete retained Roleplay Exchanges reachable from the selected branch head, serialized chronologically as raw user prose and committed assistant prose. The current incomplete exchange follows it separately. A Continuity Snapshot, speaker control, regeneration direction, or other model instruction never appears inside a historical transcript exchange.
 _Avoid_: Full chat dump, rendered-message history, context tail

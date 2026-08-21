@@ -5,7 +5,7 @@ import kotlinx.serialization.json.Json
 
 object PromptBuilder {
 
-    private val json = Json
+    private val json = Json { encodeDefaults = true }
 
     private fun formatSection(tag: String, content: String): String {
         return "<$tag>\n$content\n</$tag>"
@@ -42,15 +42,14 @@ object PromptBuilder {
      * this stable prefix and remains byte-stable between Continuity Updates. Per-attempt speaker
      * and style controls ([buildReplyControlContext]) live only on the latest user message.
      */
-    fun buildSystemPrompt(
-        characterBundle: CharacterBundle,
-        persona: UserPersonaRecord?,
-        directorNotes: String? = null,
-        @Suppress("UNUSED_PARAMETER") supportingCast: List<CastMember> = emptyList()
+    private fun buildSystemPrompt(
+        character: PromptCharacter,
+        persona: PromptPersona?,
+        directorNotes: String
     ): String {
         val sections = mutableListOf<String>()
 
-        val charName = characterBundle.character.name
+        val charName = character.name
 
         // Section 1: role_objective
         val objective = """
@@ -63,18 +62,18 @@ object PromptBuilder {
         sections.add(formatSection("role_objective", objective))
 
         // Section 2: story_setting
-        val story = characterBundle.character.story.trim()
+        val story = character.story.trim()
         if (story.isNotEmpty()) {
             sections.add(formatSection("story_setting", story))
         }
 
         // Section 3: character_persona
         val charLines = compactLabeledLines(listOf(
-            "Personality" to characterBundle.character.core_persona,
-            "Appearance" to characterBundle.character.appearance,
-            "Writing style" to characterBundle.character.style_rules,
-            "Behavior rules" to characterBundle.character.definition,
-            "Boundaries" to characterBundle.character.negative_guidance
+            "Personality" to character.corePersona,
+            "Appearance" to character.appearance,
+            "Writing style" to character.styleRules,
+            "Behavior rules" to character.definition,
+            "Boundaries" to character.negativeGuidance
         ))
         val charPersonaContent = charLines.ifEmpty { "No character guidance has been filled in yet." }
         sections.add(formatSection("character_persona", charPersonaContent))
@@ -85,7 +84,7 @@ object PromptBuilder {
                 "Name" to persona.name,
                 "Identity" to persona.identity,
                 "Backstory" to persona.backstory,
-                "Voice style" to persona.voice_style,
+                "Voice style" to persona.voiceStyle,
                 "Goals" to persona.goals,
                 "Boundaries" to persona.boundaries
             ))
@@ -95,8 +94,8 @@ object PromptBuilder {
         }
 
         // Section 4b: director_notes (per-thread user instructions)
-        val notes = directorNotes?.trim()
-        if (!notes.isNullOrEmpty()) {
+        val notes = directorNotes.trim()
+        if (notes.isNotEmpty()) {
             val dn = """
                 Out-of-character directions the user has set for THIS thread. Treat them as authoritative instructions you must follow (tone, pacing, length, focus, content). They override default stylistic choices, but never the hard constraints in <durable_state> or the rule that you never act, speak, or decide for the user.
                 $notes
@@ -118,7 +117,7 @@ object PromptBuilder {
         sections.add(formatSection("core_directives", directives))
 
         // Section 6: example_conversations (Filtered and uppercase formatted)
-        val populatedExamples = characterBundle.exampleConversations.filter {
+        val populatedExamples = character.exampleConversations.filter {
             it.user_line.trim().isNotEmpty() || it.character_line.trim().isNotEmpty()
         }
         if (populatedExamples.isNotEmpty()) {
@@ -205,19 +204,31 @@ object PromptBuilder {
      * when a Continuity Update is accepted (or pins change), so placing it after the static
      * system prefix keeps it authoritative and cacheable throughout the next checkpoint interval.
      */
-    fun buildContinuityContext(
-        snapshot: DurableMemorySnapshot?,
+    private fun buildContinuityContext(
+        world: PromptWorldState?,
+        cast: List<PromptCastMember>,
         pins: List<ChatPinRecord>,
         timeline: List<TimelineEventRecord>
     ): String {
         val sections = mutableListOf<String>()
 
-        val stateContent = if (snapshot != null) {
-            json.encodeToString(DurableMemorySnapshot.serializer(), snapshot)
+        val stateContent = if (world != null) {
+            json.encodeToString(PromptWorldState.serializer(), world)
         } else {
             "No world state has been materialized yet. This is the beginning of the story."
         }
         sections.add(formatSection("durable_state", stateContent))
+
+        // The complete branch-valid Cast Roster, every field, on every call — never only the Active
+        // Speaker and never only what a Continuity Update has caught up with. It lives here rather than
+        // inside durable_state so no member is sent twice. See ADR-0014.
+        val castContent = if (cast.isEmpty()) {
+            "No cast has been established for this thread yet."
+        } else {
+            cast.sortedWith(compareBy<PromptCastMember>({ it.origin != "Primary Character" }, { it.canonicalName.lowercase() }, { it.castId }))
+                .joinToString("\n\n") { formatCastProfile(it) }
+        }
+        sections.add(formatSection("cast_roster", castContent))
 
         if (pins.isNotEmpty() || timeline.isNotEmpty()) {
             val lines = mutableListOf<String>()
@@ -241,34 +252,34 @@ object PromptBuilder {
      * messages remain raw transcript prose, preventing old snapshots and speaker controls from
      * accumulating in later Roleplay Generation Requests.
      */
-    fun buildReplyControlContext(
-        replyLengthTokens: Int = 4096,
-        activeSpeaker: CastProfile? = null,
-        castRoster: List<CastProfile> = emptyList(),
-        speakerMode: String = "single"
+    private fun buildReplyControlContext(
+        replyLengthTokens: Int,
+        activeSpeaker: PromptCastMember?,
+        castRoster: List<PromptCastMember>,
+        speakerMode: String
     ): String {
         val sections = mutableListOf<String>()
 
-        val activeCast = castRoster.filter { it.status == "active" && it.speaker_eligible && !it.player_controlled }
-            .sortedWith(compareBy<CastProfile>({ it.canonical_name.lowercase() }, { it.cast_id }))
+        val activeCast = castRoster.filter { it.status == "active" && it.speakerEligible }
+            .sortedWith(compareBy<PromptCastMember>({ it.canonicalName.lowercase() }, { it.castId }))
         val control = if (speakerMode == "ensemble") {
             """
                 Mode: ENSEMBLE
                 Multiple present cast members may speak and act. Keep voices distinct, obey each profile and knowledge boundary, and never control the player.
-                Eligible cast: ${activeCast.joinToString(", ") { it.canonical_name }.ifBlank { "No eligible cast established" }}
+                Eligible cast: ${activeCast.joinToString(", ") { it.canonicalName }.ifBlank { "No eligible cast established" }}
             """.trimIndent()
         } else {
             val speaker = activeSpeaker ?: activeCast.firstOrNull()
-            val profile = speaker?.let { formatCastProfile(it) } ?: "No eligible Active Speaker was resolved."
+            // Names only, deliberately: every profile is already in <cast_roster>. This selects, it
+            // does not describe.
             """
                 Mode: SINGLE SPEAKER
+                Active Speaker: ${speaker?.canonicalName ?: "No eligible Active Speaker was resolved."} (${speaker?.castId ?: "none"})
+                Their full profile is in <cast_roster>, along with every other member of this thread's cast.
                 The Active Speaker exclusively owns dialogue, deliberate action, reaction, and interiority in this reply. Other characters remain silent and may not act. Neutral environmental events are allowed. Never control the player.
                 Use the authoritative Continuity Snapshot to determine whether the Active Speaker is present. If off-scene, write from their established current perspective without teleporting them.
 
-                Active Speaker profile:
-                $profile
-
-                Other eligible cast, silent in this reply: ${activeCast.filterNot { it.cast_id == speaker?.cast_id }.joinToString(", ") { it.canonical_name }.ifBlank { "None established" }}
+                Other eligible cast, silent in this reply: ${activeCast.filterNot { it.castId == speaker?.castId }.joinToString(", ") { it.canonicalName }.ifBlank { "None established" }}
             """.trimIndent()
         }
         sections.add(formatSection("reply_control", control))
@@ -299,47 +310,59 @@ object PromptBuilder {
      * [buildContinuityContext] in the system prompt and [buildReplyControlContext] once on the
      * latest user message.
      */
-    fun buildStateContext(
-        snapshot: DurableMemorySnapshot?,
-        pins: List<ChatPinRecord>,
-        timeline: List<TimelineEventRecord>,
-        replyLengthTokens: Int = 4096,
-        activeSpeaker: CastProfile? = null,
-        castRoster: List<CastProfile> = emptyList(),
-        speakerMode: String = "single"
-    ): String = listOf(
-        buildContinuityContext(snapshot, pins, timeline),
-        buildReplyControlContext(replyLengthTokens, activeSpeaker, castRoster, speakerMode)
-    ).joinToString("\n\n")
-
-    private fun formatCastProfile(profile: CastProfile): String = compactLabeledLines(listOf(
-        "ID" to profile.cast_id,
-        "Name" to profile.canonical_name,
-        "Aliases" to profile.aliases.joinToString(", "),
-        "Role/background" to profile.role_background,
-        "Personality" to profile.personality,
-        "Voice" to profile.voice_style,
-        "Appearance" to profile.appearance,
-        "Goals" to profile.goals,
-        "Boundaries" to profile.boundaries
-    ))
 
     /**
-     * Back-compat combined prompt retained for callers/tests that want one string. The live chat
-     * path appends [buildContinuityContext] to the system prompt and places only
-     * [buildReplyControlContext] on the latest user message.
+     * The one entry point. Takes the complete context and returns exactly what goes on the wire.
+     *
+     * There are no parameters to forget because there is one parameter, and it is total: every field of
+     * [RoleplayContext] and everything it reaches is required, so a projection that drops something does
+     * not compile. Three separate leaks — a suppressed parameter, a discarded list, and fields lost to a
+     * serializer default — all came from context arriving here as scattered arguments. See ADR-0014.
      */
-    fun buildRoleplaySystemPrompt(
-        characterBundle: CharacterBundle,
-        persona: UserPersonaRecord?,
-        snapshot: DurableMemorySnapshot?,
-        pins: List<ChatPinRecord>,
-        timeline: List<TimelineEventRecord>,
-        directorNotes: String? = null,
-        supportingCast: List<CastMember> = emptyList()
-    ): String {
-        val system = buildSystemPrompt(characterBundle, persona, directorNotes)
-        val state = buildStateContext(snapshot, pins, timeline)
-        return "$system\n\n$state"
+    /**
+     * A Cast Profile as the model reads it. Every authored field, not the nine that used to fit in a
+     * reply control: the roster is the only place cast is described now, so nothing may be dropped here.
+     * Status and speaker eligibility are stated rather than implied, because they used to vanish
+     * whenever they held their default value.
+     */
+    private fun formatCastProfile(profile: PromptCastMember): String = compactLabeledLines(listOf(
+        "ID" to profile.castId,
+        "Name" to profile.canonicalName,
+        "Aliases" to profile.aliases.joinToString(", "),
+        "Role/background" to profile.roleBackground,
+        "Personality" to profile.personality,
+        "Voice" to profile.voiceStyle,
+        "Appearance" to profile.appearance,
+        "Goals" to profile.goals,
+        "Boundaries" to profile.boundaries,
+        "Origin" to profile.origin,
+        "Evidence" to profile.evidence.joinToString("; "),
+        "Status" to profile.status,
+        "Speaks" to if (profile.speakerEligible) "eligible to speak" else "not eligible to speak",
+        "World entity" to profile.entityId.orEmpty()
+    ))
+
+    fun render(context: RoleplayContext): RenderedPrompt {
+        val staticPrompt = buildSystemPrompt(
+            character = context.character,
+            persona = context.persona,
+            directorNotes = context.directorNotes
+        )
+        val continuity = buildContinuityContext(
+            world = context.world,
+            cast = context.cast,
+            pins = context.pins,
+            timeline = context.timeline
+        )
+        val replyControl = buildReplyControlContext(
+            replyLengthTokens = context.replyLengthTokens,
+            activeSpeaker = context.activeSpeaker,
+            castRoster = context.cast,
+            speakerMode = context.speakerMode
+        )
+        return RenderedPrompt(
+            systemPrompt = "$staticPrompt\n\n$continuity",
+            currentUserMessage = "$replyControl\n\n${context.currentUserMessage}"
+        )
     }
 }

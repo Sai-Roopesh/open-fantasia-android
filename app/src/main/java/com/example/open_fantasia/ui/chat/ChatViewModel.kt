@@ -39,6 +39,11 @@ import com.example.open_fantasia.domain.model.DurableMemorySnapshot
 import com.example.open_fantasia.domain.model.RoleplayGenerationRequest
 import com.example.open_fantasia.domain.model.RoleplayGenerationSettings
 import com.example.open_fantasia.domain.model.RoleplayLineageEntry
+import com.example.open_fantasia.domain.model.RoleplayContext
+import com.example.open_fantasia.domain.model.PromptWorldState
+import com.example.open_fantasia.domain.model.PromptCastMember
+import com.example.open_fantasia.domain.model.toPromptCharacter
+import com.example.open_fantasia.domain.model.toPromptPersona
 import com.example.open_fantasia.domain.model.BranchLineage
 import com.example.open_fantasia.domain.model.BranchLineageRef
 import com.example.open_fantasia.domain.model.TurnLineageRef
@@ -415,13 +420,25 @@ class ChatViewModel(
             }
             val turnInputPayload = "{\"sticky_speaker_id\":\"${activeBranch.active_speaker_id ?: "primary:${thread.id}"}\",\"sticky_mode\":\"${activeBranch.speaker_mode}\",\"shortcut\":${shortcut != null}}"
 
-            val replyControl = PromptBuilder.buildReplyControlContext(
-                replyLengthTokens = thread.max_output_tokens,
-                activeSpeaker = activeSpeaker,
-                castRoster = contextCastRoster,
-                speakerMode = speakerMode
+            // One total context, one render. Nothing about this depends on which action asked for a
+            // reply, and nothing can be left out without failing to compile. See ADR-0014.
+            val rendered = PromptBuilder.render(
+                RoleplayContext(
+                    character = state.character.toDomain().toPromptCharacter(state.character.example_conversations),
+                    persona = state.activePersona?.toDomain()?.toPromptPersona(),
+                    directorNotes = thread.director_notes,
+                    world = contextSnapshot?.world_state?.let { PromptWorldState.from(it) },
+                    cast = contextCastRoster.map { PromptCastMember.from(it) },
+                    activeSpeaker = activeSpeaker?.let { PromptCastMember.from(it) },
+                    speakerMode = speakerMode,
+                    // Already reachability-filtered for this branch and head by resolveLineageState.
+                    pins = contextLineage.pins.map { it.toDomain() },
+                    timeline = contextLineage.timelineEvents.map { it.toDomain() },
+                    currentUserMessage = visibleInput,
+                    replyLengthTokens = thread.max_output_tokens
+                )
             )
-            val renderedUserMessage = "$replyControl\n\n$visibleInput"
+            val renderedUserMessage = rendered.currentUserMessage
 
             // Build one provider-neutral context before reserving the turn. Every reply-producing
             // action converges here, so normal send, regenerate, edit, branch, and post-rewind
@@ -443,26 +460,7 @@ class ChatViewModel(
                 current_user_message = renderedUserMessage,
                 regeneration_direction = guidance
             )
-            val continuityContext = PromptBuilder.buildContinuityContext(
-                snapshot = contextSnapshot?.world_state,
-                pins = contextLineage.pins
-                    .filter {
-                        it.turn_id == null ||
-                            it.turn_id in assembledContext.retained_lineage_exchange_ids
-                    }
-                    .map { it.toDomain() },
-                timeline = emptyList()
-            )
-            val staticSystemPrompt = PromptBuilder.buildSystemPrompt(
-                characterBundle = CharacterBundle(
-                    state.character.toDomain(),
-                    state.character.starters,
-                    state.character.example_conversations
-                ),
-                persona = state.activePersona?.toDomain(),
-                directorNotes = thread.director_notes
-            )
-            val systemPrompt = "$staticSystemPrompt\n\n$continuityContext"
+            val systemPrompt = rendered.systemPrompt
 
             _isGenerating.value = true
             _generatingText.value = ""
