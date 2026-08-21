@@ -164,6 +164,31 @@ class ContinuityBaselineSelectionDaoTest {
         assertEquals("INHERITED", chosen!!.world_state.narrative_state.story_summary)
     }
 
+    /**
+     * canonical_name_key is derived from canonical_name and backs a unique index, so every write path
+     * has to move it. Renaming the Primary Character goes through raw SQL in CharacterDao rather than
+     * the Room entity, and that path forgot the key when the column was added.
+     */
+    @Test
+    fun renamingThePrimaryCharacterMovesTheCastSeedComparisonKey() = runBlocking {
+        val dao = db.chatDao()
+        val thread = dao.createThreadWithBranch(userId, characterId, connectionId, "chat-model", null, null, null, 2048, "Rename")
+        dao.upsertCastSeed(
+            CastSeedEntity(
+                cast_id = "primary:${thread.id}", thread_id = thread.id, entity_id = characterId,
+                canonical_name = "Mara Vale", canonical_name_key = "mara vale",
+                provenance = "primary", created_at = "", updated_at = ""
+            )
+        )
+
+        val renamed = db.characterDao().getCharacter(characterId)!!.copy(name = "Mara Renamed", updated_at = "later")
+        db.characterDao().saveCharacterAndSyncPrimarySeeds(renamed)
+
+        val seed = dao.getCastSeeds(thread.id).single { it.provenance == "primary" }
+        assertEquals("Mara Renamed", seed.canonical_name)
+        assertEquals("the key must follow the name", "mara renamed", seed.canonical_name_key)
+    }
+
     @Test
     fun aBranchWithNoSnapshotBehindItGetsNone() = runBlocking {
         val dao = db.chatDao()

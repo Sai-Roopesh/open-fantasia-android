@@ -26,10 +26,16 @@ abstract class CharacterDao {
     @Query("SELECT COUNT(*) FROM chat_threads WHERE character_id = :characterId")
     abstract suspend fun countDependentThreads(characterId: String): Int
 
+    /**
+     * Renaming the Primary Character renames its Cast Seed, so it must move the comparison key with it.
+     * The key backs a unique index on (thread_id, canonical_name_key); leaving it behind would let the
+     * database believe a seed still holds a name it no longer has.
+     */
     @Query("""
         UPDATE cast_seeds
         SET entity_id = :characterId,
             canonical_name = :name,
+            canonical_name_key = lower(trim(:name)),
             role_background = :story,
             personality = :corePersona,
             voice_style = :styleRules,
