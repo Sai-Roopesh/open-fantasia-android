@@ -120,7 +120,7 @@ class TurnLifecycleDaoTest {
     }
 
     @Test
-    fun rewindCreatesCheckpointUsingOnlyRetainedLineage() = runBlocking {
+    fun rewindCreatesNoCheckpointAndKeepsOnlyRetainedLineage() = runBlocking {
         val dao = db.chatDao()
         val thread = dao.createThreadWithBranch(userId, characterId, connectionId, "chat-model", null, null, null, 2048, "Rewind")
         val branch = dao.getActiveBranchForThread(thread.id)!!
@@ -134,14 +134,15 @@ class TurnLifecycleDaoTest {
         }
         dao.rewindBranchToTurn(userId, branch.id, turns.first().id, turns.last().id)
 
-        val request = dao.getPendingCheckpoints().single()
-        assertEquals("rewind", request.trigger_reason)
-        assertEquals(turns.last().id, request.old_head_turn_id)
-        assertEquals(turns.first().id, request.target_turn_id)
-        assertEquals(2, request.discarded_exchange_count)
+        // A Rewind only removes exchanges, so it asks for no Continuity Update. See ADR-0013.
+        assertTrue(
+            "A Rewind must not create a Continuity Checkpoint",
+            dao.getPendingCheckpoints().isEmpty()
+        )
         assertNull(dao.getTurn(turns[1].id))
         assertNull(dao.getTurn(turns[2].id))
         assertEquals(listOf(turns.first().id), dao.getAncestorTurns(turns.first().id).map { it.id })
+        assertEquals(turns.first().id, dao.getBranch(branch.id)!!.head_turn_id)
     }
 
     @Test
