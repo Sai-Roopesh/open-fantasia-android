@@ -165,6 +165,25 @@ class ContinuityBaselineSelectionDaoTest {
     }
 
     /**
+     * A new thread must arrive with its Primary Character already on the Cast Roster.
+     *
+     * seedPrimaryCast uses INSERT OR IGNORE, which reports nothing when a NOT NULL column is missing
+     * from the statement. The seed just fails to appear, and the thread has no Primary Character until
+     * a Continuity Update writes one into the Snapshot fifteen exchanges later.
+     */
+    @Test
+    fun aNewThreadGetsItsPrimaryCharacterAsACastSeed() = runBlocking {
+        val dao = db.chatDao()
+        val thread = dao.createThreadWithBranch(userId, characterId, connectionId, "chat-model", null, null, null, 2048, "Primary")
+
+        val primary = dao.getCastSeeds(thread.id).single { it.provenance == "primary" }
+        assertEquals("primary:${thread.id}", primary.cast_id)
+        assertEquals("Mara Vale", primary.canonical_name)
+        assertEquals("mara vale", primary.canonical_name_key)
+        assertEquals(characterId, primary.entity_id)
+    }
+
+    /**
      * canonical_name_key is derived from canonical_name and backs a unique index, so every write path
      * has to move it. Renaming the Primary Character goes through raw SQL in CharacterDao rather than
      * the Room entity, and that path forgot the key when the column was added.

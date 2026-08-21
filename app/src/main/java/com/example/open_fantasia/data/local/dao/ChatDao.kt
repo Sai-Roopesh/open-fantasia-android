@@ -45,15 +45,23 @@ abstract class ChatDao {
     @Query("DELETE FROM cast_seeds WHERE cast_id = :castId AND provenance != 'primary'")
     abstract suspend fun deleteCastSeed(castId: String)
 
+    /**
+     * Gives a new thread its Primary Character as a Cast Seed.
+     *
+     * Every NOT NULL column must appear here. The list is explicit, and `INSERT OR IGNORE` turns a
+     * constraint violation into silence, so omitting one does not raise an error: the row simply never
+     * arrives and the thread has no Primary Character in its Cast Roster. That is what happened when
+     * canonical_name_key was added and this statement was not updated with it.
+     */
     @Query("""
         INSERT OR IGNORE INTO cast_seeds (
-            cast_id, thread_id, entity_id, canonical_name, aliases, role_background,
-            personality, voice_style, appearance, goals, boundaries, provenance,
+            cast_id, thread_id, entity_id, canonical_name, canonical_name_key, aliases,
+            role_background, personality, voice_style, appearance, goals, boundaries, provenance,
             first_seen_turn_id, evidence, status, speaker_eligible, player_controlled,
             manual_locks, created_at, updated_at
         )
-        SELECT 'primary:' || t.id, t.id, c.id, c.name, '[]', c.story,
-               c.core_persona, c.style_rules, c.appearance, '', c.negative_guidance,
+        SELECT 'primary:' || t.id, t.id, c.id, c.name, lower(trim(c.name)), '[]',
+               c.story, c.core_persona, c.style_rules, c.appearance, '', c.negative_guidance,
                'primary', NULL, '[]', 'active', 1, 0,
                '["canonical_name","role_background","personality","voice_style","appearance","boundaries"]',
                t.created_at, t.updated_at
