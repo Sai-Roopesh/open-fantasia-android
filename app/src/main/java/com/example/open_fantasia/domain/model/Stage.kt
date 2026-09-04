@@ -96,7 +96,7 @@ object StageProjection {
         val relationships = world?.relational_state.orEmpty()
         val currentLocationId = world?.spatial_state?.current_location?.id
         val placedHere = world?.spatial_state?.entity_placements.orEmpty()
-            .filter { it.location_id != null && it.location_id == currentLocationId }
+            .filter { it.location_id == currentLocationId }
             .map { it.entity_id }
             .toSet()
 

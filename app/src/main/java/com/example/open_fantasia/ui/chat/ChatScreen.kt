@@ -1206,7 +1206,7 @@ fun AssistantMessageRow(
                     horizontalArrangement = Arrangement.spacedBy(3.dp)
                 ) {
                     (1..4).forEach { i ->
-                        val selected = turn.feedback_rating != null && turn.feedback_rating!! >= i
+                        val selected = (turn.feedback_rating ?: 0) >= i
                         Icon(
                             imageVector = Icons.Default.Star,
                             contentDescription = "Rate $i",
