@@ -207,20 +207,3 @@ data class ChatPinRecord(
     val updated_at: String
 )
 
-@Serializable
-data class CharacterPortraitTaskRecord(
-    val id: String,
-    val character_id: String,
-    val user_id: String,
-    val prompt: String,
-    val seed: Long,
-    val source_hash: String,
-    val status: String, // "pending" | "running" | "succeeded" | "failed"
-    val attempts: Int = 0,
-    val max_attempts: Int = 8,
-    val available_at: String,
-    val locked_at: String? = null,
-    val last_error: String? = null,
-    val created_at: String,
-    val updated_at: String
-)

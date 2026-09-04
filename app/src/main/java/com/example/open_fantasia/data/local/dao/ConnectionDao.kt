@@ -14,9 +14,6 @@ abstract class ConnectionDao {
     @Query("SELECT * FROM ai_connections WHERE id = :id")
     abstract suspend fun getConnection(id: String): ConnectionEntity?
 
-    @Query("SELECT * FROM ai_connections")
-    abstract suspend fun getAllConnections(): List<ConnectionEntity>
-
     @Query("SELECT * FROM ai_connections ORDER BY label ASC")
     abstract fun getAllConnectionsFlow(): Flow<List<ConnectionEntity>>
 

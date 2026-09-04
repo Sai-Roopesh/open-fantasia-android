@@ -33,9 +33,6 @@ abstract class PortraitTaskDao {
     @Upsert
     abstract suspend fun upsertCastPortrait(portrait: CastPortraitEntity)
 
-    @Query("SELECT * FROM cast_portraits WHERE branch_id = :branchId")
-    abstract fun getCastPortraitsFlow(branchId: String): Flow<List<CastPortraitEntity>>
-
     @Query("SELECT * FROM cast_portraits WHERE thread_id = :threadId")
     abstract fun getCastPortraitsForThreadFlow(threadId: String): Flow<List<CastPortraitEntity>>
 

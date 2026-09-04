@@ -27,9 +27,6 @@ abstract class ChatDao {
     @Query("SELECT * FROM chat_threads ORDER BY updated_at DESC")
     abstract fun getAllThreadsFlow(): Flow<List<ThreadEntity>>
 
-    @Query("SELECT * FROM chat_threads")
-    abstract suspend fun getAllThreads(): List<ThreadEntity>
-
     @Update
     abstract suspend fun updateThread(thread: ThreadEntity)
 
@@ -120,12 +117,6 @@ abstract class ChatDao {
     @Query("SELECT o.* FROM cast_profile_overrides o JOIN chat_branches b ON b.id = o.branch_id WHERE b.thread_id = :threadId")
     protected abstract suspend fun getAllCastOverridesForThread(threadId: String): List<CastProfileOverrideEntity>
 
-    @Query("DELETE FROM chat_branches WHERE id = :id")
-    abstract suspend fun deleteBranch(id: String)
-
-    @Query("DELETE FROM chat_branches WHERE id IN (:ids)")
-    abstract suspend fun deleteBranches(ids: List<String>)
-
     @Query("UPDATE chat_branches SET is_active = 0, updated_at = :timestamp WHERE thread_id = :threadId")
     abstract suspend fun deactivateAllBranchesForThread(threadId: String, timestamp: String)
 
@@ -147,9 +138,6 @@ abstract class ChatDao {
     @Query("DELETE FROM chat_turns WHERE id = :id")
     protected abstract suspend fun deleteTurn(id: String)
 
-    @Query("UPDATE chat_turns SET parent_turn_id = :newParentId WHERE parent_turn_id = :oldParentId")
-    abstract suspend fun updateParentForChildren(oldParentId: String, newParentId: String?)
-
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun insertSnapshot(snapshot: SnapshotEntity)
 
@@ -163,9 +151,6 @@ abstract class ChatDao {
      *  chat UI re-reads currentSnapshot after a background materialization saves it. */
     @Query("SELECT COUNT(*) FROM world_snapshots WHERE thread_id = :threadId")
     abstract fun getSnapshotSignalFlow(threadId: String): Flow<Int>
-
-    @Query("DELETE FROM world_snapshots WHERE turn_id = :turnId")
-    abstract suspend fun deleteSnapshot(turnId: String)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun insertCheckpoint(request: ContinuityCheckpointEntity)
@@ -208,9 +193,6 @@ abstract class ChatDao {
 
     @Query("SELECT * FROM roleplay_generation_jobs WHERE turn_id = :turnId ORDER BY created_at DESC LIMIT 1")
     abstract suspend fun getLatestRoleplayJobForTurn(turnId: String): RoleplayGenerationJobEntity?
-
-    @Query("SELECT * FROM roleplay_generation_jobs WHERE thread_id = :threadId ORDER BY created_at DESC")
-    abstract fun getRoleplayJobsForThreadFlow(threadId: String): Flow<List<RoleplayGenerationJobEntity>>
 
     @Query("SELECT * FROM roleplay_generation_jobs WHERE status NOT IN ('accepted', 'superseded') ORDER BY created_at ASC")
     abstract suspend fun getPendingRoleplayJobs(): List<RoleplayGenerationJobEntity>
@@ -286,9 +268,6 @@ abstract class ChatDao {
     @Query("SELECT * FROM chat_pins WHERE thread_id = :threadId AND status = 'active'")
     protected abstract suspend fun getAllActivePinsForThread(threadId: String): List<PinEntity>
 
-    @Query("SELECT * FROM chat_pins WHERE id = :id")
-    abstract suspend fun getPin(id: String): PinEntity?
-
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun insertTimelineEvent(event: TimelineEntity)
 
@@ -297,9 +276,6 @@ abstract class ChatDao {
 
     @Query("SELECT * FROM chat_timeline_events WHERE thread_id = :threadId ORDER BY created_at DESC")
     abstract fun getAllTimelineEventsForThreadFlow(threadId: String): Flow<List<TimelineEntity>>
-
-    @Query("SELECT * FROM chat_timeline_events WHERE thread_id = :threadId AND branch_id = :branchId ORDER BY created_at DESC")
-    abstract fun getTimelineEventsFlow(threadId: String, branchId: String): Flow<List<TimelineEntity>>
 
     @Query("SELECT * FROM chat_timeline_events WHERE thread_id = :threadId AND branch_id = :branchId")
     abstract suspend fun getTimelineEvents(threadId: String, branchId: String): List<TimelineEntity>
