@@ -7,6 +7,17 @@ import androidx.security.crypto.MasterKey
 import java.io.IOException
 import java.security.GeneralSecurityException
 
+/**
+ * A Continuity Engine the Mac Host can run, with the name a person chooses it by. The identity is
+ * protocol; the label is not, which is why they live together here rather than being restated in
+ * each screen that offers the choice.
+ */
+data class ContinuityEngineOption(
+    val id: String,
+    val label: String,
+    val hint: String
+)
+
 data class ContinuityHostPairing(
     val endpoint: String,
     val deviceId: String,
@@ -91,10 +102,28 @@ class ContinuityHostPreferences(context: Context) {
         private const val PREFERENCES_NAME = "continuity_host_credentials"
         const val CODEX_TERRA_HIGH = "codex:gpt-5.6-terra:high"
         const val ANTIGRAVITY_GEMINI_FLASH_HIGH = "antigravity:gemini-3.6-flash:high"
+        const val CLAUDE_OPUS_HIGH = "claude-code:opus:high"
         const val JOB_CONTINUITY = "continuity"
         const val JOB_ROLEPLAY = "roleplay"
         const val JOB_PORTRAIT = "portrait"
-        val SUPPORTED_CONTINUITY_ENGINES = setOf(CODEX_TERRA_HIGH, ANTIGRAVITY_GEMINI_FLASH_HIGH)
+        val CONTINUITY_ENGINES = listOf(
+            ContinuityEngineOption(
+                CODEX_TERRA_HIGH, "GPT-5.6 Terra High",
+                "Runs on the Codex CLI signed in on your Mac"
+            ),
+            ContinuityEngineOption(
+                ANTIGRAVITY_GEMINI_FLASH_HIGH, "Gemini 3.6 Flash High",
+                "Runs on the Antigravity CLI signed in on your Mac"
+            ),
+            ContinuityEngineOption(
+                CLAUDE_OPUS_HIGH, "Claude Opus High",
+                "Runs on the signed-in Claude Code subscription on your Mac"
+            )
+        )
+        val SUPPORTED_CONTINUITY_ENGINES = CONTINUITY_ENGINES.map { it.id }.toSet()
+
+        fun continuityEngineLabel(engineId: String): String =
+            CONTINUITY_ENGINES.firstOrNull { it.id == engineId }?.label ?: engineId
 
         fun normalizeEndpoint(raw: String): String {
             val value = raw.trim().trimEnd('/')

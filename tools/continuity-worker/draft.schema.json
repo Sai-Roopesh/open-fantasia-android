@@ -121,7 +121,7 @@
       "additionalProperties": false,
       "required": ["exchange", "title", "detail", "importance", "event_type", "entities", "relationships"],
       "properties": {
-        "exchange": { "type": "string", "description": "Exchange ordinal such as \"#12\". Must be one of the checkpoint exchanges." },
+        "exchange": { "type": "string", "description": "Exchange ordinal such as \"#12\"." },
         "title": { "type": "string" },
         "detail": { "type": "string" },
         "importance": { "type": "integer", "minimum": 1, "maximum": 5 },

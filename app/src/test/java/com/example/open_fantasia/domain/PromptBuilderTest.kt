@@ -38,7 +38,9 @@ class PromptBuilderTest {
         cast: List<PromptCastMember> = listOf(cast("Ayushi", "primary:t", "Primary Character")),
         pins: List<ChatPinRecord> = emptyList(),
         timeline: List<TimelineEventRecord> = emptyList(),
-        replyLengthTokens: Int = 4096
+        replyLength: ReplyLength = ReplyLength.Full,
+        revision: Revision? = null,
+        sceneIntent: SceneIntent = SceneIntent.Escalate
     ) = RoleplayContext(
         character = PromptCharacter(
             name = "Ayushi", story = story, corePersona = "CORE", appearance = "", styleRules = "",
@@ -51,10 +53,13 @@ class PromptBuilderTest {
         cast = cast,
         activeSpeaker = cast.firstOrNull(),
         speakerMode = "single",
+        sceneIntent = sceneIntent,
         pins = pins,
         timeline = timeline,
         currentUserMessage = "USER-PROSE",
-        replyLengthTokens = replyLengthTokens
+        revision = revision,
+        replyLength = replyLength,
+        modelId = "test-model"
     )
 
     @Test
@@ -94,7 +99,10 @@ class PromptBuilderTest {
 
         assertTrue(rendered.currentUserMessage.contains("<reply_control>\n"))
         assertTrue(rendered.currentUserMessage.contains("<length_target>\n"))
-        assertTrue(rendered.currentUserMessage.contains("<drive_this_turn>\n"))
+        // Renamed from <drive_this_turn>, which named one of four policies as though it were the only
+        // one. What the turn block carries now depends on the Scene Intent. See [TurnPolicy].
+        assertTrue(rendered.currentUserMessage.contains("<this_turn>\n"))
+        assertTrue(rendered.currentUserMessage.contains("<variation_rules>\n"))
         assertFalse("the snapshot must not be repeated per reply", rendered.currentUserMessage.contains("<durable_state>\n"))
         assertFalse("cast must not be repeated per reply", rendered.currentUserMessage.contains("<cast_roster>\n"))
     }
@@ -121,10 +129,20 @@ class PromptBuilderTest {
     }
 
     @Test
-    fun testLengthTargetReflectsTokenBudget() {
-        val concise = PromptBuilder.render(context(replyLengthTokens = 750)).currentUserMessage
-        val expansive = PromptBuilder.render(context(replyLengthTokens = 8192)).currentUserMessage
-        assertFalse("the length directive must track the budget", concise == expansive)
+    fun testLengthTargetReflectsTheChosenLength() {
+        val terse = PromptBuilder.render(context(replyLength = ReplyLength.Terse)).currentUserMessage
+        val expansive = PromptBuilder.render(context(replyLength = ReplyLength.Expansive)).currentUserMessage
+        assertFalse("the length directive must track the chosen length", terse == expansive)
+        // Stated in words, because paragraphs are elastic and a model sizes them to taste: measured,
+        // "roughly 3-4 paragraphs" produced 2,536 characters of Sonnet prose, about 430 words.
+        assertTrue(terse.contains("words of visible prose"))
+        assertFalse("the target must not withdraw its own authority", terse.contains("not a hard cap"))
+    }
+
+    @Test
+    fun testLengthTargetIsTheLastThingReadBeforeGeneration() {
+        val message = PromptBuilder.render(context()).currentUserMessage
+        assertTrue(message.indexOf("<length_target>") > message.indexOf("USER-PROSE"))
     }
 
     @Test
@@ -154,7 +172,12 @@ class PromptBuilderTest {
         assertTrue(prompt.contains("<pins_timeline>\n"))
         assertTrue(prompt.contains("Pinned branch facts:"))
         assertTrue(prompt.contains("PIN-BODY"))
-        assertTrue(prompt.contains("Recent high-importance timeline beats:"))
+        // Renamed from "Recent high-importance timeline beats". The heading promised a selection the code
+        // never made: every reachable event shipped, and the engine had rated 85 of 139 at 5/5, so
+        // importance had stopped ranking anything. The Stage takes the most recent instead, and the
+        // heading now describes what actually happens.
+        assertTrue(prompt.contains("Most recent timeline beats:"))
         assertTrue(prompt.contains("TL-DETAIL"))
     }
 }
+

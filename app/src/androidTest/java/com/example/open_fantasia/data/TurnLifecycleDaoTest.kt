@@ -245,7 +245,7 @@ class TurnLifecycleDaoTest {
     }
 
     @Test
-    fun checkpointRequestIncludesFullRetainedTranscriptAndMarksOnlyNewTurns() = runBlocking {
+    fun checkpointRequestCarriesOnlyEvidenceTheBaselineDoesNotCover() = runBlocking {
         val dao = db.chatDao()
         val thread = dao.createThreadWithBranch(userId, characterId, connectionId, "chat-model", null, null, null, 2048, "Full transcript")
         val branch = dao.getActiveBranchForThread(thread.id)!!
@@ -281,8 +281,9 @@ class TurnLifecycleDaoTest {
             dao, checkpoint, db.characterDao().getCharacter(characterId)!!, null, ""
         )
 
-        assertEquals(turns.map { it.id }, request.exchanges.map { it.turn_id })
-        assertEquals(turns.drop(1).map { it.id }, request.checkpoint_turn_ids)
+        // Evidence is what the Continuity Baseline does not already account for. The Baseline sits on
+        // the first exchange, so only the ones after it are sent. See ADR-0016.
+        assertEquals(turns.drop(1).map { it.id }, request.exchanges.map { it.turn_id })
     }
 
     @Test
@@ -725,9 +726,11 @@ class TurnLifecycleDaoTest {
         assertNotEquals(committedSecond.id, mainHead)
         val replacementPath = dao.getAncestorTurns(mainHead)
         assertEquals("Edited only on Main", replacementPath.single { it.user_input_text == "First" }.assistant_output_text)
-        assertEquals(mainHead, checkpoint.target_turn_id)
-        assertEquals("assistant_edit", checkpoint.trigger_reason)
-        assertEquals(checkpoint.id, dao.getBlockingCheckpoint(mainHead)?.id)
+        // This thread has no Continuity Snapshot, so editing cannot move the Baseline and owes no
+        // Continuity Update. Whether an edit owes one is covered by ContinuityBaselineSelectionDaoTest.
+        // See ADR-0015.
+        assertNull(checkpoint)
+        assertNull(dao.getBlockingCheckpoint(mainHead))
     }
 
     @Test

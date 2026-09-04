@@ -42,7 +42,6 @@ data class ContinuityRequestEnvelope(
     val pins: List<CheckpointPin>,
     val baseline_snapshot: DurableMemorySnapshot?,
     val exchanges: List<CheckpointExchange>,
-    val checkpoint_turn_ids: List<String>,
     val story_summary_limit: Int = 20_000,
     val scene_summary_limit: Int = 8_000,
     val latest_beat_limit: Int = 4_000
@@ -96,13 +95,15 @@ object ContinuityCheckpointProtocol {
         while (cursor != null) { val t = ancestors[cursor] ?: break; ordered += t; cursor = t.parent_turn_id }
         ordered.reverse()
         val baselineIndex = request.baseline_turn_id?.let { id -> ordered.indexOfFirst { it.id == id } } ?: -1
-        val committedTurns = ordered.filter { it.generation_status == "committed" && !it.starter_seed }
-        val exchanges = committedTurns.map {
+        // Evidence is what the Continuity Baseline does not already account for. The Baseline is a
+        // complete account of everything through its own exchange, so re-sending that prose says the
+        // same thing twice and grows without limit as a thread gets longer. With no Baseline yet, every
+        // retained exchange is evidence. See ADR-0016.
+        val evidenceTurns = ordered.drop(baselineIndex + 1)
+            .filter { it.generation_status == "committed" && !it.starter_seed }
+        val exchanges = evidenceTurns.map {
             CheckpointExchange(it.id, it.parent_turn_id, it.user_input_text, it.assistant_output_text.orEmpty(), it.created_at)
         }
-        val checkpointTurnIds = ordered.drop(baselineIndex + 1)
-            .filter { it.generation_status == "committed" && !it.starter_seed }
-            .map { it.id }
         return ContinuityRequestEnvelope(
             engine_id=request.engine_id,
             request_id=request.id, thread_id=request.thread_id, branch_id=request.branch_id,
@@ -114,7 +115,7 @@ object ContinuityCheckpointProtocol {
             persona=persona?.let { CheckpointPersona(it.name,it.identity,it.backstory,it.goals,it.boundaries) },
             cast_seeds=constraints, current_cast_roster=currentRoster, director_notes=directorNotes,
             pins=lineageState.pins.map { CheckpointPin(it.id,it.body) }, baseline_snapshot=baseline?.world_state,
-            exchanges=exchanges, checkpoint_turn_ids=checkpointTurnIds
+            exchanges=exchanges
         )
     }
 
@@ -165,6 +166,15 @@ object ContinuityCheckpointProtocol {
         require(s.narrative_state.scene_summary.length <= 8_000) { "Scene Summary exceeds 8,000 characters" }
         require(s.narrative_state.last_turn_beat.length <= 4_000) { "Latest Beat exceeds 4,000 characters" }
         val entityIds=s.entity_state.map { it.entity_id }; require(entityIds.size == entityIds.toSet().size) { "Duplicate entity IDs" }
+        // One name, one person. Unique identifiers were the only entity invariant checked, and a
+        // checkpoint that minted a fresh identity for a known character satisfied it perfectly: 304
+        // records describing 24 people all had distinct IDs. The Cast Roster has always been held to the
+        // stronger rule two lines below; entity_state was not, and that asymmetry is what let the defect
+        // run for twenty-three Continuity Updates unnoticed.
+        val entityNames = s.entity_state.map { it.canonical_name.trim().lowercase() }
+        require(entityNames.size == entityNames.toSet().size) {
+            "Two entities share a name: ${entityNames.groupingBy { it }.eachCount().filterValues { it > 1 }.keys.joinToString()}"
+        }
         val rawLocationIds = s.spatial_state.known_locations.map { it.id }
         require(rawLocationIds.size == rawLocationIds.toSet().size) { "Duplicate location IDs" }
         val locationIds = rawLocationIds.toSet()

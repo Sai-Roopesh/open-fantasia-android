@@ -30,7 +30,6 @@ function envelope(fixture) {
       assistant: "a",
       created_at: String(index)
     })),
-    checkpoint_turn_ids: [fixture.target_turn_id],
     cast_seeds: fixture.seeds
   };
   const response = {

@@ -32,9 +32,11 @@ export function renderContinuityModelInput(prompt, request) {
  * actually read.
  *
  * Returns null when the repair input would exceed the direct-delivery limit, because a partially
- * delivered draft is worse than a clean regeneration.
+ * delivered draft is worse than a clean regeneration. An adapter that appends its own trailer, such
+ * as the Continuity Draft schema, passes it here so the decision is made on the bytes that will
+ * actually be sent rather than on a prefix of them.
  */
-export function renderContinuityRepairInput(prompt, request, previousDraft, failure) {
+export function renderContinuityRepairInput(prompt, request, previousDraft, failure, suffix = "") {
   const input = [
     renderContinuityModelInput(prompt, request),
     "",
@@ -50,8 +52,55 @@ export function renderContinuityRepairInput(prompt, request, previousDraft, fail
     "<previous_continuity_draft>",
     JSON.stringify(previousDraft),
     "</previous_continuity_draft>"
-  ].join("\n");
+  ].join("\n") + suffix;
   return Buffer.byteLength(input, "utf8") > MAX_DIRECT_MODEL_INPUT_BYTES ? null : input;
+}
+
+/**
+ * The JSON object an adapter without CLI-enforced structured output actually returns.
+ *
+ * Codex is handed `--output-schema` and its CLI guarantees the shape. Every other adapter gets the
+ * model's own idea of "return JSON", which is frequently a fenced block. Stripping the fence here
+ * keeps that quirk out of each adapter.
+ */
+export function unfenceJson(value) {
+  const text = String(value ?? "").trim();
+  const fenced = text.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  return (fenced?.[1] ?? text).trim();
+}
+
+/**
+ * The Continuity Draft schema, delivered as prompt text for an adapter whose CLI cannot enforce it.
+ *
+ * PROMPT.md describes the operation vocabulary but never the literal JSON keys, and that gap is
+ * expensive: Antigravity authored two genuinely good drafts for a real request and both were rejected
+ * on shape alone — every operation missing `op`, every presence entry using its own key names, every
+ * timeline event missing `exchange` and giving `importance` as a non-integer. The work was right and
+ * the envelope was wrong, which is the most wasteful way to fail.
+ *
+ * So an unschema'd adapter carries the schema itself plus one filled-in operation, because a flat
+ * object with eighteen nullable keys is easy to describe and hard to guess. The contract is the same
+ * for every engine; how each is made to satisfy it is adapter-local. See ADR-0012.
+ */
+export function renderDraftShapeInstruction(draftSchemaJson) {
+  if (!draftSchemaJson) return "";
+  return [
+    "",
+    "Your reply must match this JSON Schema exactly. Every key listed in a `required` array must be",
+    "present on every object, including the ones that do not apply — write `null` for those rather than",
+    "omitting them. Integers must be integers, not strings or decimals.",
+    "<continuity_draft_schema>",
+    draftSchemaJson,
+    "</continuity_draft_schema>",
+    "",
+    "One complete operation object, for shape only:",
+    JSON.stringify({
+      op: "assert_fact", handle: null, entity: "vera", bucket: "traits", from: null, to: null,
+      name: null, kind: null, body: "Keeps to high ground", status: null, aliases: null,
+      modifiers: null, bidirectional: null, profile: null, evidence: null,
+      first_seen_exchange: null, dependencies: null, reason: null
+    })
+  ].join("\n");
 }
 
 /**
@@ -103,7 +152,8 @@ export const CONTRACT_FILES = [
   "host-lib.mjs",
   "worker-lib.mjs",
   "codex-runner.mjs",
-  "antigravity-runner.mjs"
+  "antigravity-runner.mjs",
+  "claude-runner.mjs"
 ];
 
 /**

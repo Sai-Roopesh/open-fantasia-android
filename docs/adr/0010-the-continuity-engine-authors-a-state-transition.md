@@ -38,6 +38,31 @@ Every part of a Continuity Snapshot is governed by exactly one update rule.
 | A Cast Seed's unlocked fields | Editable through the same operations as any other Cast Member |
 | Discovered Cast Members | Added and updated through semantic operations; the Host assigns identity |
 | Timeline events | New checkpoint events only, cited by exchange ordinal |
+| Salience of every merged record | Set to the new version when this update touched the record, carried forward otherwise; Cast Members are always current |
+
+## Salience, the rule that lets state settle
+
+The merge rule above only ever adds. Removal exists as `retract_fact`, `retire_entity` and
+`resolve_thread`, and nothing has ever asked the engine to use them, so in practice nothing was ever
+removed. One thread reached 304 entity records, 139 timeline beats and ten simultaneous open objectives,
+and the prompt built from it spent 88% of itself on state while 2.3% of it described how to write.
+A memory with no consolidation rule becomes a landfill, and this one had none.
+
+Salience records the snapshot version at which the story last had anything to do with each entity,
+relationship and thread. A record this update touched — named by an operation, present in the scene,
+cited by a timeline event, or still discussed by the rewritten prose — becomes current. One it ignored
+keeps the version it last mattered at. Age is `metadata.version - salience[id]`.
+
+It is only a signal. Nothing is deleted, and nothing about the Continuity Snapshot's defining property
+changes: it remains an independently valid, complete account. What salience enables is a later decision
+about resolution, taken where the prompt is built rather than where truth is stored, which is why the
+threshold is deliberately not recorded here. A stored snapshot never has to be rewritten to change it.
+
+Cast Members are exempt and always current. A character a person wrote by hand does not become less real
+for being off-screen a while, and without that exemption no tiering built on this signal would be safe to
+trust. Salience lives beside the records rather than inside them, because `entity_state` is serialized
+into the roleplay prompt verbatim and a field added there would sit among a character's secrets as though
+it were one of them.
 | Envelope identity, versions and hashes | Written exclusively by the Host |
 
 Omission means unchanged, never delete — with one deliberate exception, which is the second row.

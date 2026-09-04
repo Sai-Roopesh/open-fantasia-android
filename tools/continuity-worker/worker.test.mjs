@@ -25,7 +25,6 @@ function fixture() {
       { turn_id: "old-turn", parent_turn_id: null, user: "Earlier", assistant: "Earlier reply", created_at: "before" },
       { turn_id: "turn-7", parent_turn_id: "old-turn", user: "Hello", assistant: "Hi", created_at: "now" }
     ],
-    checkpoint_turn_ids: ["turn-7"],
     cast_seeds: [{
       cast_id: "primary:thread-1", entity_id: "hero", canonical_name: "Hero", aliases: [],
       role_background: "Lead", personality: "Steady", voice_style: "", appearance: "",
@@ -93,10 +92,10 @@ test("rejects a response from a stale retry attempt", () => {
   assert.throws(() => validateResponse(request, response), /attempt mismatch/);
 });
 
-test("rejects timeline events that reference a turn outside the checkpoint window", () => {
+test("rejects timeline events that reference a turn outside the evidence window", () => {
   const { request, response } = fixture();
   response.timeline_events = [{
-    turn_id: "old-turn",
+    turn_id: "turn-outside-the-window",
     title: "Reveal",
     detail: "A truth emerged.",
     importance: 5,

@@ -7,6 +7,7 @@ import {
   ANTIGRAVITY_PORTRAIT_MODEL,
   ANTIGRAVITY_ROLEPLAY_MODEL,
   CLAUDE_CODE_ROLEPLAY_MODEL,
+  CLAUDE_CONTINUITY_ENGINE,
   CODEX_CONTINUITY_ENGINE,
   createContinuityHost
 } from "./host-server.mjs";
@@ -363,5 +364,76 @@ test("health reports which Continuity Engines are available and why others are n
   }, {
     continuityRunners: new Map([[CODEX_CONTINUITY_ENGINE, async input => input]]),
     continuityEngineFailures: new Map([["antigravity:gemini-3.6-flash:high", "not signed in"]])
+  });
+});
+
+// Claude is a Continuity Engine and a Roleplay Model on one CLI and one subscription. Continuity is
+// globally serialized either way, but the lane is what keeps a Claude Continuity Update from running
+// beside a Claude roleplay reply — the mistake that would put two headless sessions on one account.
+test("a Claude Continuity Update holds the Claude lane against a Claude roleplay reply", async () => {
+  const root = await mkdtemp(join(tmpdir(), "open-fantasia-claude-lane-test-"));
+  let claudeActive = 0;
+  let overlapped = false;
+  const occupyClaudeLane = async input => {
+    claudeActive += 1;
+    if (claudeActive > 1) overlapped = true;
+    await new Promise(resolve => setTimeout(resolve, 40));
+    claudeActive -= 1;
+    return { request_id: input.request_id, reply_text: "done", model_id: input.model_id };
+  };
+  const host = await createContinuityHost({
+    root,
+    port: 0,
+    continuityRunners: new Map([[CLAUDE_CONTINUITY_ENGINE, occupyClaudeLane]]),
+    roleplayRunners: new Map([[CLAUDE_CODE_ROLEPLAY_MODEL, occupyClaudeLane]])
+  });
+  const address = await host.start();
+  const base = `http://127.0.0.1:${address.port}`;
+  try {
+    const paired = await pair(host, base);
+    const headers = { authorization: `Bearer ${paired.credential}`, "content-type": "application/json" };
+    await fetch(`${base}/v2/checkpoints`, {
+      method: "POST", headers,
+      body: JSON.stringify({ ...request("claude-continuity-1"), engine_id: CLAUDE_CONTINUITY_ENGINE })
+    });
+    await fetch(`${base}/v2/roleplay-jobs`, {
+      method: "POST", headers,
+      body: JSON.stringify({
+        protocol_version: 2, job_type: "roleplay", request_id: "claude-roleplay-lane-1",
+        thread_id: "thread-1", branch_id: "branch-1", turn_id: "turn-1",
+        requested_speaker_id: null, speaker_mode: "single", model_id: CLAUDE_CODE_ROLEPLAY_MODEL,
+        attempt_count: 0, request_hash: "hash", generation_request: {}
+      })
+    });
+    await waitForReady(base, paired.credential, "claude-continuity-1");
+    for (let attempt = 0; attempt < 200; attempt++) {
+      const status = await (await fetch(`${base}/v2/roleplay-jobs/claude-roleplay-lane-1`, { headers })).json();
+      if (status.status === "ready") break;
+      await new Promise(resolve => setTimeout(resolve, 5));
+    }
+    assert.equal(overlapped, false, "two Claude jobs never share the lane");
+  } finally {
+    await host.stop({ force: true });
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("an unknown Continuity Engine is refused at submission, and Claude Opus High is not", async () => {
+  await withHost(async input => input, async ({ host, base }) => {
+    const paired = await pair(host, base);
+    const headers = { authorization: `Bearer ${paired.credential}`, "content-type": "application/json" };
+    const unknown = await fetch(`${base}/v2/checkpoints`, {
+      method: "POST", headers,
+      body: JSON.stringify({ ...request("unknown-engine"), engine_id: "claude-code:haiku:low" })
+    });
+    assert.equal(unknown.status, 400);
+    assert.match((await unknown.json()).message, /Unsupported Continuity Engine/);
+    const accepted = await fetch(`${base}/v2/checkpoints`, {
+      method: "POST", headers,
+      body: JSON.stringify({ ...request("claude-engine-accepted"), engine_id: CLAUDE_CONTINUITY_ENGINE })
+    });
+    assert.equal(accepted.status, 202);
+  }, {
+    continuityRunners: new Map([[CLAUDE_CONTINUITY_ENGINE, async input => input]])
   });
 });

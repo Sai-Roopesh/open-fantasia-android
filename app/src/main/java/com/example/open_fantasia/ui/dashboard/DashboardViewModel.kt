@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.open_fantasia.data.local.dao.CharacterDao
 import com.example.open_fantasia.data.local.dao.ChatDao
+import com.example.open_fantasia.domain.model.ReplyLength
 import com.example.open_fantasia.data.local.dao.ConnectionDao
 import com.example.open_fantasia.data.local.dao.PersonaDao
 import com.example.open_fantasia.data.local.entity.CharacterEntity
@@ -206,7 +207,7 @@ class DashboardViewModel(
                 personaId = defaultPersonaId,
                 brainConnectionId = null,
                 brainModelId = null,
-                maxOutputTokens = 4096,
+                replyLength = ReplyLength.Default.id,
                 title = title.trim().ifEmpty { "New Conversation" }
             )
             onCreated(newThread.id)

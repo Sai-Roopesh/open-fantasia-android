@@ -10,7 +10,22 @@ data class DurableMemorySnapshot(
     val relational_state: List<RelationalState>,
     val narrative_state: NarrativeState,
     /** Complete, branch-valid speakable cast at this snapshot. */
-    val cast_roster: List<CastProfile> = emptyList()
+    val cast_roster: List<CastProfile> = emptyList(),
+    /**
+     * The snapshot version at which the story last had anything to do with each entity, relationship,
+     * and thread, keyed by identifier. Maintained by the Continuity Compiler; age is
+     * `metadata.version - salience[id]`.
+     *
+     * It is bookkeeping about a record rather than a fact about the story, which is why it sits beside
+     * the records instead of inside them: `entity_state` is serialized into the prompt verbatim, so a
+     * field added there would read to the model as though it were one of a character's secrets.
+     * [PromptWorldState] therefore does not carry it, the same way and for the same kind of reason it
+     * does not carry `cast_roster`.
+     *
+     * Empty on any snapshot written before salience existed. An absent entry means the record is
+     * current, so an old snapshot ages nothing until its next Continuity Update.
+     */
+    val salience: Map<String, Int> = emptyMap()
 )
 
 @Serializable

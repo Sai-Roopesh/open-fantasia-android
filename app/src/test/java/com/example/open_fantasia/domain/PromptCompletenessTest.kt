@@ -108,12 +108,15 @@ class PromptCompletenessTest {
         cast = cast,
         activeSpeaker = cast.firstOrNull(),
         speakerMode = speakerMode,
+        sceneIntent = SceneIntent.Escalate,
         pins = listOf(ChatPinRecord("p1", "t", "b", null, "PIN-BODY", "active", "", "")),
         timeline = listOf(
             TimelineEventRecord("tl1", "t", "b", "turn-9", "TIMELINE-TITLE", "TIMELINE-DETAIL", 5, "reveal", emptyList(), emptyList(), "")
         ),
         currentUserMessage = "CURRENT-USER-MESSAGE",
-        replyLengthTokens = 4096
+        revision = null,
+        replyLength = ReplyLength.Full,
+        modelId = "test-model"
     )
 
     private fun rendered(context: RoleplayContext = context()): String {

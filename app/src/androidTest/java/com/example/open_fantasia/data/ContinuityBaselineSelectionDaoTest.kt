@@ -208,6 +208,57 @@ class ContinuityBaselineSelectionDaoTest {
         assertEquals("the key must follow the name", "mara renamed", seed.canonical_name_key)
     }
 
+    /**
+     * Editing prose the Baseline never saw leaves the Baseline where it is, so nothing about continuity
+     * changed and no Continuity Update is owed. See ADR-0015.
+     */
+    @Test
+    fun editingAfterTheBaselineOwesNoContinuityUpdate() = runBlocking {
+        val dao = db.chatDao()
+        val thread = dao.createThreadWithBranch(userId, characterId, connectionId, "chat-model", null, null, null, 2048, "EditAfter")
+        val branch = dao.getActiveBranchForThread(thread.id)!!
+        val turns = commitExchanges(branch.id, 5, "Main")
+        dao.upsertWorldSnapshot(turns[1].id, thread.id, branch.id, null, snapshotAt(turns[1].id, 1, "BASELINE"), 1, true)
+
+        assertFalse(dao.assistantEditRequiresContinuityUpdate(branch.id, turns[3].id))
+
+        val checkpoint = dao.replaceAssistantReply(userId, branch.id, turns[3].id, "Rewritten", null)
+        assertNull("no Continuity Checkpoint is owed", checkpoint)
+        assertTrue(dao.getPendingCheckpoints().isEmpty())
+
+        val stillBaseline = dao.getNearestSnapshot(dao.getBranch(branch.id)!!.head_turn_id!!)
+        assertEquals("BASELINE", stillBaseline!!.world_state.narrative_state.story_summary)
+    }
+
+    /** Editing the exchange the Snapshot sits on drops the Baseline, so an Update is owed. */
+    @Test
+    fun editingTheCheckpointedExchangeOwesAnUpdate() = runBlocking {
+        val dao = db.chatDao()
+        val thread = dao.createThreadWithBranch(userId, characterId, connectionId, "chat-model", null, null, null, 2048, "EditAt")
+        val branch = dao.getActiveBranchForThread(thread.id)!!
+        val turns = commitExchanges(branch.id, 5, "Main")
+        dao.upsertWorldSnapshot(turns[3].id, thread.id, branch.id, null, snapshotAt(turns[3].id, 1, "BASELINE"), 1, true)
+
+        assertTrue(dao.assistantEditRequiresContinuityUpdate(branch.id, turns[3].id))
+
+        val checkpoint = dao.replaceAssistantReply(userId, branch.id, turns[3].id, "Rewritten", "codex:gpt-5.6-terra:high")
+        assertNotNull(checkpoint)
+        assertEquals("assistant_edit", checkpoint!!.trigger_reason)
+        assertNull("the Baseline built from the rewritten prose is gone", checkpoint.baseline_turn_id)
+    }
+
+    /** An exchange before the Baseline also built it, so rewriting that prose owes an Update too. */
+    @Test
+    fun editingBeforeTheBaselineOwesAnUpdate() = runBlocking {
+        val dao = db.chatDao()
+        val thread = dao.createThreadWithBranch(userId, characterId, connectionId, "chat-model", null, null, null, 2048, "EditBefore")
+        val branch = dao.getActiveBranchForThread(thread.id)!!
+        val turns = commitExchanges(branch.id, 6, "Main")
+        dao.upsertWorldSnapshot(turns[4].id, thread.id, branch.id, null, snapshotAt(turns[4].id, 1, "BASELINE"), 1, true)
+
+        assertTrue(dao.assistantEditRequiresContinuityUpdate(branch.id, turns[1].id))
+    }
+
     @Test
     fun aBranchWithNoSnapshotBehindItGetsNone() = runBlocking {
         val dao = db.chatDao()

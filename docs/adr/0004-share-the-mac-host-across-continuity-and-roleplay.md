@@ -4,6 +4,11 @@ status: accepted
 
 # Share the Mac Host across continuity and Antigravity roleplay
 
+> The engine roster below has grown. [ADR-0017](./0017-claude-opus-high-is-a-third-continuity-engine.md)
+> adds `claude-code:opus:high` as a third Continuity Engine, so "the other engine" a failed checkpoint
+> moves to is now a choice between two rather than the single implicit alternative. Everything else in
+> this decision — the frozen identity, the cadence, the acceptance rules — is unchanged.
+
 Open Fantasia will broaden the Tailscale service introduced in ADR-0002 into one Mac Host for two durable job types: Continuity Updates and Antigravity Roleplay Generation Jobs. Android remains the authority for thread history, branch lineage, pending replies, speaker selection, and accepted Continuity Snapshots. The Mac Host supplies model execution only; it never owns a hidden conversation.
 
 ADR-0006 further establishes that direct API and Mac-hosted Roleplay Models execute one provider-neutral Roleplay Generation Request through one orchestration pipeline. The Mac Host changes delivery and lifecycle capabilities, not prompt assembly or roleplay semantics.

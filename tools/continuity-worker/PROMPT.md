@@ -20,6 +20,9 @@ handle for something that already exists in `baseline`, and never use a bare han
 
 Exchanges are numbered. Cite one as `"#12"`. There are no other identifiers anywhere in this task.
 
+The exchanges you are given are the ones the baseline does not yet account for. Everything before them
+is already in `baseline`, written up rather than quoted. Nothing is being hidden from you.
+
 ## What you write
 
 `narrative` is always a complete replacement. Rewrite `story_summary` as one coherent causal account of
@@ -51,10 +54,9 @@ place, relationship, fact and open thread has to be created here, because nothin
 from anywhere. A world of named people with no facts and no relationships between them is a failed
 update even when it validates.
 
-`timeline_events` records genuinely notable beats from the checkpoint exchanges only: reveals,
-betrayals, discoveries, combat, scene changes, time skips, major relationship shifts, significant
-emotional turns, meaningful movement. Routine dialogue gets no event. At most seven, in chronological
-order, each citing a checkpoint exchange ordinal.
+`timeline_events` records genuinely notable beats: reveals, betrayals, discoveries, combat, scene
+changes, time skips, major relationship shifts, significant emotional turns, meaningful movement.
+Routine dialogue gets no event. At most seven, in chronological order, each citing an exchange ordinal.
 
 ## Operations
 

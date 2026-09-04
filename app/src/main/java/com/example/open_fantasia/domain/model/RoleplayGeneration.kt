@@ -77,6 +77,11 @@ object RoleplayOutputValidator {
         require(!(trimmed.startsWith('{') && trimmed.endsWith('}'))) {
             "The Roleplay Model returned JSON instead of roleplay prose"
         }
+        // By the time output reaches here its Scene Report has already been split off, so anything left
+        // that is only a report is a reply with no story in it. See [SceneReportCodec].
+        require(!trimmed.startsWith("<${SceneReportCodec.TAG}>", ignoreCase = true)) {
+            "The Roleplay Model returned a scene report instead of roleplay prose"
+        }
         require(!trimmed.matches(Regex(
             "^(here(?:'s| is)|certainly|of course)[,:]?\\s+(?:the|an|your)\\s+(?:reply|response)[\\s\\S]*$",
             RegexOption.IGNORE_CASE

@@ -32,7 +32,41 @@ sealed interface ContinuityHostState {
 @Serializable data class PairHostRequest(val code: String, val device_name: String = "Open Fantasia Android")
 @Serializable data class PairHostResponse(val protocol_version: Int, val endpoint: String, val device_id: String, val credential: String)
 @Serializable data class ActiveHostJob(val request_id: String, val job_type: String, val status: String, val started_at: Long? = null)
-@Serializable data class HostHealth(val protocol_version: Int, val state: String, val queue_depth: Int = 0, val active_jobs: List<ActiveHostJob> = emptyList())
+@Serializable data class HostHealth(
+    val protocol_version: Int,
+    val state: String,
+    val queue_depth: Int = 0,
+    val active_jobs: List<ActiveHostJob> = emptyList(),
+    val continuity_engines: List<String> = emptyList(),
+    val continuity_engines_unavailable: Map<String, String> = emptyMap()
+)
+
+/**
+ * Which Continuity Engines the paired Mac Host can actually run, and why it cannot run the others.
+ *
+ * A Continuity Engine is frozen into a checkpoint when the checkpoint is created, and the host
+ * refuses a checkpoint naming an engine that failed its preflight. Codex and Antigravity are
+ * required Mac setup, so that refusal was mostly theoretical; Claude Code is optional, and a phone
+ * that cannot see which engines exist will happily freeze one the Mac has never had.
+ *
+ * Nothing is known before the first successful health check, and unknown must never read as
+ * unavailable. An engine is put out of reach only when the host has positively said it cannot run
+ * it, and only while some other engine can: a Mac that can run none of them leaves every choice
+ * open, because a refused checkpoint that explains itself beats a dialog with nothing to press.
+ */
+data class ContinuityEngineAvailability(
+    val runnable: Set<String> = emptySet(),
+    val unavailable: Map<String, String> = emptyMap()
+) {
+    fun unavailableReason(engineId: String): String? = when {
+        runnable.isEmpty() && unavailable.isEmpty() -> null
+        engineId in runnable -> null
+        else -> unavailable[engineId] ?: "This Mac Host does not offer this engine"
+    }
+
+    fun isSelectable(engineId: String): Boolean =
+        runnable.isEmpty() || unavailableReason(engineId) == null
+}
 @Serializable data class HostJobStatus(
     val protocol_version: Int = 2,
     val job_type: String = "continuity",
@@ -61,6 +95,8 @@ class ContinuityHostClient(private val preferences: ContinuityHostPreferences) {
         if (preferences.pairing() == null) ContinuityHostState.Unpaired else ContinuityHostState.Checking
     )
     val state: StateFlow<ContinuityHostState> = _state.asStateFlow()
+    private val _continuityEngines = MutableStateFlow(ContinuityEngineAvailability())
+    val continuityEngines: StateFlow<ContinuityEngineAvailability> = _continuityEngines.asStateFlow()
 
     suspend fun pair(endpoint: String, code: String): ContinuityHostPairing {
         val normalized = ContinuityHostPreferences.normalizeEndpoint(endpoint)
@@ -89,6 +125,10 @@ class ContinuityHostClient(private val preferences: ContinuityHostPreferences) {
         } else {
             _state.value = ContinuityHostState.Available(health.queue_depth, health.active_jobs.firstOrNull()?.request_id)
         }
+        _continuityEngines.value = ContinuityEngineAvailability(
+            runnable = health.continuity_engines.toSet(),
+            unavailable = health.continuity_engines_unavailable
+        )
         return health
     }
 
@@ -198,6 +238,8 @@ class ContinuityHostClient(private val preferences: ContinuityHostPreferences) {
     fun forget() {
         preferences.clearPairing()
         _state.value = ContinuityHostState.Unpaired
+        // What the previous Mac could run says nothing about the next one.
+        _continuityEngines.value = ContinuityEngineAvailability()
     }
 
     fun markUnavailable(error: Throwable) {

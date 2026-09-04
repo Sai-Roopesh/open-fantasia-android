@@ -12,6 +12,8 @@
   ],
   "claudeModel": "sonnet",
   "claudeEffort": "high",
+  "claudeContinuityModel": "opus",
+  "claudeContinuityEffort": "high",
   "hostBind": "127.0.0.1",
   "hostPort": 47831,
   "continuityTimeoutMilliseconds": 1800000,

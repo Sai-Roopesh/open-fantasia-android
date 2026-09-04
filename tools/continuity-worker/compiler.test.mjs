@@ -106,7 +106,6 @@ function makeRequest(overrides = {}) {
     current_cast_roster: [],
     baseline_snapshot: baselineSnapshot(),
     exchanges: EXCHANGES,
-    checkpoint_turn_ids: ["turn-2", "turn-3"],
     ...overrides
   };
 }
@@ -357,6 +356,110 @@ test("declaring an existing object as new is fatal rather than a second Vera", (
   );
 });
 
+/**
+ * The defect that made a thread's prompt half duplicates. A Cast Seed's world entity used to be derived
+ * from `request_id`, so a seed with no written-back `entity_id` was given a different person at every
+ * checkpoint. These four cases pin the whole repair: identity is stable, a rediscovery binds instead of
+ * duplicating, a colliding handle still fails loudly, and a baseline that already carries duplicates
+ * heals itself.
+ */
+test("a Cast Seed keeps one world entity across checkpoints", () => {
+  const seed = seedProfile({ cast_id: "seed:avni", entity_id: null, canonical_name: "Avni", manual_locks: [] });
+  const idOf = requestId => compile({ request_id: requestId, cast_seeds: [seed] }, {})
+    .response.world_state.cast_roster.find(member => member.cast_id === "seed:avni").entity_id;
+  assert.equal(idOf("request-A"), idOf("request-B"), "the same seed compiled to two different people");
+  const { response } = compile({ cast_seeds: [seed] }, {});
+  assert.equal(response.world_state.entity_state.filter(item => item.canonical_name === "Avni").length, 1);
+});
+
+test("a seed renamed after its first checkpoint stays the same person", () => {
+  const before = seedProfile({ cast_id: "seed:avni", entity_id: null, canonical_name: "Avni", manual_locks: [] });
+  const after = { ...before, canonical_name: "Avni Mehra" };
+  const idOf = seed => compile({ cast_seeds: [seed] }, {})
+    .response.world_state.cast_roster.find(member => member.cast_id === "seed:avni").entity_id;
+  assert.equal(idOf(before), idOf(after));
+});
+
+test("rediscovering a known name under a fresh handle binds rather than duplicating", () => {
+  const { response, defects } = compile({}, {
+    operations: [op({ op: "describe_entity", handle: "new:the-watcher", name: "Vera", kind: "character" })]
+  });
+  assert.equal(response.world_state.entity_state.filter(item => item.canonical_name === "Vera").length, 1);
+  assert.ok(codes(defects).includes("rediscovered_entity"));
+  assert.deepEqual(entityById(response, "vera").secrets.map(item => item.body), ["Works for the Duchess"]);
+});
+
+test("a baseline already holding duplicate names heals at the next update", () => {
+  const baseline = baselineSnapshot();
+  baseline.entity_state.push(
+    entity("vera-copy-1", "Vera", { traits: [fact("fact:copy:1", "Left-handed")], is_present: false }),
+    entity("vera-copy-2", "Vera", { is_present: false, primary_emotion: "" })
+  );
+  const { response, defects } = compile({ baseline_snapshot: baseline }, {});
+  const veras = response.world_state.entity_state.filter(item => item.canonical_name === "Vera");
+  assert.equal(veras.length, 1, "duplicate records survived the update");
+  const traits = veras[0].traits.map(item => item.body);
+  assert.ok(traits.includes("Left-handed"), "a duplicate's facts were lost");
+  assert.ok(traits.includes("Watchful"));
+  assert.ok(codes(defects).includes("merged_duplicate_entities"));
+  assert.ok(!response.world_state.entity_state.some(item => item.entity_id === "vera-copy-1"));
+});
+
+test("an entity kind outside the vocabulary becomes a character", () => {
+  const { response } = compile({}, {
+    operations: [op({ op: "describe_entity", handle: "new:silas", name: "Silas", kind: "person" })]
+  });
+  const silas = response.world_state.entity_state.find(item => item.canonical_name === "Silas");
+  assert.equal(silas.entity_type, "character");
+});
+
+/**
+ * Salience is the fifth rule in ADR-0010's algebra: the one that lets state settle. These pin the parts
+ * a later Stage will make decisions on, especially the exemption that answers the obvious fear — a
+ * character written by hand does not fade for being off-screen.
+ */
+test("a record the update touched is current, and one it ignored keeps its age", () => {
+  const baseline = baselineSnapshot();
+  baseline.salience = { hero: 1, vera: 1, "relationship:hero-vera": 1 };
+  const { response } = compile({ baseline_snapshot: baseline }, {
+    operations: [op({ op: "assert_fact", entity: "vera", bucket: "traits", body: "Newly observed" })],
+    scene: { current_location: "ballroom", adjacent_locations: [], present: [] }
+  });
+  const salience = response.world_state.salience;
+  assert.equal(salience.vera, 5, "a touched record did not become current");
+  assert.equal(salience["relationship:hero-vera"], 1, "an untouched relationship was aged wrongly");
+});
+
+test("a Cast Member never ages, however long they stay off-screen", () => {
+  const baseline = baselineSnapshot();
+  baseline.salience = { hero: 1, vera: 1 };
+  const { response } = compile({ baseline_snapshot: baseline }, {
+    scene: { current_location: "ballroom", adjacent_locations: [], present: [] },
+    narrative: { ...NARRATIVE, story_summary: "Nothing at all happened.", scene_summary: "An empty room.", last_turn_beat: "Silence." }
+  });
+  // Both are on the roster, so both stay current even with no operation, no presence and no mention.
+  assert.equal(response.world_state.salience.hero, 5);
+  assert.equal(response.world_state.salience.vera, 5);
+});
+
+test("prose keeps a character current when no operation names them", () => {
+  const baseline = baselineSnapshot();
+  baseline.entity_state.push(entity("silas", "Silas", { is_present: false }));
+  baseline.salience = { hero: 1, vera: 1, silas: 1 };
+  const { response } = compile({ baseline_snapshot: baseline }, {
+    scene: { current_location: "ballroom", adjacent_locations: [], present: [] },
+    narrative: { ...NARRATIVE, story_summary: "Silas is still hunting the letter." }
+  });
+  assert.equal(response.world_state.salience.silas, 5, "a character the summary still discusses was aged");
+});
+
+test("a snapshot written before salience existed ages nothing", () => {
+  const { response } = compile({}, {});
+  const salience = response.world_state.salience;
+  assert.ok(Object.values(salience).every(version => version === 5),
+    "records from a salience-free baseline should start current, not stale");
+});
+
 test("an unrecognized handle never silently creates an object", () => {
   const { response, defects } = compile({}, {
     operations: [op({ op: "describe_entity", handle: "silas", name: "Silas" })]
@@ -501,11 +604,11 @@ test("legacy facts with colliding identifiers are corrected on the way through",
   assert.doesNotThrow(() => validateResponse(request, response));
 });
 
-test("timeline events are grounded in checkpoint exchanges and clamped", () => {
+test("timeline events are grounded in the evidence window and clamped", () => {
   const { request, response, defects } = compile({}, {
     timeline_events: [
       { exchange: "#3", title: "The blade", detail: "Silas draws.", importance: 9, event_type: "threat", entities: ["hero"], relationships: [] },
-      { exchange: "#1", title: "Before the baseline", detail: "Old.", importance: 3, event_type: "beat", entities: [], relationships: [] },
+      { exchange: "#9", title: "Outside the window", detail: "No such exchange.", importance: 3, event_type: "beat", entities: [], relationships: [] },
       { exchange: "#3", title: "Phantom", detail: "Names nobody real.", importance: 3, event_type: "beat", entities: ["ghost"], relationships: [] }
     ]
   });
@@ -613,7 +716,8 @@ test("the evidence projection contains no stored identifier and no duplicated ro
     assert.ok(!serialized.includes(identifier), `${identifier} must not reach the engine`);
   }
   assert.equal(projection.exchanges.length, 3);
-  assert.deepEqual(projection.checkpoint_exchange_indexes, [2, 3]);
+  assert.ok(projection.exchanges.every(exchange => !("checkpoint" in exchange)),
+    "every exchange in the request is evidence, so nothing is marked");
   assert.equal(projection.baseline.cast.length, 2, "one catalogue, not a seed list plus an overlapping roster");
   assert.equal(projection.baseline.cast.filter(member => member.authoritative).length, 1);
   assert.deepEqual(projection.baseline.cast.find(member => member.authoritative).locked_fields,

@@ -63,15 +63,16 @@ class RoleplayContextAssemblerTest {
             lineage = linear(10),
             head_exchange_id = "turn-6",
             continuity_baseline_exchange_id = "turn-5",
-            current_user_message = "<reply_control>Ananya</reply_control>\nedited user prose",
-            regeneration_direction = "Make the reply warmer."
+            current_user_message = "<reply_control>Ananya</reply_control>\nedited user prose"
         )
 
         assertEquals((1..6).map { "turn-$it" }, result.transcript_exchange_ids)
         assertFalse(result.messages.any { it.content.contains("raw-user-7") })
         assertEquals(1, result.messages.count { it.content.contains("<reply_control>") })
-        assertEquals(1, result.messages.count { it.content.contains("<regeneration_direction>") })
-        assertTrue(result.messages.last().content.contains("Make the reply warmer."))
+        // A revision direction is prompt content, not lineage, and this module now owns only lineage.
+        // What it must still guarantee is the ancestry: everything from the replaced exchange onward is
+        // absent, whoever asked for the reply. See [Revision].
+        assertTrue(result.messages.last().content.contains("edited user prose"))
     }
 
     @Test

@@ -24,6 +24,8 @@ import com.example.open_fantasia.data.local.entity.CastProfileOverrideEntity
 import com.example.open_fantasia.data.local.entity.RoleplayGenerationJobEntity
 import com.example.open_fantasia.data.local.entity.CastPortraitEntity
 import com.example.open_fantasia.data.continuity.ContinuityCheckpointCoordinator
+import com.example.open_fantasia.data.continuity.ContinuityEngineAvailability
+import com.example.open_fantasia.data.continuity.ContinuityEngineOption
 import com.example.open_fantasia.data.continuity.ContinuityHostClient
 import com.example.open_fantasia.data.continuity.ContinuityHostState
 import com.example.open_fantasia.data.continuity.ContinuityCheckpointScheduler
@@ -40,6 +42,10 @@ import com.example.open_fantasia.domain.model.RoleplayGenerationRequest
 import com.example.open_fantasia.domain.model.RoleplayGenerationSettings
 import com.example.open_fantasia.domain.model.RoleplayLineageEntry
 import com.example.open_fantasia.domain.model.RoleplayContext
+import com.example.open_fantasia.domain.model.ReplyLength
+import com.example.open_fantasia.domain.model.Revision
+import com.example.open_fantasia.domain.model.SceneIntent
+import com.example.open_fantasia.domain.model.SceneReportCodec
 import com.example.open_fantasia.domain.model.PromptWorldState
 import com.example.open_fantasia.domain.model.PromptCastMember
 import com.example.open_fantasia.domain.model.toPromptCharacter
@@ -55,7 +61,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
@@ -162,6 +170,8 @@ class ChatViewModel(
         }
     }
 
+    val continuityEngines: StateFlow<ContinuityEngineAvailability> = continuityHostClient.continuityEngines
+
     private val _isGenerating = MutableStateFlow(false)
     val isGenerating = _isGenerating.asStateFlow()
 
@@ -175,6 +185,7 @@ class ChatViewModel(
     private data class PendingSend(
         val inputText: String,
         val guidance: String?,
+        val rejectedReply: String?,
         val parentTurnIdOverride: String?,
         val forceParentOverride: Boolean,
         val replaceTurnId: String?,
@@ -250,6 +261,9 @@ class ChatViewModel(
             val character = dbState.characters.firstOrNull { it.id == thread.character_id }
             if (character == null) {
                 ChatUiState.Error
+            } else if (!lineageHasArrived(dbState, activeBranch)) {
+                // Not a state anyone can be shown, so it is not emitted. See [lineageHasArrived].
+                null
             } else {
                 val branchTurns = buildTurnPath(dbState.turns, activeBranch.head_turn_id)
                 val lineage = BranchLineage.select(
@@ -342,7 +356,7 @@ class ChatViewModel(
         FastState(isGen, genText, isScan, hostState, needsEngine)
     }
 
-    val uiState: StateFlow<ChatUiState> = combine(slowChatState, fastState) { slow, fast ->
+    val uiState: StateFlow<ChatUiState> = combine(slowChatState.filterNotNull(), fastState) { slow, fast ->
         // Cheap overlay of fast-changing stream state — no DB work on each streamed token.
         if (slow is ChatUiState.Success) {
             val lockedTurn = slow.activeBranch.locked_by_turn_id?.let { id -> slow.turns.firstOrNull { it.id == id } }
@@ -355,6 +369,12 @@ class ChatViewModel(
                 needsContinuityEngineChoice = fast.needsEngine
             )
         } else slow
+    }.catch { failure ->
+        // A workspace flow must not be able to end the process. Every reachable inconsistency is
+        // handled above; this exists so an unreachable one costs a person their screen and not
+        // their app.
+        Log.e("ChatViewModel", "Roleplay workspace state could not be assembled", failure)
+        emit(ChatUiState.Error)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -364,6 +384,7 @@ class ChatViewModel(
     fun sendUserMessage(
         inputText: String,
         guidance: String? = null,
+        rejectedReply: String? = null,
         parentTurnIdOverride: String? = null,
         forceParentOverride: Boolean = false,
         replaceTurnId: String? = null,
@@ -379,7 +400,7 @@ class ChatViewModel(
             if (state.checkpoint != null) return@launch
             if (state.exchangesUntilCheckpoint == 1 && continuityHostPreferences.continuityEngineId() == null) {
                 pendingSendForEngine = PendingSend(
-                    inputText, guidance, parentTurnIdOverride, forceParentOverride, replaceTurnId,
+                    inputText, guidance, rejectedReply, parentTurnIdOverride, forceParentOverride, replaceTurnId,
                     expectedHeadTurnIdOverride, requestedSpeakerIdOverride, speakerModeOverride
                 )
                 _needsContinuityEngineChoice.value = true
@@ -431,11 +452,21 @@ class ChatViewModel(
                     cast = contextCastRoster.map { PromptCastMember.from(it) },
                     activeSpeaker = activeSpeaker?.let { PromptCastMember.from(it) },
                     speakerMode = speakerMode,
+                    sceneIntent = SceneIntent.from(activeBranch.scene_intent),
                     // Already reachability-filtered for this branch and head by resolveLineageState.
                     pins = contextLineage.pins.map { it.toDomain() },
                     timeline = contextLineage.timelineEvents.map { it.toDomain() },
                     currentUserMessage = visibleInput,
-                    replyLengthTokens = thread.max_output_tokens
+                    revision = Revision.of(rejected = rejectedReply, direction = guidance),
+                    replyLength = ReplyLength.from(thread.reply_length),
+                    modelId = thread.model_id,
+                    salience = contextSnapshot?.world_state?.salience.orEmpty(),
+                    // Who is in the room, as of the last reply rather than the last checkpoint.
+                    observedPresence = contextHeadTurnId
+                        ?.let { chatDao.getNearestSceneReport(it) }
+                        ?.let { SceneReportCodec.decode(it) }
+                        ?.takeUnless { it.scene_ended }
+                        ?.present.orEmpty().toSet()
                 )
             )
             val renderedUserMessage = rendered.currentUserMessage
@@ -457,8 +488,7 @@ class ChatViewModel(
                 },
                 head_exchange_id = contextHeadTurnId,
                 continuity_baseline_exchange_id = contextSnapshot?.turn_id,
-                current_user_message = renderedUserMessage,
-                regeneration_direction = guidance
+                current_user_message = renderedUserMessage
             )
             val systemPrompt = rendered.systemPrompt
 
@@ -511,7 +541,8 @@ class ChatViewModel(
                 settings = RoleplayGenerationSettings(
                     temperature = state.character.temperature,
                     top_p = state.character.top_p,
-                    max_tokens = thread.max_output_tokens
+                    // Derived here, from the intention, by the layer that needs a ceiling. See ADR-0006.
+                    max_tokens = ReplyLength.from(thread.reply_length).transportCeiling(connection.provider)
                 )
             )
             val now = Instant.now().toString()
@@ -550,7 +581,9 @@ class ChatViewModel(
             }
             try {
                 roleplayGenerationCoordinator.execute(job) { accumulatedText ->
-                    _generatingText.value = accumulatedText
+                    // The report arrives as tokens like everything else; hiding it from its opening tag
+                    // keeps bookkeeping off the screen mid-scene.
+                    _generatingText.value = SceneReportCodec.visiblePrefix(accumulatedText)
                 }
             } finally {
                 _isGenerating.value = false
@@ -573,6 +606,9 @@ class ChatViewModel(
                     sendUserMessage(
                         inputText = userText,
                         guidance = guidance,
+                        // Usually null: this job was discarded mid-flight, so nothing was committed to
+                        // revise and the direction renders as a brief for a fresh attempt instead.
+                        rejectedReply = latestTurn.assistant_output_text,
                         parentTurnIdOverride = parentTurnId,
                         forceParentOverride = true,
                         expectedHeadTurnIdOverride = parentTurnId,
@@ -589,6 +625,8 @@ class ChatViewModel(
             sendUserMessage(
                 inputText = userText,
                 guidance = guidance,
+                // The whole point of a revision: the model is shown what it is replacing.
+                rejectedReply = latestTurn.assistant_output_text,
                 parentTurnIdOverride = parentTurnId,
                 forceParentOverride = true,
                 replaceTurnId = latestTurn.id,
@@ -605,7 +643,7 @@ class ChatViewModel(
         pendingSendForEngine?.also { pending ->
             pendingSendForEngine = null
             sendUserMessage(
-                pending.inputText, pending.guidance, pending.parentTurnIdOverride,
+                pending.inputText, pending.guidance, pending.rejectedReply, pending.parentTurnIdOverride,
                 pending.forceParentOverride, pending.replaceTurnId, pending.expectedHeadTurnIdOverride,
                 pending.requestedSpeakerIdOverride, pending.speakerModeOverride
             )
@@ -686,6 +724,20 @@ class ChatViewModel(
             if (state.activeBranch.speaker_mode != "single") return@launch
             val profile = state.castRoster.firstOrNull { it.cast_id == state.activeBranch.active_speaker_id } ?: return@launch
             portraitGenerationCoordinator.ensureCast(state.character.id, state.thread.id, state.activeBranch.id, profile)
+        }
+    }
+
+    /**
+     * Chooses what this scene is for.
+     *
+     * Carried until changed, like the Active Speaker. It selects the reply's turn policy rather than
+     * adding a request beside one, which is the difference between asking a model to calm down and not
+     * telling it to escalate in the first place. See [SceneIntent].
+     */
+    fun selectSceneIntent(intent: SceneIntent) {
+        viewModelScope.launch {
+            val state = uiState.value as? ChatUiState.Success ?: return@launch
+            chatDao.setSceneIntent(state.activeBranch.id, intent.id, Instant.now().toString())
         }
     }
 
@@ -825,26 +877,35 @@ class ChatViewModel(
     }
 
     /** Creates a branch-local replacement lineage and blocks it until continuity is rebuilt. */
+    /**
+     * Rewrites a committed assistant reply.
+     *
+     * Most edits owe no Continuity Update. Editing prose the Continuity Baseline never saw leaves the
+     * Baseline exactly where it was, so continuity is already correct and there is nothing to rebuild.
+     * A Continuity Engine is only chosen when the edit actually moves the Baseline. See ADR-0015.
+     */
     fun editAssistantText(turnId: String, newText: String) {
         if (newText.isBlank()) return
         viewModelScope.launch {
             val state = uiState.value as? ChatUiState.Success ?: return@launch
             if (state.checkpoint != null) return@launch
             if (state.turns.none { it.id == turnId }) return@launch
+
+            val needsUpdate = chatDao.assistantEditRequiresContinuityUpdate(state.activeBranch.id, turnId)
             val engineId = continuityHostPreferences.continuityEngineId()
-            if (engineId == null) {
+            if (needsUpdate && engineId == null) {
                 pendingAssistantEditForEngine = PendingAssistantEdit(turnId, newText)
                 _needsContinuityEngineChoice.value = true
-            } else {
-                chatDao.replaceAssistantReply(
-                    userId = FIXED_USER_ID,
-                    branchId = state.activeBranch.id,
-                    turnId = turnId,
-                    assistantText = newText,
-                    continuityEngineId = engineId
-                )
-                ContinuityCheckpointScheduler.enqueue(context)
+                return@launch
             }
+            val checkpoint = chatDao.replaceAssistantReply(
+                userId = FIXED_USER_ID,
+                branchId = state.activeBranch.id,
+                turnId = turnId,
+                assistantText = newText,
+                continuityEngineId = engineId
+            )
+            if (checkpoint != null) ContinuityCheckpointScheduler.enqueue(context)
         }
     }
 
@@ -980,7 +1041,7 @@ class ChatViewModel(
     fun updateThreadSettings(
         connectionId: String,
         modelId: String,
-        maxTokens: Int,
+        replyLength: ReplyLength,
         personaId: String?,
         directorNotes: String,
         portraitBackgroundEnabled: Boolean,
@@ -1007,7 +1068,7 @@ class ChatViewModel(
             val updated = thread.copy(
                 connection_id = connectionId,
                 model_id = resolvedModelId,
-                max_output_tokens = maxTokens,
+                reply_length = replyLength.id,
                 persona_id = personaId,
                 director_notes = directorNotes.trim(),
                 portrait_background_enabled = portraitBackgroundEnabled,
@@ -1041,15 +1102,45 @@ class ChatViewModel(
         }
     }
 
-    fun replaceCheckpointEngine() {
+    /**
+     * The engines a failed checkpoint can be moved to: every supported one except the engine that
+     * already failed. With more than two engines there is no single "other" one to fall back to, so
+     * the choice belongs to the person rather than to a rotation they cannot see.
+     */
+    fun replacementEnginesForCheckpoint(): List<ContinuityEngineOption> {
+        val request = (uiState.value as? ChatUiState.Success)?.checkpoint ?: return emptyList()
+        return ContinuityHostPreferences.CONTINUITY_ENGINES.filter { it.id != request.engine_id }
+    }
+
+    fun replaceCheckpointEngine(engineId: String) {
         val state = uiState.value as? ChatUiState.Success ?: return
         val request = state.checkpoint ?: return
-        val replacement = if (request.engine_id == ContinuityHostPreferences.CODEX_TERRA_HIGH)
-            ContinuityHostPreferences.ANTIGRAVITY_GEMINI_FLASH_HIGH else ContinuityHostPreferences.CODEX_TERRA_HIGH
+        if (engineId == request.engine_id) return
         viewModelScope.launch {
-            continuityCheckpointCoordinator.replaceEngine(request, replacement)
+            continuityCheckpointCoordinator.replaceEngine(request, engineId)
             ContinuityCheckpointScheduler.enqueue(context)
         }
+    }
+
+    /**
+     * Whether this branch's ancestry is fully present in the rows it was paired with.
+     *
+     * Every table backing the workspace is its own Room Flow, and each re-queries on its own
+     * schedule, so `combine` necessarily pairs a fresh row from one table with stale rows from
+     * another. Editing an assistant reply clones the exchange and its descendants under new
+     * identities and moves the head onto one of them in the same transaction, so the head is the
+     * one value that provably cannot appear in an older list of exchanges. Reading that pairing as
+     * corruption is what ended the process; it is simply a half-arrived write, and the next
+     * emission carries the other half.
+     *
+     * Loading is not the answer either: the workspace is on screen and correct, and blanking it to
+     * a spinner for one frame is a flicker the person did not cause. The pairing is not a state, so
+     * it is not emitted at all.
+     */
+    private fun lineageHasArrived(dbState: DbState, activeBranch: BranchEntity): Boolean {
+        if (dbState.branches.none { it.id == activeBranch.id }) return false
+        val headTurnId = activeBranch.head_turn_id ?: return true
+        return dbState.turns.any { it.id == headTurnId }
     }
 
     private fun buildTurnPath(turns: List<TurnEntity>, headTurnId: String?): List<TurnEntity> {

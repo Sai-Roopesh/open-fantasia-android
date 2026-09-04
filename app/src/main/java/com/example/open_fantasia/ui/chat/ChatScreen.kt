@@ -54,6 +54,9 @@ import com.example.open_fantasia.data.local.entity.ThreadEntity
 import com.example.open_fantasia.data.local.entity.TurnEntity
 import com.example.open_fantasia.data.local.entity.PinEntity
 import com.example.open_fantasia.data.local.entity.TimelineEntity
+import com.example.open_fantasia.data.continuity.ContinuityEngineAvailability
+import com.example.open_fantasia.data.continuity.ContinuityEngineOption
+import com.example.open_fantasia.data.continuity.ContinuityHostPreferences
 import com.example.open_fantasia.data.continuity.ContinuityHostState
 import com.example.open_fantasia.data.continuity.RoleplayProtocol
 import com.example.open_fantasia.domain.model.CAST_FORMAT
@@ -65,6 +68,8 @@ import com.example.open_fantasia.domain.portability.PortableJsonCodec
 import com.example.open_fantasia.ui.components.PortableKind
 import com.example.open_fantasia.ui.components.PromptPackPanel
 import com.example.open_fantasia.domain.model.RelationalState
+import com.example.open_fantasia.domain.model.ReplyLength
+import com.example.open_fantasia.domain.model.SceneIntent
 import com.example.open_fantasia.ui.components.MarkdownText
 import kotlin.math.roundToInt
 import java.io.File
@@ -131,7 +136,10 @@ fun ChatWorkspace(
     val clipboardManager = LocalClipboardManager.current
     val context = LocalContext.current
 
+    val continuityEngines by viewModel.continuityEngines.collectAsState()
+
     var showBranchSelector by remember { mutableStateOf(false) }
+    var showCheckpointEngineSwitch by remember { mutableStateOf(false) }
     var showThreadSettings by remember { mutableStateOf(false) }
     var showSpeakerPicker by remember { mutableStateOf(false) }
     var showCastManager by remember { mutableStateOf(false) }
@@ -313,9 +321,36 @@ fun ChatWorkspace(
             ) {
                 Column(modifier = Modifier.fillMaxSize()) {
                     val listState = rememberLazyListState()
-                    LaunchedEffect(state.turns.size, state.isGenerating) {
+
+                    // Whether the reader is parked on the newest exchange. Following new prose is only
+                    // ever right for someone already at the end; yanking back a reader who scrolled up
+                    // to re-read is the same defect wearing better manners.
+                    val atNewestExchange by remember {
+                        derivedStateOf {
+                            val info = listState.layoutInfo
+                            val last = info.visibleItemsInfo.lastOrNull()
+                            last == null || last.index >= info.totalItemsCount - 1
+                        }
+                    }
+
+                    // Opening a thread lands on the newest exchange. That is a starting position, not a
+                    // journey: animateScrollToItem held the list's scroll mutex for the whole of its
+                    // travel, which on a thread of long replies was measured at 7.6 seconds, and every
+                    // drag made while it ran was swallowed. scrollToItem arrives in one frame and lets
+                    // go, so the list is never unreachable.
+                    LaunchedEffect(state.activeBranch.id, state.turns.isNotEmpty()) {
                         if (state.turns.isNotEmpty()) {
-                            listState.animateScrollToItem(state.turns.size - 1)
+                            listState.scrollToItem(state.turns.lastIndex)
+                        }
+                    }
+
+                    // Committed prose and the typing indicator both extend the list, and the indicator is
+                    // an item the transcript does not have — hence the layout's own count rather than the
+                    // exchange count.
+                    LaunchedEffect(state.turns.size, state.isGenerating) {
+                        val itemCount = listState.layoutInfo.totalItemsCount
+                        if (itemCount > 0 && atNewestExchange) {
+                            listState.scrollToItem(itemCount - 1)
                         }
                     }
 
@@ -486,8 +521,8 @@ fun ChatWorkspace(
                                             "Preparing the fifteen-exchange continuity package…"
                                         else "Waiting for your Mac Host. Turn it on, then this will continue automatically."
                                         "waiting_for_worker", "waiting_for_host" -> "Waiting for your Mac Host…"
-                                        "processing" -> if (checkpoint.engine_id.startsWith("antigravity:"))
-                                            "Gemini is rebuilding continuity…" else "Codex is rebuilding continuity…"
+                                        "processing" ->
+                                            "${ContinuityHostPreferences.continuityEngineLabel(checkpoint.engine_id)} is rebuilding continuity…"
                                         "validating" -> "Validating and saving the complete continuity snapshot…"
                                         "failed" -> "Update failed: ${checkpoint.failure_detail ?: "The response was invalid"}. The chat remains locked until you retry."
                                         else -> "Validating the complete continuity snapshot…"
@@ -497,8 +532,8 @@ fun ChatWorkspace(
                                 if (checkpoint.status == "failed") {
                                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         TextButton(onClick = { viewModel.retryCheckpoint() }) { Text("Retry", color = Color(0xFFFF7AA8)) }
-                                        TextButton(onClick = { viewModel.replaceCheckpointEngine() }) {
-                                            Text("Try other engine", color = Color(0xFFFFC857))
+                                        TextButton(onClick = { showCheckpointEngineSwitch = true }) {
+                                            Text("Switch engine", color = Color(0xFFFFC857))
                                         }
                                     }
                                 }
@@ -523,7 +558,8 @@ fun ChatWorkspace(
                     }
                     SpeakerControlRow(
                         state = state,
-                        onClick = { showSpeakerPicker = true }
+                        onClick = { showSpeakerPicker = true },
+                        onSceneIntent = { viewModel.selectSceneIntent(it) }
                     )
                     ChatInputBar(
                         isGenerating = state.isGenerating,
@@ -587,18 +623,50 @@ fun ChatWorkspace(
                                     "This choice is frozen into the next checkpoint. You can change the default later in Settings.",
                                     color = Color(0xFFCFC2D7), fontFamily = Inter, fontSize = 13.sp
                                 )
-                                Button(
-                                    onClick = { viewModel.selectContinuityEngine("codex:gpt-5.6-terra:high") },
-                                    modifier = Modifier.fillMaxWidth()
-                                ) { Text("GPT-5.6 Terra High") }
-                                OutlinedButton(
-                                    onClick = { viewModel.selectContinuityEngine("antigravity:gemini-3.6-flash:high") },
-                                    modifier = Modifier.fillMaxWidth()
-                                ) { Text("Gemini 3.6 Flash High") }
+                                ContinuityHostPreferences.CONTINUITY_ENGINES.forEachIndexed { index, engine ->
+                                    ContinuityEngineChoice(
+                                        engine = engine,
+                                        engines = continuityEngines,
+                                        prominent = index == 0,
+                                        onSelect = { viewModel.selectContinuityEngine(engine.id) }
+                                    )
+                                }
                             }
                         },
                         confirmButton = {},
                         dismissButton = { TextButton(onClick = viewModel::dismissContinuityEngineChoice) { Text("Cancel") } },
+                        containerColor = Color(0xFF16161C)
+                    )
+                }
+
+                if (showCheckpointEngineSwitch) {
+                    val replacements = viewModel.replacementEnginesForCheckpoint()
+                    AlertDialog(
+                        onDismissRequest = { showCheckpointEngineSwitch = false },
+                        title = { Text("Switch continuity engine", color = Color.White, fontFamily = Sora) },
+                        text = {
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Text(
+                                    "The failed update is replaced by a new one on the engine you pick. Your default is unchanged.",
+                                    color = Color(0xFFCFC2D7), fontFamily = Inter, fontSize = 13.sp
+                                )
+                                replacements.forEach { engine ->
+                                    ContinuityEngineChoice(
+                                        engine = engine,
+                                        engines = continuityEngines,
+                                        prominent = false,
+                                        onSelect = {
+                                            viewModel.replaceCheckpointEngine(engine.id)
+                                            showCheckpointEngineSwitch = false
+                                        }
+                                    )
+                                }
+                            }
+                        },
+                        confirmButton = {},
+                        dismissButton = {
+                            TextButton(onClick = { showCheckpointEngineSwitch = false }) { Text("Cancel") }
+                        },
                         containerColor = Color(0xFF16161C)
                     )
                 }
@@ -609,8 +677,8 @@ fun ChatWorkspace(
                         connections = state.connections,
                         personas = state.personas,
                         onDismiss = { showThreadSettings = false },
-                        onSave = { connId, modelId, maxTokens, personaId, directorNotes, backgroundEnabled, dimness ->
-                            viewModel.updateThreadSettings(connId, modelId, maxTokens, personaId, directorNotes, backgroundEnabled, dimness)
+                        onSave = { connId, modelId, length, personaId, directorNotes, backgroundEnabled, dimness ->
+                            viewModel.updateThreadSettings(connId, modelId, length, personaId, directorNotes, backgroundEnabled, dimness)
                             showThreadSettings = false
                         }
                     )
@@ -843,11 +911,17 @@ fun ChatWorkspace(
                         },
                         text = {
                             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Text("Steer this response (optional):", color = Color.Gray, fontSize = 13.sp, fontFamily = Inter)
+                                // Named as a change to this reply rather than a brief for a new one. The
+                                // model is shown the rejected prose, so "she shouldn't leave" has something
+                                // to point at — and everything unmentioned is kept.
+                                Text(
+                                    "What should change about this reply? Everything you don't mention stays the same.",
+                                    color = Color.Gray, fontSize = 13.sp, fontFamily = Inter
+                                )
                                 OutlinedTextField(
                                     value = steeringText,
                                     onValueChange = { steeringText = it },
-                                    placeholder = { Text("e.g. Focus more on Vex's reaction...") },
+                                    placeholder = { Text("e.g. she shouldn't leave the room") },
                                     colors = OutlinedTextFieldDefaults.colors(
                                         focusedBorderColor = Color(0xFF8A2BE2),
                                         unfocusedBorderColor = Color.Gray,
@@ -862,6 +936,38 @@ fun ChatWorkspace(
                 }
             }
         }
+        }
+    }
+}
+
+/**
+ * One Continuity Engine offered for selection, with the host's reason when it cannot be picked.
+ *
+ * The choice is frozen into a checkpoint the moment one is created, and the Mac Host refuses a
+ * checkpoint naming an engine it cannot run. Showing the reason here is what keeps that refusal
+ * from arriving fifteen exchanges later.
+ */
+@Composable
+private fun ContinuityEngineChoice(
+    engine: ContinuityEngineOption,
+    engines: ContinuityEngineAvailability,
+    prominent: Boolean,
+    onSelect: () -> Unit
+) {
+    val blockedReason = engines.unavailableReason(engine.id)
+    val selectable = engines.isSelectable(engine.id)
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        if (prominent) {
+            Button(onClick = onSelect, enabled = selectable, modifier = Modifier.fillMaxWidth()) {
+                Text(engine.label)
+            }
+        } else {
+            OutlinedButton(onClick = onSelect, enabled = selectable, modifier = Modifier.fillMaxWidth()) {
+                Text(engine.label)
+            }
+        }
+        blockedReason?.let {
+            Text(it, color = Color(0xFFFFC857), fontFamily = Inter, fontSize = 11.sp)
         }
     }
 }
@@ -1203,7 +1309,8 @@ fun StreamingAssistantRow(characterName: String, text: String) {
 @Composable
 fun SpeakerControlRow(
     state: ChatUiState.Success,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onSceneIntent: (SceneIntent) -> Unit = {}
 ) {
     val selected = state.castRoster.firstOrNull { it.cast_id == state.activeBranch.active_speaker_id }
     val label = if (state.activeBranch.speaker_mode == "ensemble") "Ensemble" else selected?.canonical_name ?: state.character.name
@@ -1233,6 +1340,59 @@ fun SpeakerControlRow(
             border = BorderStroke(1.dp, Color(0xFF4C4354))
         )
         if (offScene) Text("Off-scene", color = Color(0xFFFFC857), fontSize = 11.sp, fontFamily = SpaceGrotesk)
+        SceneIntentChip(
+            current = SceneIntent.from(state.activeBranch.scene_intent),
+            onSelect = onSceneIntent
+        )
+    }
+}
+
+/**
+ * What this scene is for, chosen where the Active Speaker is chosen, because both are decisions about
+ * the same scene. The selection replaces the reply's turn policy outright rather than adding a request
+ * beside it, so picking "Stay here" does not ask the model to resist an instruction to escalate — it
+ * means no such instruction is sent.
+ */
+@Composable
+private fun SceneIntentChip(current: SceneIntent, onSelect: (SceneIntent) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        AssistChip(
+            onClick = { open = true },
+            label = { Text(current.label, fontFamily = SpaceGrotesk, fontSize = 12.sp, maxLines = 1) },
+            trailingIcon = { Icon(Icons.Default.ArrowDropDown, null, Modifier.size(18.dp)) },
+            colors = AssistChipDefaults.assistChipColors(
+                containerColor = Color(0xFF1B1B1F),
+                labelColor = Color(0xFF00FBFB),
+                trailingIconContentColor = Color(0xFF00FBFB)
+            ),
+            border = BorderStroke(1.dp, Color(0xFF2F4E52))
+        )
+        DropdownMenu(
+            expanded = open,
+            onDismissRequest = { open = false },
+            modifier = Modifier.background(Color(0xFF1B1B1F))
+        ) {
+            SceneIntent.entries.forEach { intent ->
+                DropdownMenuItem(
+                    onClick = { onSelect(intent); open = false },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                            Text(
+                                intent.label,
+                                color = if (intent == current) Color(0xFF00FBFB) else Color.White,
+                                fontFamily = SpaceGrotesk,
+                                fontWeight = if (intent == current) FontWeight.Bold else FontWeight.Normal
+                            )
+                            Text(intent.hint, color = Color(0xFF8A8590), fontSize = 11.sp, fontFamily = Inter)
+                        }
+                    },
+                    trailingIcon = {
+                        if (intent == current) Icon(Icons.Default.Check, null, tint = Color(0xFF00FBFB), modifier = Modifier.size(16.dp))
+                    }
+                )
+            }
+        }
     }
 }
 
@@ -1532,7 +1692,7 @@ fun ThreadSettingsDialog(
     onSave: (
         connectionId: String,
         modelId: String,
-        maxTokens: Int,
+        replyLength: ReplyLength,
         personaId: String?,
         directorNotes: String,
         portraitBackgroundEnabled: Boolean,
@@ -1541,19 +1701,10 @@ fun ThreadSettingsDialog(
 ) {
     var selectedConn by remember { mutableStateOf<ConnectionEntity?>(connections.find { it.id == thread.connection_id } ?: connections.firstOrNull()) }
     var selectedModel by remember { mutableStateOf(thread.model_id) }
-    // Response length presets (web parity): label, token budget, description
-    val lengthPresets = remember {
-        listOf(
-            Triple("Concise", 750, "Short, punchy replies"),
-            Triple("Normal", 2048, "Standard roleplay length"),
-            Triple("Extended", 4096, "Detailed scenes"),
-            Triple("Expansive", 8192, "Long-form creative writing"),
-            Triple("Unlimited", 16384, "Maximum output budget")
-        )
-    }
-    var tokensValue by remember {
-        mutableIntStateOf(thread.max_output_tokens)
-    }
+    // The presets are the Reply Lengths themselves. There is no token budget to show any more, because
+    // there is no token budget stored: the ceiling is derived by the adapter that needs one.
+    val lengths = ReplyLength.entries
+    var replyLength by remember { mutableStateOf(ReplyLength.from(thread.reply_length)) }
     var selectedPersona by remember { mutableStateOf<PersonaEntity?>(personas.find { it.id == thread.persona_id }) }
     var directorNotes by remember { mutableStateOf(thread.director_notes) }
     
@@ -1587,11 +1738,10 @@ fun ThreadSettingsDialog(
             Button(
                 onClick = {
                     val connId = selectedConn?.id ?: return@Button
-                    val tokens = tokensValue
                     onSave(
                         connId,
                         selectedModel,
-                        tokens,
+                        replyLength,
                         selectedPersona?.id,
                         directorNotes,
                         portraitBackgroundEnabled,
@@ -1729,21 +1879,23 @@ fun ThreadSettingsDialog(
 
                 // Response length — preset slider (web parity)
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    val curIdx = lengthPresets.indexOfFirst { it.second == tokensValue }.let { if (it >= 0) it else 2 }
-                    val preset = lengthPresets[curIdx]
+                    val curIdx = lengths.indexOf(replyLength)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Response length", color = Color(0xFFCFC2D7), fontFamily = SpaceGrotesk, fontSize = 12.sp)
-                        Text("${preset.first} · ${preset.second} tok", color = Color(0xFFDCB8FF), fontFamily = SpaceGrotesk, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("Reply length", color = Color(0xFFCFC2D7), fontFamily = SpaceGrotesk, fontSize = 12.sp)
+                        Text(
+                            if (replyLength.hasTarget) "${replyLength.label} · ~${replyLength.words} words" else replyLength.label,
+                            color = Color(0xFFDCB8FF), fontFamily = SpaceGrotesk, fontSize = 12.sp, fontWeight = FontWeight.Bold
+                        )
                     }
                     Slider(
                         value = curIdx.toFloat(),
-                        onValueChange = { tokensValue = lengthPresets[it.roundToInt().coerceIn(0, lengthPresets.size - 1)].second },
-                        valueRange = 0f..(lengthPresets.size - 1).toFloat(),
-                        steps = lengthPresets.size - 2,
+                        onValueChange = { replyLength = lengths[it.roundToInt().coerceIn(0, lengths.size - 1)] },
+                        valueRange = 0f..(lengths.size - 1).toFloat(),
+                        steps = lengths.size - 2,
                         colors = SliderDefaults.colors(
                             thumbColor = Color(0xFF8A2BE2),
                             activeTrackColor = Color(0xFF8A2BE2),
@@ -1752,7 +1904,7 @@ fun ThreadSettingsDialog(
                             inactiveTickColor = Color(0xFF4C4354)
                         )
                     )
-                    Text(preset.third, color = Color(0xFF8A8590), fontFamily = Inter, fontSize = 11.sp)
+                    Text(replyLength.description, color = Color(0xFF8A8590), fontFamily = Inter, fontSize = 11.sp)
                 }
 
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {

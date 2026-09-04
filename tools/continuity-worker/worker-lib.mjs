@@ -66,9 +66,14 @@ export function validateResponse(request, response) {
   if (state.cast_roster.some(member => !member.entity_id || !entityIdSet.has(member.entity_id))) {
     throw new Error("Every Cast Member must reference a world entity");
   }
+  // The request carries only the exchanges since the Continuity Baseline, so the host can vouch for the
+  // lineage of a newly discovered member and nothing more. A member the roster already held was dated
+  // against history this host never saw. Android checks that against the real branch. See ADR-0016.
   const reachableTurnIds = new Set((request.exchanges ?? []).map(exchange => exchange.turn_id));
+  const establishedCastIds = new Set((request.current_cast_roster ?? []).map(member => member.cast_id));
   if (state.cast_roster.some(member =>
     member.provenance === "continuity_discovered" &&
+    !establishedCastIds.has(member.cast_id) &&
     (!member.first_seen_turn_id || !reachableTurnIds.has(member.first_seen_turn_id))
   )) throw new Error("Discovered Cast Member has invalid lineage provenance");
   const rosterById = new Map(state.cast_roster.map(member => [member.cast_id, member]));
@@ -93,7 +98,7 @@ export function validateResponse(request, response) {
 
   if (!Array.isArray(response.timeline_events)) throw new Error("Missing timeline_events");
   if (response.timeline_events.length > 7) throw new Error("Too many timeline events");
-  const exchangeTurnIds = new Set(request.checkpoint_turn_ids ?? (request.exchanges ?? []).map(exchange => exchange.turn_id));
+  const exchangeTurnIds = new Set((request.exchanges ?? []).map(exchange => exchange.turn_id));
   const relationshipIdSet = new Set(relationshipIds);
   for (const event of response.timeline_events) {
     if (!exchangeTurnIds.has(event.turn_id)) throw new Error("Invalid timeline turn reference");

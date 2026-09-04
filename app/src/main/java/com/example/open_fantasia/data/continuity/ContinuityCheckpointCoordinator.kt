@@ -57,7 +57,7 @@ class ContinuityCheckpointCoordinator(
                 "ready" -> acceptResult(current)
                 "failed" -> chatDao.updateCheckpoint(current.copy(
                     status = "failed",
-                    failure_detail = remote.error ?: "Codex could not create a valid continuity snapshot",
+                    failure_detail = remote.error ?: "${ContinuityHostPreferences.continuityEngineLabel(current.engine_id)} could not create a valid continuity snapshot",
                     updated_at = Instant.now().toString()
                 ))
                 "expired" -> chatDao.transitionOpenCheckpoint(
@@ -78,13 +78,11 @@ class ContinuityCheckpointCoordinator(
         } catch (error: Throwable) {
             if (error is CancellationException) throw error
             val latest = chatDao.getCheckpoint(request.id) ?: return
+            val refusal = refusalDetail(error)
             if (latest.status != "failed" && latest.status != "accepted") {
                 chatDao.updateCheckpoint(latest.copy(
-                    status = if (error is ContinuityHostHttpException && error.status == 409) "failed" else latest.status,
-                    failure_detail = when {
-                        error is ContinuityHostHttpException && error.status == 409 -> IMMUTABLE_CONFLICT_DETAIL
-                        else -> "Waiting for Mac Host"
-                    },
+                    status = if (refusal != null) "failed" else latest.status,
+                    failure_detail = refusal ?: "Waiting for Mac Host",
                     updated_at = Instant.now().toString()
                 ))
             }
@@ -188,8 +186,30 @@ class ContinuityCheckpointCoordinator(
         "ready" -> "validating"
         else -> "waiting_for_host"
     }
+}
 
-    private companion object {
-        const val IMMUTABLE_CONFLICT_DETAIL = "This checkpoint was already completed with an older immutable payload. Retry creates a fresh checkpoint."
+internal const val IMMUTABLE_CONFLICT_DETAIL = "This checkpoint was already completed with an older immutable payload. Retry creates a fresh checkpoint."
+
+/**
+ * The failure detail for a host answer that rejects the Continuity Update itself, or null
+ * when the host merely could not be reached or served this moment.
+ *
+ * A checkpoint request is immutable, so re-sending it unchanged gets the same answer every
+ * time. Recording that as "Waiting for Mac Host" left the lineage locked on a checkpoint the
+ * host had already refused, reporting progress that was never going to happen, and hid both
+ * Retry and Switch engine, which appear only once a checkpoint has failed. An unreachable,
+ * unauthenticated, or protocol-mismatched host is a different thing and still worth waiting
+ * for, so those keep waiting.
+ *
+ * Failing here does not throw the recovery away. Retry re-sends the same engine under a new
+ * identity and succeeds once the reason the host gave has been dealt with.
+ */
+internal fun refusalDetail(error: Throwable): String? {
+    val http = error as? ContinuityHostHttpException ?: return null
+    return when (http.status) {
+        409 -> IMMUTABLE_CONFLICT_DETAIL
+        400, 413 -> http.message?.takeIf { it.isNotBlank() }
+            ?: "The Mac Host refused this Continuity Update"
+        else -> null
     }
 }

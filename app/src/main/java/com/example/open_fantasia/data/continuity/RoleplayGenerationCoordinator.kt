@@ -5,6 +5,7 @@ import com.example.open_fantasia.data.local.dao.ConnectionDao
 import com.example.open_fantasia.data.local.entity.RoleplayGenerationJobEntity
 import com.example.open_fantasia.data.remote.ChatMessage
 import com.example.open_fantasia.data.remote.LLMClient
+import com.example.open_fantasia.domain.model.SceneReportCodec
 import com.example.open_fantasia.domain.model.ReplyBudget
 import com.example.open_fantasia.domain.model.RoleplayProviderCapabilities
 import com.example.open_fantasia.domain.model.RoleplayOutputValidator
@@ -215,9 +216,11 @@ class RoleplayGenerationCoordinator(
                 append(cacheMissTokens ?: "null")
                 append('}')
             }
+            val streamedReply = SceneReportCodec.split(accumulatedText)
             chatDao.acceptRoleplayJob(
                 jobId = job.id,
-                replyText = RoleplayOutputValidator.validate(accumulatedText),
+                replyText = RoleplayOutputValidator.validate(streamedReply.prose),
+                sceneReport = streamedReply.report?.let { SceneReportCodec.encode(it) },
                 responseThreadId = job.thread_id,
                 responseBranchId = job.branch_id,
                 responseTurnId = job.turn_id,
@@ -252,9 +255,13 @@ class RoleplayGenerationCoordinator(
         val response = client.roleplayResult(job.id)
         require(response.protocol_version == 2 && response.job_type == "roleplay") { "Roleplay protocol is incompatible" }
         require(response.request_id == job.id) { "Roleplay response belongs to another request" }
+        // Prose and report part here, at the one point both the Mac Host and direct providers pass
+        // through, so neither path can commit bookkeeping as story. See [SceneReportCodec].
+        val reply = SceneReportCodec.split(response.reply_text)
         chatDao.acceptRoleplayJob(
             jobId = job.id,
-            replyText = RoleplayOutputValidator.validate(response.reply_text),
+            replyText = RoleplayOutputValidator.validate(reply.prose),
+            sceneReport = reply.report?.let { SceneReportCodec.encode(it) },
             responseThreadId = response.thread_id,
             responseBranchId = response.branch_id,
             responseTurnId = response.turn_id,

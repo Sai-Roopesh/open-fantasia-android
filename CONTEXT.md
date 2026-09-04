@@ -37,8 +37,8 @@ The Cast Member explicitly selected to own dialogue, action, reaction, and inter
 _Avoid_: Point of view, target bot
 
 **Reply Length**:
-How much prose an assistant reply should contain, chosen per roleplay thread. It states an intention about visible story text only. A Roleplay Model that spends part of its generation budget on hidden reasoning the transcript never receives must still be able to produce the requested prose.
-_Avoid_: Max tokens, token budget, output cap
+How much prose an assistant reply should contain, chosen per roleplay thread and named rather than counted: Terse, Measured, Full, Expansive, or Unbounded. It states an intention about visible story text only, and is given to a Roleplay Model as a word target calibrated for that model. The transport ceiling a provider needs is derived from it by an adapter, never stored and never authored.
+_Avoid_: Max tokens, token budget, output cap, paragraphs
 
 **Roleplay Model**:
 The model selected for a roleplay thread to author assistant dialogue and action for each Roleplay Exchange. It is independent of the Continuity Engine that creates Continuity Snapshots.
@@ -92,6 +92,26 @@ _Avoid_: HCE, memory blob, world-state blob
 A mandatory, non-bypassable pause after every fifteenth completed Roleplay Exchange on a branch since its Continuity Baseline, or when an early update is explicitly requested. The triggering reply remains visible, but the affected lineage becomes read-only until a valid Continuity Snapshot has been accepted; update failures leave the checkpoint in force. The pause follows the checkpointed exchange into descendant branches without blocking unrelated branch lineages or roleplay threads.
 _Avoid_: App stop, crash, shutdown
 
+**Revision**:
+A reply attempt that replaces a rejected one, carrying the rejected prose together with what the player wants changed about it. The rejected prose is marked as never having happened, and everything the direction does not name is preserved: a Revision alters a reply rather than replacing the idea behind it. A direction with no prose to revise is a brief for a fresh attempt, which is a different thing and is said differently.
+_Avoid_: Regeneration direction, steering, guidance, retry
+
+**Scene Report**:
+What a Roleplay Model states about the scene its reply leaves behind: who is present, which open thread the beat moved, and whether the scene ended. Named in prose, never by identifier, and always optional — a missing or unreadable report costs freshness and never the reply, because presence then falls back to the Continuity Snapshot. It is stripped from the prose before the exchange is committed, so it never becomes story.
+_Avoid_: Metadata, tail, structured output, function call
+
+**Scene Intent**:
+What the current scene is for, chosen by the player per reply and carried until changed: Dwell, Develop, Escalate, or Close. It selects exactly one turn policy for the assistant reply, and the policies are mutually exclusive, so a scene can never be told both to hold still and to introduce an interruption. It is held on the branch beside the Active Speaker.
+_Avoid_: Director note, guidance, steering, mood, tone
+
+**Stage**:
+The projection of a Continuity Snapshot that one reply is written against, derived deterministically and never stored. Resolution varies by presence and salience: what is in the scene arrives as a complete record, the rest of the Cast Roster and anyone the scene can reach arrive as a name and kind, and everyone else the story knows arrives as a name. Nothing is omitted, so a Roleplay Model can always call for a character it cannot currently see and can never invent a second one who already exists.
+_Avoid_: Trimmed context, summary, truncated state, context window
+
+**Salient**:
+Said of an entity, relationship, or thread the story has referred to recently. Recorded by the Continuity Compiler as the snapshot version at which each record was last touched, so its age is the distance from the current version. Cast Members are always salient. Salience decides how much of a record reaches a Roleplay Model, never whether it remains true.
+_Avoid_: Recent, active, hot, cached, relevant
+
 **Continuity Baseline**:
 The latest accepted Continuity Snapshot reachable through a branch's current history. Replaced or discarded exchanges do not contribute to the next checkpoint, while a new branch inherits the baseline and subsequent exchanges reachable from its fork point.
 _Avoid_: Global counter, lifetime reply count
@@ -105,7 +125,7 @@ The separate Android package `com.example.open_fantasia.sandbox` targeted by con
 _Avoid_: Personal app test target, connected Debug test
 
 **Continuity Evidence Transcript**:
-The complete retained Roleplay Exchange lineage from the branch beginning through the exchange that triggered the checkpoint. The request separately marks the post-baseline checkpoint exchanges, normally fifteen, so the Continuity Engine can update the snapshot and timeline without duplicating older events. Rewind-discarded prose is absent and unknowable.
+The retained Roleplay Exchanges the Continuity Baseline does not already account for: everything from the Baseline's own exchange through the exchange that triggered the checkpoint, normally fifteen. Earlier prose is not sent, because the Baseline is what it became. A thread with no accepted Baseline yet supplies its whole retained lineage. Rewind-discarded prose is absent and unknowable.
 _Avoid_: Partial context, discarded transcript
 
 **Rewind**:

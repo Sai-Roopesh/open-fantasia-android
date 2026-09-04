@@ -22,11 +22,38 @@ data class RoleplayContext(
     val cast: List<PromptCastMember>,
     val activeSpeaker: PromptCastMember?,
     val speakerMode: String,
+    /**
+     * What this scene is for. Selects the one turn policy this reply is written under, so it decides
+     * whether an interruption is licensed at all rather than adding a request that one be avoided.
+     */
+    val sceneIntent: SceneIntent,
     val pins: List<ChatPinRecord>,
     val timeline: List<TimelineEventRecord>,
     /** The player's visible prose for this reply. Reply controls are added by rendering, not here. */
     val currentUserMessage: String,
-    val replyLengthTokens: Int
+    /**
+     * The rejected reply this attempt replaces, and what to change about it. Null on a normal send.
+     * It is reply control rather than story, so it renders after the player's prose and never inside it.
+     */
+    val revision: Revision?,
+    /** The authored intention. Never a token count: see [ReplyLength]. */
+    val replyLength: ReplyLength,
+    /** Which model is writing, so the length target can be stated the way that model answers to. */
+    val modelId: String,
+    /**
+     * When the story last used each record, from the Continuity Snapshot. The one field here that is
+     * about the context rather than in it: no part of it is rendered, and its only job is to order the
+     * Stage's demotions so a section that runs out of room spends what it has on what the story most
+     * recently touched. Empty is valid and means every record is equally current.
+     */
+    val salience: Map<String, Int> = emptyMap(),
+    /**
+     * Who the last reply said was in the room, by name. Like [salience] this is about the context rather
+     * than in it: none of it is rendered, and its only job is to let the Stage read a scene as it stands
+     * now instead of as a Continuity Update up to fifteen exchanges old remembers it. Empty means no
+     * reply has reported one, and snapshot presence stands.
+     */
+    val observedPresence: Set<String> = emptySet()
 )
 
 /**
@@ -121,12 +148,18 @@ data class PromptPersona(
 )
 
 /**
- * The Continuity Snapshot as the model receives it: everything except `cast_roster`.
+ * The Continuity Snapshot as the model receives it: everything except `cast_roster` and `salience`.
  *
  * The Cast Roster is delivered as its own section, complete on every call, because Continuity Updates
  * run every fifteen exchanges and binding cast delivery to the Snapshot left hand-authored Cast Seeds as
  * bare names for a thread's first fifteen exchanges. Carrying it here as well would ship every
  * established member twice in one prompt.
+ *
+ * `salience` is absent for a different reason than `cast_roster`, and the difference is worth stating:
+ * the roster is withheld because it is delivered better elsewhere, while salience is withheld because it
+ * is not story content at all. It records when the story last used a record, which is how the Stage
+ * decides what to send; handing it to the model would put bookkeeping in the same JSON as a character's
+ * secrets and invite it to be read as one.
  *
  * Unlike [DurableMemorySnapshot] this declares no defaults, so serialization cannot drop a field whose
  * value happens to equal one. That separation is deliberate: the stored type stays tolerant so decoding

@@ -38,8 +38,7 @@ object RoleplayContextAssembler {
         lineage: List<RoleplayLineageEntry>,
         head_exchange_id: String?,
         continuity_baseline_exchange_id: String?,
-        current_user_message: String,
-        regeneration_direction: String? = null
+        current_user_message: String
     ): AssembledRoleplayContext {
         require(current_user_message.isNotBlank()) { "Current roleplay user message is missing" }
 
@@ -84,20 +83,10 @@ object RoleplayContextAssembler {
                 add(RoleplayMessage("assistant", assistantText))
             }
 
-            val direction = regeneration_direction?.trim().orEmpty()
-            val latest = if (direction.isEmpty()) {
-                current_user_message
-            } else {
-                """
-                    $current_user_message
-
-                    <regeneration_direction>
-                    Hidden out-of-character direction for this replacement reply. Do not quote or acknowledge it. Follow it while preserving the authoritative Continuity Snapshot, retained transcript, Active Speaker, and character constraints.
-                    $direction
-                    </regeneration_direction>
-                """.trimIndent()
-            }
-            add(RoleplayMessage("user", latest))
+            // A revision direction used to be appended here, which put out-of-character instruction in
+            // the player's own voice and left this module deciding prompt content. Both belong to
+            // rendering: lineage is a different problem, and this one owns lineage. See [Revision].
+            add(RoleplayMessage("user", current_user_message))
         }
 
         return AssembledRoleplayContext(

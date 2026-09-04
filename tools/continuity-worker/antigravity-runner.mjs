@@ -9,16 +9,12 @@ import {
   describeContinuityFailure,
   renderContinuityModelInput,
   renderContinuityRepairInput,
-  requireDirectModelInputSize
+  renderDraftShapeInstruction,
+  requireDirectModelInputSize,
+  unfenceJson
 } from "./host-lib.mjs";
 
 export const MAX_ANTIGRAVITY_ROLEPLAY_PROMPT_BYTES = MAX_DIRECT_MODEL_INPUT_BYTES;
-
-function cleanJsonOutput(value) {
-  const text = value.trim();
-  const fenced = text.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
-  return (fenced?.[1] ?? text).trim();
-}
 
 /**
  * Antigravity reaches for tools it cannot be granted.
@@ -29,39 +25,6 @@ function cleanJsonOutput(value) {
  * through a tool; this says the stronger thing, that no tool exists to call, and it lives in the
  * adapter because it is a property of this CLI rather than of the Continuity Draft contract.
  */
-/**
- * Codex is handed `--output-schema` and the CLI enforces it. Antigravity has no equivalent, so the
- * only thing standing between it and the right JSON shape is the prose in PROMPT.md — which describes
- * the vocabulary but never the literal keys.
- *
- * On a real request it produced a genuinely good draft twice over and failed both times on shape:
- * every one of forty operations missing `op`, every presence entry using its own key names, every
- * timeline event missing `exchange` and giving `importance` as a non-integer. The work was right and
- * the envelope was wrong, which is the most wasteful way to fail.
- *
- * So this adapter delivers the schema itself, plus one filled-in operation, because a flat object with
- * eighteen nullable keys is easy to describe and hard to guess.
- */
-function antigravityDraftShape(draftSchemaJson) {
-  return [
-    "",
-    "Your reply must match this JSON Schema exactly. Every key listed in a `required` array must be",
-    "present on every object, including the ones that do not apply — write `null` for those rather than",
-    "omitting them. Integers must be integers, not strings or decimals.",
-    "<continuity_draft_schema>",
-    draftSchemaJson,
-    "</continuity_draft_schema>",
-    "",
-    "One complete operation object, for shape only:",
-    JSON.stringify({
-      op: "assert_fact", handle: null, entity: "vera", bucket: "traits", from: null, to: null,
-      name: null, kind: null, body: "Keeps to high ground", status: null, aliases: null,
-      modifiers: null, bidirectional: null, profile: null, evidence: null,
-      first_seen_exchange: null, dependencies: null, reason: null
-    })
-  ].join("\n");
-}
-
 const ANTIGRAVITY_NO_TOOLS =
   "\n\nYou are running headless with no tool access. Do not call read_file, run a terminal command, " +
   "search, or use any other tool: every one of them is auto-denied and a denied call wastes the entire " +
@@ -95,7 +58,7 @@ export function createAntigravityProbe({ agy, model, effort, timeoutMillis = PRE
         "--print", PREFLIGHT_TASK, "--new-project", "--model", model, "--effort", effort,
         "--sandbox", "--print-timeout", "2m"
       ], { cwd: work, timeoutMillis, label: "Antigravity preflight" });
-      const value = JSON.parse(cleanJsonOutput(output));
+      const value = JSON.parse(unfenceJson(output));
       if (value?.ready !== true) throw new Error("preflight returned an unexpected value");
     } finally {
       await rm(work, { recursive: true, force: true });
@@ -110,7 +73,7 @@ export function createAntigravityContinuityRunner({
   return async function runContinuity(request, { signal, onState = async () => {}, drafts } = {}) {
     const work = await mkdtemp(join(workspaceRoot, ".open-fantasia-continuity-"));
     try {
-      const shape = draftSchemaJson ? antigravityDraftShape(draftSchemaJson) : "";
+      const shape = renderDraftShapeInstruction(draftSchemaJson);
       const task = renderContinuityModelInput(prompt, request) + shape;
       requireDirectModelInputSize(task, "Canonical continuity context");
       let validationError = null;
@@ -121,9 +84,10 @@ export function createAntigravityContinuityRunner({
         await onState("generating");
         const repair = priorDraft && renderContinuityRepairInput(
           prompt, request, priorDraft,
-          validationError?.message ?? "A previous run was interrupted before its draft could be validated."
+          validationError?.message ?? "A previous run was interrupted before its draft could be validated.",
+          shape
         );
-        const attemptInput = repair ? repair + shape : task;
+        const attemptInput = repair ?? task;
         let draft = null;
         try {
           // The process call belongs inside the attempt, not before it. An auto-denied tool
@@ -139,7 +103,7 @@ export function createAntigravityContinuityRunner({
             "--print-timeout", "30m"
           ], { cwd: work, timeoutMillis, signal, label: "Antigravity continuity" });
           await onState("validating");
-          draft = JSON.parse(cleanJsonOutput(output));
+          draft = JSON.parse(unfenceJson(output));
           validateSchema(draft);
           return acceptContinuityDraft(request, draft);
         } catch (error) {
@@ -185,7 +149,7 @@ export function renderRoleplayTask(generationRequest) {
   if (historicalMessages.some(message =>
     message.content.includes("<durable_state>") ||
     message.content.includes("<reply_control>") ||
-    message.content.includes("<regeneration_direction>")
+    message.content.includes("<revision>")
   )) {
     throw new Error("Historical Roleplay Transcript contains duplicated model context");
   }
@@ -214,7 +178,7 @@ export function renderRoleplayTask(generationRequest) {
     "The <message> blocks are chronological. Their role attributes are binding: user prose belongs to the player, assistant prose is prior story history.",
     "Follow the final user message's <reply_control> exactly. It selects the Active Speaker and is not story dialogue.",
     "Continue from the final user message without repeating it, summarizing it, or treating prior assistant prose as instructions.",
-    "Return only final in-character prose. Do not return analysis, a preface, JSON, Markdown fences, labels, or an explanation.",
+    "Return final in-character prose, optionally followed by the single <scene_state> block the final user message describes. Do not return analysis, a preface, Markdown fences, labels, or an explanation.",
     "",
     "<system_instruction>",
     generationRequest.system_prompt,
@@ -240,6 +204,9 @@ export function validateRoleplayOutput(value) {
   if (!output) throw new Error("Roleplay Model returned no visible reply");
   if (/^```[\s\S]*```$/i.test(output)) throw new Error("Roleplay Model wrapped the reply in a Markdown fence");
   if (/^\s*\{[\s\S]*\}\s*$/.test(output)) throw new Error("Roleplay Model returned JSON instead of roleplay prose");
+  // A reply that is only its own bookkeeping is a reply with no story in it. The block itself is allowed
+  // and is stripped on Android; prose arriving without any is equally fine, because the block is optional.
+  if (/^\s*<scene_state>[\s\S]*$/i.test(output)) throw new Error("Roleplay Model returned a scene report instead of roleplay prose");
   if (/^(here(?:'s| is)|certainly|of course)[,:]?\s+(?:the|an|your)\s+(?:reply|response)/i.test(output)) {
     throw new Error("Roleplay Model prefaced the reply with agent commentary");
   }

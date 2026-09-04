@@ -331,3 +331,20 @@ test("repair input carries the previous draft and refuses to exceed the delivery
   const huge = renderContinuityRepairInput("INSTRUCTIONS", evidence, { blob: "x".repeat(MAX_DIRECT_MODEL_INPUT_BYTES) }, "too big");
   assert.equal(huge, null, "a partially delivered draft is worse than a clean regeneration");
 });
+
+// An adapter whose CLI cannot enforce the Continuity Draft schema appends the schema to whatever it
+// sends. Deciding the limit on the prefix and then appending eight more kilobytes would put the
+// oversized repair on the wire anyway, which is the case the limit exists to prevent.
+test("an adapter's own trailer counts toward the repair delivery limit", () => {
+  const evidence = request({ exchanges: [{ turn_id: "t", user: "u", assistant: "a" }] });
+  const draft = { narrative: { story_summary: "PRIOR-DRAFT" } };
+  const withoutSuffix = renderContinuityRepairInput("INSTRUCTIONS", evidence, draft, "defect");
+  const headroom = MAX_DIRECT_MODEL_INPUT_BYTES - Buffer.byteLength(withoutSuffix, "utf8");
+
+  const fits = renderContinuityRepairInput("INSTRUCTIONS", evidence, draft, "defect", "S".repeat(headroom));
+  assert.ok(fits.endsWith("S"), "a trailer that fits is delivered with the repair");
+  assert.ok(Buffer.byteLength(fits, "utf8") <= MAX_DIRECT_MODEL_INPUT_BYTES);
+
+  const overflows = renderContinuityRepairInput("INSTRUCTIONS", evidence, draft, "defect", "S".repeat(headroom + 1));
+  assert.equal(overflows, null, "a trailer that does not fit refuses the repair rather than shipping it");
+});

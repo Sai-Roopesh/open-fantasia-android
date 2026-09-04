@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.open_fantasia.data.local.dao.ConnectionDao
 import com.example.open_fantasia.data.local.entity.ConnectionEntity
 import com.example.open_fantasia.data.remote.LLMClient
+import com.example.open_fantasia.data.continuity.ContinuityEngineAvailability
 import com.example.open_fantasia.data.continuity.ContinuityHostClient
 import com.example.open_fantasia.data.continuity.ContinuityHostState
 import com.example.open_fantasia.data.continuity.ContinuityHostPreferences
@@ -34,6 +35,7 @@ class SettingsViewModel(
     )
 
     val continuityHostState: StateFlow<ContinuityHostState> = continuityHostClient.state
+    val continuityEngines: StateFlow<ContinuityEngineAvailability> = continuityHostClient.continuityEngines
     private val _continuityMessage = MutableStateFlow<String?>(null)
     val continuityMessage = _continuityMessage.asStateFlow()
     private val _continuityEngineId = MutableStateFlow(continuityHostPreferences.continuityEngineId())

@@ -209,7 +209,6 @@ function continuityRequest() {
     current_cast_roster: [],
     baseline_snapshot: null,
     exchanges: [{ turn_id: "turn-1", parent_turn_id: null, user: "Hello", assistant: "Hi", created_at: "1" }],
-    checkpoint_turn_ids: ["turn-1"]
   };
 }
 

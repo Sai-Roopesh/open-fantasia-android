@@ -27,6 +27,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.open_fantasia.data.local.entity.ConnectionEntity
+import com.example.open_fantasia.data.continuity.ContinuityEngineAvailability
 import com.example.open_fantasia.data.continuity.ContinuityHostState
 import com.example.open_fantasia.data.continuity.ContinuityHostPreferences
 import com.example.open_fantasia.data.continuity.RoleplayProtocol
@@ -41,6 +42,7 @@ fun SettingsScreen(
     val hostState by viewModel.continuityHostState.collectAsState()
     val continuityMessage by viewModel.continuityMessage.collectAsState()
     val continuityEngineId by viewModel.continuityEngineId.collectAsState()
+    val continuityEngines by viewModel.continuityEngines.collectAsState()
     var editingConn by remember { mutableStateOf<ConnectionEntity?>(null) }
     var isCreating by remember { mutableStateOf(false) }
     var pendingDelete by remember { mutableStateOf<ConnectionEntity?>(null) }
@@ -106,6 +108,7 @@ fun SettingsScreen(
                     onTest = viewModel::testContinuityHost,
                     onForget = viewModel::forgetContinuityHost,
                     engineId = continuityEngineId,
+                    engines = continuityEngines,
                     onEngineSelected = viewModel::selectContinuityEngine
                 )
 
@@ -172,6 +175,7 @@ private fun ContinuityHostCard(
     onTest: () -> Unit,
     onForget: () -> Unit,
     engineId: String?,
+    engines: ContinuityEngineAvailability,
     onEngineSelected: (String) -> Unit
 ) {
     var endpoint by remember { mutableStateOf("") }
@@ -225,16 +229,32 @@ private fun ContinuityHostCard(
             }
             Text("CONTINUITY ENGINE", color = Color.Gray, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                listOf(
-                    ContinuityHostPreferences.CODEX_TERRA_HIGH to "GPT-5.6 Terra High",
-                    ContinuityHostPreferences.ANTIGRAVITY_GEMINI_FLASH_HIGH to "Gemini 3.6 Flash High"
-                ).forEach { (id, label) ->
+                ContinuityHostPreferences.CONTINUITY_ENGINES.forEach { engine ->
+                    val blockedReason = engines.unavailableReason(engine.id)
+                    val selectable = engines.isSelectable(engine.id)
                     Row(
-                        modifier = Modifier.fillMaxWidth().clickable { onEngineSelected(id) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(enabled = selectable) { onEngineSelected(engine.id) },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        RadioButton(selected = engineId == id, onClick = { onEngineSelected(id) })
-                        Text(label, color = Color.White, fontSize = 13.sp)
+                        RadioButton(
+                            selected = engineId == engine.id,
+                            enabled = selectable,
+                            onClick = { onEngineSelected(engine.id) }
+                        )
+                        Column {
+                            Text(
+                                engine.label,
+                                color = if (selectable) Color.White else Color.Gray,
+                                fontSize = 13.sp
+                            )
+                            Text(
+                                blockedReason ?: engine.hint,
+                                color = if (blockedReason == null) Color.Gray else Color(0xFFFFC857),
+                                fontSize = 11.sp
+                            )
+                        }
                     }
                 }
             }
