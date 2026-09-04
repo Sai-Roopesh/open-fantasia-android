@@ -24,7 +24,8 @@ import kotlinx.serialization.json.Json
 sealed interface ContinuityHostState {
     data object Unpaired : ContinuityHostState
     data object Checking : ContinuityHostState
-    data class Available(val queueDepth: Int = 0, val activeRequestId: String? = null) : ContinuityHostState
+    /** The Host answered. Queue depth and the active request id were carried here and never read. */
+    object Available : ContinuityHostState
     data class Unavailable(val detail: String = "Mac Host is off or unreachable") : ContinuityHostState
     data class Incompatible(val detail: String) : ContinuityHostState
 }
@@ -123,7 +124,7 @@ class ContinuityHostClient(private val preferences: ContinuityHostPreferences) {
         if (health.protocol_version != 2) {
             _state.value = ContinuityHostState.Incompatible("Host protocol ${health.protocol_version} is not supported")
         } else {
-            _state.value = ContinuityHostState.Available(health.queue_depth, health.active_jobs.firstOrNull()?.request_id)
+            _state.value = ContinuityHostState.Available
         }
         _continuityEngines.value = ContinuityEngineAvailability(
             runnable = health.continuity_engines.toSet(),
@@ -248,7 +249,7 @@ class ContinuityHostClient(private val preferences: ContinuityHostPreferences) {
         }
     }
 
-    private fun markAvailable() { _state.value = ContinuityHostState.Available() }
+    private fun markAvailable() { _state.value = ContinuityHostState.Available }
 
     private suspend fun authenticatedGet(path: String): HttpResponse {
         val pairing = preferences.pairing() ?: throw IllegalStateException("Mac Host is not paired")

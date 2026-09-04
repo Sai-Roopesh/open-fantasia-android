@@ -24,14 +24,14 @@ class MacRoleplayStatusTextTest {
             "Claude Sonnet is writing on your Mac…",
             macRoleplayStatusText(
                 RoleplayProtocol.CLAUDE_CODE_MODEL_ID,
-                ContinuityHostState.Available()
+                ContinuityHostState.Available
             )
         )
         assertEquals(
             "Gemini is writing on your Mac…",
             macRoleplayStatusText(
                 RoleplayProtocol.ANTIGRAVITY_MODEL_ID,
-                ContinuityHostState.Available()
+                ContinuityHostState.Available
             )
         )
     }

@@ -2,29 +2,7 @@ package com.example.open_fantasia.domain.model
 
 import kotlinx.serialization.Serializable
 
-/**
- * A supporting / side character present in a thread alongside the main character. The narrator
- * (the main character's reply) voices these NPCs; their identity cards live in the cached system
- * prefix, while their volatile state is tracked in durable_state on the suffix.
- *
- * IMPORTANT: deliberately NOT @Serializable, and the persisted JSON lives only on the Room
- * ThreadEntity (column `supporting_cast`), never on the @Serializable ThreadRecord. A
- * @Serializable CastMember combined with reified serializer extensions tripped a K2-kapt +
- * kotlinx.serialization compiler crash ("IrConstructorSymbolImpl is already bound"). It is
- * encoded/decoded via the runtime JSON element API in [parseSupportingCast]/[toSupportingCastJson].
- */
-data class CastMember(
-    val name: String = "",
-    val description: String = ""
-)
 
-@Serializable
-data class ProfileRecord(
-    val id: String,
-    val username: String,
-    val created_at: String,
-    val updated_at: String
-)
 
 @Serializable
 data class ModelCatalogEntry(

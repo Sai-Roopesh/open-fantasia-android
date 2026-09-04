@@ -51,7 +51,9 @@ enum class ReplyLength(
         /**
          * Reads a legacy `max_output_tokens` as the intention it was standing in for.
          *
-         * Used by the migration and nowhere else. New code names the length.
+         * The 12-to-13 migration does this same mapping in SQL, so nothing in Kotlin calls this and
+         * only its test does. It is kept as the executable statement of what those old numbers meant,
+         * next to the enum they map onto, where the SQL cannot say it.
          */
         fun fromLegacyTokens(tokens: Int): ReplyLength = when {
             tokens <= 750 -> Terse
