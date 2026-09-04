@@ -1,5 +1,5 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
-import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
+import {mkdir, readFile, readdir, rename, rm, writeFile} from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { ContinuityCompileError, compileContinuityDraft, projectContinuityEvidence } from "./compiler.mjs";
 import { validateResponse } from "./worker-lib.mjs";
@@ -642,6 +642,3 @@ export class DurableJobStore {
   }
 }
 
-export async function pathExists(path) {
-  try { await stat(path); return true; } catch (error) { if (error?.code === "ENOENT") return false; throw error; }
-}

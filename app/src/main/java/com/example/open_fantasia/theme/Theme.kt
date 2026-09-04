@@ -3,8 +3,6 @@ package com.example.open_fantasia.theme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.graphics.Color
 
 private val OpenFantasiaColorScheme = darkColorScheme(
@@ -40,26 +38,15 @@ private val OpenFantasiaColorScheme = darkColorScheme(
     scrim = Color(0xFF000000),
 )
 
-/**
- * Access the design's extended colors (success/warning/pink/muted text/etc.):
- * `MaterialTheme.extended.cyan`.
- */
-val MaterialTheme.extended: ExtendedColors
-    @Composable
-    @ReadOnlyComposable
-    get() = LocalExtendedColors.current
-
 @Composable
 fun OpenFantasiaTheme(
     darkTheme: Boolean = true, // Force dark for immersive storytelling
     dynamicColor: Boolean = false, // Keep the brand identity, no dynamic color
     content: @Composable () -> Unit,
 ) {
-    CompositionLocalProvider(LocalExtendedColors provides ExtendedColors()) {
-        MaterialTheme(
-            colorScheme = OpenFantasiaColorScheme,
-            typography = Typography,
-            content = content,
-        )
-    }
+    MaterialTheme(
+        colorScheme = OpenFantasiaColorScheme,
+        typography = Typography,
+        content = content,
+    )
 }
