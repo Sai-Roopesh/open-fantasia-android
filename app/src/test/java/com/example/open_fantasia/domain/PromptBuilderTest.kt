@@ -53,7 +53,7 @@ class PromptBuilderTest {
         cast = cast,
         activeSpeaker = cast.firstOrNull(),
         speakerMode = "single",
-        sceneIntent = sceneIntent, storyDirection = StoryDirection.Empty,
+        sceneIntent = sceneIntent, storyDirection = StoryDirection.Empty, recalled = emptyList(),
         pins = pins,
         timeline = timeline,
         currentUserMessage = "USER-PROSE",

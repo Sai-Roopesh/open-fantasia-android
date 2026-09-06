@@ -106,7 +106,7 @@ class PromptCompletenessTest {
         cast = cast,
         activeSpeaker = cast.firstOrNull(),
         speakerMode = speakerMode,
-        sceneIntent = SceneIntent.Escalate, storyDirection = StoryDirection.Empty,
+        sceneIntent = SceneIntent.Escalate, storyDirection = StoryDirection.Empty, recalled = emptyList(),
         pins = listOf(ChatPinRecord("p1", "t", "b", null, "PIN-BODY", "active", "", "")),
         timeline = listOf(
             TimelineEventRecord("tl1", "t", "b", "turn-9", "TIMELINE-TITLE", "TIMELINE-DETAIL", 5, "reveal", emptyList(), emptyList(), "")

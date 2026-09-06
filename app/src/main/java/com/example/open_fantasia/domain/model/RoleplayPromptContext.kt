@@ -33,6 +33,11 @@ data class RoleplayContext(
      * had to be. See [StoryDirection].
      */
     val storyDirection: StoryDirection,
+    /**
+     * Older exchanges this beat is reaching for, quoted exactly. Empty when nothing distinctive in the
+     * player's prose matches anything outside the Transcript Window. See [ExchangeRecall].
+     */
+    val recalled: List<RecalledExchange>,
     val pins: List<ChatPinRecord>,
     val timeline: List<TimelineEventRecord>,
     /** The player's visible prose for this reply. Reply controls are added by rendering, not here. */

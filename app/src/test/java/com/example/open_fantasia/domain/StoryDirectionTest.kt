@@ -19,7 +19,7 @@ class StoryDirectionTest {
                 character = PromptCharacter("Avni", "", "", "", "", "", "", emptyList()),
                 persona = null, directorNotes = "", world = null, cast = emptyList(),
                 activeSpeaker = null, speakerMode = "single", sceneIntent = intent,
-                storyDirection = direction,
+                storyDirection = direction, recalled = emptyList(),
                 pins = emptyList(), timeline = emptyList(),
                 currentUserMessage = "USER-PROSE", revision = null,
                 replyLength = ReplyLength.Full, modelId = "m"

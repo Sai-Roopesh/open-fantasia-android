@@ -195,7 +195,8 @@ object PromptBuilder {
         world: PromptWorldState?,
         stage: Stage,
         pins: List<ChatPinRecord>,
-        sceneIntent: SceneIntent
+        sceneIntent: SceneIntent,
+        recalled: List<RecalledExchange>
     ): String {
         val sections = mutableListOf<String>()
 
@@ -271,6 +272,12 @@ object PromptBuilder {
             blocks.joinToString("\n\n")
         }
         sections.add(formatSection("cast_roster", castContent))
+
+        // The Record, reached. Everything older than the Transcript Window otherwise arrives only as
+        // extraction, and extraction is lossy by construction. See [ExchangeRecall].
+        RecallRendering.render(recalled)?.let {
+            sections.add(formatSection(RecallRendering.TAG, it))
+        }
 
         if (pins.isNotEmpty() || stage.timeline.isNotEmpty()) {
             val lines = mutableListOf<String>()
@@ -444,7 +451,8 @@ object PromptBuilder {
             world = context.world,
             stage = stage,
             pins = context.pins,
-            sceneIntent = context.sceneIntent
+            sceneIntent = context.sceneIntent,
+            recalled = context.recalled
         )
         val replyControl = buildReplyControlContext(
             replyLength = context.replyLength,

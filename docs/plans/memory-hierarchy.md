@@ -158,10 +158,18 @@ order.
 **Engine input shrinks.** The evidence projection for the measured thread falls below 200,000
 characters, from 289,751 today.
 
-## Phase 2 — reaching the Record
+## Phase 2 — reaching the Record — BUILT
 
-Specified here so the tier boundary is designed rather than discovered, and deliberately not built by
-this plan.
+Delivered as `ExchangeRecall`. The design below stands; two things were learned building it.
+
+**Rarity decides, not count.** Scoring by how many distinct terms matched let a generic narrative verb
+outrank a real hook: on the measured thread, "what happened with the jammer" scored `happened` and
+`jammer` equally, and `happened` appeared in seventy-three exchanges. Terms are weighted by inverse
+frequency within the thread, so a word appearing three times outweighs one appearing seventy.
+
+**A beat that matches nothing distinctive recalls nothing.** No floor, no fallback, no most-recent
+default. An irrelevant exchange pulled into a scene invites the model to answer a question nobody
+asked, which is the failure ADR-0019 exists to prevent.
 
 The Record is complete and unreachable past fifteen exchanges. [Fidelity Before
 Structure](https://arxiv.org/pdf/2601.00821) finds verbatim chunks beat extracted artifacts on recall

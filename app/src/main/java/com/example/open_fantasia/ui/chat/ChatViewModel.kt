@@ -45,6 +45,7 @@ import com.example.open_fantasia.domain.model.RoleplayContext
 import com.example.open_fantasia.domain.model.ReplyLength
 import com.example.open_fantasia.domain.model.Revision
 import com.example.open_fantasia.domain.model.SceneIntent
+import com.example.open_fantasia.domain.model.ExchangeRecall
 import com.example.open_fantasia.domain.model.StoryDirection
 import com.example.open_fantasia.domain.model.SceneReportCodec
 import com.example.open_fantasia.domain.model.PromptWorldState
@@ -442,6 +443,21 @@ class ChatViewModel(
             }
             val turnInputPayload = "{\"sticky_speaker_id\":\"${activeBranch.active_speaker_id ?: "primary:${thread.id}"}\",\"sticky_mode\":\"${activeBranch.speaker_mode}\",\"shortcut\":${shortcut != null}}"
 
+            // The branch-valid lineage, resolved once. Recall reads it to reach past the Transcript
+            // Window; the assembler reads it to build the Window itself. Two readers, one selection —
+            // they cannot disagree about which exchanges this branch retains.
+            val lineage = chatDao.getTurnsForThread(thread.id).map { turn ->
+                RoleplayLineageEntry(
+                    id = turn.id,
+                    parent_id = turn.parent_turn_id,
+                    user_text = turn.user_input_text,
+                    assistant_text = turn.assistant_output_text,
+                    generation_status = turn.generation_status,
+                    starter_seed = turn.starter_seed
+                )
+            }
+            val retainedPath = buildLineagePath(lineage, contextHeadTurnId)
+
             // One total context, one render. Nothing about this depends on which action asked for a
             // reply, and nothing can be left out without failing to compile. See ADR-0014.
             val rendered = PromptBuilder.render(
@@ -468,7 +484,8 @@ class ChatViewModel(
                         ?.let { chatDao.getNearestSceneReport(it) }
                         ?.let { SceneReportCodec.decode(it) }
                         ?.takeUnless { it.scene_ended }
-                        ?.present.orEmpty().toSet()
+                        ?.present.orEmpty().toSet(),
+                    recalled = ExchangeRecall.select(retainedPath, visibleInput)
                 )
             )
             val renderedUserMessage = rendered.currentUserMessage
@@ -476,18 +493,8 @@ class ChatViewModel(
             // Build one provider-neutral context before reserving the turn. Every reply-producing
             // action converges here, so normal send, regenerate, edit, branch, and post-rewind
             // generation cannot select history differently.
-            val allTurns = chatDao.getTurnsForThread(thread.id)
             val assembledContext = RoleplayContextAssembler.assemble(
-                lineage = allTurns.map { turn ->
-                    RoleplayLineageEntry(
-                        id = turn.id,
-                        parent_id = turn.parent_turn_id,
-                        user_text = turn.user_input_text,
-                        assistant_text = turn.assistant_output_text,
-                        generation_status = turn.generation_status,
-                        starter_seed = turn.starter_seed
-                    )
-                },
+                lineage = lineage,
                 head_exchange_id = contextHeadTurnId,
                 continuity_baseline_exchange_id = contextSnapshot?.turn_id,
                 current_user_message = renderedUserMessage
@@ -1155,6 +1162,28 @@ class ChatViewModel(
         if (dbState.branches.none { it.id == activeBranch.id }) return false
         val headTurnId = activeBranch.head_turn_id ?: return true
         return dbState.turns.any { it.id == headTurnId }
+    }
+
+    /**
+     * The retained exchanges on this lineage, oldest first.
+     *
+     * Defensive in the same way [buildTurnPath] is: a head whose ancestry is not fully present yields
+     * what it can rather than throwing, because Room flows can pair a fresh head with a stale list.
+     */
+    private fun buildLineagePath(
+        lineage: List<RoleplayLineageEntry>,
+        headTurnId: String?
+    ): List<RoleplayLineageEntry> {
+        val byId = lineage.associateBy { it.id }
+        val path = mutableListOf<RoleplayLineageEntry>()
+        val seen = mutableSetOf<String>()
+        var cursor = headTurnId
+        while (cursor != null && seen.add(cursor)) {
+            val entry = byId[cursor] ?: break
+            path += entry
+            cursor = entry.parent_id
+        }
+        return path.asReversed()
     }
 
     private fun buildTurnPath(turns: List<TurnEntity>, headTurnId: String?): List<TurnEntity> {
