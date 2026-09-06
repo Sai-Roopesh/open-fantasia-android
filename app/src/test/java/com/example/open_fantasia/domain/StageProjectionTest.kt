@@ -190,20 +190,87 @@ class StageProjectionTest {
         assertEquals("a frozen request cannot be built from a projection that reorders itself", run(), run())
     }
 
-    @Test
-    fun `timeline keeps the most recent beats and reports the rest`() {
-        val events = (1..40).map {
-            TimelineEventRecord("tl$it", "t", "b", null, "Title $it", "Detail $it", 5, "beat", emptyList(), emptyList(),
-                "2026-08-%02d".format(it % 28 + 1))
-        }
-        val stage = StageProjection.project(
+    private fun beat(
+        index: Int,
+        importance: Int = 3,
+        affects: List<String> = emptyList()
+    ) = TimelineEventRecord(
+        id = "tl%03d".format(index), thread_id = "t", branch_id = "b", turn_id = null,
+        title = "Title $index", detail = "Detail $index", importance = importance,
+        event_type = "beat", affected_entity_ids = affects, affected_relationship_ids = emptyList(),
+        created_at = "2026-08-01T00:00:00.%03dZ".format(index)
+    )
+
+    private fun timelineOf(events: List<TimelineEventRecord>, budget: StageBudget) =
+        StageProjection.project(
             world = world(listOf(entity("here", "Present", present = true))),
-            cast = emptyList(), salience = emptyMap(), timeline = events,
-            budget = StageBudget(timelineEvents = 10)
+            cast = emptyList(), salience = emptyMap(), timeline = events, budget = budget
         )
+
+    @Test
+    fun `the timeline stays inside its budget and in story order`() {
+        val stage = timelineOf((1..40).map { beat(it) }, StageBudget(timelineEvents = 10, recentTimelineEvents = 4))
         assertEquals(10, stage.timeline.size)
         assertEquals("the kept beats must stay in story order",
             stage.timeline.map { it.created_at }.sorted(), stage.timeline.map { it.created_at })
         assertTrue(stage.omissions.any { it.contains("timeline") })
+    }
+
+    @Test
+    fun `a beat from early in the story survives a hundred beats of newer ones`() {
+        // The defect this replaces, on real shape: one decisive event a fifth of the way in, then a
+        // long tail. Under a recency cap it was unreachable and the model wrote around a hole.
+        val events = (1..100).map { beat(it, importance = if (it == 20) 5 else 3) }
+        val stage = timelineOf(events, StageBudget(timelineEvents = 12, recentTimelineEvents = 6))
+        assertTrue("the strongest beat of its era must still reach the model",
+            stage.timeline.any { it.id == "tl020" })
+    }
+
+    @Test
+    fun `no era of the story goes unrepresented`() {
+        val events = (1..120).map { beat(it) }
+        val stage = timelineOf(events, StageBudget(timelineEvents = 12, recentTimelineEvents = 6))
+        // Six spine slots over the older 114 beats: one from each nineteen, so no stretch of the story
+        // is silent however long it runs.
+        val spine = stage.timeline.dropLast(6).map { it.id.removePrefix("tl").toInt() }
+        assertEquals(6, spine.size)
+        spine.zipWithNext().forEach { (a, b) ->
+            assertTrue("two spine beats fell in the same era: $a and $b", b - a >= 15)
+        }
+    }
+
+    @Test
+    fun `the beats immediately behind the scene are never given up`() {
+        val events = (1..60).map { beat(it, importance = if (it <= 10) 5 else 1) }
+        val stage = timelineOf(events, StageBudget(timelineEvents = 10, recentTimelineEvents = 4))
+        assertEquals("the recent tail is reserved, not competed for",
+            listOf("tl057", "tl058", "tl059", "tl060"), stage.timeline.takeLast(4).map { it.id })
+    }
+
+    @Test
+    fun `an era breaks its tie toward the people in the room`() {
+        val events = (1..40).map {
+            beat(it, importance = 5, affects = if (it == 3) listOf("here") else listOf("elsewhere"))
+        }
+        val stage = timelineOf(events, StageBudget(timelineEvents = 8, recentTimelineEvents = 4))
+        assertTrue("equal importance should resolve toward the entities in this scene",
+            stage.timeline.any { it.id == "tl003" })
+    }
+
+    @Test
+    fun `the same timeline is selected the same way twice`() {
+        val events = (1..90).map { beat(it, importance = (it % 5) + 1) }
+        val budget = StageBudget(timelineEvents = 16, recentTimelineEvents = 6)
+        assertEquals(
+            timelineOf(events, budget).timeline.map { it.id },
+            timelineOf(events.shuffled(), budget).timeline.map { it.id }
+        )
+    }
+
+    @Test
+    fun `a timeline that fits is sent whole`() {
+        val stage = timelineOf((1..9).map { beat(it) }, StageBudget(timelineEvents = 10, recentTimelineEvents = 4))
+        assertEquals(9, stage.timeline.size)
+        assertTrue(stage.omissions.none { it.contains("timeline") })
     }
 }

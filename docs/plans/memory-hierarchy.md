@@ -109,9 +109,15 @@ If no entity exceeds the threshold, no candidate is named and the engine is not 
 ## What the engine is told
 
 `PROMPT.md` gains a section that is symmetric with the ones that already exist. The asymmetry being
-corrected is explicit: today adding is free and encouraged (*"That is not permission to write little"*),
-while removal must cite an exchange ordinal as justification. Nothing has ever asked the engine to
-reconsider what it already wrote.
+corrected is explicit: adding was free and encouraged, while removal must cite an exchange ordinal as
+justification. Nothing had ever asked the engine to reconsider what it already wrote.
+
+The encouragement half is since gone. Three sentences did most of it — *"That is not permission to
+write little"*, *"safety ceilings, not targets"*, *"a failed update, not a cautious one"* — and they
+were quotas, which is why the facts they produced averaged 389 characters against 150 on threads that
+had less to say. `PROMPT.md` now carries a register instead: plain statement over image, one claim per
+fact, amend in place rather than restate, length following content. Compaction is what the accumulated
+prose is folded into; the register is what stops it accumulating that way in the first place.
 
 The instruction states that a compaction candidate's facts have outgrown their usefulness as separate
 rows, that the account must carry everything the retired facts established, and that a fact still doing

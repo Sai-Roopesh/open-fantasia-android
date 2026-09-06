@@ -32,8 +32,8 @@ final exchange, and `last_turn_beat` as the change the final exchange caused.
 Write the Story Summary for someone who will continue this story with no access to the transcript. It
 has to carry the causal chain: who did what, why, what it cost, what changed between people, what is
 unresolved. A summary that reads like a blurb has failed even though it validates. The character limits
-are safety ceilings, not targets, and a few hundred characters is almost always too few — spend what
-the story actually needs.
+are ceilings, not targets. A summary is long because the story has that much in it, never because the
+field allows it.
 
 `scene` is the complete present moment. List everyone who is in the scene now, where they are, and what
 they feel. Anyone you omit becomes absent — that is how a character leaves. An absent character keeps
@@ -42,21 +42,55 @@ the emotion they last had, so do not list someone merely to preserve their state
 `operations` change durable state. Omitting something leaves it exactly as it was, so nothing needs
 restating merely to preserve it.
 
-That is not permission to write little. Omission preserves what already exists — it cannot preserve what
-was never recorded. Whenever the exchanges establish something the baseline does not yet hold, it needs
-an operation or it is lost: who someone is, what they now know, want, fear, or carry, how two people
-stand toward each other, what remains unresolved. Write `assert_fact` for what the transcript
-establishes about a person, and `relate` for a connection the story has actually shown.
+Omission preserves what already exists. It cannot preserve what was never recorded, so anything these
+exchanges established that the baseline does not yet hold needs an operation or it is lost: who someone
+is, what they now know, want, fear, or carry, how two people stand toward each other. Write
+`assert_fact` for what the transcript establishes about a person, and `relate` for a connection the
+story has actually shown.
 
 Read `baseline` before deciding. When it is empty — a first snapshot, or one where a Rewind left no
-earlier snapshot reachable — you are not recording changes to a world, you are building the world: every established person,
-place, relationship, fact and unresolved question has to be created here, because nothing is carried forward
-from anywhere. A world of named people with no facts and no relationships between them is a failed
-update even when it validates.
+earlier snapshot reachable — you are not recording changes to a world, you are building the world:
+every established person, place, relationship and fact has to be created here, because nothing is
+carried forward from anywhere. A world of named people with no facts and no relationships between them
+is a failed update even when it validates.
 
 `timeline_events` records genuinely notable beats: reveals, betrayals, discoveries, combat, scene
 changes, time skips, major relationship shifts, significant emotional turns, meaningful movement.
 Routine dialogue gets no event. At most seven, in chronological order, each citing an exchange ordinal.
+
+`title` says who did what: `Marriage completed, then betrayal discovered`, `She collapses at the basin`.
+Not `The mirror`, `Hopeless`, `Necessary, never sufficient` — those are chapter headings, and someone
+holding only the title learns nothing from them. This carries further than it looks. An event is read
+a hundred beats later by someone who cannot see the scene it came from, and the title is the first
+thing they read.
+
+`importance` is a ranking, so use its range. A 5 is a beat the story would be a different story
+without. When most events are 5 none of them are, and the ones that genuinely decided something become
+unfindable among the ones that did not.
+
+## How to write it
+
+Everything above says what to record. This says how, and it is the half that has been missing.
+
+**Say what happened.** *Has not told her brother the apartment loan is in his name* is something the
+next scene can be built on. *A debt she never sent him the invoice for* is not: it has to be decoded
+first, and it decodes differently every time. Where a plain statement and an image both fit, the plain
+statement is the one that survives being read cold fifty exchanges later by a model that cannot see the
+scene it came from.
+
+**One claim per fact.** If it needs "and also", it is two facts. If it needs a paragraph of scene to
+explain itself, the scene belongs in `story_summary` and what is now true belongs here.
+
+**Do not restate.** Before writing a fact, read the ones that entity already holds. If one of them
+already says this, amend it in place with its handle instead of adding a second phrasing. Two facts
+that open the same way are almost always one fact written twice.
+
+**Length follows content.** A fact is long because the transcript established that much. Nothing here
+is scored on volume: the same content in half the words is better, and padding a bucket is worse than
+leaving it empty.
+
+None of this asks for less of the story. It asks for the same content without the ornament — the
+specific detail kept, the flourish around it dropped.
 
 ## Operations
 
@@ -86,8 +120,8 @@ what the transcript actually established about them, in the right bucket:
 - `possessions` — objects that matter to the story.
 
 One grounded fact is worth more than three vague ones, and inventing is worse than leaving a bucket
-empty. But leaving every bucket empty for a character the transcript clearly characterizes is a failed
-update, not a cautious one.
+empty. A bucket the transcript says nothing about stays empty. A bucket it does say something about
+gets that thing, once.
 
 Removals are explicit and each one must set `reason`: the exchange ordinal that justifies it, or
 `superseded` when a newer assertion replaces it.

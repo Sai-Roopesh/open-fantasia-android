@@ -172,11 +172,10 @@ class PromptBuilderTest {
         assertTrue(prompt.contains("<pins_timeline>\n"))
         assertTrue(prompt.contains("Pinned branch facts:"))
         assertTrue(prompt.contains("PIN-BODY"))
-        // Renamed from "Recent high-importance timeline beats". The heading promised a selection the code
-        // never made: every reachable event shipped, and the engine had rated 85 of 139 at 5/5, so
-        // importance had stopped ranking anything. The Stage takes the most recent instead, and the
-        // heading now describes what actually happens.
-        assertTrue(prompt.contains("Most recent timeline beats:"))
+        // The heading has been wrong twice, both times by promising a selection the Stage was not
+        // making. It now sends the strongest beat of each era plus the recent tail, so the list covers
+        // the whole story and the heading says that, in story order.
+        assertTrue(prompt.contains("Beats of this story so far, oldest first:"))
         assertTrue(prompt.contains("TL-DETAIL"))
     }
 }

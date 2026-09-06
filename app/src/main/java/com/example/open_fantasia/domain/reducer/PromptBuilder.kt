@@ -287,7 +287,11 @@ object PromptBuilder {
             }
             if (stage.timeline.isNotEmpty()) {
                 if (lines.isNotEmpty()) lines.add("")
-                lines.add("Most recent timeline beats:")
+                // Not "most recent". The Stage sends the strongest beat of each era of the story
+                // followed by the recent tail, so the list spans the whole record and the heading has
+                // to say so or the model reads an event from a hundred turns ago as something that
+                // just happened.
+                lines.add("Beats of this story so far, oldest first:")
                 lines.addAll(stage.timeline.map { "- [${it.importance}/5] ${it.title}: ${it.detail}" })
             }
             sections.add(formatSection("pins_timeline", lines.joinToString("\n")))

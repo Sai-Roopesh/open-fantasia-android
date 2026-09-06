@@ -60,9 +60,17 @@ describing how to write slid from meaningful to 2.3% with nothing positioned to 
 has a ceiling and an owner. Exceeding one demotes the least salient records a tier and says so, which is
 a bounded loss of detail rather than an unbounded loss of instruction.
 
-The timeline section is capped by recency rather than importance, and its heading changed to say so. It
-had promised "recent high-importance beats" while shipping every reachable event, and the engine had
-rated 85 of 139 at 5/5, so importance had stopped ranking anything.
+The timeline section is a spine plus a tail. It had promised "recent high-importance beats" while
+shipping every reachable event; it was then capped by recency, which sent the end of the story and
+nothing else — 24 beats of 229, all from the last tenth, so a betrayal a fifth of the way in was
+unreachable and the model wrote around a hole it could not see.
+
+Importance alone does not rank either: the engine rated 120 of those 229 beats 5/5, and a tie between
+equals broken by recency is recency again. So a reserved tail holds the beats immediately behind the
+scene, and the remaining slots cut the record into that many equal eras, each sending its strongest
+beat — importance first, then how many entities in this scene the beat names, then recency, then the
+identifier. The loss is bounded by era rather than by age, which is the only arrangement in which
+something old still arrives. Measured on that thread, coverage went from beats 205-228 to 3-228.
 
 ## Consequences
 

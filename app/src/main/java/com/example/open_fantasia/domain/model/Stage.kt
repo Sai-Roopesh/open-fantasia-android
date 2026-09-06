@@ -55,7 +55,10 @@ data class Stage(
 data class StageBudget(
     val onStageChars: Int = 30_000,
     val wingsChars: Int = 8_000,
-    val timelineEvents: Int = 24,
+    /** How many timeline beats reach one reply, across the whole record. */
+    val timelineEvents: Int = 32,
+    /** How many of those are reserved for the beats immediately behind this scene. */
+    val recentTimelineEvents: Int = 12,
     /** Below this, the whole Cast Roster is sent at full detail. Tiering a small cast buys nothing. */
     val fullRosterChars: Int = 6_000
 ) {
@@ -123,10 +126,10 @@ object StageProjection {
                 entities = entities.map { StagedEntity(StageTier.OnStage, it) },
                 cast = cast.map { StagedCastMember(StageTier.OnStage, it) },
                 relationships = relationships,
-                    timeline = timeline.sortedByDescending { it.created_at }
-                    .take(budget.timelineEvents).sortedBy { it.created_at },
+                timeline = selectTimeline(timeline, emptySet(), budget),
                 omissions = if (timeline.size > budget.timelineEvents)
-                    listOf("${timeline.size - budget.timelineEvents} older timeline beats") else emptyList()
+                    listOf("${timeline.size - budget.timelineEvents} timeline beats between the ones shown")
+                else emptyList()
             )
         }
 
@@ -195,20 +198,62 @@ object StageProjection {
             omissions += "${relationships.size - stagedRelationships.size} relationships between two off-stage entities"
         }
 
-        // Recency, not importance. The engine rated 85 of 139 beats 5/5, so importance had stopped
-        // ranking anything, and the section's own heading already promised the most recent.
-        val recentTimeline = timeline.sortedByDescending { it.created_at }.take(budget.timelineEvents)
-        if (recentTimeline.size < timeline.size) {
-            omissions += "${timeline.size - recentTimeline.size} older timeline beats"
+        val stagedTimeline = selectTimeline(timeline, onStage, budget)
+        if (stagedTimeline.size < timeline.size) {
+            omissions += "${timeline.size - stagedTimeline.size} timeline beats between the ones shown"
         }
 
         return Stage(
             entities = staged,
             cast = stagedCast,
             relationships = stagedRelationships,
-            timeline = recentTimeline.sortedBy { it.created_at },
+            timeline = stagedTimeline,
             omissions = omissions
         )
+    }
+
+    /**
+     * Which beats of the record a reply is written against.
+     *
+     * A cap taken by recency alone sends the end of the story and nothing else. Measured on one thread
+     * that is 24 beats of 229, all from the last tenth: the marriage, the betrayal that followed it, and
+     * a hundred beats of consequence sat outside the prompt, so the model wrote around a hole it could
+     * not see. Ranking by importance instead does not fix it either. Importance is inflated — the engine
+     * rated 120 of those 229 beats 5/5 — and a tie between equals broken by recency is recency again.
+     *
+     * So the budget is split. A reserved tail holds the beats immediately behind this scene, because
+     * without them a reply cannot tell what just happened. The rest is a spine: the record is cut into
+     * as many equal eras as there are slots left, and each era sends its strongest beat. That bounds the
+     * loss by era rather than by age, which is the only arrangement in which something from a third of
+     * the way in still arrives.
+     *
+     * Within an era, importance leads, then how many entities in this scene the beat names, then
+     * recency. Every tie ends at the identifier, because a frozen Roleplay Generation Request has to
+     * compile twice to the same bytes.
+     */
+    internal fun selectTimeline(
+        timeline: List<TimelineEventRecord>,
+        onStage: Set<String>,
+        budget: StageBudget
+    ): List<TimelineEventRecord> {
+        val chronological = timeline.sortedWith(compareBy({ it.created_at }, { it.id }))
+        if (chronological.size <= budget.timelineEvents) return chronological
+
+        val tail = chronological.takeLast(minOf(budget.recentTimelineEvents, budget.timelineEvents))
+        val older = chronological.dropLast(tail.size)
+        val eras = minOf(budget.timelineEvents - tail.size, older.size)
+        if (eras <= 0) return tail
+
+        val strongest = compareBy<TimelineEventRecord>(
+            { it.importance },
+            { it.affected_entity_ids.count { id -> id in onStage } },
+            { it.created_at },
+            { it.id }
+        )
+        val spine = (0 until eras).map { era ->
+            older.subList(era * older.size / eras, (era + 1) * older.size / eras).maxWith(strongest)
+        }
+        return spine + tail
     }
 
     private fun approximateProfileSize(member: PromptCastMember): Int =
@@ -250,23 +295,5 @@ object StageProjection {
         if (demoted.isEmpty()) return staged
         omissions += "${demoted.size} least recently used records moved out of $label to stay within budget"
         return staged.map { if (it.entity.entity_id in demoted) it.copy(tier = to) else it }
-    }
-
-    /** Word-boundary match, so "Ana" is not found inside "Ananya". */
-    private fun namesMention(haystack: String, name: String, aliases: List<String>): Boolean {
-        if (haystack.isBlank()) return false
-        val text = haystack.lowercase()
-        return (listOf(name) + aliases).any { candidate ->
-            val needle = candidate.trim().lowercase()
-            if (needle.isEmpty()) return@any false
-            var index = text.indexOf(needle)
-            while (index >= 0) {
-                val before = text.getOrNull(index - 1)
-                val after = text.getOrNull(index + needle.length)
-                if (before?.isLetterOrDigit() != true && after?.isLetterOrDigit() != true) return@any true
-                index = text.indexOf(needle, index + 1)
-            }
-            false
-        }
     }
 }
