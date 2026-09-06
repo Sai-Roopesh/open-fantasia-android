@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  COMPACTION_THRESHOLD_CHARS,
+  selectCompactionCandidates,
   ContinuityCompileError,
   assertSatisfiableRequest,
   compileContinuityDraft,
@@ -148,6 +150,23 @@ function compile(requestOverrides = {}, draftOverrides = {}) {
 }
 
 const castById = (response, id) => response.world_state.cast_roster.find(member => member.cast_id === id);
+/** The readable handle the engine would be shown for an entity in this baseline. */
+function slugOf(baseline, entityId) {
+  const evidence = projectContinuityEvidence(makeRequest({ baseline_snapshot: baseline }));
+  return evidence.baseline.entities.find(e => e.name === (baseline.entity_state.find(x => x.entity_id === entityId)?.canonical_name))?.handle;
+}
+
+/** Every fact handle an entity owns, as the engine sees them. */
+function FACT_HANDLES(baseline, entityId) {
+  const handle = slugOf(baseline, entityId);
+  const entity = baseline.entity_state.find(x => x.entity_id === entityId);
+  const out = [];
+  for (const bucket of ["knowledge_boundary","traits","goals","secrets","abilities","possessions"]) {
+    (entity?.[bucket] ?? []).forEach((_, i) => out.push(`${handle}.${bucket}.${i + 1}`));
+  }
+  return out;
+}
+
 const entityById = (response, id) => response.world_state.entity_state.find(item => item.entity_id === id);
 const codes = defects => defects.map(defect => defect.code);
 
@@ -456,6 +475,164 @@ test("a snapshot written before salience existed ages nothing", () => {
   const salience = response.world_state.salience;
   assert.ok(Object.values(salience).every(version => version === 5),
     "records from a salience-free baseline should start current, not stale");
+});
+
+/**
+ * Compaction is the only operation that asks the engine to reconsider what an earlier update wrote.
+ * Every test here is a way it could lose something it was supposed to keep. See
+ * docs/plans/memory-hierarchy.md.
+ */
+function bulky(id, name, factCount) {
+  const long = " ".padEnd(400, "x");
+  return entity(id, name, {
+    traits: Array.from({ length: factCount }, (_, i) => fact(`fact:${id}:${i}`, `trait ${i}${long}`))
+  });
+}
+
+test("an account replaces the facts it names and nothing else", () => {
+  const baseline = baselineSnapshot();
+  baseline.entity_state = [bulky("vera", "Vera", 20), entity("hero", "Hero")];
+  const { response, defects } = compile({ baseline_snapshot: baseline }, {
+    operations: [op({
+      op: "compact_entity", handle: "vera",
+      account: "Vera is watchful and has been for a long time.",
+      retire: ["vera.traits.1", "vera.traits.2", "vera.traits.3"]
+    })]
+  });
+  const vera = entityById(response, "vera");
+  assert.equal(vera.traits.length, 17, "exactly the named facts should go");
+  assert.match(vera.account, /watchful/);
+  assert.equal(entityById(response, "hero").account, "", "no other entity is touched");
+  assert.ok(codes(defects).includes("entity_compacted"));
+});
+
+test("facts are never retired into nothing", () => {
+  const baseline = baselineSnapshot();
+  baseline.entity_state = [bulky("vera", "Vera", 20)];
+  const { response, defects } = compile({ baseline_snapshot: baseline }, {
+    operations: [op({ op: "compact_entity", handle: "vera", account: "   ", retire: ["vera.traits.1"] })]
+  });
+  assert.equal(entityById(response, "vera").traits.length, 20, "an empty account must retire nothing");
+  assert.ok(codes(defects).includes("empty_account"));
+});
+
+test("a compaction cannot retire another entity's facts", () => {
+  const baseline = baselineSnapshot();
+  baseline.entity_state = [bulky("vera", "Vera", 20), entity("hero", "Hero", { traits: [fact("fact:hero:1", "Patient")] })];
+  const { response, defects } = compile({ baseline_snapshot: baseline }, {
+    operations: [op({ op: "compact_entity", handle: "vera", account: "Vera is watchful.", retire: ["hero.traits.1"] })]
+  });
+  assert.equal(entityById(response, "hero").traits.length, 1, "a foreign fact must survive");
+  assert.ok(codes(defects).includes("foreign_fact_retired"));
+});
+
+test("an unknown entity leaves the world untouched", () => {
+  const before = compile({}, {}).response.world_state.entity_state;
+  const { response, defects } = compile({}, {
+    operations: [op({ op: "compact_entity", handle: "nobody", account: "x", retire: [] })]
+  });
+  assert.deepEqual(response.world_state.entity_state, before);
+  assert.ok(codes(defects).includes("unknown_handle"));
+});
+
+test("an account is cut at its ceiling rather than accepted whole", () => {
+  const baseline = baselineSnapshot();
+  baseline.entity_state = [bulky("vera", "Vera", 5)];
+  const { response, defects } = compile({ baseline_snapshot: baseline }, {
+    operations: [op({ op: "compact_entity", handle: "vera", account: "y".repeat(9000), retire: [] })]
+  });
+  assert.equal(entityById(response, "vera").account.length, 4000);
+  assert.ok(codes(defects).includes("account_truncated"));
+});
+
+test("compaction is idempotent", () => {
+  const baseline = baselineSnapshot();
+  baseline.entity_state = [bulky("vera", "Vera", 20)];
+  const draft = { operations: [op({
+    op: "compact_entity", handle: "vera", account: "Vera is watchful.", retire: ["vera.traits.1"]
+  })] };
+  const first = compile({ baseline_snapshot: baseline }, draft).response.world_state;
+  const second = compile({ baseline_snapshot: baseline }, draft).response.world_state;
+  assert.deepEqual(first, second);
+});
+
+test("candidates are the oversized entities, largest first", () => {
+  const baseline = baselineSnapshot();
+  baseline.entity_state = [
+    bulky("big", "Big", 40), bulky("mid", "Mid", 20), entity("small", "Small")
+  ];
+  baseline.metadata.version = 10;
+  const picked = selectCompactionCandidates(baseline).map(e => e.entity_id);
+  assert.deepEqual(picked, ["big", "mid"], "a small entity is never a candidate");
+  assert.ok(JSON.stringify(baseline.entity_state[2]).length < COMPACTION_THRESHOLD_CHARS);
+});
+
+test("salience breaks a tie between equally large entities", () => {
+  const baseline = baselineSnapshot();
+  baseline.entity_state = [bulky("fresh", "Fresh", 20), bulky("stale", "Stale", 20)];
+  baseline.metadata.version = 10;
+  baseline.salience = { fresh: 10, stale: 1 };
+  assert.equal(selectCompactionCandidates(baseline, 1)[0].entity_id, "stale");
+});
+
+test("selection is capped and deterministic", () => {
+  const baseline = baselineSnapshot();
+  baseline.entity_state = [bulky("a","A",40), bulky("b","B",30), bulky("c","C",20), bulky("d","D",15)];
+  const once = selectCompactionCandidates(baseline).map(e => e.entity_id);
+  assert.equal(once.length, 3, "at most three per update");
+  assert.deepEqual(once, selectCompactionCandidates(baseline).map(e => e.entity_id));
+});
+
+test("the engine is shown its shortlist and every account", () => {
+  const baseline = baselineSnapshot();
+  baseline.entity_state = [bulky("vera", "Vera", 20), entity("hero", "Hero", { account: "Known." })];
+  const evidence = projectContinuityEvidence(makeRequest({ baseline_snapshot: baseline }));
+  assert.deepEqual(evidence.compaction_candidates, ["vera"]);
+  assert.equal(evidence.baseline.entities.find(e => e.handle === "hero").account, "Known.");
+});
+
+/**
+ * The acceptance criterion this whole mechanism exists for.
+ *
+ * A story runs for an unbounded number of exchanges and a context window does not grow, so any part of
+ * a Snapshot that only accumulates is a leak with a date on it. Measured before compaction existed, one
+ * thread gained ~11,700 characters per Continuity Update with no ceiling in sight.
+ *
+ * This drives twenty updates that each add facts at that observed rate and asserts the size settles.
+ * The engine is modelled at its worst: every account is written to the full 4,000-character ceiling, so
+ * a real engine writing tighter prose can only do better than this.
+ */
+test("a snapshot of a story that never ends still stops growing", () => {
+  let baseline = baselineSnapshot();
+  baseline.entity_state = [entity("vera", "Vera"), entity("hero", "Hero")];
+  const sizes = [];
+
+  for (let update = 1; update <= 20; update++) {
+    // What every update adds: new facts about whoever appeared, at the rate measured in production.
+    const additions = ["vera", "hero"].flatMap(who =>
+      Array.from({ length: 7 }, (_, i) =>
+        op({ op: "assert_fact", entity: who, bucket: "traits",
+             body: `update ${update} observation ${i} ${"detail ".repeat(50)}` })));
+
+    // What the host would name, and what an engine would return for each.
+    const compactions = selectCompactionCandidates(baseline).map(candidate => {
+      const handle = slugOf(baseline, candidate.entity_id);
+      const retire = FACT_HANDLES(baseline, candidate.entity_id);
+      return op({ op: "compact_entity", handle, account: "a".repeat(4000), retire });
+    });
+
+    const request = makeRequest({ baseline_snapshot: baseline, baseline_version: baseline.metadata.version });
+    const { response } = compileContinuityDraft(request, makeDraft({ operations: [...additions, ...compactions] }));
+    baseline = response.world_state;
+    sizes.push(JSON.stringify(baseline.entity_state).length);
+  }
+
+  const tail = sizes.slice(-5);
+  const worstGrowth = Math.max(...tail.slice(1).map((n, i) => (n - tail[i]) / tail[i]));
+  assert.ok(worstGrowth < 0.02,
+    `entity_state must plateau; last five updates grew up to ${(worstGrowth * 100).toFixed(1)}% each: ${tail}`);
+  assert.ok(sizes.at(-1) < sizes[2] * 3,
+    `entity_state ran away: ${sizes[2]} -> ${sizes.at(-1)}`);
 });
 
 test("an unrecognized handle never silently creates an object", () => {

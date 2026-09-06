@@ -56,13 +56,14 @@
       "required": [
         "op", "handle", "entity", "bucket", "from", "to", "name", "kind", "body", "status",
         "aliases", "modifiers", "bidirectional", "profile", "evidence", "first_seen_exchange",
-        "reason"
+        "account", "retire", "reason"
       ],
       "properties": {
         "op": {
           "enum": [
             "describe_entity",
             "assert_fact",
+            "compact_entity",
             "retract_fact",
             "retire_entity",
             "relate",
@@ -86,6 +87,8 @@
         "name": { "type": ["string", "null"], "description": "Canonical name for an entity, a location, or a Cast Member." },
         "kind": { "type": ["string", "null"], "description": "Entity type for describe_entity; relationship type for relate." },
         "body": { "type": ["string", "null"], "description": "Fact text, or location description." },
+        "account": { "type": ["string", "null"], "maxLength": 4000, "description": "Prose superseding the facts a compaction retires." },
+        "retire": { "type": ["array", "null"], "items": { "type": "string" }, "description": "Fact handles the account now covers." },
         "status": { "type": ["string", "null"], "description": "Relationship dynamic status." },
         "aliases": { "type": ["array", "null"], "items": { "type": "string" } },
         "modifiers": { "type": ["array", "null"], "items": { "type": "string" }, "description": "Environmental modifiers for a location." },

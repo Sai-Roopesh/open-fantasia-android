@@ -102,6 +102,15 @@ data class EntityState(
     val entity_id: String,
     val canonical_name: String,
     val entity_type: String, // "character" | "npc" | "creature" | "object" | "group"
+    /**
+     * Prose superseding the facts a compaction retired: what the story established about this entity,
+     * said once instead of across dozens of rows that each restate it.
+     *
+     * Empty on an entity never compacted, which is the correct reading of every snapshot written before
+     * compaction existed — hence a tolerant default rather than a migration. Written whole and never
+     * appended to, which is the property that keeps it bounded. See docs/plans/memory-hierarchy.md.
+     */
+    val account: String = "",
     val aliases: List<String>,
     val is_present: Boolean,
     val primary_emotion: String,

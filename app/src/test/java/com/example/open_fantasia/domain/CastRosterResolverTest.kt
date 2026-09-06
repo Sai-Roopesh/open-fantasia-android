@@ -10,8 +10,11 @@ class CastRosterResolverTest {
     @Test
     fun legacySnapshotPromotesMeaningfulNamedCharacterButNotPlayerOrUnnamedRole() {
         fun entity(id: String, name: String, goals: Int = 0) = EntityState(
-            id, name, "character", emptyList(), true, "calm", 1, "", emptyList(), emptyList(),
-            List(goals) { FactRef("$id-g$it", "Goal $it") }, emptyList(), emptyList(), emptyList()
+            entity_id = id, canonical_name = name, entity_type = "character", aliases = emptyList(),
+            is_present = true, primary_emotion = "calm", emotion_intensity = 1, emotion_catalyst = "",
+            knowledge_boundary = emptyList(), traits = emptyList(),
+            goals = List(goals) { FactRef("$id-g$it", "Goal $it") },
+            secrets = emptyList(), abilities = emptyList(), possessions = emptyList()
         )
         val snapshot = DurableMemorySnapshot(
             SnapshotMetadata("t7", "", "continuation", 7),

@@ -68,6 +68,7 @@ Writes create or amend. Supply only the fields that changed; leave the rest null
 - `describe_location` — `handle`, plus `name`, `body` for the description, `modifiers`.
 - `connect_locations` — `handle`, plus `from`, `to`, `bidirectional`.
 - `describe_cast_member` — `handle`, `entity`, `name`, `profile`, `evidence`, `first_seen_exchange`.
+- `compact_entity` — `handle`, `account`, `retire`.
 
 ## Facts
 
@@ -93,6 +94,32 @@ Removals are explicit and each one must set `reason`: the exchange ordinal that 
 
 - `retract_fact`, `retire_entity`, `remove_relationship`, `forget_location`, `remove_edge`,
   `archive_cast_member`.
+
+## Compaction
+
+Every other operation adds. Omission preserves, so nothing you write is ever revisited, and across many
+updates a character accumulates dozens of facts that each say a version of the same thing. One reached
+105 facts and fifty kilobytes to establish that she is protective, quick-tempered and does not hide it.
+
+`compaction_candidates` names the entities this has happened to. It is a short list chosen for you, and
+it is the only place you are asked to look backwards.
+
+For each one, write `compact_entity`:
+
+- `account` — up to 4,000 characters of prose saying everything those facts establish about this person:
+  what they believe, want, conceal, and can do. Write it the way you write `story_summary` — as a whole
+  replacement, not an addition. It supersedes the previous account entirely.
+- `retire` — the fact handles the account now covers. Only that entity's handles; naming another's is
+  dropped.
+
+Keep a fact rather than retiring it when a scene could turn on its specific wording — an exact promise,
+a date, a name, something one character knows and another does not. Retire the ones that are a general
+disposition restated: the fifth example of the same temper, the third phrasing of the same fear.
+
+An account with nothing retired is fine on a first pass. Retiring with an empty account is refused, and
+nothing is lost when it is: facts are never dropped into nothing.
+
+An entity not on the candidate list is not compacted. Do not volunteer.
 
 ## Cast
 

@@ -226,10 +226,14 @@ object PromptBuilder {
             if (wings.isNotEmpty()) {
                 lines.add("")
                 lines.add("Reachable now:")
+                // An Entity Account is already the bounded statement of who someone is, written for
+                // exactly this purpose. Sending it here costs a line and saves the model guessing at a
+                // character it can reach but cannot see. See docs/plans/memory-hierarchy.md.
                 lines.addAll(wings.sortedBy { it.canonical_name.lowercase() }.map { entity ->
                     val aliases = entity.aliases.filter { it.isNotBlank() }
                     val also = if (aliases.isEmpty()) "" else " (also ${aliases.joinToString(", ")})"
-                    "- ${entity.canonical_name}$also — ${entity.entity_type}"
+                    val account = entity.account.trim().takeIf { it.isNotEmpty() }?.let { " — $it" }.orEmpty()
+                    "- ${entity.canonical_name}$also — ${entity.entity_type}$account"
                 })
             }
             if (index.isNotEmpty()) {

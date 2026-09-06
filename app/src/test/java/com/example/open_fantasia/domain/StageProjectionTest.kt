@@ -98,6 +98,19 @@ class StageProjectionTest {
     }
 
     @Test
+    fun `a character in the wings arrives with its account, not just a name`() {
+        val away = entity("away", "Absent").copy(account = "She left for the coast and has not written.")
+        val stage = StageProjection.project(
+            world = world(listOf(entity("here", "Present", present = true), away)),
+            // On the roster, so reachable rather than merely known — which is what the wings tier means.
+            cast = listOf(member("c1", "Absent", "away")),
+            salience = emptyMap(), timeline = emptyList(),
+            budget = StageBudget(fullRosterChars = 0)
+        )
+        assertTrue(stage.entitiesAt(StageTier.Wings).any { it.account.contains("coast") })
+    }
+
+    @Test
     fun `a relationship survives when either end is in the room`() {
         val entities = listOf(entity("here", "Present", present = true), entity("away", "Absent"))
         val stage = StageProjection.project(
