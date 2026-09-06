@@ -24,12 +24,10 @@ import kotlinx.serialization.json.Json
 data class SceneReport(
     /** Everyone in the scene at the end of this reply, by name. */
     val present: List<String> = emptyList(),
-    /** The open thread this beat touched, by objective or name, or null when it touched none. */
-    val thread: String? = null,
     /** Whether this reply ended the scene. */
     val scene_ended: Boolean = false
 ) {
-    val isEmpty: Boolean get() = present.isEmpty() && thread == null && !scene_ended
+    val isEmpty: Boolean get() = present.isEmpty() && !scene_ended
 }
 
 /** Committed prose, and what the model reported about the scene it leaves behind. */
@@ -95,10 +93,9 @@ object SceneReportCodec {
         return """
             After the prose, on its own final line, add exactly one <$TAG> block. It is not story text and the reader never sees it.
 
-            <$TAG>{"present": [$examples], "thread": null, "scene_ended": false}</$TAG>
+            <$TAG>{"present": [$examples], "scene_ended": false}</$TAG>
 
             - "present": everyone in the scene when this reply ends, by their exact name from <cast_roster>. Include the player's character if they are there.
-            - "thread": the open objective this beat moved, in a few words, or null if it moved none.
             - "scene_ended": true only if this reply closed the scene and the next one begins elsewhere or later.
 
             Write the prose first and completely. If you are unsure of any field, omit it or leave the block out entirely — nothing depends on it being there.

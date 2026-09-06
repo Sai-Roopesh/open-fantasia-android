@@ -168,7 +168,7 @@ class AutoDefragTest {
                 spatial_state = SpatialState(null, emptyList(), emptyList(), emptyList(), emptyList()),
                 entity_state = emptyList(),
                 relational_state = emptyList(),
-                narrative_state = NarrativeState("", "", "", emptyList(), emptyList())
+                narrative_state = NarrativeState("", "", "")
             )
             chatDao.upsertWorldSnapshot(turn.id, thread.id, branch.id, prevTurnId, dummySnapshot, 1, isFull)
 

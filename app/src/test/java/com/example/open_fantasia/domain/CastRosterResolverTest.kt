@@ -18,7 +18,7 @@ class CastRosterResolverTest {
             SpatialState(null, emptyList(), emptyList(), emptyList(), emptyList()),
             listOf(entity("primary", "Ananya Panday"), entity("player", "Sai Roopesh", 3), entity("yunxi", "Yunxi", 2), entity("cashier", "D-Mart Cashier", 2)),
             listOf(RelationalState("r1", "yunxi", "Yunxi", "primary", "Ananya Panday", "social", "Trusted friend")),
-            NarrativeState("", "", "", emptyList(), emptyList())
+            NarrativeState("", "", "")
         )
         val seeds = listOf(CastProfile("p", "primary", "Ananya Panday", provenance = "primary"))
 
@@ -36,7 +36,7 @@ class CastRosterResolverTest {
         val snapshot = DurableMemorySnapshot(
             SnapshotMetadata("t7", "", "continuation", 7),
             SpatialState(null, emptyList(), emptyList(), emptyList(), emptyList()),
-            emptyList(), emptyList(), NarrativeState("", "", "", emptyList(), emptyList()),
+            emptyList(), emptyList(), NarrativeState("", "", ""),
             cast_roster = listOf(authoritative)
         )
         assertEquals(listOf(authoritative), resolveCastRoster(snapshot, emptyList()))

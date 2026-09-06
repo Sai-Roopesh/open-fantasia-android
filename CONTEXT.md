@@ -97,8 +97,12 @@ A reply attempt that replaces a rejected one, carrying the rejected prose togeth
 _Avoid_: Regeneration direction, steering, guidance, retry
 
 **Scene Report**:
-What a Roleplay Model states about the scene its reply leaves behind: who is present, which open thread the beat moved, and whether the scene ended. Named in prose, never by identifier, and always optional — a missing or unreadable report costs freshness and never the reply, because presence then falls back to the Continuity Snapshot. It is stripped from the prose before the exchange is committed, so it never becomes story.
+What a Roleplay Model states about the scene its reply leaves behind: who is present, and whether the scene ended. Named in prose, never by identifier, and always optional — a missing or unreadable report costs freshness and never the reply, because presence then falls back to the Continuity Snapshot. It is stripped from the prose before the exchange is committed, so it never becomes story.
 _Avoid_: Metadata, tail, structured output, function call
+
+**Story Direction**:
+What the player wants to happen next in a roleplay thread, written by them and never by a model, and ticked off as each lands. It is direction rather than suggestion because they chose it, but it never outranks the player's prose in the current exchange, never survives a Scene Intent that holds the scene still, and says where the story should get to rather than when.
+_Avoid_: Plot thread, objective, goal, active_threads, roadmap
 
 **Scene Intent**:
 What the current scene is for, chosen by the player per reply and carried until changed: Dwell, Develop, Escalate, or Close. It selects exactly one turn policy for the assistant reply, and the policies are mutually exclusive, so a scene can never be told both to hold still and to introduce an interruption. It is held on the branch beside the Active Speaker.

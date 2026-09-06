@@ -78,9 +78,7 @@ class PromptCompletenessTest {
         narrative_state = NarrativeState(
             story_summary = "STORY-SUMMARY",
             scene_summary = "SCENE-SUMMARY",
-            last_turn_beat = "LAST-TURN-BEAT",
-            active_threads = listOf(NarrativeThread("t1", "THREAD-OBJECTIVE", "THREAD-STATUS", listOf("t0"))),
-            resolved_threads = listOf("RESOLVED-THREAD")
+            last_turn_beat = "LAST-TURN-BEAT"
         )
     )
 
@@ -108,7 +106,7 @@ class PromptCompletenessTest {
         cast = cast,
         activeSpeaker = cast.firstOrNull(),
         speakerMode = speakerMode,
-        sceneIntent = SceneIntent.Escalate,
+        sceneIntent = SceneIntent.Escalate, storyDirection = StoryDirection.Empty,
         pins = listOf(ChatPinRecord("p1", "t", "b", null, "PIN-BODY", "active", "", "")),
         timeline = listOf(
             TimelineEventRecord("tl1", "t", "b", "turn-9", "TIMELINE-TITLE", "TIMELINE-DETAIL", 5, "reveal", emptyList(), emptyList(), "")
@@ -147,7 +145,7 @@ class PromptCompletenessTest {
             SnapshotMetadata::class.java, SpatialState::class.java, LocationState::class.java,
             LocationRef::class.java, LocationEdge::class.java, EntityPlacement::class.java,
             EntityState::class.java, FactRef::class.java, RelationalState::class.java,
-            NarrativeState::class.java, NarrativeThread::class.java
+            NarrativeState::class.java
         )
         for (type in types) {
             for (field in type.declaredFields) {

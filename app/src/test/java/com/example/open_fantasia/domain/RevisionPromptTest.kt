@@ -21,7 +21,7 @@ class RevisionPromptTest {
         RoleplayContext(
             character = PromptCharacter("Avni", "", "", "", "", "", "", emptyList()),
             persona = null, directorNotes = "", world = null, cast = emptyList(),
-            activeSpeaker = null, speakerMode = "single", sceneIntent = SceneIntent.Develop,
+            activeSpeaker = null, speakerMode = "single", sceneIntent = SceneIntent.Develop, storyDirection = StoryDirection.Empty,
             pins = emptyList(), timeline = emptyList(),
             currentUserMessage = "USER-PROSE", revision = revision,
             replyLength = ReplyLength.Full, modelId = "m"
@@ -94,7 +94,7 @@ class RevisionPromptTest {
             RoleplayContext(
                 character = PromptCharacter("Avni", "", "", "", "", "", "", emptyList()),
                 persona = null, directorNotes = "", world = null, cast = emptyList(),
-                activeSpeaker = null, speakerMode = "single", sceneIntent = SceneIntent.Dwell,
+                activeSpeaker = null, speakerMode = "single", sceneIntent = SceneIntent.Dwell, storyDirection = StoryDirection.Empty,
                 pins = emptyList(), timeline = emptyList(),
                 currentUserMessage = "USER-PROSE", revision = Revision(rejected, "Warmer."),
                 replyLength = ReplyLength.Full, modelId = "m"

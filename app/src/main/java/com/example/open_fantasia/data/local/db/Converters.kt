@@ -30,7 +30,7 @@ class Converters {
         spatial_state = SpatialState(null, emptyList(), emptyList(), emptyList(), emptyList()),
         entity_state = emptyList(),
         relational_state = emptyList(),
-        narrative_state = NarrativeState("", "", "", emptyList(), emptyList())
+        narrative_state = NarrativeState("", "", "")
     )
 
     @TypeConverter

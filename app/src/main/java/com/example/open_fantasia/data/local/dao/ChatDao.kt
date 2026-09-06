@@ -108,6 +108,9 @@ abstract class ChatDao {
     @Query("UPDATE chat_branches SET scene_intent = :intent, updated_at = :timestamp WHERE id = :branchId")
     abstract suspend fun setSceneIntent(branchId: String, intent: String, timestamp: String)
 
+    @Query("UPDATE chat_threads SET story_direction = :encoded, updated_at = :timestamp WHERE id = :threadId")
+    abstract suspend fun setStoryDirection(threadId: String, encoded: String, timestamp: String)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun upsertCastOverride(override: CastProfileOverrideEntity)
 

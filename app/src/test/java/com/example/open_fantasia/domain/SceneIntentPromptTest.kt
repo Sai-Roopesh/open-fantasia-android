@@ -18,7 +18,7 @@ class SceneIntentPromptTest {
         RoleplayContext(
             character = PromptCharacter("Avni", "", "", "", "", "", "", emptyList()),
             persona = null, directorNotes = "", world = null, cast = emptyList(),
-            activeSpeaker = null, speakerMode = "single", sceneIntent = intent,
+            activeSpeaker = null, speakerMode = "single", sceneIntent = intent, storyDirection = StoryDirection.Empty,
             pins = emptyList(), timeline = emptyList(),
             currentUserMessage = "USER-PROSE", revision = null, replyLength = ReplyLength.Full, modelId = "m"
         )
@@ -63,26 +63,5 @@ class SceneIntentPromptTest {
             val headers = Regex("THIS TURN — ").findAll(out).count()
             org.junit.Assert.assertEquals("$intent rendered $headers policies", 1, headers)
         }
-    }
-
-    @Test
-    fun `open threads are framed as owed nothing under a quiet intent`() {
-        val world = PromptWorldState(
-            metadata = SnapshotMetadata("t", "", "continuation", 1),
-            spatial_state = SpatialState(null, emptyList(), emptyList(), emptyList(), emptyList()),
-            entity_state = emptyList(), relational_state = emptyList(),
-            narrative_state = NarrativeState("", "", "", listOf(NarrativeThread("t1", "Find the letter", "open", emptyList())), emptyList())
-        )
-        fun framing(intent: SceneIntent) = PromptBuilder.render(
-            RoleplayContext(
-                character = PromptCharacter("Avni", "", "", "", "", "", "", emptyList()),
-                persona = null, directorNotes = "", world = world, cast = emptyList(),
-                activeSpeaker = null, speakerMode = "single", sceneIntent = intent,
-                pins = emptyList(), timeline = emptyList(),
-                currentUserMessage = "x", revision = null, replyLength = ReplyLength.Full, modelId = "m"
-            )
-        ).systemPrompt
-        assertTrue(framing(SceneIntent.Dwell).contains("must not advance one"))
-        assertTrue(framing(SceneIntent.Escalate).contains("You may advance one"))
     }
 }

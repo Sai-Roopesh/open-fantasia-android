@@ -45,6 +45,7 @@ import com.example.open_fantasia.domain.model.RoleplayContext
 import com.example.open_fantasia.domain.model.ReplyLength
 import com.example.open_fantasia.domain.model.Revision
 import com.example.open_fantasia.domain.model.SceneIntent
+import com.example.open_fantasia.domain.model.StoryDirection
 import com.example.open_fantasia.domain.model.SceneReportCodec
 import com.example.open_fantasia.domain.model.PromptWorldState
 import com.example.open_fantasia.domain.model.PromptCastMember
@@ -453,6 +454,7 @@ class ChatViewModel(
                     activeSpeaker = activeSpeaker?.let { PromptCastMember.from(it) },
                     speakerMode = speakerMode,
                     sceneIntent = SceneIntent.from(activeBranch.scene_intent),
+                    storyDirection = StoryDirection.decode(thread.story_direction),
                     // Already reachability-filtered for this branch and head by resolveLineageState.
                     pins = contextLineage.pins.map { it.toDomain() },
                     timeline = contextLineage.timelineEvents.map { it.toDomain() },
@@ -738,6 +740,18 @@ class ChatViewModel(
         viewModelScope.launch {
             val state = uiState.value as? ChatUiState.Success ?: return@launch
             chatDao.setSceneIntent(state.activeBranch.id, intent.id, Instant.now().toString())
+        }
+    }
+
+    /**
+     * Rewrites what the player wants to happen next.
+     *
+     * The only direction in the system a person did not have to type into a reply to express. Nothing
+     * generates it and nothing else writes to it. See [StoryDirection].
+     */
+    fun updateStoryDirection(direction: StoryDirection) {
+        viewModelScope.launch {
+            chatDao.setStoryDirection(threadId, StoryDirection.encode(direction), Instant.now().toString())
         }
     }
 

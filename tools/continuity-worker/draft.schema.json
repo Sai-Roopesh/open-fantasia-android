@@ -56,7 +56,7 @@
       "required": [
         "op", "handle", "entity", "bucket", "from", "to", "name", "kind", "body", "status",
         "aliases", "modifiers", "bidirectional", "profile", "evidence", "first_seen_exchange",
-        "dependencies", "reason"
+        "reason"
       ],
       "properties": {
         "op": {
@@ -71,8 +71,6 @@
             "forget_location",
             "connect_locations",
             "remove_edge",
-            "open_thread",
-            "resolve_thread",
             "describe_cast_member",
             "archive_cast_member"
           ]
@@ -87,15 +85,14 @@
         "to": { "type": ["string", "null"], "description": "Target entity handle for relate; destination location handle for connect_locations." },
         "name": { "type": ["string", "null"], "description": "Canonical name for an entity, a location, or a Cast Member." },
         "kind": { "type": ["string", "null"], "description": "Entity type for describe_entity; relationship type for relate." },
-        "body": { "type": ["string", "null"], "description": "Fact text, location description, or thread objective." },
-        "status": { "type": ["string", "null"], "description": "Relationship dynamic status, or thread status." },
+        "body": { "type": ["string", "null"], "description": "Fact text, or location description." },
+        "status": { "type": ["string", "null"], "description": "Relationship dynamic status." },
         "aliases": { "type": ["array", "null"], "items": { "type": "string" } },
         "modifiers": { "type": ["array", "null"], "items": { "type": "string" }, "description": "Environmental modifiers for a location." },
         "bidirectional": { "type": ["boolean", "null"] },
         "profile": { "anyOf": [{ "$ref": "#/$defs/cast_fields" }, { "type": "null" }] },
         "evidence": { "type": ["array", "null"], "items": { "type": "string" }, "description": "Short grounded paraphrases. Never a fabricated quotation." },
         "first_seen_exchange": { "type": ["string", "null"], "description": "Exchange ordinal such as \"#12\" for a newly discovered Cast Member." },
-        "dependencies": { "type": ["array", "null"], "items": { "type": "string" }, "description": "Thread handles a thread depends on." },
         "reason": {
           "type": ["string", "null"],
           "description": "Required on every removal: the exchange ordinal that justifies it, such as \"#12\", or \"rewind\" when the state belonged to discarded prose, or \"superseded\" when a newer assertion replaces it."

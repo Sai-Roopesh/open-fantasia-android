@@ -32,7 +32,6 @@ data class Stage(
     val entities: List<StagedEntity>,
     val cast: List<StagedCastMember>,
     val relationships: List<RelationalState>,
-    val threads: List<NarrativeThread>,
     val timeline: List<TimelineEventRecord>,
     /** What a budget forced out, reported rather than dropped quietly. Empty when nothing was cut. */
     val omissions: List<String>
@@ -92,7 +91,6 @@ object StageProjection {
     ): Stage {
         val omissions = mutableListOf<String>()
         val entities = world?.entity_state.orEmpty()
-        val threads = world?.narrative_state?.active_threads.orEmpty()
         val relationships = world?.relational_state.orEmpty()
         val currentLocationId = world?.spatial_state?.current_location?.id
         val placedHere = world?.spatial_state?.entity_placements.orEmpty()
@@ -125,8 +123,7 @@ object StageProjection {
                 entities = entities.map { StagedEntity(StageTier.OnStage, it) },
                 cast = cast.map { StagedCastMember(StageTier.OnStage, it) },
                 relationships = relationships,
-                threads = threads,
-                timeline = timeline.sortedByDescending { it.created_at }
+                    timeline = timeline.sortedByDescending { it.created_at }
                     .take(budget.timelineEvents).sortedBy { it.created_at },
                 omissions = if (timeline.size > budget.timelineEvents)
                     listOf("${timeline.size - budget.timelineEvents} older timeline beats") else emptyList()
@@ -138,11 +135,6 @@ object StageProjection {
         relationships.forEach { relation ->
             if (relation.source_entity_id in onStage) wings += relation.target_entity_id
             if (relation.target_entity_id in onStage) wings += relation.source_entity_id
-        }
-        // An open objective naming someone makes them reachable this beat even when the scene does not.
-        val objectives = threads.joinToString("\n") { it.objective }
-        entities.forEach { entity ->
-            if (namesMention(objectives, entity.canonical_name, entity.aliases)) wings += entity.entity_id
         }
         wings -= onStage
 
@@ -214,7 +206,6 @@ object StageProjection {
             entities = staged,
             cast = stagedCast,
             relationships = stagedRelationships,
-            threads = threads,
             timeline = recentTimeline.sortedBy { it.created_at },
             omissions = omissions
         )

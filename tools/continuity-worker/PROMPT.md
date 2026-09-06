@@ -45,12 +45,12 @@ restating merely to preserve it.
 That is not permission to write little. Omission preserves what already exists — it cannot preserve what
 was never recorded. Whenever the exchanges establish something the baseline does not yet hold, it needs
 an operation or it is lost: who someone is, what they now know, want, fear, or carry, how two people
-stand toward each other, where the story can go next. Write `assert_fact` for what the transcript
+stand toward each other, what remains unresolved. Write `assert_fact` for what the transcript
 establishes about a person, and `relate` for a connection the story has actually shown.
 
 Read `baseline` before deciding. When it is empty — a first snapshot, or one where a Rewind left no
 earlier snapshot reachable — you are not recording changes to a world, you are building the world: every established person,
-place, relationship, fact and open thread has to be created here, because nothing is carried forward
+place, relationship, fact and unresolved question has to be created here, because nothing is carried forward
 from anywhere. A world of named people with no facts and no relationships between them is a failed
 update even when it validates.
 
@@ -67,7 +67,6 @@ Writes create or amend. Supply only the fields that changed; leave the rest null
 - `relate` — `handle`, plus `from`, `to`, `kind`, `status`.
 - `describe_location` — `handle`, plus `name`, `body` for the description, `modifiers`.
 - `connect_locations` — `handle`, plus `from`, `to`, `bidirectional`.
-- `open_thread` — `handle`, plus `body` for the objective, `status`, `dependencies`.
 - `describe_cast_member` — `handle`, `entity`, `name`, `profile`, `evidence`, `first_seen_exchange`.
 
 ## Facts
@@ -93,7 +92,7 @@ Removals are explicit and each one must set `reason`: the exchange ordinal that 
 `superseded` when a newer assertion replaces it.
 
 - `retract_fact`, `retire_entity`, `remove_relationship`, `forget_location`, `remove_edge`,
-  `archive_cast_member`, `resolve_thread`.
+  `archive_cast_member`.
 
 ## Cast
 

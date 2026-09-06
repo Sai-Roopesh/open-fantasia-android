@@ -452,6 +452,16 @@ val MIGRATION_13_14 = object : Migration(13, 14) {
     }
 }
 
+/**
+ * Story Direction. Empty for every existing thread: it is the player's to write, and inventing one on
+ * their behalf would repeat the mistake that removing engine-authored threads exists to correct.
+ */
+val MIGRATION_14_15 = object : Migration(14, 15) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE chat_threads ADD COLUMN story_direction TEXT NOT NULL DEFAULT ''")
+    }
+}
+
 @Database(
     entities = [
         ProfileEntity::class,
@@ -471,7 +481,7 @@ val MIGRATION_13_14 = object : Migration(13, 14) {
         PortraitGenerationJobEntity::class,
         CastPortraitEntity::class
     ],
-    version = 14,
+    version = 15,
     exportSchema = false
 )
 @TypeConverters(Converters::class)

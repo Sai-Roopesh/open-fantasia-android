@@ -17,11 +17,10 @@ class SceneReportTest {
 
     @Test
     fun `a well-formed report is read and removed from the prose`() {
-        val raw = "$prose\n<scene_state>{\"present\":[\"Avni\",\"Ayushi\"],\"thread\":\"the retreat\",\"scene_ended\":false}</scene_state>"
+        val raw = "$prose\n<scene_state>{\"present\":[\"Avni\",\"Ayushi\"],\"scene_ended\":false}</scene_state>"
         val reply = SceneReportCodec.split(raw)
         assertEquals(prose, reply.prose)
         assertEquals(listOf("Avni", "Ayushi"), reply.report?.present)
-        assertEquals("the retreat", reply.report?.thread)
         assertFalse(reply.report!!.scene_ended)
     }
 
@@ -62,7 +61,7 @@ class SceneReportTest {
 
     @Test
     fun `a stored report survives the round trip`() {
-        val report = SceneReport(present = listOf("Avni"), thread = null, scene_ended = true)
+        val report = SceneReport(present = listOf("Avni"), scene_ended = true)
         assertEquals(report, SceneReportCodec.decode(SceneReportCodec.encode(report)))
         assertNull(SceneReportCodec.decode(null))
         assertNull(SceneReportCodec.decode("not json"))

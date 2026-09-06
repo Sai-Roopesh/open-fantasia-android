@@ -108,14 +108,4 @@ object TurnPolicy {
 
         return "$shared\n$emotional"
     }
-
-    /** How open objectives are framed. Under a quiet intent they are background, never work owed. */
-    fun threadFraming(intent: SceneIntent): String = when (intent) {
-        SceneIntent.Dwell, SceneIntent.Close ->
-            "Open threads below are context, not work owed. This reply is not about them and must not advance one."
-        SceneIntent.Develop ->
-            "Open threads below are available material. At most one may surface, and only if the people present would raise it now."
-        SceneIntent.Escalate ->
-            "Open threads below are available material. You may advance one; you are not required to advance any."
-    }
 }

@@ -29,7 +29,7 @@ class PromptBuilderTest {
         spatial_state = SpatialState(null, emptyList(), emptyList(), emptyList(), emptyList()),
         entity_state = emptyList(),
         relational_state = emptyList(),
-        narrative_state = NarrativeState("STORY-SUMMARY", "SCENE", "BEAT", emptyList(), emptyList())
+        narrative_state = NarrativeState("STORY-SUMMARY", "SCENE", "BEAT")
     )
 
     private fun context(
@@ -53,7 +53,7 @@ class PromptBuilderTest {
         cast = cast,
         activeSpeaker = cast.firstOrNull(),
         speakerMode = "single",
-        sceneIntent = sceneIntent,
+        sceneIntent = sceneIntent, storyDirection = StoryDirection.Empty,
         pins = pins,
         timeline = timeline,
         currentUserMessage = "USER-PROSE",

@@ -178,7 +178,7 @@ object PromptBuilder {
         val continuity = """
             Every reply must read as a genuinely new beat, never a remix of your own last one. Your recent replies are in the conversation transcript below; treat their structure and content as off-limits to repeat.
             The latest turn's <variation_rules> state which repetitions are forbidden for this reply.
-            - Build forward from durable_state.narrative_state.last_turn_beat — never restate or re-dramatize it — and never reopen anything listed in resolved_threads.
+            - Build forward from durable_state.narrative_state.last_turn_beat — never restate or re-dramatize it.
             Before you finish, check your draft against your previous reply AND the user's latest turn: if any sentence shape, device, or gesture echoes either of them, rewrite that part.
         """.trimIndent()
         sections.add(formatSection("continuity_and_variation", continuity))
@@ -206,8 +206,7 @@ object PromptBuilder {
                 PromptWorldState.serializer(),
                 world.copy(
                     entity_state = stage.entitiesAt(StageTier.OnStage),
-                    relational_state = stage.relationships,
-                    narrative_state = world.narrative_state.copy(active_threads = stage.threads)
+                    relational_state = stage.relationships
                 )
             )
         } else {
@@ -215,11 +214,6 @@ object PromptBuilder {
         }
         sections.add(formatSection("durable_state", stateContent))
 
-        // Ten open objectives arriving as authoritative state read as ten obligations, and the standing
-        // order to advance one made them exactly that. How they are framed is the scene's business.
-        if (stage.threads.isNotEmpty()) {
-            sections.add(formatSection("open_threads", TurnPolicy.threadFraming(sceneIntent)))
-        }
 
         // Everyone the story knows who is not in the room. A name is the cheapest thing a prompt can
         // carry and the most expensive thing to be missing: a model that cannot see that someone exists
@@ -312,6 +306,7 @@ object PromptBuilder {
         castRoster: List<PromptCastMember>,
         speakerMode: String,
         sceneIntent: SceneIntent,
+        storyDirection: StoryDirection,
         speakersNeedingProfile: List<PromptCastMember> = emptyList()
     ): String {
         val sections = mutableListOf<String>()
@@ -359,6 +354,11 @@ object PromptBuilder {
 
         // One policy, selected, never appended to another. See [TurnPolicy].
         sections.add(formatSection("this_turn", TurnPolicy.directive(sceneIntent)))
+
+        // The player's own direction, beside the policy that decides whether this reply moves at all.
+        StoryDirectionRendering.render(storyDirection)?.let {
+            sections.add(formatSection(StoryDirectionRendering.TAG, it))
+        }
 
         sections.add(formatSection("variation_rules", TurnPolicy.variationRules(sceneIntent)))
 
@@ -449,6 +449,7 @@ object PromptBuilder {
             castRoster = context.cast,
             speakerMode = context.speakerMode,
             sceneIntent = context.sceneIntent,
+            storyDirection = context.storyDirection,
             // A speaker the scene does not hold is described here rather than in the cached prefix, so
             // choosing them costs one volatile block instead of the whole prompt cache.
             speakersNeedingProfile = context.cast.filterNot { member ->

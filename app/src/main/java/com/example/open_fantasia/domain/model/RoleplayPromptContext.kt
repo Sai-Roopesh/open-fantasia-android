@@ -27,6 +27,12 @@ data class RoleplayContext(
      * whether an interruption is licensed at all rather than adding a request that one be avoided.
      */
     val sceneIntent: SceneIntent,
+    /**
+     * Where the player wants this story to go. Authored by them and never by a model, which is why it
+     * renders as direction rather than as the hedged "available material" an engine-invented objective
+     * had to be. See [StoryDirection].
+     */
+    val storyDirection: StoryDirection,
     val pins: List<ChatPinRecord>,
     val timeline: List<TimelineEventRecord>,
     /** The player's visible prose for this reply. Reply controls are added by rendering, not here. */

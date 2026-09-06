@@ -136,15 +136,6 @@ data class RelationalState(
 data class NarrativeState(
     val story_summary: String,
     val scene_summary: String,
-    val last_turn_beat: String,
-    val active_threads: List<NarrativeThread>,
-    val resolved_threads: List<String>
+    val last_turn_beat: String
 )
 
-@Serializable
-data class NarrativeThread(
-    val thread_id: String,
-    val objective: String,
-    val status: String, // "open" | "blocked" | "resolving" | "resolved"
-    val dependencies: List<String>
-)

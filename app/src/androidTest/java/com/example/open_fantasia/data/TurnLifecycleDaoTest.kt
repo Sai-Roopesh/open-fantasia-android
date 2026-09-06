@@ -218,7 +218,7 @@ class TurnLifecycleDaoTest {
             spatial_state = SpatialState(null, emptyList(), emptyList(), emptyList(), emptyList()),
             entity_state = emptyList(),
             relational_state = emptyList(),
-            narrative_state = NarrativeState("Story", "Scene", "Beat", emptyList(), emptyList())
+            narrative_state = NarrativeState("Story", "Scene", "Beat")
         )
         val event = TimelineEntity(
             id = "checkpoint-timeline:event:0",
@@ -262,7 +262,7 @@ class TurnLifecycleDaoTest {
             spatial_state = SpatialState(null, emptyList(), emptyList(), emptyList(), emptyList()),
             entity_state = emptyList(),
             relational_state = emptyList(),
-            narrative_state = NarrativeState("Earlier story", "Earlier scene", "Earlier beat", emptyList(), emptyList())
+            narrative_state = NarrativeState("Earlier story", "Earlier scene", "Earlier beat")
         )
         dao.upsertWorldSnapshot(turns.first().id, thread.id, branch.id, null, baseline, 1, true)
         val checkpoint = ContinuityCheckpointEntity(
@@ -442,7 +442,7 @@ class TurnLifecycleDaoTest {
             spatial_state = SpatialState(null, emptyList(), emptyList(), emptyList(), emptyList()),
             entity_state = emptyList(),
             relational_state = emptyList(),
-            narrative_state = NarrativeState("", "", "", emptyList(), emptyList())
+            narrative_state = NarrativeState("", "", "")
         )
         chatDao.upsertWorldSnapshot(turn1.id, thread.id, branch.id, null, dummySnapshot, 1, false)
         assertNotNull(chatDao.getSnapshot(turn1.id))

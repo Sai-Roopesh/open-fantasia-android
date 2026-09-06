@@ -29,14 +29,13 @@ class StageProjectionTest {
 
     private fun world(
         entities: List<EntityState>,
-        relationships: List<RelationalState> = emptyList(),
-        threads: List<NarrativeThread> = emptyList()
+        relationships: List<RelationalState> = emptyList()
     ) = PromptWorldState(
         metadata = SnapshotMetadata("turn-1", "", "continuation", 3),
         spatial_state = SpatialState(null, emptyList(), emptyList(), emptyList(), emptyList()),
         entity_state = entities,
         relational_state = relationships,
-        narrative_state = NarrativeState("", "", "", threads, emptyList())
+        narrative_state = NarrativeState("", "", "")
     )
 
     @Test
@@ -96,29 +95,6 @@ class StageProjectionTest {
             salience = emptyMap(), timeline = emptyList()
         )
         assertEquals("tiering a two-person cast buys nothing", 2, stage.castAt(StageTier.OnStage).size)
-    }
-
-    @Test
-    fun `an open thread naming someone keeps them reachable`() {
-        val entities = listOf(entity("here", "Present", present = true), entity("named", "Kavya"))
-        val stage = StageProjection.project(
-            world = world(entities, threads = listOf(NarrativeThread("t1", "Find Kavya before dawn", "open", emptyList()))),
-            cast = emptyList(), salience = emptyMap(), timeline = emptyList()
-        )
-        assertTrue(stage.entitiesAt(StageTier.Wings).any { it.entity_id == "named" })
-    }
-
-    @Test
-    fun `a name is matched on word boundaries, not substrings`() {
-        val entities = listOf(entity("here", "Present", present = true), entity("ana", "Ana"))
-        val stage = StageProjection.project(
-            world = world(entities, threads = listOf(NarrativeThread("t1", "Ananya guards the ward", "open", emptyList()))),
-            cast = emptyList(), salience = emptyMap(), timeline = emptyList()
-        )
-        assertTrue(
-            "Ana was pulled in by Ananya",
-            stage.entitiesAt(StageTier.Index).any { it.entity_id == "ana" }
-        )
     }
 
     @Test

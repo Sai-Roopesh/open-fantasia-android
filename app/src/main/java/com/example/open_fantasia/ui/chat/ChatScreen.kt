@@ -43,6 +43,7 @@ import androidx.compose.animation.core.*
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import com.example.open_fantasia.theme.Inter
 import com.example.open_fantasia.theme.Sora
@@ -70,6 +71,7 @@ import com.example.open_fantasia.ui.components.PromptPackPanel
 import com.example.open_fantasia.domain.model.RelationalState
 import com.example.open_fantasia.domain.model.ReplyLength
 import com.example.open_fantasia.domain.model.SceneIntent
+import com.example.open_fantasia.domain.model.StoryDirection
 import com.example.open_fantasia.ui.components.MarkdownText
 import kotlin.math.roundToInt
 import java.io.File
@@ -142,6 +144,7 @@ fun ChatWorkspace(
     var showCheckpointEngineSwitch by remember { mutableStateOf(false) }
     var showThreadSettings by remember { mutableStateOf(false) }
     var showSpeakerPicker by remember { mutableStateOf(false) }
+    var showStoryDirection by remember { mutableStateOf(false) }
     var showCastManager by remember { mutableStateOf(false) }
     var showBranchCreateDialog by remember { mutableStateOf(false) }
     var branchForkTurnId by remember { mutableStateOf<String?>(null) }
@@ -559,7 +562,8 @@ fun ChatWorkspace(
                     SpeakerControlRow(
                         state = state,
                         onClick = { showSpeakerPicker = true },
-                        onSceneIntent = { viewModel.selectSceneIntent(it) }
+                        onSceneIntent = { viewModel.selectSceneIntent(it) },
+                        onStoryDirection = { showStoryDirection = true }
                     )
                     ChatInputBar(
                         isGenerating = state.isGenerating,
@@ -692,6 +696,14 @@ fun ChatWorkspace(
                         onUpdateCast = { viewModel.runDeepScan(); showSpeakerPicker = false },
                         onManage = { showSpeakerPicker = false; showCastManager = true },
                         onDismiss = { showSpeakerPicker = false }
+                    )
+                }
+
+                if (showStoryDirection) {
+                    StoryDirectionDialog(
+                        direction = StoryDirection.decode(state.thread.story_direction),
+                        onChange = viewModel::updateStoryDirection,
+                        onDismiss = { showStoryDirection = false }
                     )
                 }
 
@@ -1310,7 +1322,8 @@ fun StreamingAssistantRow(characterName: String, text: String) {
 fun SpeakerControlRow(
     state: ChatUiState.Success,
     onClick: () -> Unit,
-    onSceneIntent: (SceneIntent) -> Unit = {}
+    onSceneIntent: (SceneIntent) -> Unit = {},
+    onStoryDirection: () -> Unit = {}
 ) {
     val selected = state.castRoster.firstOrNull { it.cast_id == state.activeBranch.active_speaker_id }
     val label = if (state.activeBranch.speaker_mode == "ensemble") "Ensemble" else selected?.canonical_name ?: state.character.name
@@ -1343,6 +1356,10 @@ fun SpeakerControlRow(
         SceneIntentChip(
             current = SceneIntent.from(state.activeBranch.scene_intent),
             onSelect = onSceneIntent
+        )
+        StoryDirectionChip(
+            openCount = StoryDirection.decode(state.thread.story_direction).open.size,
+            onClick = onStoryDirection
         )
     }
 }
@@ -1394,6 +1411,102 @@ private fun SceneIntentChip(current: SceneIntent, onSelect: (SceneIntent) -> Uni
             }
         }
     }
+}
+
+/**
+ * How many things the player is still waiting to see happen. Sits beside the Scene Intent because both
+ * are the player directing: one decides this reply, the other decides where the story is heading.
+ */
+@Composable
+private fun StoryDirectionChip(openCount: Int, onClick: () -> Unit) {
+    AssistChip(
+        onClick = onClick,
+        label = {
+            Text(
+                if (openCount == 0) "Direction" else "Direction · $openCount",
+                fontFamily = SpaceGrotesk, fontSize = 12.sp, maxLines = 1
+            )
+        },
+        leadingIcon = { Icon(Icons.Default.Flag, null, Modifier.size(16.dp)) },
+        colors = AssistChipDefaults.assistChipColors(
+            containerColor = Color(0xFF1B1B1F),
+            labelColor = if (openCount == 0) Color(0xFF8A8590) else Color(0xFFDCB8FF),
+            leadingIconContentColor = if (openCount == 0) Color(0xFF8A8590) else Color(0xFFDCB8FF)
+        ),
+        border = BorderStroke(1.dp, Color(0xFF4C4354))
+    )
+}
+
+/**
+ * Where the player says the story should go.
+ *
+ * A list rather than a paragraph, because a want that has landed should be able to leave. The engine's
+ * version of this accumulated thirty-six objectives precisely because nothing could ever tick one off.
+ */
+@Composable
+fun StoryDirectionDialog(
+    direction: StoryDirection,
+    onChange: (StoryDirection) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var draft by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF16161C),
+        title = { Text("Where this story is going", color = Color.White, fontFamily = Sora) },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Done", color = Color(0xFFDCB8FF)) } },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    "What you want to happen next. The story works toward these across scenes — it will not force one into a reply where the moment is wrong.",
+                    color = Color(0xFF8A8590), fontSize = 12.sp, fontFamily = Inter
+                )
+                direction.wants.forEach { want ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Checkbox(
+                            checked = want.done,
+                            onCheckedChange = { onChange(direction.toggled(want.id)) },
+                            colors = CheckboxDefaults.colors(checkedColor = Color(0xFF8A2BE2))
+                        )
+                        Text(
+                            want.body,
+                            color = if (want.done) Color(0xFF6E6A74) else Color.White,
+                            fontSize = 13.sp, fontFamily = Inter,
+                            textDecoration = if (want.done) TextDecoration.LineThrough else null,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(onClick = { onChange(direction.without(want.id)) }, modifier = Modifier.size(28.dp)) {
+                            Icon(Icons.Default.Close, "Remove", tint = Color(0xFF6E6A74), modifier = Modifier.size(16.dp))
+                        }
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = draft,
+                        onValueChange = { draft = it.take(300) },
+                        placeholder = { Text("e.g. they finally get to the cottage", fontSize = 13.sp) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFF8A2BE2), unfocusedBorderColor = Color(0xFF4C4354),
+                            focusedTextColor = Color.White, unfocusedTextColor = Color.White
+                        ),
+                        modifier = Modifier.weight(1f)
+                    )
+                    Button(
+                        onClick = {
+                            onChange(direction.plus(draft, java.util.UUID.randomUUID().toString()))
+                            draft = ""
+                        },
+                        enabled = draft.isNotBlank(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8A2BE2))
+                    ) { Text("Add") }
+                }
+            }
+        }
+    )
 }
 
 @Composable
@@ -2348,45 +2461,6 @@ fun CognitiveStateInspector(
                                 }
                             }
 
-                            // Active Plot Threads
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(
-                                    text = "ACTIVE THREADS",
-                                    color = Color(0xFF00FBFB),
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    fontFamily = SpaceGrotesk,
-                                    letterSpacing = 1.sp
-                                )
-                                if (snapshot.narrative_state.active_threads.isEmpty()) {
-                                    Text("No active plot threads.", color = Color.Gray, fontSize = 13.sp, fontFamily = Inter)
-                                } else {
-                                    snapshot.narrative_state.active_threads.forEach { th ->
-                                        Card(
-                                            shape = RoundedCornerShape(12.dp),
-                                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1B1B1F)),
-                                            modifier = Modifier.fillMaxWidth()
-                                        ) {
-                                            Column(modifier = Modifier.padding(10.dp)) {
-                                                Text(
-                                                    text = th.objective,
-                                                    color = Color.White,
-                                                    fontSize = 13.sp,
-                                                    fontFamily = Inter
-                                                )
-                                                Spacer(modifier = Modifier.height(4.dp))
-                                                Text(
-                                                    text = "STATUS: ${th.status.uppercase()}",
-                                                    color = if (th.status == "open") Color(0xFF00FBFB) else Color.Yellow,
-                                                    fontSize = 10.sp,
-                                                    fontFamily = SpaceGrotesk,
-                                                    fontWeight = FontWeight.Bold
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
                         }
 
                         Spacer(modifier = Modifier.height(16.dp))

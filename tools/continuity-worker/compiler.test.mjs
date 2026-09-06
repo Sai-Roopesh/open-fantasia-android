@@ -71,7 +71,6 @@ function baselineSnapshot() {
     narrative_state: {
       story_summary: "The old account.", scene_summary: "The old scene.", last_turn_beat: "The old beat.",
       active_threads: [{ thread_id: "thread:find-the-letter", objective: "Find the letter", status: "active", dependencies: [] }],
-      resolved_threads: []
     },
     cast_roster: [
       seedProfile(),
@@ -245,7 +244,6 @@ test("untouched state is preserved without the engine restating it", () => {
   assert.equal(response.world_state.spatial_state.known_locations.length, 2);
   assert.equal(response.world_state.relational_state.length, 1);
   assert.deepEqual(entityById(response, "vera").secrets.map(item => item.body), ["Works for the Duchess"]);
-  assert.equal(response.world_state.narrative_state.active_threads.length, 1);
 });
 
 test("a new entity, Cast Member, fact and relationship are created with Host-assigned identity", () => {
@@ -550,14 +548,6 @@ test("forgetting a location removes the edges that depended on it", () => {
   assert.equal(response.world_state.spatial_state.known_locations.length, 1);
   assert.equal(response.world_state.spatial_state.edges.length, 0);
   assert.doesNotThrow(() => validateResponse(request, response));
-});
-
-test("resolving a thread moves it out of the active set", () => {
-  const { response } = compile({}, {
-    operations: [op({ op: "resolve_thread", handle: "find-the-letter", reason: "#3" })]
-  });
-  assert.equal(response.world_state.narrative_state.active_threads.length, 0);
-  assert.deepEqual(response.world_state.narrative_state.resolved_threads, ["Find the letter"]);
 });
 
 // Presence is the one category that keeps full-rewrite semantics, because a merge would leave every
