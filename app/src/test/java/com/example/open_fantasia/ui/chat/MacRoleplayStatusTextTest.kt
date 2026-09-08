@@ -21,19 +21,40 @@ class MacRoleplayStatusTextTest {
     @Test
     fun availableHostNamesTheFrozenMacModel() {
         assertEquals(
-            "Claude Sonnet is writing on your Mac…",
+            "Claude Sonnet High is writing on your Mac…",
             macRoleplayStatusText(
                 RoleplayProtocol.CLAUDE_CODE_MODEL_ID,
                 ContinuityHostState.Available
             )
         )
         assertEquals(
-            "Gemini is writing on your Mac…",
+            "Gemini 3.6 Flash High is writing on your Mac…",
             macRoleplayStatusText(
                 RoleplayProtocol.ANTIGRAVITY_MODEL_ID,
                 ContinuityHostState.Available
             )
         )
+    }
+
+    @Test
+    fun everyMacModelInTheCatalogueIsAnnouncedByName() {
+        // The status line used to branch on one id and call everything else Gemini, so a model added
+        // to the catalogue would have been announced as the wrong one while it wrote.
+        RoleplayProtocol.models.forEach { entry ->
+            assertEquals(
+                "${entry.name} is writing on your Mac…",
+                macRoleplayStatusText(entry.id, ContinuityHostState.Available)
+            )
+        }
+    }
+
+    @Test
+    fun bothOpusModelsAreOfferedAndPinnedToAVersion() {
+        val ids = RoleplayProtocol.models.map { it.id }
+        assertEquals(true, ids.contains(RoleplayProtocol.CLAUDE_OPUS_48_MODEL_ID))
+        assertEquals(true, ids.contains(RoleplayProtocol.CLAUDE_OPUS_5_MODEL_ID))
+        // An alias follows whatever shipped last. A thread would change voice without being told.
+        assertEquals(false, ids.contains("claude-code:opus:high"))
     }
 
     @Test

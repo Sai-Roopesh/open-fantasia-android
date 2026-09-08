@@ -10,7 +10,6 @@
     "/opt/homebrew/bin/claude",
     "claude"
   ],
-  "claudeModel": "sonnet",
   "claudeEffort": "high",
   "claudeContinuityModel": "opus",
   "claudeContinuityEffort": "high",

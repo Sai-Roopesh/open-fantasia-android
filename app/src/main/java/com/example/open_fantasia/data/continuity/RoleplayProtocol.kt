@@ -48,7 +48,17 @@ object RoleplayProtocol {
     const val PROVIDER = "antigravity_host"
     const val ANTIGRAVITY_MODEL_ID = "antigravity:gemini-3.6-flash:high"
     const val CLAUDE_CODE_MODEL_ID = "claude-code:sonnet:high"
+    const val CLAUDE_OPUS_48_MODEL_ID = "claude-code:opus-4.8:high"
+    const val CLAUDE_OPUS_5_MODEL_ID = "claude-code:opus-5:high"
     const val MODEL_ID = ANTIGRAVITY_MODEL_ID
+
+    /**
+     * Every model a reply can be written by, in the order they are offered.
+     *
+     * The Claude entries name a version rather than the `opus` alias the CLI would also accept. An
+     * alias follows whatever is newest, and a story that changes voice mid-thread because a release
+     * shipped is a continuity failure the app would have no way to explain.
+     */
     val models = listOf(
         ModelCatalogEntry(
             id = ANTIGRAVITY_MODEL_ID,
@@ -61,10 +71,25 @@ object RoleplayProtocol {
             name = "Claude Sonnet High",
             provider = PROVIDER,
             hint = "Uses the signed-in Claude Code subscription through the paired Mac Host"
+        ),
+        ModelCatalogEntry(
+            id = CLAUDE_OPUS_48_MODEL_ID,
+            name = "Claude Opus 4.8 High",
+            provider = PROVIDER,
+            hint = "Slower and stronger. Uses the signed-in Claude Code subscription on your Mac"
+        ),
+        ModelCatalogEntry(
+            id = CLAUDE_OPUS_5_MODEL_ID,
+            name = "Claude Opus 5 High",
+            provider = PROVIDER,
+            hint = "Slower and strongest. Uses the signed-in Claude Code subscription on your Mac"
         )
     )
 
     fun isSupportedModel(modelId: String): Boolean = models.any { it.id == modelId }
+
+    fun displayName(modelId: String): String =
+        models.firstOrNull { it.id == modelId }?.name ?: modelId
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
     fun messagesJson(messages: List<RoleplayPromptMessage>): String =

@@ -28,11 +28,14 @@ data class RoleplayContext(
      */
     val sceneIntent: SceneIntent,
     /**
-     * Where the player wants this story to go. Authored by them and never by a model, which is why it
-     * renders as direction rather than as the hedged "available material" an engine-invented objective
-     * had to be. See [StoryDirection].
+     * Where the player wants this story to go, each want already placed in this branch's history.
+     * Authored by them and never by a model, which is why it renders as direction rather than as the
+     * hedged "available material" an engine-invented objective had to be.
+     *
+     * Placed rather than raw for the same reason [recalled] is: resolving a distance needs the branch
+     * lineage, which lives where the request is assembled and not here. See [StoryDirectionRendering].
      */
-    val storyDirection: StoryDirection,
+    val storyDirection: List<PlacedWant>,
     /**
      * Older exchanges this beat is reaching for, quoted exactly. Empty when nothing distinctive in the
      * player's prose matches anything outside the Transcript Window. See [ExchangeRecall].

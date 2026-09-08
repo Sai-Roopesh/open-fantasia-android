@@ -321,7 +321,7 @@ object PromptBuilder {
         castRoster: List<PromptCastMember>,
         speakerMode: String,
         sceneIntent: SceneIntent,
-        storyDirection: StoryDirection,
+        storyDirection: List<PlacedWant>,
         speakersNeedingProfile: List<PromptCastMember> = emptyList()
     ): String {
         val sections = mutableListOf<String>()

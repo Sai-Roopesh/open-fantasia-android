@@ -7,6 +7,9 @@ import {
   ANTIGRAVITY_PORTRAIT_MODEL,
   ANTIGRAVITY_ROLEPLAY_MODEL,
   CLAUDE_CODE_ROLEPLAY_MODEL,
+  CLAUDE_OPUS_48_ROLEPLAY_MODEL,
+  CLAUDE_OPUS_5_ROLEPLAY_MODEL,
+  CLAUDE_ROLEPLAY_MODELS,
   CLAUDE_CONTINUITY_ENGINE,
   CODEX_CONTINUITY_ENGINE,
   createContinuityHost
@@ -436,4 +439,80 @@ test("an unknown Continuity Engine is refused at submission, and Claude Opus Hig
   }, {
     continuityRunners: new Map([[CLAUDE_CONTINUITY_ENGINE, async input => input]])
   });
+});
+
+// Adding a second and third Claude Roleplay Model is only safe if everything that asks "is this job
+// Claude's" answers yes for all of them. It used to compare against one constant, so an Opus reply
+// would have been routed to the Antigravity lane and allowed to run beside a Claude job on the one
+// account and the one headless session that can serve exactly one.
+test("every Claude Roleplay Model shares the one Claude lane", async () => {
+  const root = await mkdtemp(join(tmpdir(), "open-fantasia-opus-lane-test-"));
+  let claudeActive = 0;
+  let overlapped = false;
+  const occupyClaudeLane = async input => {
+    claudeActive += 1;
+    if (claudeActive > 1) overlapped = true;
+    await new Promise(resolve => setTimeout(resolve, 30));
+    claudeActive -= 1;
+    return { request_id: input.request_id, reply_text: "done", model_id: input.model_id };
+  };
+  const host = await createContinuityHost({
+    root,
+    port: 0,
+    roleplayRunners: new Map([...CLAUDE_ROLEPLAY_MODELS.keys()].map(id => [id, occupyClaudeLane]))
+  });
+  const address = await host.start();
+  const base = `http://127.0.0.1:${address.port}`;
+  try {
+    const paired = await pair(host, base);
+    const headers = { authorization: `Bearer ${paired.credential}`, "content-type": "application/json" };
+    const ids = [CLAUDE_CODE_ROLEPLAY_MODEL, CLAUDE_OPUS_48_ROLEPLAY_MODEL, CLAUDE_OPUS_5_ROLEPLAY_MODEL];
+    for (const [index, modelId] of ids.entries()) {
+      const accepted = await fetch(`${base}/v2/roleplay-jobs`, {
+        method: "POST", headers,
+        body: JSON.stringify({
+          protocol_version: 2, job_type: "roleplay", request_id: `opus-lane-${index}`,
+          thread_id: "thread-1", branch_id: "branch-1", turn_id: `turn-${index}`,
+          requested_speaker_id: null, speaker_mode: "single", model_id: modelId,
+          attempt_count: 0, request_hash: `hash-${index}`, generation_request: {}
+        })
+      });
+      assert.ok(accepted.ok, `${modelId} was refused as an unsupported Roleplay Model`);
+    }
+    for (const [index] of ids.entries()) {
+      for (let attempt = 0; attempt < 400; attempt++) {
+        const status = await (await fetch(`${base}/v2/roleplay-jobs/opus-lane-${index}`, { headers })).json();
+        if (status.status === "ready") break;
+        await new Promise(resolve => setTimeout(resolve, 5));
+      }
+    }
+    assert.equal(overlapped, false, "two Claude replies ran at once on one subscription");
+  } finally {
+    await host.stop({ force: true });
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("a Roleplay Model outside the catalogue is still refused", async () => {
+  const root = await mkdtemp(join(tmpdir(), "open-fantasia-unknown-model-test-"));
+  const host = await createContinuityHost({ root, port: 0 });
+  const address = await host.start();
+  const base = `http://127.0.0.1:${address.port}`;
+  try {
+    const paired = await pair(host, base);
+    const refused = await fetch(`${base}/v2/roleplay-jobs`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${paired.credential}`, "content-type": "application/json" },
+      body: JSON.stringify({
+        protocol_version: 2, job_type: "roleplay", request_id: "unknown-model-1",
+        thread_id: "thread-1", branch_id: "branch-1", turn_id: "turn-1",
+        requested_speaker_id: null, speaker_mode: "single", model_id: "claude-code:opus:high",
+        attempt_count: 0, request_hash: "hash", generation_request: {}
+      })
+    });
+    assert.equal(refused.ok, false, "the unpinned alias is a Continuity Engine, not a Roleplay Model");
+  } finally {
+    await host.stop({ force: true });
+    await rm(root, { recursive: true, force: true });
+  }
 });

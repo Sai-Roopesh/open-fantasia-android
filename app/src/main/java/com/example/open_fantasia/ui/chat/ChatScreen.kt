@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.draw.drawBehind
@@ -72,6 +73,7 @@ import com.example.open_fantasia.domain.model.RelationalState
 import com.example.open_fantasia.domain.model.ReplyLength
 import com.example.open_fantasia.domain.model.SceneIntent
 import com.example.open_fantasia.domain.model.StoryDirection
+import com.example.open_fantasia.domain.model.StoryWant
 import com.example.open_fantasia.ui.components.MarkdownText
 import kotlin.math.roundToInt
 import java.io.File
@@ -87,10 +89,9 @@ internal fun macRoleplayStatusText(
         is ContinuityHostState.Unavailable ->
             "Waiting for Mac Host — turn on Tailscale on this phone and the Mac."
         is ContinuityHostState.Incompatible -> "Mac Host and app versions are incompatible."
-        is ContinuityHostState.Available -> when (modelId) {
-            RoleplayProtocol.CLAUDE_CODE_MODEL_ID -> "Claude Sonnet is writing on your Mac…"
-            else -> "Gemini is writing on your Mac…"
-        }
+        // Named from the catalogue rather than branched on, so a model added there is announced
+        // correctly here without a second place to remember.
+        is ContinuityHostState.Available -> "${RoleplayProtocol.displayName(modelId)} is writing on your Mac…"
     }
 }
 
@@ -702,7 +703,9 @@ fun ChatWorkspace(
                 if (showStoryDirection) {
                     StoryDirectionDialog(
                         direction = StoryDirection.decode(state.thread.story_direction),
-                        onChange = viewModel::updateStoryDirection,
+                        onAdd = viewModel::addStoryWant,
+                        onToggle = viewModel::toggleStoryWant,
+                        onRemove = viewModel::removeStoryWant,
                         onDismiss = { showStoryDirection = false }
                     )
                 }
@@ -1331,14 +1334,18 @@ fun SpeakerControlRow(
     val presentNames = state.currentSnapshot?.entity_state?.filter { it.is_present }?.map { it.canonical_name.lowercase() }?.toSet().orEmpty()
     val offScene = state.activeBranch.speaker_mode != "ensemble" && selected != null &&
         selected.entity_id !in presentIds && selected.canonical_name.lowercase() !in presentNames
+    // Scrolls rather than distributes. SpaceBetween across four chips on a narrow phone squeezes each
+    // one until its label truncates, which is most of why the last chip in this row was unreadable.
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
+        modifier = Modifier.fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         AssistChip(
             onClick = onClick,
-            label = { Text("Reply as $label", fontFamily = SpaceGrotesk) },
+            label = { Text("Reply as $label", fontFamily = SpaceGrotesk, maxLines = 1) },
             leadingIcon = {
                 Box(
                     Modifier.size(24.dp).clip(CircleShape).background(Color(0xFF8A2BE2)),
@@ -1414,26 +1421,33 @@ private fun SceneIntentChip(current: SceneIntent, onSelect: (SceneIntent) -> Uni
 }
 
 /**
- * How many things the player is still waiting to see happen. Sits beside the Scene Intent because both
- * are the player directing: one decides this reply, the other decides where the story is heading.
+ * What the player is still waiting to see happen. Sits beside the Scene Intent because both are the
+ * player directing: one decides this reply, the other decides where the story is heading.
+ *
+ * It used to be labelled "Direction", greyed out until something was in it, which is a chip that both
+ * fails to say what it opens and reads as disabled at the one moment it has the most to offer — an
+ * empty list is exactly when a person has not yet discovered they can steer. It asks the question
+ * instead, and an empty one is dimmer than a full one without being the grey the rest of this screen
+ * uses for unavailable.
  */
 @Composable
 private fun StoryDirectionChip(openCount: Int, onClick: () -> Unit) {
+    val accent = if (openCount == 0) Color(0xFFB89BD0) else Color(0xFFDCB8FF)
     AssistChip(
         onClick = onClick,
         label = {
             Text(
-                if (openCount == 0) "Direction" else "Direction · $openCount",
+                if (openCount == 0) "Where next?" else "Where next · $openCount",
                 fontFamily = SpaceGrotesk, fontSize = 12.sp, maxLines = 1
             )
         },
         leadingIcon = { Icon(Icons.Default.Flag, null, Modifier.size(16.dp)) },
         colors = AssistChipDefaults.assistChipColors(
-            containerColor = Color(0xFF1B1B1F),
-            labelColor = if (openCount == 0) Color(0xFF8A8590) else Color(0xFFDCB8FF),
-            leadingIconContentColor = if (openCount == 0) Color(0xFF8A8590) else Color(0xFFDCB8FF)
+            containerColor = if (openCount == 0) Color(0xFF1B1B1F) else Color(0xFF251C2E),
+            labelColor = accent,
+            leadingIconContentColor = accent
         ),
-        border = BorderStroke(1.dp, Color(0xFF4C4354))
+        border = BorderStroke(1.dp, if (openCount == 0) Color(0xFF4C4354) else Color(0xFF6E4E88))
     )
 }
 
@@ -1442,14 +1456,25 @@ private fun StoryDirectionChip(openCount: Int, onClick: () -> Unit) {
  *
  * A list rather than a paragraph, because a want that has landed should be able to leave. The engine's
  * version of this accumulated thirty-six objectives precisely because nothing could ever tick one off.
+ *
+ * The list scrolls and the composer below it does not. Both were in one unscrolled Column before, so a
+ * player with more than a few wants lost the text field off the bottom of the dialog and could no
+ * longer add one — the panel silently became read-only at exactly the point it was being used most.
+ *
+ * Reached wants are shown under their own heading rather than struck through in place. They are not a
+ * dimmer kind of want, they are the story's past, and that is what the model is now told about them.
  */
 @Composable
 fun StoryDirectionDialog(
     direction: StoryDirection,
-    onChange: (StoryDirection) -> Unit,
+    onAdd: (String) -> Unit,
+    onToggle: (String) -> Unit,
+    onRemove: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
     var draft by remember { mutableStateOf("") }
+    val ahead = direction.open
+    val reached = direction.reached
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Color(0xFF16161C),
@@ -1458,29 +1483,49 @@ fun StoryDirectionDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    "What you want to happen next. The story works toward these across scenes — it will not force one into a reply where the moment is wrong.",
+                    "What you want to happen next. The story works toward these across scenes and will " +
+                        "not force one into a reply where the moment is wrong. Tick one off when it " +
+                        "happens and it becomes part of the story's past instead.",
                     color = Color(0xFF8A8590), fontSize = 12.sp, fontFamily = Inter
                 )
-                direction.wants.forEach { want ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Checkbox(
-                            checked = want.done,
-                            onCheckedChange = { onChange(direction.toggled(want.id)) },
-                            colors = CheckboxDefaults.colors(checkedColor = Color(0xFF8A2BE2))
-                        )
-                        Text(
-                            want.body,
-                            color = if (want.done) Color(0xFF6E6A74) else Color.White,
-                            fontSize = 13.sp, fontFamily = Inter,
-                            textDecoration = if (want.done) TextDecoration.LineThrough else null,
-                            modifier = Modifier.weight(1f)
-                        )
-                        IconButton(onClick = { onChange(direction.without(want.id)) }, modifier = Modifier.size(28.dp)) {
-                            Icon(Icons.Default.Close, "Remove", tint = Color(0xFF6E6A74), modifier = Modifier.size(16.dp))
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                    // A ceiling rather than a weight. A weight needs a bounded parent, and the dialog's
+                    // text slot does not promise one on every Material version; a fixed maximum bounds
+                    // the list the same way and cannot throw at measure time.
+                    modifier = Modifier.heightIn(max = 340.dp)
+                ) {
+                    if (ahead.isEmpty() && reached.isEmpty()) {
+                        item {
+                            Text(
+                                "Nothing yet. Add something you want to see and the story will work " +
+                                    "toward it.",
+                                color = Color(0xFF6E6A74), fontSize = 12.sp, fontFamily = Inter,
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            )
+                        }
+                    }
+                    if (ahead.isNotEmpty()) {
+                        item {
+                            Text(
+                                "STILL AHEAD", color = Color(0xFFDCB8FF), fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold, fontFamily = SpaceGrotesk
+                            )
+                        }
+                        items(ahead, key = { it.id }) { want ->
+                            StoryWantRow(want, onToggle = { onToggle(want.id) }, onRemove = { onRemove(want.id) })
+                        }
+                    }
+                    if (reached.isNotEmpty()) {
+                        item {
+                            Text(
+                                "ALREADY HAPPENED", color = Color(0xFF00FBFB), fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold, fontFamily = SpaceGrotesk,
+                                modifier = Modifier.padding(top = 10.dp)
+                            )
+                        }
+                        items(reached, key = { it.id }) { want ->
+                            StoryWantRow(want, onToggle = { onToggle(want.id) }, onRemove = { onRemove(want.id) })
                         }
                     }
                 }
@@ -1496,10 +1541,7 @@ fun StoryDirectionDialog(
                         modifier = Modifier.weight(1f)
                     )
                     Button(
-                        onClick = {
-                            onChange(direction.plus(draft, java.util.UUID.randomUUID().toString()))
-                            draft = ""
-                        },
+                        onClick = { onAdd(draft); draft = "" },
                         enabled = draft.isNotBlank(),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8A2BE2))
                     ) { Text("Add") }
@@ -1507,6 +1549,31 @@ fun StoryDirectionDialog(
             }
         }
     )
+}
+
+@Composable
+private fun StoryWantRow(want: StoryWant, onToggle: () -> Unit, onRemove: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Checkbox(
+            checked = want.done,
+            onCheckedChange = { onToggle() },
+            colors = CheckboxDefaults.colors(checkedColor = Color(0xFF8A2BE2))
+        )
+        Text(
+            want.body,
+            color = if (want.done) Color(0xFF6E6A74) else Color.White,
+            fontSize = 13.sp, fontFamily = Inter,
+            textDecoration = if (want.done) TextDecoration.LineThrough else null,
+            modifier = Modifier.weight(1f)
+        )
+        IconButton(onClick = onRemove, modifier = Modifier.size(28.dp)) {
+            Icon(Icons.Default.Close, "Remove", tint = Color(0xFF6E6A74), modifier = Modifier.size(16.dp))
+        }
+    }
 }
 
 @Composable

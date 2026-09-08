@@ -30,6 +30,26 @@ export const ANTIGRAVITY_CONTINUITY_ENGINE = "antigravity:gemini-3.6-flash:high"
 export const CLAUDE_CONTINUITY_ENGINE = "claude-code:opus:high";
 export const ANTIGRAVITY_ROLEPLAY_MODEL = "antigravity:gemini-3.6-flash:high";
 export const CLAUDE_CODE_ROLEPLAY_MODEL = "claude-code:sonnet:high";
+export const CLAUDE_OPUS_48_ROLEPLAY_MODEL = "claude-code:opus-4.8:high";
+export const CLAUDE_OPUS_5_ROLEPLAY_MODEL = "claude-code:opus-5:high";
+
+/**
+ * Every Roleplay Model that runs on the Claude Code lane, and the CLI model name each one asks for.
+ *
+ * The lane is the reason this is a set rather than three constants used in three places. Claude jobs
+ * contend for one signed-in account and one headless session, so a second Claude model is not a second
+ * lane — it is the same lane, and anything deciding "is this job Claude's" has to answer yes for all
+ * of them or a queued Opus reply will run beside a Sonnet one on a CLI that can only serve one.
+ *
+ * The CLI takes an alias for the latest model or a full model name. `opus` follows whatever is latest;
+ * these are pinned, because the model a reply was written by is part of how that reply reads and a
+ * story should not change voice because an alias moved.
+ */
+export const CLAUDE_ROLEPLAY_MODELS = new Map([
+  [CLAUDE_CODE_ROLEPLAY_MODEL, "sonnet"],
+  [CLAUDE_OPUS_48_ROLEPLAY_MODEL, "claude-opus-4-8"],
+  [CLAUDE_OPUS_5_ROLEPLAY_MODEL, "claude-opus-5"]
+]);
 export const ANTIGRAVITY_PORTRAIT_MODEL = "antigravity:managed-image";
 
 /**
@@ -133,7 +153,7 @@ export async function createContinuityHost({
   );
 
   const laneForRoleplayModel = modelId =>
-    modelId === CLAUDE_CODE_ROLEPLAY_MODEL ? "claude" : "antigravity";
+    CLAUDE_ROLEPLAY_MODELS.has(modelId) ? "claude" : "antigravity";
   const laneAvailable = lane =>
     lane === "claude" ? !claudeActive : lane === "codex" ? !codexActive : !antigravityActive;
 
@@ -216,7 +236,7 @@ export async function createContinuityHost({
       if (unavailableRoleplay) {
         await store.markFailed(
           unavailableRoleplay.request_id,
-          unavailableRoleplay.model_id === CLAUDE_CODE_ROLEPLAY_MODEL
+          CLAUDE_ROLEPLAY_MODELS.has(unavailableRoleplay.model_id)
             ? "Claude Code is not installed or not available to the Mac Host"
             : `Unsupported Roleplay Model: ${unavailableRoleplay.model_id || "missing"}`
         );
@@ -277,7 +297,7 @@ export async function createContinuityHost({
       if (request.method === "POST" && url.pathname === "/v2/roleplay-jobs") {
         if (draining) return jsonResponse(response, 503, { code: "draining", message: "Mac Host is shutting down" });
         const body = await readJsonBody(request);
-        if (![ANTIGRAVITY_ROLEPLAY_MODEL, CLAUDE_CODE_ROLEPLAY_MODEL].includes(body.model_id)) {
+        if (body.model_id !== ANTIGRAVITY_ROLEPLAY_MODEL && !CLAUDE_ROLEPLAY_MODELS.has(body.model_id)) {
           throw new Error("Unsupported Roleplay Model");
         }
         const result = await serialize("submit", () => store.createOrGet(body, device.id, "roleplay"));
@@ -413,13 +433,20 @@ async function main() {
     timeoutMillis: config.roleplayTimeoutMilliseconds,
     workspaceRoot: here
   });
-  const runClaudeRoleplay = claude ? createClaudeRoleplayRunner({
-    claude,
-    model: config.claudeModel,
-    effort: config.claudeEffort,
-    timeoutMillis: config.roleplayTimeoutMilliseconds,
-    workspaceRoot: here
-  }) : null;
+  // One runner per Claude Roleplay Model, each pinned to its own CLI model name. They still share the
+  // Claude lane, so only one of them ever runs at a time.
+  const claudeRoleplayRunners = claude
+    ? [...CLAUDE_ROLEPLAY_MODELS].map(([modelId, cliModel]) => [
+        modelId,
+        createClaudeRoleplayRunner({
+          claude,
+          model: cliModel,
+          effort: config.claudeEffort,
+          timeoutMillis: config.roleplayTimeoutMilliseconds,
+          workspaceRoot: here
+        })
+      ])
+    : [];
   const runClaudeContinuity = claude ? createClaudeContinuityRunner({
     claude,
     model: config.claudeContinuityModel,
@@ -476,7 +503,7 @@ async function main() {
     continuityEngineFailures,
     roleplayRunners: new Map([
       [ANTIGRAVITY_ROLEPLAY_MODEL, runRoleplay],
-      ...(runClaudeRoleplay ? [[CLAUDE_CODE_ROLEPLAY_MODEL, runClaudeRoleplay]] : [])
+      ...claudeRoleplayRunners
     ]),
     runPortrait,
     authPepper

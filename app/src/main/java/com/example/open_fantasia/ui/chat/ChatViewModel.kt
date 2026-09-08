@@ -35,6 +35,7 @@ import com.example.open_fantasia.data.continuity.RoleplayGenerationScheduler
 import com.example.open_fantasia.data.continuity.RoleplayProtocol
 import com.example.open_fantasia.data.continuity.PortraitGenerationCoordinator
 import com.example.open_fantasia.domain.model.RoleplayContextAssembler
+import com.example.open_fantasia.domain.model.StoryDirectionRendering
 import com.example.open_fantasia.domain.model.CharacterBundle
 import com.example.open_fantasia.domain.model.CastProfile
 import com.example.open_fantasia.domain.model.DurableMemorySnapshot
@@ -470,7 +471,10 @@ class ChatViewModel(
                     activeSpeaker = activeSpeaker?.let { PromptCastMember.from(it) },
                     speakerMode = speakerMode,
                     sceneIntent = SceneIntent.from(activeBranch.scene_intent),
-                    storyDirection = StoryDirection.decode(thread.story_direction),
+                    storyDirection = StoryDirectionRendering.place(
+                        StoryDirection.decode(thread.story_direction),
+                        retainedPath
+                    ),
                     // Already reachability-filtered for this branch and head by resolveLineageState.
                     pins = contextLineage.pins.map { it.toDomain() },
                     timeline = contextLineage.timelineEvents.map { it.toDomain() },
@@ -756,11 +760,32 @@ class ChatViewModel(
      * The only direction in the system a person did not have to type into a reply to express. Nothing
      * generates it and nothing else writes to it. See [StoryDirection].
      */
-    fun updateStoryDirection(direction: StoryDirection) {
+    /**
+     * Adds, ticks off, or drops one of the player's wants.
+     *
+     * The turn id is stamped here rather than in the dialog because only this side knows what the
+     * branch head is, and without it a want has no place in time — which is how a reached want used to
+     * disappear from the prompt with nothing to say it had ever happened. See [StoryDirection].
+     */
+    private fun editStoryDirection(edit: (StoryDirection, String?) -> StoryDirection) {
         viewModelScope.launch {
-            chatDao.setStoryDirection(threadId, StoryDirection.encode(direction), Instant.now().toString())
+            val state = uiState.value as? ChatUiState.Success ?: return@launch
+            val direction = StoryDirection.decode(state.thread.story_direction)
+            val edited = edit(direction, state.activeBranch.head_turn_id)
+            if (edited == direction) return@launch
+            chatDao.setStoryDirection(threadId, StoryDirection.encode(edited), Instant.now().toString())
         }
     }
+
+    fun addStoryWant(body: String) = editStoryDirection { direction, head ->
+        direction.plus(body, java.util.UUID.randomUUID().toString(), head)
+    }
+
+    fun toggleStoryWant(id: String) = editStoryDirection { direction, head ->
+        direction.toggled(id, head)
+    }
+
+    fun removeStoryWant(id: String) = editStoryDirection { direction, _ -> direction.without(id) }
 
     fun selectEnsemble() {
         viewModelScope.launch {

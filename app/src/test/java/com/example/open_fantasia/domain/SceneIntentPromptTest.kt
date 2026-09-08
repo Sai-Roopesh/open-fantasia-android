@@ -18,7 +18,7 @@ class SceneIntentPromptTest {
         RoleplayContext(
             character = PromptCharacter("Avni", "", "", "", "", "", "", emptyList()),
             persona = null, directorNotes = "", world = null, cast = emptyList(),
-            activeSpeaker = null, speakerMode = "single", sceneIntent = intent, storyDirection = StoryDirection.Empty, recalled = emptyList(),
+            activeSpeaker = null, speakerMode = "single", sceneIntent = intent, storyDirection = emptyList(), recalled = emptyList(),
             pins = emptyList(), timeline = emptyList(),
             currentUserMessage = "USER-PROSE", revision = null, replyLength = ReplyLength.Full, modelId = "m"
         )
