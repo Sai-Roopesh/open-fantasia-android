@@ -35,7 +35,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.draw.drawBehind
@@ -1334,18 +1333,25 @@ fun SpeakerControlRow(
     val presentNames = state.currentSnapshot?.entity_state?.filter { it.is_present }?.map { it.canonical_name.lowercase() }?.toSet().orEmpty()
     val offScene = state.activeBranch.speaker_mode != "ensemble" && selected != null &&
         selected.entity_id !in presentIds && selected.canonical_name.lowercase() !in presentNames
-    // Scrolls rather than distributes. SpaceBetween across four chips on a narrow phone squeezes each
-    // one until its label truncates, which is most of why the last chip in this row was unreadable.
-    Row(
-        modifier = Modifier.fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 2.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    // Wraps rather than competing for one line. One label here is a story's choice rather than the
+    // app's — "Reply as Dr. Priyanka Oberoi" is more than half a phone — and every arrangement that
+    // keeps these on a single row makes something illegible: SpaceBetween squeezed the last chip until
+    // it could not be read, scrolling hid it behind a drag nobody would guess at, and letting the
+    // speaker yield truncated a person's name to two letters. A second line costs 30dp and costs
+    // nothing else.
+    FlowRow(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         AssistChip(
             onClick = onClick,
-            label = { Text("Reply as $label", fontFamily = SpaceGrotesk, maxLines = 1) },
+            label = {
+                Text(
+                    "Reply as $label", fontFamily = SpaceGrotesk,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis
+                )
+            },
             leadingIcon = {
                 Box(
                     Modifier.size(24.dp).clip(CircleShape).background(Color(0xFF8A2BE2)),
