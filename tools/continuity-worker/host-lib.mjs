@@ -138,12 +138,17 @@ export function describeContinuityFailure(error) {
 }
 
 /**
- * Files whose contents decide how a Continuity Update is prompted, canonicalized, and validated.
- * A change to any of them changes engine behaviour, so a host still running the previous copy is
- * silently wrong.
+ * Files whose contents decide how a job is routed, prompted, canonicalized, and validated. A change to
+ * any of them changes host behaviour, so a host still running the previous copy is silently wrong.
+ *
+ * `host-server.mjs` belongs here even though it is the process doing the watching. It owns which
+ * Roleplay Models are accepted and which lane each one runs on, and it was omitted: adding a model to
+ * it changed nothing until something else in this list happened to change too, and until then the host
+ * would refuse the new model as unsupported with no way to see why.
  */
 export const CONTRACT_FILES = [
   "PROMPT.md",
+  "host-server.mjs",
   "config.json",
   "draft.schema.json",
   "probe.schema.json",

@@ -4,6 +4,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  CONTRACT_FILES,
   DeviceRegistry,
   DurableJobStore,
   MAX_DIRECT_MODEL_INPUT_BYTES,
@@ -347,4 +348,12 @@ test("an adapter's own trailer counts toward the repair delivery limit", () => {
 
   const overflows = renderContinuityRepairInput("INSTRUCTIONS", evidence, draft, "defect", "S".repeat(headroom + 1));
   assert.equal(overflows, null, "a trailer that does not fit refuses the repair rather than shipping it");
+});
+
+// The guard exists so a host cannot drift behind the working tree. It watched everything that decides
+// how a Continuity Update is answered and nothing that decides which jobs are accepted at all, so
+// adding a Roleplay Model changed nothing on a running host until an unrelated file happened to change
+// with it — and the host refused the new model as unsupported with no way to see why.
+test("the file that routes jobs is part of the watched contract", () => {
+  assert.ok(CONTRACT_FILES.includes("host-server.mjs"));
 });
