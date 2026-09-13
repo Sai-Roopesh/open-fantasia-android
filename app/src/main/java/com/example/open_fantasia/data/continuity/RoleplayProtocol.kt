@@ -50,6 +50,7 @@ object RoleplayProtocol {
     const val CLAUDE_CODE_MODEL_ID = "claude-code:sonnet:high"
     const val CLAUDE_OPUS_48_MODEL_ID = "claude-code:opus-4.8:high"
     const val CLAUDE_OPUS_5_MODEL_ID = "claude-code:opus-5:high"
+    const val CODEX_MODEL_ID = "codex:gpt-5.6-terra:high"
     const val MODEL_ID = ANTIGRAVITY_MODEL_ID
 
     /**
@@ -83,6 +84,12 @@ object RoleplayProtocol {
             name = "Claude Opus 5 High",
             provider = PROVIDER,
             hint = "Slower and strongest. Uses the signed-in Claude Code subscription on your Mac"
+        ),
+        ModelCatalogEntry(
+            id = CODEX_MODEL_ID,
+            name = "GPT-5.6 Terra High",
+            provider = PROVIDER,
+            hint = "Uses the signed-in Codex subscription on your Mac"
         )
     )
 

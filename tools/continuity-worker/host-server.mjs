@@ -9,7 +9,7 @@ import {
   DeviceRegistry, DurableJobStore, HOST_PROTOCOL_VERSION, MAX_REQUEST_BYTES,
   computeContractId, createContractGuard
 } from "./host-lib.mjs";
-import { createCodexProbe, createCodexRunner, firstWorkingExecutable } from "./codex-runner.mjs";
+import { createCodexProbe, createCodexRoleplayRunner, createCodexRunner, firstWorkingExecutable } from "./codex-runner.mjs";
 import {
   createAntigravityContinuityRunner,
   createAntigravityProbe,
@@ -50,6 +50,18 @@ export const CLAUDE_ROLEPLAY_MODELS = new Map([
   [CLAUDE_OPUS_48_ROLEPLAY_MODEL, "claude-opus-4-8"],
   [CLAUDE_OPUS_5_ROLEPLAY_MODEL, "claude-opus-5"]
 ]);
+
+/**
+ * Every Roleplay Model that runs on the Codex CLI.
+ *
+ * The id is the same string as the Codex Continuity Engine on purpose: it is the one Codex model,
+ * doing two jobs. The lane is what makes that safe — a codex roleplay reply and a codex Continuity
+ * Update both hold the codex lane, so they never run at once on the one account, exactly as the two
+ * roles of Claude share the claude lane. The CLI model name is not pinned here because, unlike the
+ * Claude aliases, the id already carries the exact model the host was configured with.
+ */
+export const CODEX_ROLEPLAY_MODEL = CODEX_CONTINUITY_ENGINE;
+export const CODEX_ROLEPLAY_MODELS = new Set([CODEX_ROLEPLAY_MODEL]);
 export const ANTIGRAVITY_PORTRAIT_MODEL = "antigravity:managed-image";
 
 /**
@@ -153,7 +165,9 @@ export async function createContinuityHost({
   );
 
   const laneForRoleplayModel = modelId =>
-    CLAUDE_ROLEPLAY_MODELS.has(modelId) ? "claude" : "antigravity";
+    CLAUDE_ROLEPLAY_MODELS.has(modelId) ? "claude"
+    : CODEX_ROLEPLAY_MODELS.has(modelId) ? "codex"
+    : "antigravity";
   const laneAvailable = lane =>
     lane === "claude" ? !claudeActive : lane === "codex" ? !codexActive : !antigravityActive;
 
@@ -238,7 +252,9 @@ export async function createContinuityHost({
           unavailableRoleplay.request_id,
           CLAUDE_ROLEPLAY_MODELS.has(unavailableRoleplay.model_id)
             ? "Claude Code is not installed or not available to the Mac Host"
-            : `Unsupported Roleplay Model: ${unavailableRoleplay.model_id || "missing"}`
+            : CODEX_ROLEPLAY_MODELS.has(unavailableRoleplay.model_id)
+              ? "Codex is not installed or not available to the Mac Host"
+              : `Unsupported Roleplay Model: ${unavailableRoleplay.model_id || "missing"}`
         );
       }
       if (!antigravityActive) {
@@ -297,7 +313,11 @@ export async function createContinuityHost({
       if (request.method === "POST" && url.pathname === "/v2/roleplay-jobs") {
         if (draining) return jsonResponse(response, 503, { code: "draining", message: "Mac Host is shutting down" });
         const body = await readJsonBody(request);
-        if (body.model_id !== ANTIGRAVITY_ROLEPLAY_MODEL && !CLAUDE_ROLEPLAY_MODELS.has(body.model_id)) {
+        if (
+          body.model_id !== ANTIGRAVITY_ROLEPLAY_MODEL &&
+          !CLAUDE_ROLEPLAY_MODELS.has(body.model_id) &&
+          !CODEX_ROLEPLAY_MODELS.has(body.model_id)
+        ) {
           throw new Error("Unsupported Roleplay Model");
         }
         const result = await serialize("submit", () => store.createOrGet(body, device.id, "roleplay"));
@@ -433,6 +453,14 @@ async function main() {
     timeoutMillis: config.roleplayTimeoutMilliseconds,
     workspaceRoot: here
   });
+  // Codex as a Roleplay Model, on the same CLI and lane as the Codex Continuity Engine. Codex is a
+  // hard requirement for the host to start, so unlike Claude there is no absence to guard against.
+  const runCodexRoleplay = createCodexRoleplayRunner({
+    codex,
+    model: config.codexModel,
+    reasoningEffort: config.codexReasoningEffort,
+    timeoutMillis: config.roleplayTimeoutMilliseconds
+  });
   // One runner per Claude Roleplay Model, each pinned to its own CLI model name. They still share the
   // Claude lane, so only one of them ever runs at a time.
   const claudeRoleplayRunners = claude
@@ -503,6 +531,7 @@ async function main() {
     continuityEngineFailures,
     roleplayRunners: new Map([
       [ANTIGRAVITY_ROLEPLAY_MODEL, runRoleplay],
+      [CODEX_ROLEPLAY_MODEL, runCodexRoleplay],
       ...claudeRoleplayRunners
     ]),
     runPortrait,

@@ -12,6 +12,7 @@ import {
   CLAUDE_ROLEPLAY_MODELS,
   CLAUDE_CONTINUITY_ENGINE,
   CODEX_CONTINUITY_ENGINE,
+  CODEX_ROLEPLAY_MODEL,
   createContinuityHost
 } from "./host-server.mjs";
 
@@ -511,6 +512,86 @@ test("a Roleplay Model outside the catalogue is still refused", async () => {
       })
     });
     assert.equal(refused.ok, false, "the unpinned alias is a Continuity Engine, not a Roleplay Model");
+  } finally {
+    await host.stop({ force: true });
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+// Codex is a Continuity Engine and a Roleplay Model on one CLI and one signed-in account, exactly as
+// Claude is. The lane is what keeps a Codex Continuity Update from running beside a Codex roleplay
+// reply. The roleplay model id is deliberately the same string as the continuity engine id — one
+// model, two jobs — so the routing has to place both on the codex lane from that shared id.
+test("a Codex Continuity Update holds the codex lane against a Codex roleplay reply", async () => {
+  const root = await mkdtemp(join(tmpdir(), "open-fantasia-codex-lane-test-"));
+  let codexActive = 0;
+  let overlapped = false;
+  const occupyCodexLane = async input => {
+    codexActive += 1;
+    if (codexActive > 1) overlapped = true;
+    await new Promise(resolve => setTimeout(resolve, 40));
+    codexActive -= 1;
+    return { request_id: input.request_id, reply_text: "done", model_id: input.model_id };
+  };
+  const host = await createContinuityHost({
+    root,
+    port: 0,
+    continuityRunners: new Map([[CODEX_CONTINUITY_ENGINE, occupyCodexLane]]),
+    roleplayRunners: new Map([[CODEX_ROLEPLAY_MODEL, occupyCodexLane]])
+  });
+  const address = await host.start();
+  const base = `http://127.0.0.1:${address.port}`;
+  try {
+    const paired = await pair(host, base);
+    const headers = { authorization: `Bearer ${paired.credential}`, "content-type": "application/json" };
+    await fetch(`${base}/v2/checkpoints`, {
+      method: "POST", headers,
+      body: JSON.stringify({ ...request("codex-continuity-1"), engine_id: CODEX_CONTINUITY_ENGINE })
+    });
+    await fetch(`${base}/v2/roleplay-jobs`, {
+      method: "POST", headers,
+      body: JSON.stringify({
+        protocol_version: 2, job_type: "roleplay", request_id: "codex-roleplay-lane-1",
+        thread_id: "thread-1", branch_id: "branch-1", turn_id: "turn-1",
+        requested_speaker_id: null, speaker_mode: "single", model_id: CODEX_ROLEPLAY_MODEL,
+        attempt_count: 0, request_hash: "hash", generation_request: {}
+      })
+    });
+    await waitForReady(base, paired.credential, "codex-continuity-1");
+    for (let attempt = 0; attempt < 200; attempt++) {
+      const status = await (await fetch(`${base}/v2/roleplay-jobs/codex-roleplay-lane-1`, { headers })).json();
+      if (status.status === "ready") break;
+      await new Promise(resolve => setTimeout(resolve, 5));
+    }
+    assert.equal(overlapped, false, "a codex reply and a codex checkpoint never share the account");
+  } finally {
+    await host.stop({ force: true });
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("the Codex Roleplay Model is accepted at submission", async () => {
+  const root = await mkdtemp(join(tmpdir(), "open-fantasia-codex-accept-test-"));
+  const host = await createContinuityHost({
+    root, port: 0,
+    roleplayRunners: new Map([[CODEX_ROLEPLAY_MODEL, async input =>
+      ({ request_id: input.request_id, reply_text: "done", model_id: input.model_id })]])
+  });
+  const address = await host.start();
+  const base = `http://127.0.0.1:${address.port}`;
+  try {
+    const paired = await pair(host, base);
+    const accepted = await fetch(`${base}/v2/roleplay-jobs`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${paired.credential}`, "content-type": "application/json" },
+      body: JSON.stringify({
+        protocol_version: 2, job_type: "roleplay", request_id: "codex-accept-1",
+        thread_id: "thread-1", branch_id: "branch-1", turn_id: "turn-1",
+        requested_speaker_id: null, speaker_mode: "single", model_id: CODEX_ROLEPLAY_MODEL,
+        attempt_count: 0, request_hash: "hash", generation_request: {}
+      })
+    });
+    assert.ok(accepted.ok, "codex was refused as an unsupported Roleplay Model");
   } finally {
     await host.stop({ force: true });
     await rm(root, { recursive: true, force: true });
