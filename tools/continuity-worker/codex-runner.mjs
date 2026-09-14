@@ -50,8 +50,18 @@ export function runProcessCapture(bin, args, { cwd, env, timeoutMillis, signal, 
     child.stderr.on("data", chunk => { stderr = `${stderr}${chunk}`.slice(-256 * 1024); });
     child.on("error", fail);
     child.on("close", code => {
-      if (code === 0 && !stderr.includes("no output produced")) succeed(stdout.trim() ? stdout : stderr);
-      else fail(new Error(`${label} exited with status ${code}${stderr ? `: ${stderr.trim().slice(-500)}` : ""}`));
+      if (code === 0 && !stderr.includes("no output produced")) return succeed(stdout.trim() ? stdout : stderr);
+      // A failing CLI does not always speak on stderr. Claude Code writes a structured
+      // {is_error, result} envelope to stdout and exits non-zero, so an error message built from
+      // stderr alone drops the one sentence that says what went wrong — which is how an expired
+      // login surfaced only as "exited with status 1". Fall back to stdout for the message, and hand
+      // the raw streams to the caller so an adapter that understands the CLI's envelope can translate it.
+      const detail = stderr.trim() || stdout.trim();
+      const error = new Error(`${label} exited with status ${code}${detail ? `: ${detail.slice(-500)}` : ""}`);
+      error.exitCode = code;
+      error.stdout = stdout;
+      error.stderr = stderr;
+      fail(error);
     });
     if (signal?.aborted) abort();
     else signal?.addEventListener("abort", abort, { once: true });

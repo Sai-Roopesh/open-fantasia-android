@@ -7,6 +7,7 @@ import {
   createClaudeContinuityRunner,
   createClaudeProbe,
   createClaudeRoleplayRunner,
+  describeClaudeCliError,
   subscriptionOnlyEnvironment
 } from "./claude-runner.mjs";
 
@@ -244,4 +245,35 @@ test("the Claude preflight proves the real invocation and rejects an unexpected 
     runProcess: async () => envelope('{"ready": false}')
   });
   await assert.rejects(notReady, /unexpected value/);
+});
+
+// Regression: an expired Claude login exits non-zero with its real reason in the stdout envelope, not
+// on stderr. The failure surfaced only as "Claude preflight exited with status 1" — true and useless —
+// which cost a full debugging session before anyone read the envelope. These pin that the cause now
+// reaches the message a person acts on.
+test("an expired login is reported as a sign-in problem, not a transport status", () => {
+  const envelope = JSON.stringify({
+    is_error: true,
+    result: "Failed to authenticate: OAuth session expired and could not be refreshed"
+  });
+  // Shaped exactly as runProcessCapture now throws it: a status message plus the raw stdout envelope.
+  const thrown = new Error(`Claude preflight exited with status 1: ${envelope}`);
+  thrown.exitCode = 1;
+  thrown.stdout = envelope;
+  thrown.stderr = "";
+  const described = describeClaudeCliError(thrown);
+  assert.match(described, /not signed in/);
+  assert.match(described, /fantasia-host claude-login/);
+  assert.doesNotMatch(described, /exited with status/);
+});
+
+test("an exhausted allowance is named as itself, not as a sign-in problem", () => {
+  const envelope = JSON.stringify({ is_error: true, result: "Claude usage limit reached" });
+  const described = describeClaudeCliError(Object.assign(new Error("x"), { stdout: envelope }));
+  assert.match(described, /allowance is exhausted/);
+});
+
+test("an error with no parseable envelope falls back to its own message", () => {
+  const described = describeClaudeCliError(new Error("Claude preflight exceeded its time limit"));
+  assert.match(described, /time limit/);
 });

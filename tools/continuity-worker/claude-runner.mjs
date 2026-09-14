@@ -110,15 +110,24 @@ export function createClaudeRoleplayRunner({
 
       const task = renderRoleplayTask(generationRequest);
       requireDirectModelInputSize(task, "Canonical roleplay context");
-      const output = await runProcess(claude, claudeArguments({
-        task, model, effort, systemPrompt: ROLEPLAY_SYSTEM_PROMPT
-      }), {
-        cwd: work,
-        env: subscriptionOnlyEnvironment(processEnvironment),
-        timeoutMillis,
-        signal,
-        label: "Claude Code roleplay"
-      });
+      let output;
+      try {
+        output = await runProcess(claude, claudeArguments({
+          task, model, effort, systemPrompt: ROLEPLAY_SYSTEM_PROMPT
+        }), {
+          cwd: work,
+          env: subscriptionOnlyEnvironment(processEnvironment),
+          timeoutMillis,
+          signal,
+          label: "Claude Code roleplay"
+        });
+      } catch (error) {
+        // A Claude reply hits the same expired-login wall as the preflight, and the phone should read
+        // the cause rather than a transport status. An interrupt is not a Claude failure, so it passes
+        // through untranslated.
+        if (/run interrupted/.test(String(error?.message))) throw error;
+        throw new Error(describeClaudeCliError(error));
+      }
       const replyText = validateRoleplayOutput(parseClaudeResult(output));
       return {
         protocol_version: request.protocol_version,
@@ -152,11 +161,37 @@ function describeClaudeFailure(error) {
     return "The Claude subscription allowance is exhausted. Continuity can run on another engine, " +
       "or on Claude again once the allowance resets.";
   }
-  if (/not (?:logged|signed) in|authenticat|credential/i.test(message)) {
+  if (/not (?:logged|signed) in|authenticat|credential|oauth|session expired/i.test(message)) {
     return "Claude Code is not signed in to a Claude subscription on the Mac Host. " +
       "Run `fantasia-host claude-login`, then restart the host.";
   }
   return message || "Invalid Continuity Draft";
+}
+
+/**
+ * The cause behind a failed Claude invocation, stated so a person can act on it.
+ *
+ * Claude Code reports a failure two ways. On a clean exit it returns a JSON envelope carrying its own
+ * error in `result`; [parseClaudeResult] already surfaces that. On a non-zero exit — an expired login,
+ * for one — it writes the same envelope to stdout and exits 1, and the thrown transport error carried
+ * only "exited with status 1" until [runProcessCapture] began attaching the raw streams. This reaches
+ * into those streams for the envelope's `result` so the real sentence ("Failed to authenticate: OAuth
+ * session expired…") is what gets recorded, then routes it through [describeClaudeFailure] for the
+ * fix. Without a parseable envelope it falls back to the error's own message.
+ */
+export function describeClaudeCliError(error) {
+  for (const stream of [error?.stdout, error?.message]) {
+    if (typeof stream !== "string") continue;
+    const match = stream.match(/\{[\s\S]*\}/);
+    if (!match) continue;
+    try {
+      const envelope = JSON.parse(match[0]);
+      if (envelope?.is_error && typeof envelope.result === "string" && envelope.result.trim()) {
+        return describeClaudeFailure(new Error(envelope.result));
+      }
+    } catch {}
+  }
+  return describeClaudeFailure(error);
 }
 
 /**
@@ -178,17 +213,25 @@ export function createClaudeProbe({
   return async function preflight() {
     const work = await mkdtemp(join(tmpdir(), "open-fantasia-preflight-"));
     try {
-      const output = await runProcess(claude, claudeArguments({
-        task: PREFLIGHT_TASK,
-        model,
-        effort,
-        systemPrompt: CONTINUITY_SYSTEM_PROMPT
-      }), {
-        cwd: work,
-        env: subscriptionOnlyEnvironment(processEnvironment),
-        timeoutMillis,
-        label: "Claude preflight"
-      });
+      let output;
+      try {
+        output = await runProcess(claude, claudeArguments({
+          task: PREFLIGHT_TASK,
+          model,
+          effort,
+          systemPrompt: CONTINUITY_SYSTEM_PROMPT
+        }), {
+          cwd: work,
+          env: subscriptionOnlyEnvironment(processEnvironment),
+          timeoutMillis,
+          label: "Claude preflight"
+        });
+      } catch (error) {
+        // The reason the host records and offers back to the phone. "Claude preflight exited with
+        // status 1" told nobody that the login had expired; this makes the preflight say what a person
+        // has to do about it.
+        throw new Error(describeClaudeCliError(error));
+      }
       const value = JSON.parse(unfenceJson(parseClaudeResult(output)));
       if (value?.ready !== true) throw new Error("preflight returned an unexpected value");
     } finally {
