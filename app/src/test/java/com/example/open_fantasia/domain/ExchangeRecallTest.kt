@@ -78,15 +78,19 @@ class ExchangeRecallTest {
 
     @Test
     fun `recency breaks a tie`() {
-        val l = lineage(60, mapOf(5 to ("cottage" to "a"), 40 to ("cottage" to "b")))
-        val out = ExchangeRecall.select(l, "cottage", maxRecalled = 1)
+        // Two equally distinctive hooks, one per exchange, so the weights tie exactly and only recency
+        // can separate them. A single shared word would not clear MIN_WEIGHT at all.
+        val l = lineage(60, mapOf(5 to ("cottage" to "a"), 40 to ("jammer" to "b")))
+        val out = ExchangeRecall.select(l, "cottage jammer", maxRecalled = 1)
         assertEquals("turn-40", out.first().turnId)
     }
 
     @Test
     fun `selection is capped, budgeted and ordered oldest first`() {
-        val l = lineage(60, (2..40).associateWith { "cottage $it" to "reply $it" })
-        val out = ExchangeRecall.select(l, "cottage")
+        // A distinct hook per exchange, all named in the query, so there are far more qualifying
+        // candidates than the cap allows and the cap is what does the work.
+        val l = lineage(60, (2..40).associateWith { "hook$it here" to "reply $it" })
+        val out = ExchangeRecall.select(l, (2..40).joinToString(" ") { "hook$it" })
         assertEquals(ExchangeRecall.MAX_RECALLED, out.size)
         assertEquals(out.map { it.exchangesAgo }.sortedDescending(), out.map { it.exchangesAgo })
         assertTrue(out.sumOf { it.playerProse.length + it.assistantProse.length } <= ExchangeRecall.MAX_CHARS)
@@ -95,19 +99,19 @@ class ExchangeRecallTest {
     @Test
     fun `an exchange too large for the budget is skipped, not truncated`() {
         val huge = "cottage " + "x".repeat(9_000)
-        val l = lineage(60, mapOf(5 to (huge to "big"), 6 to ("cottage small" to "ok")))
-        val out = ExchangeRecall.select(l, "cottage")
+        val l = lineage(60, mapOf(5 to (huge to "big"), 6 to ("jammer small" to "ok")))
+        val out = ExchangeRecall.select(l, "cottage jammer")
         assertTrue("a recalled exchange is verbatim or absent", out.none { it.playerProse.length > 9_000 })
         assertTrue(out.any { it.turnId == "turn-6" })
     }
 
     @Test
     fun `the same input selects the same exchanges twice`() {
-        val l = lineage(80, (2..50).associateWith { "cottage letter $it" to "r $it" })
-        assertEquals(
-            ExchangeRecall.select(l, "cottage letter").map { it.turnId },
-            ExchangeRecall.select(l, "cottage letter").map { it.turnId }
-        )
+        val l = lineage(80, (2..50).associateWith { "hook$it letter" to "r $it" })
+        val query = (2..50).joinToString(" ") { "hook$it" }
+        val twice = ExchangeRecall.select(l, query).map { it.turnId }
+        assertEquals("a frozen request must compile identically twice", twice, ExchangeRecall.select(l, query).map { it.turnId })
+        assertTrue("the determinism check must not pass by recalling nothing", twice.isNotEmpty())
     }
 
     @Test
