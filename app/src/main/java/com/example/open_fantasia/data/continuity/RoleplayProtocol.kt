@@ -51,6 +51,8 @@ object RoleplayProtocol {
     const val CLAUDE_OPUS_48_MODEL_ID = "claude-code:opus-4.8:high"
     const val CLAUDE_OPUS_5_MODEL_ID = "claude-code:opus-5:high"
     const val CODEX_MODEL_ID = "codex:gpt-5.6-terra:high"
+    const val CODEX_SOL_MODEL_ID = "codex:gpt-5.6-sol:high"
+    const val CODEX_55_MODEL_ID = "codex:gpt-5.5:high"
     const val MODEL_ID = ANTIGRAVITY_MODEL_ID
 
     /**
@@ -88,6 +90,18 @@ object RoleplayProtocol {
         ModelCatalogEntry(
             id = CODEX_MODEL_ID,
             name = "GPT-5.6 Terra High",
+            provider = PROVIDER,
+            hint = "Uses the signed-in Codex subscription on your Mac"
+        ),
+        ModelCatalogEntry(
+            id = CODEX_SOL_MODEL_ID,
+            name = "GPT-5.6 Sol High",
+            provider = PROVIDER,
+            hint = "Uses the signed-in Codex subscription on your Mac"
+        ),
+        ModelCatalogEntry(
+            id = CODEX_55_MODEL_ID,
+            name = "GPT-5.5 High",
             provider = PROVIDER,
             hint = "Uses the signed-in Codex subscription on your Mac"
         )

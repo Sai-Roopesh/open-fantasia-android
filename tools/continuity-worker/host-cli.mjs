@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
 import { DeviceRegistry, DurableJobStore } from "./host-lib.mjs";
-import { ensureHostAuthPepper } from "./keychain.mjs";
+import { ensureHostAuthPepper, setClaudeOAuthToken } from "./keychain.mjs";
 
 const root = process.env.OPEN_FANTASIA_HOST_ROOT || join(homedir(), "Library", "Application Support", "OpenFantasia", "continuity-host", "v1");
 const command = process.argv[2] ?? "status";
@@ -60,6 +60,20 @@ async function main() {
     else devices.forEach(device => console.log(`${device.id}\t${device.revoked_at ? "revoked" : "active"}\t${device.name}`));
     return;
   }
+  if (command === "set-claude-token") {
+    // Reads the token on stdin so it never appears in the process list. Stored in the Keychain and
+    // injected by the host as CLAUDE_CODE_OAUTH_TOKEN — a long-lived subscription that does not expire
+    // on the interactive-session clock the way `claude auth login` does.
+    const token = await new Promise(resolve => {
+      let value = "";
+      process.stdin.on("data", chunk => { value += chunk; });
+      process.stdin.on("end", () => resolve(value.trim()));
+    });
+    if (!token) throw new Error("No token on stdin. Run `claude setup-token` and pass its token in.");
+    await setClaudeOAuthToken(token);
+    console.log("Stored the long-lived Claude token. Restart the host to use it: fantasia-host on");
+    return;
+  }
   if (command === "revoke") {
     const deviceId = process.argv[3];
     if (!deviceId) throw new Error("revoke requires a device id");
@@ -82,7 +96,7 @@ async function main() {
     });
     return;
   }
-  throw new Error("Usage: host-cli.mjs {init|pair --endpoint URL|devices|revoke ID|status}");
+  throw new Error("Usage: host-cli.mjs {init|pair --endpoint URL|devices|revoke ID|set-claude-token|status}");
 }
 
 main().catch(error => {

@@ -158,7 +158,8 @@ export const CONTRACT_FILES = [
   "worker-lib.mjs",
   "codex-runner.mjs",
   "antigravity-runner.mjs",
-  "claude-runner.mjs"
+  "claude-runner.mjs",
+  "keychain.mjs"
 ];
 
 /**

@@ -1,6 +1,5 @@
 {
   "codexCandidates": ["/Applications/ChatGPT.app/Contents/Resources/codex", "/opt/homebrew/bin/codex", "codex"],
-  "codexModel": "gpt-5.6-terra",
   "codexReasoningEffort": "high",
   "antigravityCandidates": ["/Users/sairoopesh/.local/bin/agy", "/opt/homebrew/bin/agy", "agy"],
   "antigravityModel": "gemini-3.6-flash-high",

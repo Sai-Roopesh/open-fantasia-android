@@ -18,11 +18,27 @@ class ContinuityEngineParityTest {
 
     private val hostServer = File("../tools/continuity-worker/host-server.mjs")
 
-    private fun hostEngineIdentities(): Set<String> =
-        Regex("""export const \w*CONTINUITY_ENGINE = "([^"]+)"""")
-            .findAll(hostServer.readText())
+    /**
+     * The engine ids the host actually offers, reconstructed the way the host builds them. Codex
+     * engines are derived from one `CODEX_MODELS` list as `codex:<model>:high` (see `codexEngineId`),
+     * so they are rebuilt here from that list; the antigravity and claude engines are still single
+     * string-literal constants. Scraping both the way the host derives them keeps the parity check
+     * honest as the codex list grows.
+     */
+    private fun hostEngineIdentities(): Set<String> {
+        val text = hostServer.readText()
+        val codexModels = Regex("""export const CODEX_MODELS = \[([^\]]*)]""")
+            .find(text)?.groupValues?.get(1).orEmpty()
+        val codexIds = Regex(""""([^"]+)"""")
+            .findAll(codexModels)
+            .map { "codex:${it.groupValues[1]}:high" }
+            .toSet()
+        val literalEngines = Regex("""export const \w*CONTINUITY_ENGINE = "([^"]+)"""")
+            .findAll(text)
             .map { it.groupValues[1] }
             .toSet()
+        return codexIds + literalEngines
+    }
 
     @Test
     fun everyOfferedEngineIsOneTheMacHostRuns() {

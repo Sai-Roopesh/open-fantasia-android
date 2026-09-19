@@ -13,6 +13,9 @@ import {
   CLAUDE_CONTINUITY_ENGINE,
   CODEX_CONTINUITY_ENGINE,
   CODEX_ROLEPLAY_MODEL,
+  CODEX_ROLEPLAY_MODELS,
+  CODEX_CONTINUITY_ENGINES,
+  SUPPORTED_CONTINUITY_ENGINES,
   createContinuityHost
 } from "./host-server.mjs";
 
@@ -592,6 +595,48 @@ test("the Codex Roleplay Model is accepted at submission", async () => {
       })
     });
     assert.ok(accepted.ok, "codex was refused as an unsupported Roleplay Model");
+  } finally {
+    await host.stop({ force: true });
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+// Each Codex model is offered for both jobs. Adding gpt-5.6-sol and gpt-5.5 alongside gpt-5.6-terra is
+// only correct if every one is a Continuity Engine, a Roleplay Model, and on the codex lane — one
+// model missing from either role, or routed to the wrong lane, is the failure this guards.
+test("every Codex model is offered for both continuity and roleplay on the codex lane", () => {
+  for (const model of ["gpt-5.6-terra", "gpt-5.6-sol", "gpt-5.5"]) {
+    const id = `codex:${model}:high`;
+    assert.ok(SUPPORTED_CONTINUITY_ENGINES.includes(id), `${id} missing from continuity engines`);
+    assert.ok(CODEX_CONTINUITY_ENGINES.includes(id), `${id} missing from codex continuity list`);
+    assert.ok(CODEX_ROLEPLAY_MODELS.has(id), `${id} missing from codex roleplay models`);
+  }
+});
+
+test("every Codex Roleplay Model is accepted at submission", async () => {
+  const root = await mkdtemp(join(tmpdir(), "open-fantasia-codex-models-test-"));
+  const host = await createContinuityHost({
+    root, port: 0,
+    roleplayRunners: new Map([...CODEX_ROLEPLAY_MODELS].map(id => [id, async input =>
+      ({ request_id: input.request_id, reply_text: "done", model_id: input.model_id })]))
+  });
+  const address = await host.start();
+  const base = `http://127.0.0.1:${address.port}`;
+  try {
+    const paired = await pair(host, base);
+    const headers = { authorization: `Bearer ${paired.credential}`, "content-type": "application/json" };
+    for (const [i, modelId] of [...CODEX_ROLEPLAY_MODELS].entries()) {
+      const res = await fetch(`${base}/v2/roleplay-jobs`, {
+        method: "POST", headers,
+        body: JSON.stringify({
+          protocol_version: 2, job_type: "roleplay", request_id: `codex-model-${i}`,
+          thread_id: "t", branch_id: "b", turn_id: `turn-${i}`,
+          requested_speaker_id: null, speaker_mode: "single", model_id: modelId,
+          attempt_count: 0, request_hash: `hash-${i}`, generation_request: {}
+        })
+      });
+      assert.ok(res.ok, `${modelId} was refused as an unsupported Roleplay Model`);
+    }
   } finally {
     await host.stop({ force: true });
     await rm(root, { recursive: true, force: true });

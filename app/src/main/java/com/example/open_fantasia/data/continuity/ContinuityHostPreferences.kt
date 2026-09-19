@@ -101,6 +101,8 @@ class ContinuityHostPreferences(context: Context) {
     companion object {
         private const val PREFERENCES_NAME = "continuity_host_credentials"
         const val CODEX_TERRA_HIGH = "codex:gpt-5.6-terra:high"
+        const val CODEX_SOL_HIGH = "codex:gpt-5.6-sol:high"
+        const val CODEX_55_HIGH = "codex:gpt-5.5:high"
         const val ANTIGRAVITY_GEMINI_FLASH_HIGH = "antigravity:gemini-3.6-flash:high"
         const val CLAUDE_OPUS_HIGH = "claude-code:opus:high"
         const val JOB_CONTINUITY = "continuity"
@@ -109,6 +111,14 @@ class ContinuityHostPreferences(context: Context) {
         val CONTINUITY_ENGINES = listOf(
             ContinuityEngineOption(
                 CODEX_TERRA_HIGH, "GPT-5.6 Terra High",
+                "Runs on the Codex CLI signed in on your Mac"
+            ),
+            ContinuityEngineOption(
+                CODEX_SOL_HIGH, "GPT-5.6 Sol High",
+                "Runs on the Codex CLI signed in on your Mac"
+            ),
+            ContinuityEngineOption(
+                CODEX_55_HIGH, "GPT-5.5 High",
                 "Runs on the Codex CLI signed in on your Mac"
             ),
             ContinuityEngineOption(

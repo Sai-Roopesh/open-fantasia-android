@@ -22,10 +22,22 @@ import {
   createClaudeRoleplayRunner
 } from "./claude-runner.mjs";
 import { createSchemaValidator } from "./schema-validator.mjs";
-import { ensureHostAuthPepper } from "./keychain.mjs";
+import { ensureHostAuthPepper, getClaudeOAuthToken } from "./keychain.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
-export const CODEX_CONTINUITY_ENGINE = "codex:gpt-5.6-terra:high";
+
+/**
+ * The Codex models the host offers, each as both a Continuity Engine and a Roleplay Model.
+ *
+ * These are codex model slugs (see `~/.codex/models_cache.json`), turned into ids of the shape
+ * `codex:<model>:high`. One list drives both roles so a model can never be offered for chat but not
+ * HCE, or the reverse. gpt-5.6-terra stays first as the default. The `:high` label is fixed because
+ * the Android catalogue pins the same ids; the actual reasoning effort is `config.codexReasoningEffort`.
+ */
+export const CODEX_MODELS = ["gpt-5.6-terra", "gpt-5.6-sol", "gpt-5.5"];
+export const codexEngineId = model => `codex:${model}:high`;
+export const CODEX_CONTINUITY_ENGINES = CODEX_MODELS.map(codexEngineId);
+export const CODEX_CONTINUITY_ENGINE = codexEngineId("gpt-5.6-terra");
 export const ANTIGRAVITY_CONTINUITY_ENGINE = "antigravity:gemini-3.6-flash:high";
 export const CLAUDE_CONTINUITY_ENGINE = "claude-code:opus:high";
 export const ANTIGRAVITY_ROLEPLAY_MODEL = "antigravity:gemini-3.6-flash:high";
@@ -52,25 +64,22 @@ export const CLAUDE_ROLEPLAY_MODELS = new Map([
 ]);
 
 /**
- * Every Roleplay Model that runs on the Codex CLI.
- *
- * The id is the same string as the Codex Continuity Engine on purpose: it is the one Codex model,
- * doing two jobs. The lane is what makes that safe — a codex roleplay reply and a codex Continuity
- * Update both hold the codex lane, so they never run at once on the one account, exactly as the two
- * roles of Claude share the claude lane. The CLI model name is not pinned here because, unlike the
- * Claude aliases, the id already carries the exact model the host was configured with.
+ * Every Roleplay Model that runs on the Codex CLI — the same ids as the Codex Continuity Engines,
+ * because each Codex model does both jobs. The lane is what makes that safe: a codex roleplay reply
+ * and a codex Continuity Update both hold the codex lane, so they never run at once on the one
+ * account, exactly as the roles of Claude share the claude lane.
  */
+export const CODEX_ROLEPLAY_MODELS = new Set(CODEX_CONTINUITY_ENGINES);
 export const CODEX_ROLEPLAY_MODEL = CODEX_CONTINUITY_ENGINE;
-export const CODEX_ROLEPLAY_MODELS = new Set([CODEX_ROLEPLAY_MODEL]);
 export const ANTIGRAVITY_PORTRAIT_MODEL = "antigravity:managed-image";
 
 /**
  * Which CLI a Continuity Engine occupies. Continuity is globally serialized, but the lane still
  * decides whether a queued roleplay reply or portrait can run beside it: two jobs on one CLI would
- * contend for the same account and the same headless session.
+ * contend for the same account and the same headless session. Every Codex model shares one codex lane.
  */
 export const CONTINUITY_ENGINE_LANES = new Map([
-  [CODEX_CONTINUITY_ENGINE, "codex"],
+  ...CODEX_CONTINUITY_ENGINES.map(id => [id, "codex"]),
   [ANTIGRAVITY_CONTINUITY_ENGINE, "antigravity"],
   [CLAUDE_CONTINUITY_ENGINE, "claude"]
 ]);
@@ -420,22 +429,37 @@ async function main() {
   } catch {
     console.warn("Claude Code is not installed; Claude roleplay will remain unavailable");
   }
+  // A stored long-lived token supersedes the interactive login that kept expiring. Setting it on the
+  // process environment is enough: every Claude invocation inherits it, and subscriptionOnlyEnvironment
+  // keeps CLAUDE_CODE_OAUTH_TOKEN while stripping the API and gateway routes. Absent, Claude falls back
+  // to whatever `claude auth login` left in the Keychain. See keychain.mjs and `fantasia-host claude-token`.
+  const claudeToken = await getClaudeOAuthToken();
+  if (claudeToken) {
+    process.env.CLAUDE_CODE_OAUTH_TOKEN = claudeToken;
+    console.log("Using stored long-lived Claude subscription token");
+  }
   const prompt = await readFile(join(here, "PROMPT.md"), "utf8");
   // Engines produce a Continuity Draft; the Continuity Compiler produces the snapshot. The response
   // schema still governs what leaves the host, but no model is ever asked to satisfy it. See ADR-0010.
   const draftSchema = join(here, "draft.schema.json");
   const probeSchema = join(here, "probe.schema.json");
   const validateSchema = await createSchemaValidator(draftSchema);
-  const runCodexContinuity = createCodexRunner({
-    codex,
-    model: config.codexModel,
-    reasoningEffort: config.codexReasoningEffort,
-    prompt,
-    draftSchema,
-    validateSchema,
-    timeoutMillis: config.continuityTimeoutMilliseconds,
-    workspaceRoot: here
-  });
+  // One Continuity Engine per Codex model, each on the codex lane. Built here so the preflight loop
+  // and the runner registry stay in step from one list.
+  const codexContinuityEntries = CODEX_MODELS.map(model => [
+    codexEngineId(model),
+    createCodexRunner({
+      codex,
+      model,
+      reasoningEffort: config.codexReasoningEffort,
+      prompt,
+      draftSchema,
+      validateSchema,
+      timeoutMillis: config.continuityTimeoutMilliseconds,
+      workspaceRoot: here
+    }),
+    createCodexProbe({ codex, model, reasoningEffort: config.codexReasoningEffort, probeSchema })
+  ]);
   const runAntigravityContinuity = createAntigravityContinuityRunner({
     agy,
     model: config.antigravityModel,
@@ -453,14 +477,18 @@ async function main() {
     timeoutMillis: config.roleplayTimeoutMilliseconds,
     workspaceRoot: here
   });
-  // Codex as a Roleplay Model, on the same CLI and lane as the Codex Continuity Engine. Codex is a
-  // hard requirement for the host to start, so unlike Claude there is no absence to guard against.
-  const runCodexRoleplay = createCodexRoleplayRunner({
-    codex,
-    model: config.codexModel,
-    reasoningEffort: config.codexReasoningEffort,
-    timeoutMillis: config.roleplayTimeoutMilliseconds
-  });
+  // Codex as a Roleplay Model — one runner per model, each on the same CLI and lane as its Continuity
+  // Engine. Codex is a hard requirement for the host to start, so unlike Claude there is no absence
+  // to guard against.
+  const codexRoleplayRunners = CODEX_MODELS.map(model => [
+    codexEngineId(model),
+    createCodexRoleplayRunner({
+      codex,
+      model,
+      reasoningEffort: config.codexReasoningEffort,
+      timeoutMillis: config.roleplayTimeoutMilliseconds
+    })
+  ]);
   // One runner per Claude Roleplay Model, each pinned to its own CLI model name. They still share the
   // Claude lane, so only one of them ever runs at a time.
   const claudeRoleplayRunners = claude
@@ -501,9 +529,7 @@ async function main() {
     continuityEngineFailures.set(CLAUDE_CONTINUITY_ENGINE, "Claude Code is not installed or not available to the Mac Host");
   }
   for (const [engineId, runner, preflight] of [
-    [CODEX_CONTINUITY_ENGINE, runCodexContinuity, createCodexProbe({
-      codex, model: config.codexModel, reasoningEffort: config.codexReasoningEffort, probeSchema
-    })],
+    ...codexContinuityEntries,
     [ANTIGRAVITY_CONTINUITY_ENGINE, runAntigravityContinuity, createAntigravityProbe({
       agy, model: config.antigravityModel, effort: config.antigravityEffort
     })],
@@ -531,7 +557,7 @@ async function main() {
     continuityEngineFailures,
     roleplayRunners: new Map([
       [ANTIGRAVITY_ROLEPLAY_MODEL, runRoleplay],
-      [CODEX_ROLEPLAY_MODEL, runCodexRoleplay],
+      ...codexRoleplayRunners,
       ...claudeRoleplayRunners
     ]),
     runPortrait,
