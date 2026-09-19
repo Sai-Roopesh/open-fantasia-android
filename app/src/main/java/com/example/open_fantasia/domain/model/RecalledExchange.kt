@@ -180,6 +180,15 @@ object RecallRendering {
      * The one thing that must not happen is a model mistaking an exchange from two hundred turns ago for
      * something that just happened. Each is stamped with its distance and stated to be finished, and the
      * whole block says plainly that the recent transcript is still where the scene lives.
+     *
+     * The block is three prohibitions and no invitation, which looks like poor prompt design and was
+     * tried the other way. Adding a paragraph telling the model to read these for how they felt — the
+     * one thing a Snapshot cannot carry, since it keeps 0 of 897 moments' dialogue — was measured over
+     * twenty stored production prompts, each regenerated under both wordings and scored blind by a
+     * judge on emotional carry. It lost, 7 to 13, and an earlier six-pair pilot had it winning 4 to 2.
+     * Both sit inside chance (p is about 0.26), so the wording was reverted rather than shipped on a
+     * result that could not tell itself apart from noise. Two separate A/Bs have now failed to show
+     * this block moving a reply at all; establish that it can before investing in better retrieval.
      */
     fun render(recalled: List<RecalledExchange>): String? {
         if (recalled.isEmpty()) return null
