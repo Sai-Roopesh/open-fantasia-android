@@ -12,7 +12,11 @@ import io.ktor.serialization.kotlinx.json.*
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.double
+import kotlinx.serialization.json.int
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -239,7 +243,52 @@ class KtorLLMClientTest {
 
         val payload = Json.parseToJsonElement(requestJson).jsonObject
         assertFalse(payload.containsKey("thinking"))
+        assertEquals("deepseek-v4-pro", payload["model"]?.jsonPrimitive?.content)
+        assertEquals(0.9, payload["temperature"]?.jsonPrimitive?.double ?: 0.0, 0.0)
+        assertEquals(0.9, payload["top_p"]?.jsonPrimitive?.double ?: 0.0, 0.0)
+        assertEquals(1024, payload["max_tokens"]?.jsonPrimitive?.int)
+        assertEquals(0.4, payload["presence_penalty"]?.jsonPrimitive?.double ?: 0.0, 0.0)
+        assertEquals(0.4, payload["frequency_penalty"]?.jsonPrimitive?.double ?: 0.0, 0.0)
+        val messages = payload["messages"]!!.jsonArray
+        assertEquals(listOf("system", "user"), messages.map { it.jsonObject["role"]!!.jsonPrimitive.content })
+        assertEquals(listOf("system", "hello"), messages.map { it.jsonObject["content"]!!.jsonPrimitive.content })
         assertEquals("Yunxi replies.", chunks.joinToString("") { it.text.orEmpty() })
         assertEquals(8, chunks.last().promptCacheHitTokens)
+    }
+
+    @Test
+    fun googleStreamingUsesSseAndRejectsMalformedFrames() = runBlocking {
+        var alt: String? = null
+        val mockEngine = MockEngine { request ->
+            alt = request.url.parameters["alt"]
+            respond(
+                content = """
+                    data: {"candidates":[{"content":{"parts":[{"text":"A complete reply."}]},"finishReason":"STOP"}]}
+
+                """.trimIndent(),
+                status = HttpStatusCode.OK,
+                headers = headersOf(HttpHeaders.ContentType, "text/event-stream")
+            )
+        }
+        val http = HttpClient(mockEngine) {
+            install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+        }
+        val client = KtorLLMClient(http)
+        val chunks = client.streamGenerateText(
+            connection = makeMockConnection("google", key = "test-key"),
+            modelId = "gemini-test",
+            systemPrompt = "system",
+            messages = listOf(ChatMessage("user", "hello")),
+            temperature = 0.9,
+            topP = 0.9,
+            maxTokens = 1024
+        ).toList()
+
+        assertEquals("sse", alt)
+        assertEquals("A complete reply.", chunks.joinToString("") { it.text.orEmpty() })
+        assertThrows(IllegalArgumentException::class.java) {
+            client.parseStreamLine("""{"candidates":[]}""", "google")
+        }
+        Unit
     }
 }

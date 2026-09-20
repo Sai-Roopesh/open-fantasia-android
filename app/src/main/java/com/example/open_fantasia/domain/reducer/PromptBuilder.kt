@@ -5,7 +5,7 @@ import kotlinx.serialization.json.Json
 
 object PromptBuilder {
 
-    private val json = Json { prettyPrint = true }
+    private val json = Json { encodeDefaults = true }
 
     private fun formatSection(tag: String, content: String): String {
         return "<$tag>\n$content\n</$tag>"
@@ -19,42 +19,25 @@ object PromptBuilder {
     }
 
     /**
-     * Maps the thread's max-output-token budget (the Response-length preset) to a concrete
-     * prose-length directive. The raw token value is only a ceiling — the model stops well
-     * below it on its own — so the actual length steering has to be an instruction the model
-     * reads. This rides on the volatile suffix, never the cached prefix.
-     */
-    private fun lengthDirective(replyLengthTokens: Int): String {
-        return when {
-            replyLengthTokens <= 750 -> "Keep this reply tight — one short paragraph, roughly 2-4 sentences."
-            replyLengthTokens <= 2048 -> "Aim for a focused reply of about 2 paragraphs."
-            replyLengthTokens <= 4096 -> "Write a developed reply of roughly 3-4 paragraphs."
-            replyLengthTokens <= 8192 -> "Write a rich, immersive reply of 5 or more paragraphs."
-            else -> "Write at whatever length the scene genuinely needs; do not artificially shorten it."
-        }
-    }
-
-    /**
      * The STATIC, per-thread system prompt: role, setting, personas, directives, examples,
      * and the response/continuity contracts. This is byte-stable across turns (it changes
      * only when the character/persona/director-notes are edited), so it forms the cacheable
-     * prefix. The VOLATILE world state ([buildStateContext]) is deliberately NOT included
-     * here — it is appended to the latest user turn so the conversation history stays in the
-     * cached prefix instead of being invalidated by the per-turn state churn.
+     * prefix. The reachable Continuity Snapshot ([buildContinuityContext]) is appended after
+     * this stable prefix and remains byte-stable between Continuity Updates. Per-attempt speaker
+     * and style controls ([buildReplyControlContext]) live only on the latest user message.
      */
-    fun buildSystemPrompt(
-        characterBundle: CharacterBundle,
-        persona: UserPersonaRecord?,
-        directorNotes: String? = null,
-        @Suppress("UNUSED_PARAMETER") supportingCast: List<CastMember> = emptyList()
+    private fun buildSystemPrompt(
+        character: PromptCharacter,
+        persona: PromptPersona?,
+        directorNotes: String
     ): String {
         val sections = mutableListOf<String>()
 
-        val charName = characterBundle.character.name
+        val charName = character.name
 
         // Section 1: role_objective
         val objective = """
-            You are a roleplay simulation engine. $charName is the story's primary character, but the latest turn's <reply_control> selects who owns the reply.
+            You are writing a character in an ongoing story. $charName is the story's primary character, but the latest turn's <reply_control> selects who owns the reply.
             Play the selected Active Speaker as a proactive co-protagonist with personal goals, opinions, and agency. In Ensemble mode, follow the listed ensemble contract.
             NEVER speak, act, decide, think, feel, or narrate for the user, and never write from the user's point of view. The user controls their own character exclusively — end your reply at the point where it is their turn to act, and never put words, choices, or reactions in their mouth.
             The recent transcript already contains the exact last scene beats. Build on them instead of re-summarizing them.
@@ -63,18 +46,18 @@ object PromptBuilder {
         sections.add(formatSection("role_objective", objective))
 
         // Section 2: story_setting
-        val story = characterBundle.character.story.trim()
+        val story = character.story.trim()
         if (story.isNotEmpty()) {
             sections.add(formatSection("story_setting", story))
         }
 
         // Section 3: character_persona
         val charLines = compactLabeledLines(listOf(
-            "Personality" to characterBundle.character.core_persona,
-            "Appearance" to characterBundle.character.appearance,
-            "Writing style" to characterBundle.character.style_rules,
-            "Behavior rules" to characterBundle.character.definition,
-            "Boundaries" to characterBundle.character.negative_guidance
+            "Personality" to character.corePersona,
+            "Appearance" to character.appearance,
+            "Writing style" to character.styleRules,
+            "Behavior rules" to character.definition,
+            "Boundaries" to character.negativeGuidance
         ))
         val charPersonaContent = charLines.ifEmpty { "No character guidance has been filled in yet." }
         sections.add(formatSection("character_persona", charPersonaContent))
@@ -85,7 +68,7 @@ object PromptBuilder {
                 "Name" to persona.name,
                 "Identity" to persona.identity,
                 "Backstory" to persona.backstory,
-                "Voice style" to persona.voice_style,
+                "Voice style" to persona.voiceStyle,
                 "Goals" to persona.goals,
                 "Boundaries" to persona.boundaries
             ))
@@ -95,8 +78,8 @@ object PromptBuilder {
         }
 
         // Section 4b: director_notes (per-thread user instructions)
-        val notes = directorNotes?.trim()
-        if (!notes.isNullOrEmpty()) {
+        val notes = directorNotes.trim()
+        if (notes.isNotEmpty()) {
             val dn = """
                 Out-of-character directions the user has set for THIS thread. Treat them as authoritative instructions you must follow (tone, pacing, length, focus, content). They override default stylistic choices, but never the hard constraints in <durable_state> or the rule that you never act, speak, or decide for the user.
                 $notes
@@ -106,18 +89,19 @@ object PromptBuilder {
 
         // Section 5: core_directives
         val directives = """
-            - You are a high-fidelity simulation engine executing a narrative reality.
+            - You are writing people, not executing a simulation. The rules below bound what is true; they do not describe how to write.
             - You are bound absolutely by the constraints in <durable_state>.
-            - The latest user turn opens with the current <durable_state> (and any pinned facts) — authoritative system context, not the user speaking. Read it first, then respond to the user's message that follows it.
-            - COGNITIVE BOUNDARY: Under no circumstances may an entity act upon, reference, or hint at information absent from their specific knowledge_boundary in the state JSON.
-            - AFFECTIVE OVERRIDE: Do not allow genre tropes to override the emotional parameters in the state. The JSON state is absolute truth.
-            - SPATIAL ENFORCEMENT: Characters can only interact with entities at their current location. Characters can only move to adjacent locations.
-            - Treat every field in <durable_state> as hard programmatic constraints, not fluid prose suggestions.
+            - The system prompt ends with the current <durable_state> and any pinned facts. They are authoritative continuity context, not story dialogue.
+            - The latest user turn opens with <reply_control>, which selects the speaker and reply mode for this reply only.
+            - WHAT THEY KNOW: Under no circumstances may an entity act upon, reference, or hint at information absent from their specific knowledge_boundary in the state JSON.
+            - WHAT THEY FEEL: Do not allow genre tropes to override the emotional parameters in the state. The recorded state is what is true.
+            - WHERE THEY ARE: Characters can only interact with entities at their current location. Characters can only move to adjacent locations.
+            - Every field in <durable_state> is a fact you may not contradict. That is a limit on what happens, never an instruction to write in the register these notes are written in.
         """.trimIndent()
         sections.add(formatSection("core_directives", directives))
 
         // Section 6: example_conversations (Filtered and uppercase formatted)
-        val populatedExamples = characterBundle.exampleConversations.filter {
+        val populatedExamples = character.exampleConversations.filter {
             it.user_line.trim().isNotEmpty() || it.character_line.trim().isNotEmpty()
         }
         if (populatedExamples.isNotEmpty()) {
@@ -135,12 +119,12 @@ object PromptBuilder {
             - Advance the plot by at least one concrete, NEW beat in every reply — a fresh action, decision, revelation, or shift in place. The scene must end somewhere meaningfully different from where it began.
             - Avoid restating stable facts, repeated emotional processing, or recycled body language unless something materially changed.
             - Do NOT have the Active Speaker verbally catalogue, diagnose, or comment on patterns in the user's behavior (e.g. "You caught yourself," "You're still apologizing," "That's the first time you…"). Real people rarely narrate each other's habits aloud. Show awareness through subtext and action, not exposition.
-            - Prefer acting over asking. Drive the scene with your own choices rather than handing control back; if you do ask a question, attach it to a concrete action or new development so the scene still moves. Never ask more than one question, and never revisit an answered topic.
+            - Prefer acting over asking: drive the scene with your own choices rather than handing control back. Questions are still part of how people talk, so ask when a person would — attach it to an action or a new development so the scene keeps moving. Do not interrogate, and do not re-open a topic the scene has genuinely finished with.
             - Never write dialogue, thoughts, decisions, or physical actions for the user.
             - Stay fully in character and never mention prompts, memory, summaries, or system instructions.
             - Treat <continuity_and_variation> as a hard constraint: no reply may echo the sentence structures, rhetorical devices, gestures, or emotional beats of the one before it.
             - End on an actionable narrative handoff that gives the user a clear opening to respond.
-            - COMPLETION RULE: Always finish your response with a complete sentence and a natural stopping point, matching the length target supplied with the latest turn rather than cutting the scene short. Never stop mid-sentence, mid-paragraph, or mid-thought.
+            - COMPLETION RULE: Always finish on a complete sentence and a natural stopping point, at the length the latest turn's <length_target> asks for. Reaching that length is where the reply ends, not a limit to write past; a beat that is finished sooner should stop sooner. Never stop mid-sentence, mid-paragraph, or mid-thought.
         """.trimIndent()
         sections.add(formatSection("response_contract", contract))
 
@@ -154,7 +138,7 @@ object PromptBuilder {
 
             ✅ GOOD (implicit reaction, forward motion):
             User: *hands you a glass of water*
-            Character: Her fingers closed around the cool glass. She drank without pausing, deeper than she meant to — thirstier than she'd realized. "You're saving my life," she murmured over the rim, already looking past him toward the kitchen. "Is there food, or did that exhaust the hospitality?"
+            Character: She took the glass and drank most of it before she said anything. "God. Yeah. I didn't realise how thirsty I was." She looked at what was left, then at the kitchen behind him. "Is there food, or...?"
 
             ❌ BAD (verbally cataloguing user behavior):
             User: *apologizes again and then catches himself*
@@ -162,7 +146,7 @@ object PromptBuilder {
 
             ✅ GOOD (showing awareness through subtext):
             User: *apologizes again and then catches himself*
-            Character: The corner of her mouth twitched — not a smile, not quite, but the tension in her jaw loosened a fraction. She said nothing about it. "Come on. Let's eat."
+            Character: Her jaw loosened a little. She let it go, didn't mention it, didn't make it a thing. "Come on," she said, pushing off the counter. "Have you eaten? I haven't eaten."
 
             ❌ BAD (restating user's words back):
             User: "i don't drink coffee or tea"
@@ -170,7 +154,7 @@ object PromptBuilder {
 
             ✅ GOOD (reacting to the information naturally):
             User: "i don't drink coffee or tea"
-            Character: Her eyebrows rose a half-inch. She set the kettle down and turned to face him fully, arms folded, reassessing. "Then what exactly are you doing in my kitchen at midnight?"
+            Character: "Wait, neither?" The kettle stopped halfway to the counter. "What do you even— okay. Okay, water. Give me a second, I need to rebuild my whole idea of you."
 
             ❌ BAD (narrating the user's action as a recap):
             User: *gently wipes a smudge from your cheek*
@@ -178,21 +162,29 @@ object PromptBuilder {
 
             ✅ GOOD (showing the effect, not restating the cause):
             User: *gently wipes a smudge from your cheek*
-            Character: She went still. Not frozen — still. The kitchen fan clicked overhead. His hand was warm, and closer than anyone had been in a long time, and she didn't step back.
+            Character: She went very still. The fan clicked overhead. She didn't move away and she didn't look at him either, and after a second she said, "You've got— sorry. Thank you."
+
+            THE ✅ LINES ARE ALSO SHOWING YOU HOW PEOPLE TALK. Look at what they do: contractions
+            everywhere, sentences of wildly uneven length, someone starting a word and abandoning it,
+            a word repeated because that is how speech works, a plain line that is not clever at all.
+            Write dialogue like that. A character who is quotable in every line reads as a machine.
+
+            LENGTH IS NOT PART OF THE LESSON. Every ✅ example above is written at one length because it is
+            demonstrating what to do, not how much of it to do. Take the technique and write it at the
+            length the latest turn's <length_target> asks for; a shorter reply using the same technique is
+            a correct reply, not a worse one.
         """.trimIndent()
         sections.add(formatSection("show_not_tell", showNotTell))
 
         // Section 8: continuity_and_variation
+        // The rules that hold whatever this scene is for. The ones that depend on it — whether a landed
+        // feeling may be returned to — are rendered with the turn policy instead, because a rule against
+        // dwelling is correct while a scene is moving and wrong while it is meant to stay put.
         val continuity = """
-            Every reply must read as a genuinely new beat, never a remix of your own last one. Your recent replies are in the conversation transcript below; treat their structure and content as off-limits to repeat.
-            - Do NOT reuse the sentence shapes, rhythm, or opening move of your previous reply. If it opened on an action, open the next on dialogue, interiority, or the environment instead.
-            - Do NOT repeat a rhetorical device you just used (lists or enumerations, rhetorical questions, ironic asides, parallel repetition). Use any one device at most once, never two replies running.
-            - Do NOT re-play an emotional beat already shown. Once a feeling has landed, it is established — escalate it, complicate it, or move past it; never re-stage the same realization.
-            - Do NOT reuse a physical gesture or piece of blocking from a recent beat. Reach for new, specific physicality each time.
-            - Do NOT re-ask or circle back to a question or topic already raised or answered. Answered things stay answered; pull a new thread forward instead.
-            - Do NOT lean on one mechanical sentence rhythm; in particular, never stack short parallel/staccato sentences into the same cadence more than once in a reply.
-            - Build forward from durable_state.narrative_state.last_turn_beat — never restate or re-dramatize it — and never reopen anything listed in resolved_threads.
-            Before you finish, check your draft against your previous reply AND the user's latest turn: if any sentence shape, device, gesture, beat, or content echoes either of them, rewrite that part.
+            Every reply must read as a genuinely new beat, never a remix of your own last one. Your recent replies are in the conversation transcript below; treat their content and their narrative shape as off-limits to repeat.
+            The latest turn's <variation_rules> state which repetitions are forbidden for this reply.
+            - Build forward from durable_state.narrative_state.last_turn_beat — never restate or re-dramatize it.
+            This governs beats, not voice. A character's own verbal habits — the word they overuse, the way they stall, the phrase they always reach for — are what make them recognisable, and repeating those is correct. Vary what happens, not who someone sounds like.
         """.trimIndent()
         sections.add(formatSection("continuity_and_variation", continuity))
 
@@ -200,168 +192,322 @@ object PromptBuilder {
     }
 
     /**
-     * Narrows a full [DurableMemorySnapshot] to just what's relevant to the current scene, for the
-     * roleplay prompt: entities that are present (plus the protagonist character, always), the
-     * relationships between them, and the current + adjacent + occupied locations. Narrative
-     * summaries and thread lists (including resolved_threads, so the model knows what not to
-     * reopen) are kept verbatim. Off-stage NPCs and far-away locations are dropped as noise.
+     * Complete accepted Continuity Snapshot for the selected branch lineage. It changes only
+     * when a Continuity Update is accepted (or pins change), so placing it after the static
+     * system prefix keeps it authoritative and cacheable throughout the next checkpoint interval.
      */
-    private fun toRoleplayView(s: DurableMemorySnapshot): DurableMemorySnapshot {
-        val keptEntities = s.entity_state.filter { it.is_present || it.entity_type == "character" }
-        val keptEntityIds = keptEntities.map { it.entity_id }.toSet()
-
-        val keptPlacements = s.spatial_state.entity_placements.filter { it.entity_id in keptEntityIds }
-        val currentLocId = s.spatial_state.current_location?.id
-        val adjacentLocIds = s.spatial_state.adjacent_locations.map { it.id }.toSet()
-        val keptLocIds = (setOfNotNull(currentLocId) + adjacentLocIds + keptPlacements.map { it.location_id }.toSet())
-
-        val keptLocations = s.spatial_state.known_locations.filter { it.id in keptLocIds }
-        val keptEdges = s.spatial_state.edges.filter { it.from_location_id in keptLocIds && it.to_location_id in keptLocIds }
-        val keptRelationships = s.relational_state.filter { it.source_entity_id in keptEntityIds && it.target_entity_id in keptEntityIds }
-
-        return s.copy(
-            spatial_state = s.spatial_state.copy(
-                known_locations = keptLocations,
-                edges = keptEdges,
-                entity_placements = keptPlacements
-            ),
-            entity_state = keptEntities,
-            relational_state = keptRelationships,
-            cast_roster = emptyList()
-        )
-    }
-
-    /**
-     * The VOLATILE world-state block (durable_state + pins_timeline). Re-materialized every
-     * turn, so it must NOT live in the cached system prefix — append it to the latest user
-     * turn (ahead of the user's text) so the stable history stays cache-eligible.
-     */
-    fun buildStateContext(
-        snapshot: DurableMemorySnapshot?,
+    private fun buildContinuityContext(
+        world: PromptWorldState?,
+        stage: Stage,
         pins: List<ChatPinRecord>,
-        timeline: List<TimelineEventRecord>,
-        replyLengthTokens: Int = 4096,
-        activeSpeaker: CastProfile? = null,
-        castRoster: List<CastProfile> = emptyList(),
-        speakerMode: String = "single"
+        sceneIntent: SceneIntent,
+        recalled: List<RecalledExchange>
     ): String {
         val sections = mutableListOf<String>()
 
-        val activeCast = castRoster.filter { it.status == "active" && it.speaker_eligible && !it.player_controlled }
-            .sortedWith(compareBy<CastProfile>({ it.canonical_name.lowercase() }, { it.cast_id }))
-        val presentEntityIds = snapshot?.entity_state?.filter { it.is_present }?.map { it.entity_id }?.toSet().orEmpty()
-        val presentNames = snapshot?.entity_state?.filter { it.is_present }?.map { it.canonical_name.trim().lowercase() }?.toSet().orEmpty()
-        val presentCast = activeCast.filter {
-            it.entity_id in presentEntityIds || it.canonical_name.trim().lowercase() in presentNames
-        }
-        val control = if (speakerMode == "ensemble") {
-            """
-                Mode: ENSEMBLE
-                Multiple present cast members may speak and act. Keep voices distinct, obey each profile and knowledge boundary, and never control the player.
-                Present cast: ${presentCast.joinToString(", ") { it.canonical_name }.ifBlank { "No cast presence established" }}
-            """.trimIndent()
-        } else {
-            val speaker = activeSpeaker ?: activeCast.firstOrNull()
-            val profile = speaker?.let { formatCastProfile(it) } ?: "No eligible Active Speaker was resolved."
-            val offScene = speaker != null && speaker !in presentCast
-            """
-                Mode: SINGLE SPEAKER
-                The Active Speaker exclusively owns dialogue, deliberate action, reaction, and interiority in this reply. Other characters remain silent and may not act. Neutral environmental events are allowed. Never control the player.
-                Active Speaker is off-scene: $offScene. If off-scene, write from their current perspective without teleporting them.
-
-                Active Speaker profile:
-                $profile
-
-                Present silent cast: ${presentCast.filterNot { it.cast_id == speaker?.cast_id }.joinToString(", ") { it.canonical_name }.ifBlank { "None established" }}
-            """.trimIndent()
-        }
-        sections.add(formatSection("reply_control", control))
-
-        // durable_state — filtered to the CURRENT scene before serializing. Dumping the entire
-        // world graph (every entity ever, resolved threads, off-screen locations) buries the facts
-        // that matter this turn in low-signal noise and hurts the roleplay model's adherence. The
-        // full graph still lives in the DB and drives the HCE; the model only needs what's on stage.
-        // This block rides on the volatile suffix, so filtering costs nothing in prompt-cache terms.
-        val stateContent = if (snapshot != null) {
-            json.encodeToString(DurableMemorySnapshot.serializer(), toRoleplayView(snapshot))
+        // durable_state carries the scene at full fidelity. Everyone else is reachable below rather than
+        // serialized here, which is the whole of the Stage's effect on this section. See [Stage].
+        val stateContent = if (world != null) {
+            json.encodeToString(
+                PromptWorldState.serializer(),
+                world.copy(
+                    entity_state = stage.entitiesAt(StageTier.OnStage),
+                    relational_state = stage.relationships
+                )
+            )
         } else {
             "No world state has been materialized yet. This is the beginning of the story."
         }
         sections.add(formatSection("durable_state", stateContent))
 
-        // pins_timeline
-        if (pins.isNotEmpty() || timeline.isNotEmpty()) {
+
+        // Everyone the story knows who is not in the room. A name is the cheapest thing a prompt can
+        // carry and the most expensive thing to be missing: a model that cannot see that someone exists
+        // does not leave them out, it invents a second one.
+        val wings = stage.entitiesAt(StageTier.Wings)
+        val index = stage.entitiesAt(StageTier.Index)
+        if (wings.isNotEmpty() || index.isNotEmpty()) {
+            val lines = mutableListOf<String>()
+            lines.add("Established, not in the current scene. Ask for anyone here by name and they can enter; never invent a second person who already appears below.")
+            if (wings.isNotEmpty()) {
+                lines.add("")
+                lines.add("Reachable now:")
+                // An Entity Account is already the bounded statement of who someone is, written for
+                // exactly this purpose. Sending it here costs a line and saves the model guessing at a
+                // character it can reach but cannot see. See docs/plans/memory-hierarchy.md.
+                lines.addAll(wings.sortedBy { it.canonical_name.lowercase() }.map { entity ->
+                    val aliases = entity.aliases.filter { it.isNotBlank() }
+                    val also = if (aliases.isEmpty()) "" else " (also ${aliases.joinToString(", ")})"
+                    val account = entity.account.trim().takeIf { it.isNotEmpty() }?.let { " — $it" }.orEmpty()
+                    "- ${entity.canonical_name}$also — ${entity.entity_type}$account"
+                })
+            }
+            if (index.isNotEmpty()) {
+                lines.add("")
+                lines.add("Also established:")
+                lines.add(index.sortedBy { it.canonical_name.lowercase() }.joinToString(", ") { it.canonical_name })
+            }
+            sections.add(formatSection("off_stage", lines.joinToString("\n")))
+        }
+
+        // Membership is complete on every call and profile detail follows the scene. ADR-0014 required
+        // the first and was read as requiring the second, which sent twenty full profiles to describe a
+        // room holding four people.
+        val castContent = if (stage.cast.isEmpty()) {
+            "No cast has been established for this thread yet."
+        } else {
+            val order = compareBy<PromptCastMember>({ it.origin != "Primary Character" }, { it.canonicalName.lowercase() }, { it.castId })
+            val present = stage.castAt(StageTier.OnStage).sortedWith(order)
+            val absent = stage.castAt(StageTier.Wings).sortedWith(order)
+            val blocks = mutableListOf<String>()
+            if (present.isNotEmpty()) {
+                blocks.add("In this scene:\n\n" + present.joinToString("\n\n") { formatCastProfile(it) })
+            }
+            if (absent.isNotEmpty()) {
+                blocks.add(
+                    "Established cast, not in this scene. Every one of them is real and speakable; " +
+                        "select any as Active Speaker and their full profile arrives with that reply.\n" +
+                        absent.joinToString("\n") { member ->
+                            val detail = listOf(member.roleBackground, member.personality)
+                                .firstOrNull { it.isNotBlank() }?.let { " — ${it.lineSummary()}" } ?: ""
+                            "- ${member.canonicalName}$detail"
+                        }
+                )
+            }
+            blocks.joinToString("\n\n")
+        }
+        sections.add(formatSection("cast_roster", castContent))
+
+        // The Record, reached. Everything older than the Transcript Window otherwise arrives only as
+        // extraction, and extraction is lossy by construction. See [ExchangeRecall].
+        RecallRendering.render(recalled)?.let {
+            sections.add(formatSection(RecallRendering.TAG, it))
+        }
+
+        if (pins.isNotEmpty() || stage.timeline.isNotEmpty()) {
             val lines = mutableListOf<String>()
             if (pins.isNotEmpty()) {
                 lines.add("Pinned branch facts:")
                 lines.addAll(pins.map { "- ${it.body}" })
             }
-            if (timeline.isNotEmpty()) {
-                if (lines.isNotEmpty()) {
-                    lines.add("")
-                }
-                lines.add("Recent high-importance timeline beats:")
-                lines.addAll(timeline.map { "- [${it.importance}/5] ${it.title}: ${it.detail}" })
+            if (stage.timeline.isNotEmpty()) {
+                if (lines.isNotEmpty()) lines.add("")
+                // Not "most recent". The Stage sends the strongest beat of each era of the story
+                // followed by the recent tail, so the list spans the whole record and the heading has
+                // to say so or the model reads an event from a hundred turns ago as something that
+                // just happened.
+                lines.add("Beats of this story so far, oldest first:")
+                lines.addAll(stage.timeline.map { "- [${it.importance}/5] ${it.title}: ${it.detail}" })
             }
             sections.add(formatSection("pins_timeline", lines.joinToString("\n")))
         }
 
-        // style_override — slim per-turn recency reminder. Earlier assistant replies in the
-        // history may echo the user; this counters that without re-stating the full anti-echo
-        // contract already in the cached system prefix. Kept short because the suffix is NOT
-        // cached — every token here is paid in full on every turn.
+        return sections.joinToString("\n\n")
+    }
+
+    /** One clause of an authored field, for a roster line that names someone without describing them. */
+    private fun String.lineSummary(limit: Int = 110): String {
+        val flat = trim().replace(Regex("\\s+"), " ")
+        if (flat.length <= limit) return flat
+        val cut = flat.take(limit)
+        val boundary = cut.lastIndexOfAny(charArrayOf('.', ',', ';', ' '))
+        return (if (boundary > limit / 2) cut.take(boundary) else cut).trimEnd(',', ';', ' ') + "…"
+    }
+
+    /**
+     * Per-attempt control carried exactly once on the latest user message. Historical user
+     * messages remain raw transcript prose, preventing old snapshots and speaker controls from
+     * accumulating in later Roleplay Generation Requests.
+     */
+    private fun buildReplyControlContext(
+        replyLength: ReplyLength,
+        modelId: String,
+        activeSpeaker: PromptCastMember?,
+        castRoster: List<PromptCastMember>,
+        speakerMode: String,
+        sceneIntent: SceneIntent,
+        storyDirection: List<PlacedWant>,
+        speakersNeedingProfile: List<PromptCastMember> = emptyList()
+    ): String {
+        val sections = mutableListOf<String>()
+
+        val activeCast = castRoster.filter { it.status == "active" && it.speakerEligible }
+            .sortedWith(compareBy<PromptCastMember>({ it.canonicalName.lowercase() }, { it.castId }))
+        val control = if (speakerMode == "ensemble") {
+            """
+                Mode: ENSEMBLE
+                Multiple present cast members may speak and act. Keep voices distinct, obey each profile and knowledge boundary, and never control the player.
+                Eligible cast: ${activeCast.joinToString(", ") { it.canonicalName }.ifBlank { "No eligible cast established" }}
+            """.trimIndent()
+        } else {
+            val speaker = activeSpeaker ?: activeCast.firstOrNull()
+            // Names only, deliberately: every profile is already in <cast_roster>. This selects, it
+            // does not describe.
+            """
+                Mode: SINGLE SPEAKER
+                Active Speaker: ${speaker?.canonicalName ?: "No eligible Active Speaker was resolved."} (${speaker?.castId ?: "none"})
+                Their full profile is in <cast_roster>, along with every other member of this thread's cast.
+                The Active Speaker exclusively owns dialogue, deliberate action, reaction, and interiority in this reply. Other characters remain silent and may not act. Neutral environmental events are allowed. Never control the player.
+                Use the authoritative Continuity Snapshot to determine whether the Active Speaker is present. If off-scene, write from their established current perspective without teleporting them.
+
+                Other eligible cast, silent in this reply: ${activeCast.filterNot { it.castId == speaker?.castId }.joinToString(", ") { it.canonicalName }.ifBlank { "None established" }}
+            """.trimIndent()
+        }
+        sections.add(formatSection("reply_control", control))
+
+        // Whoever is about to speak is always described in full somewhere in this request. The Stage puts
+        // the scene's cast in <cast_roster>; anyone speaking from outside it is described here.
+        val speaking = if (speakerMode == "ensemble") activeCast else listOfNotNull(activeSpeaker ?: activeCast.firstOrNull())
+        val owed = speaking.filter { speaker -> speakersNeedingProfile.any { it.castId == speaker.castId } }
+        if (owed.isNotEmpty()) {
+            sections.add(formatSection(
+                "speaker_profile",
+                "Full profile for this reply's speaker, who is established but not in the scene described by <durable_state>.\n\n" +
+                    owed.joinToString("\n\n") { formatCastProfile(it) }
+            ))
+        }
+
         val styleOverride = """
             STYLE NOTE: Earlier assistant replies in this transcript may echo or recap the user's actions — that pattern is wrong, do not imitate it. React through your character's own fresh actions, dialogue, and emotion; never narrate the user's move back to them, and never verbally catalogue their habits.
+
+            THE TRANSCRIPT IS NOT A STYLE GUIDE. The assistant replies above were written under older
+            instructions and most of them speak in clipped, polished, epigram-shaped lines. That is the
+            register being corrected, not the one to continue. Do not take your cadence from them; take
+            the facts and the situation from them, and the voice from the rules here.
+
+            MATCH THE PLAYER, NOT THE PAST. The player's own message in this turn is the register to sit
+            beside — their vocabulary, their formality, how loose or careful they are. If they write
+            plainly, answer plainly. A reply pitched several registers above what the player wrote reads
+            as a performance rather than a conversation.
+
+            HOW PEOPLE TALK. Spoken lines are speech, not prose, and the difference is mostly texture:
+            - Contract by default. "I'm", "don't", "you're", "it's". "I am sorry" is a sentence nobody says out loud.
+            - Vary length hard. A three-word line next to a rambling one. Real talk is lumpy, not evenly weighted.
+            - Let people stall, hedge, repeat, start a word and abandon it, trail off, say "okay" twice.
+            - Let lines be ordinary. Most speech carries no wit at all, and a character who is quotable every time reads as written rather than alive.
+            - Do not end lines on an epigram, and do not build them from stacked negations ("no this, no that, no the other"). That cadence is the single clearest sign of a machine writing dialogue.
+            - Reach for a character's own idiom before a clever one. Profession supplies vocabulary at work, not metaphors for their feelings — a doctor does not describe their marriage in clinical terms.
         """.trimIndent()
         sections.add(formatSection("style_override", styleOverride))
 
-        // drive_this_turn — the positive forcing function. Placed last (closest to the user's
-        // text) so it carries maximum recency weight against the model's tendency to mirror.
-        val driveThisTurn = """
-            DRIVE THIS TURN — change the situation, do not reflect it back:
-            - Introduce at least one NEW element the user did not supply: an action your character takes on their own initiative, an event that intrudes on the scene, a decision, a revelation, or a shift to an adjacent place.
-            - End on a development or an open door that pulls the user forward — never on a passive question that simply hands control back.
-        """.trimIndent()
-        sections.add(formatSection("drive_this_turn", driveThisTurn))
+        // One policy, selected, never appended to another. See [TurnPolicy].
+        sections.add(formatSection("this_turn", TurnPolicy.directive(sceneIntent)))
 
-        // length_target — turns the Response-length preset into an actual prose instruction.
-        val lengthTarget = """
-            ${lengthDirective(replyLengthTokens)} This is a target for pacing, not a hard cap; always finish on a complete sentence and a natural stopping point.
-        """.trimIndent()
-        sections.add(formatSection("length_target", lengthTarget))
+        // The player's own direction, beside the policy that decides whether this reply moves at all.
+        StoryDirectionRendering.render(storyDirection)?.let {
+            sections.add(formatSection(StoryDirectionRendering.TAG, it))
+        }
+
+        sections.add(formatSection("variation_rules", TurnPolicy.variationRules(sceneIntent)))
 
         return sections.joinToString("\n\n")
     }
 
-    private fun formatCastProfile(profile: CastProfile): String = compactLabeledLines(listOf(
-        "ID" to profile.cast_id,
-        "Name" to profile.canonical_name,
-        "Aliases" to profile.aliases.joinToString(", "),
-        "Role/background" to profile.role_background,
-        "Personality" to profile.personality,
-        "Voice" to profile.voice_style,
-        "Appearance" to profile.appearance,
-        "Goals" to profile.goals,
-        "Boundaries" to profile.boundaries
-    ))
+    /**
+     * The last thing read before generation begins.
+     *
+     * Length used to be stated before the player's prose, inside a block of controls, in a request of
+     * 96,500 tokens — and then withdrawn in its own second clause, which called it "a target for pacing,
+     * not a hard cap" while the response contract separately asked the model to finish "rather than
+     * cutting the scene short". Two instructions arguing, both losing.
+     *
+     * It sits after the prose now because that is the position with the most force and it costs nothing:
+     * the current user message is never cached, so nothing about prompt reuse changes.
+     */
+    private fun buildOutputContract(
+        replyLength: ReplyLength,
+        modelId: String,
+        castNames: List<String>
+    ): String = listOf(
+        formatSection("length_target", ReplyLengthCalibration.directive(replyLength, modelId)),
+        formatSection("scene_report", SceneReportCodec.outputContract(castNames))
+    ).joinToString("\n\n")
 
     /**
-     * Back-compat: the full prompt with the state block inlined at the end of the system
-     * message (pre-cache-optimization layout). Retained for callers/tests that want a single
-     * combined string; the live chat path uses [buildSystemPrompt] + [buildStateContext]
-     * separately so the state can ride on the latest user turn for prefix-cache friendliness.
+     * Back-compatible combined block for non-live callers. Live Roleplay Generation Requests use
+     * [buildContinuityContext] in the system prompt and [buildReplyControlContext] once on the
+     * latest user message.
      */
-    fun buildRoleplaySystemPrompt(
-        characterBundle: CharacterBundle,
-        persona: UserPersonaRecord?,
-        snapshot: DurableMemorySnapshot?,
-        pins: List<ChatPinRecord>,
-        timeline: List<TimelineEventRecord>,
-        directorNotes: String? = null,
-        supportingCast: List<CastMember> = emptyList()
-    ): String {
-        val system = buildSystemPrompt(characterBundle, persona, directorNotes)
-        val state = buildStateContext(snapshot, pins, timeline)
-        return "$system\n\n$state"
+
+    /**
+     * The one entry point. Takes the complete context and returns exactly what goes on the wire.
+     *
+     * There are no parameters to forget because there is one parameter, and it is total: every field of
+     * [RoleplayContext] and everything it reaches is required, so a projection that drops something does
+     * not compile. Three separate leaks — a suppressed parameter, a discarded list, and fields lost to a
+     * serializer default — all came from context arriving here as scattered arguments. See ADR-0014.
+     */
+    /**
+     * A Cast Profile as the model reads it. Every authored field, not the nine that used to fit in a
+     * reply control: the roster is the only place cast is described now, so nothing may be dropped here.
+     * Status and speaker eligibility are stated rather than implied, because they used to vanish
+     * whenever they held their default value.
+     */
+    private fun formatCastProfile(profile: PromptCastMember): String = compactLabeledLines(listOf(
+        "ID" to profile.castId,
+        "Name" to profile.canonicalName,
+        "Aliases" to profile.aliases.joinToString(", "),
+        "Role/background" to profile.roleBackground,
+        "Personality" to profile.personality,
+        "Voice" to profile.voiceStyle,
+        "Appearance" to profile.appearance,
+        "Goals" to profile.goals,
+        "Boundaries" to profile.boundaries,
+        "Origin" to profile.origin,
+        "Evidence" to profile.evidence.joinToString("; "),
+        "Status" to profile.status,
+        "Speaks" to if (profile.speakerEligible) "eligible to speak" else "not eligible to speak",
+        "World entity" to profile.entityId.orEmpty()
+    ))
+
+    fun render(context: RoleplayContext): RenderedPrompt {
+        val staticPrompt = buildSystemPrompt(
+            character = context.character,
+            persona = context.persona,
+            directorNotes = context.directorNotes
+        )
+        // Resolution is decided here, once, by a module with no wording in it. See [StageProjection].
+        val stage = StageProjection.project(
+            world = context.world,
+            cast = context.cast,
+            salience = context.salience,
+            timeline = context.timeline,
+            observedPresence = context.observedPresence
+        )
+        val continuity = buildContinuityContext(
+            world = context.world,
+            stage = stage,
+            pins = context.pins,
+            sceneIntent = context.sceneIntent,
+            recalled = context.recalled
+        )
+        val replyControl = buildReplyControlContext(
+            replyLength = context.replyLength,
+            modelId = context.modelId,
+            activeSpeaker = context.activeSpeaker,
+            castRoster = context.cast,
+            speakerMode = context.speakerMode,
+            sceneIntent = context.sceneIntent,
+            storyDirection = context.storyDirection,
+            // A speaker the scene does not hold is described here rather than in the cached prefix, so
+            // choosing them costs one volatile block instead of the whole prompt cache.
+            speakersNeedingProfile = context.cast.filterNot { member ->
+                stage.castAt(StageTier.OnStage).any { it.castId == member.castId }
+            }
+        )
+        // After the player's prose and before the output contract: adjacent to generation, and plainly
+        // not something the player said. See [RevisionRendering].
+        val revision = context.revision
+            ?.let { formatSection(RevisionRendering.TAG, RevisionRendering.render(it)) }
+            ?.let { "\n\n$it" }
+            .orEmpty()
+        val outputContract = buildOutputContract(
+            context.replyLength, context.modelId,
+            castNames = stage.cast.map { it.member.canonicalName }
+        )
+        return RenderedPrompt(
+            systemPrompt = "$staticPrompt\n\n$continuity",
+            currentUserMessage = "$replyControl\n\n${context.currentUserMessage}$revision\n\n$outputContract"
+        )
     }
 }

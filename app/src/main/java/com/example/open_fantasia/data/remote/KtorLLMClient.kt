@@ -374,6 +374,7 @@ class KtorLLMClient(
                 }
                 if (connection.provider == "google") {
                     parameter("key", apiKey)
+                    parameter("alt", "sse")
                 } else {
                     headersMap.forEach { (k, v) -> headers { append(k, v) } }
                 }
@@ -404,14 +405,15 @@ class KtorLLMClient(
         }
     }.flowOn(Dispatchers.IO)
 
-    private fun parseStreamLine(line: String, provider: String): StreamChunk? {
-        return try {
-            when (provider) {
-                "google" -> {
-                    // Google chunks can sometimes be wrapped in array braces or start with comma
-                    val cleanLine = line.trim().trimStart(',', '[').trimEnd(']')
-                    if (cleanLine.isEmpty()) return null
-                    val jsonObject = json.parseToJsonElement(cleanLine).jsonObject
+    internal fun parseStreamLine(line: String, provider: String): StreamChunk? {
+        val trimmed = line.trim()
+        if (trimmed.isEmpty() || trimmed.startsWith(":") || trimmed.startsWith("event:")) return null
+        return when (provider) {
+            "google" -> {
+                    require(trimmed.startsWith("data:")) { "Unexpected Google streaming frame" }
+                    val data = trimmed.substringAfter("data:").trim()
+                    if (data == "[DONE]") return null
+                    val jsonObject = json.parseToJsonElement(data).jsonObject
                     val candidates = jsonObject["candidates"]?.jsonArray
                     val parts = candidates?.firstOrNull()?.jsonObject?.get("content")?.jsonObject?.get("parts")?.jsonArray
                     val text = parts?.firstOrNull()?.jsonObject?.get("text")?.jsonPrimitive?.content
@@ -419,15 +421,15 @@ class KtorLLMClient(
                     StreamChunk(text = text, finishReason = finishReason)
                 }
                 "ollama" -> {
-                    val jsonObject = json.parseToJsonElement(line).jsonObject
+                    val jsonObject = json.parseToJsonElement(trimmed).jsonObject
                     val text = jsonObject["message"]?.jsonObject?.get("content")?.jsonPrimitive?.content
                     val done = jsonObject["done"]?.jsonPrimitive?.booleanOrNull ?: false
                     StreamChunk(text = text, finishReason = if (done) "stop" else null)
                 }
                 else -> { // OpenAI shape: groq, mistral, deepseek, openrouter
                     // Some gateways emit "data:{...}" with no space after the colon.
-                    if (!line.startsWith("data:")) return null
-                    val data = line.substringAfter("data:").trim()
+                    if (!trimmed.startsWith("data:")) return null
+                    val data = trimmed.substringAfter("data:").trim()
                     if (data == "[DONE]") return null
                     val jsonObject = json.parseToJsonElement(data).jsonObject
                     val choices = jsonObject["choices"]?.jsonArray
@@ -449,9 +451,6 @@ class KtorLLMClient(
                         promptCacheMissTokens = usage?.get("prompt_cache_miss_tokens")?.jsonPrimitive?.intOrNull
                     )
                 }
-            }
-        } catch (e: Exception) {
-            null // ignore malformed stream lines silently
         }
     }
 

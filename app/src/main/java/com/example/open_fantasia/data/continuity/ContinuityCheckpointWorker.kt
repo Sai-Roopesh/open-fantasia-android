@@ -19,8 +19,14 @@ class ContinuityCheckpointWorker(
         val chatDao = container.database.chatDao()
         val characterDao = container.database.characterDao()
         val personaDao = container.database.personaDao()
+        container.continuityCheckpointCoordinator.flushAcknowledgements()
         val pending = chatDao.getPendingCheckpoints()
-        if (pending.isEmpty()) return Result.success()
+        if (pending.isEmpty()) {
+            if (container.continuityCheckpointCoordinator.hasPendingAcknowledgements()) {
+                ContinuityCheckpointScheduler.enqueueNextPoll(applicationContext)
+            }
+            return Result.success()
+        }
 
         pending.forEach { request ->
             val thread = chatDao.getThread(request.thread_id) ?: return@forEach
@@ -30,26 +36,27 @@ class ContinuityCheckpointWorker(
                 request,
                 character,
                 persona,
-                chatDao.getActivePins(request.thread_id, request.branch_id),
                 thread.director_notes
             )
         }
         val remaining = chatDao.getPendingCheckpoints()
-        return if (remaining.any { it.status != "failed" }) Result.retry() else Result.success()
+        if (remaining.any { it.status != "failed" } ||
+            container.continuityCheckpointCoordinator.hasPendingAcknowledgements()
+        ) {
+            ContinuityCheckpointScheduler.enqueueNextPoll(applicationContext)
+        }
+        return Result.success()
     }
 }
 
 object ContinuityCheckpointScheduler {
     private const val UNIQUE_WORK = "continuity-checkpoint-sync"
 
-    fun enqueue(context: Context) {
-        val work = OneTimeWorkRequestBuilder<ContinuityCheckpointWorker>()
-            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 10, TimeUnit.SECONDS)
-            .build()
-        WorkManager.getInstance(context).enqueueUniqueWork(
-            UNIQUE_WORK,
-            ExistingWorkPolicy.KEEP,
-            work
-        )
-    }
+    /** Polls now — a checkpoint was just created, retried, or its thread reopened. */
+    fun enqueue(context: Context) =
+        DurableJobPoll.enqueue<ContinuityCheckpointWorker>(context, UNIQUE_WORK)
+
+    /** Polls again in ten seconds because a checkpoint is still outstanding on the Mac Host. */
+    fun enqueueNextPoll(context: Context) =
+        DurableJobPoll.enqueue<ContinuityCheckpointWorker>(context, UNIQUE_WORK, DurableJobPoll.INTERVAL_SECONDS)
 }

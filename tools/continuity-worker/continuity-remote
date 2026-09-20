@@ -9,6 +9,21 @@ plist="$HOME/Library/LaunchAgents/$label.plist"
 node_bin="$(command -v node)"
 export TAILSCALE_BE_CLI=1
 
+claude_bin=""
+for candidate in "$HOME/.local/bin/claude" /opt/homebrew/bin/claude; do
+  if [ -x "$candidate" ]; then claude_bin="$candidate"; break; fi
+done
+
+run_claude_subscription() {
+  if [ -z "$claude_bin" ]; then
+    echo "Claude Code is not installed. Install the official Claude Code CLI first." >&2
+    exit 1
+  fi
+  env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN -u ANTHROPIC_BASE_URL \
+    -u CLAUDE_CODE_USE_BEDROCK -u CLAUDE_CODE_USE_VERTEX -u CLAUDE_CODE_USE_FOUNDRY \
+    "$claude_bin" "$@"
+}
+
 tailscale_bin=""
 for candidate in /usr/local/bin/tailscale /Applications/Tailscale.app/Contents/MacOS/Tailscale; do
   if [ -x "$candidate" ]; then tailscale_bin="$candidate"; break; fi
@@ -39,7 +54,7 @@ case "$command" in
     if ! launchctl print "$service" >/dev/null 2>&1; then launchctl bootstrap "$domain" "$plist"; fi
     launchctl kickstart -k "$service"
     "$tailscale_bin" serve --bg 47831
-    echo "Open Fantasia Continuity Host: on ($(endpoint))"
+    echo "Open Fantasia Mac Host: on ($(endpoint))"
     ;;
   off)
     require_tailscale
@@ -58,12 +73,35 @@ case "$command" in
     fi
     "$tailscale_bin" serve off 2>/dev/null || true
     "$tailscale_bin" down
-    echo "Open Fantasia Continuity Host: off"
+    echo "Open Fantasia Mac Host: off"
     ;;
   status)
-    if launchctl print "$service" >/dev/null 2>&1; then echo "Continuity Host: on (pid $(host_pid))"; else echo "Continuity Host: off"; fi
+    if launchctl print "$service" >/dev/null 2>&1; then echo "Mac Host: on (pid $(host_pid))"; else echo "Mac Host: off"; fi
     if [ -n "$tailscale_bin" ]; then "$tailscale_bin" status --self 2>/dev/null || true; else echo "Tailscale: not installed"; fi
     "$node_bin" "$here/host-cli.mjs" status
+    ;;
+  claude-login)
+    run_claude_subscription auth login
+    ;;
+  claude-status)
+    run_claude_subscription auth status --text
+    ;;
+  claude-token)
+    # Mint a long-lived subscription token and store it, so Claude stops expiring every few days.
+    tmp="$(mktemp)"
+    trap 'rm -f "$tmp"' EXIT
+    echo "Setting up a long-lived Claude token. Complete the sign-in if prompted…" >&2
+    run_claude_subscription setup-token | tee "$tmp"
+    token="$(grep -oE 'sk-ant-[A-Za-z0-9_-]+' "$tmp" | tail -1)"
+    if [ -z "$token" ]; then
+      echo "Could not read a token from the output. Copy it, then run: fantasia-host set-claude-token" >&2
+      exit 1
+    fi
+    printf '%s' "$token" | "$node_bin" "$here/host-cli.mjs" set-claude-token
+    ;;
+  set-claude-token)
+    echo "Paste the token from 'claude setup-token', then press Ctrl-D:" >&2
+    "$node_bin" "$here/host-cli.mjs" set-claude-token
     ;;
   pair)
     require_tailscale
@@ -76,7 +114,7 @@ case "$command" in
     "$node_bin" "$here/host-cli.mjs" revoke "${2:-}"
     ;;
   *)
-    echo "Usage: continuity-remote {on|off [--force]|status|pair|devices|revoke ID}" >&2
+    echo "Usage: fantasia-host {on|off [--force]|status|claude-login|claude-status|claude-token|set-claude-token|pair|devices|revoke ID}" >&2
     exit 2
     ;;
 esac

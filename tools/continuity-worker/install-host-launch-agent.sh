@@ -24,4 +24,4 @@ cat > "$plist" <<EOF
 EOF
 chmod 600 "$plist"
 "$node_bin" "$here/host-cli.mjs" init
-echo "Installed $label (disabled until continuity-remote on)."
+echo "Installed Open Fantasia Mac Host (disabled until fantasia-host on)."

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.open_fantasia.data.local.dao.CharacterDao
 import com.example.open_fantasia.data.local.dao.ChatDao
+import com.example.open_fantasia.domain.model.ReplyLength
 import com.example.open_fantasia.data.local.dao.ConnectionDao
 import com.example.open_fantasia.data.local.dao.PersonaDao
 import com.example.open_fantasia.data.local.entity.CharacterEntity
@@ -15,6 +16,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -65,7 +67,9 @@ class DashboardViewModel(
         initialValue = emptyList()
     )
 
-    val connections: StateFlow<List<ConnectionEntity>> = connectionDao.getAllConnectionsFlow().stateIn(
+    val connections: StateFlow<List<ConnectionEntity>> = connectionDao.getAllConnectionsFlow()
+        .map { connections -> connections.filter { it.enabled } }
+        .stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = emptyList()
@@ -179,13 +183,20 @@ class DashboardViewModel(
         connectionId: String,
         modelId: String,
         title: String,
-        brainConnectionId: String? = null,
-        brainModelId: String? = null,
         onCreated: (String) -> Unit
     ) {
         viewModelScope.launch {
-            val connection = connectionDao.getConnection(connectionId)
-            val finalModelId = modelId.ifEmpty { connection?.default_model_id ?: "gemini-2.5-flash" }
+            val connection = requireNotNull(connectionDao.getConnection(connectionId)) {
+                "Select an existing Roleplay Model connection"
+            }
+            require(connection.enabled) { "The selected Roleplay Model connection is disabled" }
+            val finalModelId = modelId.trim()
+            require(finalModelId.isNotBlank()) { "Select a Roleplay Model" }
+            if (connection.provider == com.example.open_fantasia.data.continuity.RoleplayProtocol.PROVIDER) {
+                require(com.example.open_fantasia.data.continuity.RoleplayProtocol.isSupportedModel(finalModelId)) {
+                    "Select a supported Mac-hosted Roleplay Model"
+                }
+            }
             // Apply the user's default persona to new threads (was hardcoded null, ignoring it).
             val defaultPersonaId = personaDao.getDefaultPersona(FIXED_USER_ID)?.id
             val newThread = chatDao.createThreadWithBranch(
@@ -194,9 +205,9 @@ class DashboardViewModel(
                 connectionId = connectionId,
                 modelId = finalModelId,
                 personaId = defaultPersonaId,
-                brainConnectionId = brainConnectionId,
-                brainModelId = brainModelId,
-                maxOutputTokens = 4096,
+                brainConnectionId = null,
+                brainModelId = null,
+                replyLength = ReplyLength.Default.id,
                 title = title.trim().ifEmpty { "New Conversation" }
             )
             onCreated(newThread.id)

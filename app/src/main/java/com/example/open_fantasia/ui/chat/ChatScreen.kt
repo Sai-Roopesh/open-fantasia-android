@@ -21,6 +21,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -42,6 +43,7 @@ import androidx.compose.animation.core.*
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import com.example.open_fantasia.theme.Inter
 import com.example.open_fantasia.theme.Sora
@@ -53,15 +55,44 @@ import com.example.open_fantasia.data.local.entity.ThreadEntity
 import com.example.open_fantasia.data.local.entity.TurnEntity
 import com.example.open_fantasia.data.local.entity.PinEntity
 import com.example.open_fantasia.data.local.entity.TimelineEntity
+import com.example.open_fantasia.data.continuity.ContinuityEngineAvailability
+import com.example.open_fantasia.data.continuity.ContinuityEngineOption
+import com.example.open_fantasia.data.continuity.ContinuityHostPreferences
 import com.example.open_fantasia.data.continuity.ContinuityHostState
+import com.example.open_fantasia.data.continuity.RoleplayProtocol
+import com.example.open_fantasia.domain.model.CAST_FORMAT
+import com.example.open_fantasia.domain.model.CAST_VERSION
+import com.example.open_fantasia.domain.model.CastDocument
 import com.example.open_fantasia.domain.model.CastProfile
 import com.example.open_fantasia.domain.model.DurableMemorySnapshot
+import com.example.open_fantasia.domain.portability.PortableJsonCodec
+import com.example.open_fantasia.ui.components.PortableKind
+import com.example.open_fantasia.ui.components.PromptPackPanel
 import com.example.open_fantasia.domain.model.RelationalState
-import com.example.open_fantasia.domain.selector.filterBrainConnections
-import com.example.open_fantasia.ui.components.BrainModelDropdown
+import com.example.open_fantasia.domain.model.ReplyLength
+import com.example.open_fantasia.domain.model.SceneIntent
+import com.example.open_fantasia.domain.model.StoryDirection
+import com.example.open_fantasia.domain.model.StoryWant
 import com.example.open_fantasia.ui.components.MarkdownText
 import kotlin.math.roundToInt
 import java.io.File
+
+internal fun macRoleplayStatusText(
+    modelId: String,
+    hostState: ContinuityHostState
+): String? {
+    if (!RoleplayProtocol.isSupportedModel(modelId)) return null
+    return when (hostState) {
+        ContinuityHostState.Unpaired -> "Mac Host is not paired. Open Settings to pair it."
+        ContinuityHostState.Checking -> "Checking the Mac Host…"
+        is ContinuityHostState.Unavailable ->
+            "Waiting for Mac Host — turn on Tailscale on this phone and the Mac."
+        is ContinuityHostState.Incompatible -> "Mac Host and app versions are incompatible."
+        // Named from the catalogue rather than branched on, so a model added there is announced
+        // correctly here without a second place to remember.
+        is ContinuityHostState.Available -> "${RoleplayProtocol.displayName(modelId)} is writing on your Mac…"
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -107,9 +138,13 @@ fun ChatWorkspace(
     val clipboardManager = LocalClipboardManager.current
     val context = LocalContext.current
 
+    val continuityEngines by viewModel.continuityEngines.collectAsState()
+
     var showBranchSelector by remember { mutableStateOf(false) }
+    var showCheckpointEngineSwitch by remember { mutableStateOf(false) }
     var showThreadSettings by remember { mutableStateOf(false) }
     var showSpeakerPicker by remember { mutableStateOf(false) }
+    var showStoryDirection by remember { mutableStateOf(false) }
     var showCastManager by remember { mutableStateOf(false) }
     var showBranchCreateDialog by remember { mutableStateOf(false) }
     var branchForkTurnId by remember { mutableStateOf<String?>(null) }
@@ -133,6 +168,19 @@ fun ChatWorkspace(
             Toast.makeText(context, it, Toast.LENGTH_LONG).show()
             viewModel.consumeScanEvent()
         }
+    }
+
+    // Why a Cast Seed was refused — a duplicate name, or a missing one. Without this the editor looked
+    // like it had saved and the thread failed its next Continuity Update instead.
+    val castEvent by viewModel.castEvent.collectAsState()
+    LaunchedEffect(castEvent) {
+        castEvent?.let {
+            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+            viewModel.consumeCastEvent()
+        }
+    }
+    LaunchedEffect(state.activeBranch.id, state.activeBranch.active_speaker_id, state.activeBranch.speaker_mode, state.castRoster) {
+        viewModel.ensureActiveSpeakerPortrait()
     }
 
     ModalNavigationDrawer(
@@ -161,7 +209,37 @@ fun ChatWorkspace(
             }
         }
     ) {
-        Scaffold(
+        val castPortrait = if (state.activeBranch.speaker_mode == "single") {
+            state.castPortraits.firstOrNull {
+                it.cast_id == state.activeBranch.active_speaker_id && it.status == "ready"
+            }?.portrait_path
+        } else null
+        val backgroundPath = if (state.thread.portrait_background_enabled) {
+            castPortrait?.takeIf { File(it).exists() }
+                ?: state.character.portrait_path?.takeIf { File(it).exists() }
+        } else null
+
+        Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0F0F13))) {
+            backgroundPath?.let { path ->
+                AsyncImage(
+                    model = File(path),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize().blur(2.dp)
+                )
+                Box(
+                    Modifier.fillMaxSize().background(
+                        Brush.verticalGradient(
+                            listOf(
+                                Color.Black.copy(alpha = (state.thread.portrait_background_dimness + 0.10f).coerceAtMost(0.9f)),
+                                Color.Black.copy(alpha = state.thread.portrait_background_dimness),
+                                Color.Black.copy(alpha = (state.thread.portrait_background_dimness + 0.16f).coerceAtMost(0.92f))
+                            )
+                        )
+                    )
+                )
+            }
+            Scaffold(
             topBar = {
                 TopAppBar(
                     title = {
@@ -234,10 +312,10 @@ fun ChatWorkspace(
                             )
                         }
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF131317))
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xC7131317))
                 )
             },
-            containerColor = Color(0xFF0F0F13)
+            containerColor = Color.Transparent
         ) { paddingValues ->
             Box(
                 modifier = Modifier
@@ -246,9 +324,36 @@ fun ChatWorkspace(
             ) {
                 Column(modifier = Modifier.fillMaxSize()) {
                     val listState = rememberLazyListState()
-                    LaunchedEffect(state.turns.size, state.isGenerating) {
+
+                    // Whether the reader is parked on the newest exchange. Following new prose is only
+                    // ever right for someone already at the end; yanking back a reader who scrolled up
+                    // to re-read is the same defect wearing better manners.
+                    val atNewestExchange by remember {
+                        derivedStateOf {
+                            val info = listState.layoutInfo
+                            val last = info.visibleItemsInfo.lastOrNull()
+                            last == null || last.index >= info.totalItemsCount - 1
+                        }
+                    }
+
+                    // Opening a thread lands on the newest exchange. That is a starting position, not a
+                    // journey: animateScrollToItem held the list's scroll mutex for the whole of its
+                    // travel, which on a thread of long replies was measured at 7.6 seconds, and every
+                    // drag made while it ran was swallowed. scrollToItem arrives in one frame and lets
+                    // go, so the list is never unreachable.
+                    LaunchedEffect(state.activeBranch.id, state.turns.isNotEmpty()) {
                         if (state.turns.isNotEmpty()) {
-                            listState.animateScrollToItem(state.turns.size - 1)
+                            listState.scrollToItem(state.turns.lastIndex)
+                        }
+                    }
+
+                    // Committed prose and the typing indicator both extend the list, and the indicator is
+                    // an item the transcript does not have — hence the layout's own count rather than the
+                    // exchange count.
+                    LaunchedEffect(state.turns.size, state.isGenerating) {
+                        val itemCount = listState.layoutInfo.totalItemsCount
+                        if (itemCount > 0 && atNewestExchange) {
+                            listState.scrollToItem(itemCount - 1)
                         }
                     }
 
@@ -316,7 +421,7 @@ fun ChatWorkspace(
                                 }
                             }
                         } else {
-                            val headTurnId = state.turns.lastOrNull { it.generation_status == "committed" }?.id
+                            val headTurnId = state.turns.lastOrNull()?.id
                             items(state.turns, key = { it.id }) { turn ->
                                 val isHead = turn.id == headTurnId
                                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -350,7 +455,10 @@ fun ChatWorkspace(
                                                 branchForkTurnId = turn.id
                                                 showBranchCreateDialog = true
                                             },
-                                            onRewind = { viewModel.rewindToTurn(turn.id) },
+                                            onRewind = {
+                                                if (turn.generation_status == "committed") viewModel.rewindToTurn(turn.id)
+                                                else viewModel.discardPendingReply(turn.id)
+                                            },
                                             onPinToggle = { pinTurnTarget = turn },
                                             onRate = { rating -> viewModel.setFeedbackRating(turn.id, rating) },
                                             onCopy = { value ->
@@ -362,6 +470,7 @@ fun ChatWorkspace(
                                                 editingTextVal = turn.user_input_text
                                             },
                                             onSwitchModel = { showThreadSettings = true },
+                                            rewindEnabled = canRewind(state),
                                             focusMode = focusMode
                                         )
                                     }
@@ -375,7 +484,22 @@ fun ChatWorkspace(
                                     state.castRoster.firstOrNull { it.cast_id == state.activeBranch.active_speaker_id }?.canonical_name
                                         ?: state.character.name
                                 if (state.generatingText.isEmpty()) {
-                                    TypingIndicator(characterName = liveSpeaker)
+                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        TypingIndicator(characterName = liveSpeaker)
+                                        macRoleplayStatusText(
+                                            modelId = state.thread.model_id,
+                                            hostState = state.continuityHostState
+                                        )?.let { status ->
+                                            Text(
+                                                text = status,
+                                                color = if (state.continuityHostState is ContinuityHostState.Unavailable)
+                                                    Color(0xFFFFC857) else Color(0xFFB8B8C6),
+                                                fontFamily = Inter,
+                                                fontSize = 12.sp,
+                                                modifier = Modifier.padding(horizontal = 20.dp)
+                                            )
+                                        }
+                                    }
                                 } else {
                                     StreamingAssistantRow(
                                         characterName = liveSpeaker,
@@ -397,18 +521,24 @@ fun ChatWorkspace(
                                 Text(
                                     when (checkpoint.status) {
                                         "pending_export" -> if (state.continuityHostState is ContinuityHostState.Available)
-                                            "Preparing the seven-exchange continuity package…"
-                                        else "Waiting for your Mac Continuity Host. Turn it on, then this will continue automatically."
-                                        "waiting_for_worker", "waiting_for_host" -> "Waiting for your Mac Continuity Host…"
-                                        "processing" -> "Codex is rebuilding continuity…"
+                                            "Preparing the fifteen-exchange continuity package…"
+                                        else "Waiting for your Mac Host. Turn it on, then this will continue automatically."
+                                        "waiting_for_worker", "waiting_for_host" -> "Waiting for your Mac Host…"
+                                        "processing" ->
+                                            "${ContinuityHostPreferences.continuityEngineLabel(checkpoint.engine_id)} is rebuilding continuity…"
                                         "validating" -> "Validating and saving the complete continuity snapshot…"
-                                        "failed" -> "Update failed: ${checkpoint.failure_detail ?: "Codex response was invalid"}. The chat remains locked until you retry."
+                                        "failed" -> "Update failed: ${checkpoint.failure_detail ?: "The response was invalid"}. The chat remains locked until you retry."
                                         else -> "Validating the complete continuity snapshot…"
                                     },
                                     color = Color(0xFFFFC2D5), fontFamily = Inter, fontSize = 13.sp
                                 )
                                 if (checkpoint.status == "failed") {
-                                    TextButton(onClick = { viewModel.retryCheckpoint() }) { Text("Retry", color = Color(0xFFFF7AA8)) }
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        TextButton(onClick = { viewModel.retryCheckpoint() }) { Text("Retry", color = Color(0xFFFF7AA8)) }
+                                        TextButton(onClick = { showCheckpointEngineSwitch = true }) {
+                                            Text("Switch engine", color = Color(0xFFFFC857))
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -421,7 +551,7 @@ fun ChatWorkspace(
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
                         ) {
                             Text(
-                                "The next reply reaches a continuity checkpoint. Turn on your Mac Continuity Host first to avoid waiting.",
+                                "The next reply reaches a continuity checkpoint. Turn on your Mac Host first to avoid waiting.",
                                 color = Color(0xFFFFE2A8),
                                 fontFamily = Inter,
                                 fontSize = 13.sp,
@@ -431,11 +561,14 @@ fun ChatWorkspace(
                     }
                     SpeakerControlRow(
                         state = state,
-                        onClick = { showSpeakerPicker = true }
+                        onClick = { showSpeakerPicker = true },
+                        onSceneIntent = { viewModel.selectSceneIntent(it) },
+                        onStoryDirection = { showStoryDirection = true }
                     )
                     ChatInputBar(
                         isGenerating = state.isGenerating,
-                        isBlocked = state.checkpoint != null,
+                        isBlocked = state.checkpoint != null || state.activeBranch.generation_locked ||
+                            state.needsContinuityEngineChoice,
                         onSend = { text -> viewModel.sendUserMessage(text) }
                     )
                 }
@@ -456,9 +589,12 @@ fun ChatWorkspace(
                                 items(state.branches) { branch ->
                                     Card(
                                         onClick = {
-                                            viewModel.switchBranch(branch.id)
+                                            if (branch.id != state.activeBranch.id) {
+                                                viewModel.switchBranch(branch.id)
+                                            }
                                             showBranchSelector = false
                                         },
+                                        enabled = branch.id != state.activeBranch.id,
                                         colors = CardDefaults.cardColors(
                                             containerColor = if (branch.id == state.activeBranch.id) Color(0xFF1F1F23) else Color(0xFF121217)
                                         ),
@@ -481,14 +617,72 @@ fun ChatWorkspace(
                     )
                 }
 
+                if (state.needsContinuityEngineChoice) {
+                    AlertDialog(
+                        onDismissRequest = viewModel::dismissContinuityEngineChoice,
+                        title = { Text("Choose continuity engine", color = Color.White, fontFamily = Sora) },
+                        text = {
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Text(
+                                    "This choice is frozen into the next checkpoint. You can change the default later in Settings.",
+                                    color = Color(0xFFCFC2D7), fontFamily = Inter, fontSize = 13.sp
+                                )
+                                ContinuityHostPreferences.CONTINUITY_ENGINES.forEachIndexed { index, engine ->
+                                    ContinuityEngineChoice(
+                                        engine = engine,
+                                        engines = continuityEngines,
+                                        prominent = index == 0,
+                                        onSelect = { viewModel.selectContinuityEngine(engine.id) }
+                                    )
+                                }
+                            }
+                        },
+                        confirmButton = {},
+                        dismissButton = { TextButton(onClick = viewModel::dismissContinuityEngineChoice) { Text("Cancel") } },
+                        containerColor = Color(0xFF16161C)
+                    )
+                }
+
+                if (showCheckpointEngineSwitch) {
+                    val replacements = viewModel.replacementEnginesForCheckpoint()
+                    AlertDialog(
+                        onDismissRequest = { showCheckpointEngineSwitch = false },
+                        title = { Text("Switch continuity engine", color = Color.White, fontFamily = Sora) },
+                        text = {
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Text(
+                                    "The failed update is replaced by a new one on the engine you pick. Your default is unchanged.",
+                                    color = Color(0xFFCFC2D7), fontFamily = Inter, fontSize = 13.sp
+                                )
+                                replacements.forEach { engine ->
+                                    ContinuityEngineChoice(
+                                        engine = engine,
+                                        engines = continuityEngines,
+                                        prominent = false,
+                                        onSelect = {
+                                            viewModel.replaceCheckpointEngine(engine.id)
+                                            showCheckpointEngineSwitch = false
+                                        }
+                                    )
+                                }
+                            }
+                        },
+                        confirmButton = {},
+                        dismissButton = {
+                            TextButton(onClick = { showCheckpointEngineSwitch = false }) { Text("Cancel") }
+                        },
+                        containerColor = Color(0xFF16161C)
+                    )
+                }
+
                 if (showThreadSettings) {
                     ThreadSettingsDialog(
                         thread = state.thread,
                         connections = state.connections,
                         personas = state.personas,
                         onDismiss = { showThreadSettings = false },
-                        onSave = { connId, modelId, maxTokens, personaId, brainConnId, brainModelId, directorNotes ->
-                            viewModel.updateThreadSettings(connId, modelId, maxTokens, personaId, brainConnId, brainModelId, directorNotes)
+                        onSave = { connId, modelId, length, personaId, directorNotes, backgroundEnabled, dimness ->
+                            viewModel.updateThreadSettings(connId, modelId, length, personaId, directorNotes, backgroundEnabled, dimness)
                             showThreadSettings = false
                         }
                     )
@@ -505,11 +699,24 @@ fun ChatWorkspace(
                     )
                 }
 
+                if (showStoryDirection) {
+                    StoryDirectionDialog(
+                        direction = StoryDirection.decode(state.thread.story_direction),
+                        onAdd = viewModel::addStoryWant,
+                        onToggle = viewModel::toggleStoryWant,
+                        onRemove = viewModel::removeStoryWant,
+                        onDismiss = { showStoryDirection = false }
+                    )
+                }
+
                 if (showCastManager) {
                     CastManagerDialog(
                         roster = state.castRoster,
+                        threadId = state.thread.id,
                         onSave = viewModel::saveCastProfile,
                         onAdd = viewModel::addManualCast,
+                        onDelete = viewModel::deleteCastSeed,
+                        newSeed = viewModel::newCastSeed,
                         onDismiss = { showCastManager = false }
                     )
                 }
@@ -718,11 +925,17 @@ fun ChatWorkspace(
                         },
                         text = {
                             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Text("Steer this response (optional):", color = Color.Gray, fontSize = 13.sp, fontFamily = Inter)
+                                // Named as a change to this reply rather than a brief for a new one. The
+                                // model is shown the rejected prose, so "she shouldn't leave" has something
+                                // to point at — and everything unmentioned is kept.
+                                Text(
+                                    "What should change about this reply? Everything you don't mention stays the same.",
+                                    color = Color.Gray, fontSize = 13.sp, fontFamily = Inter
+                                )
                                 OutlinedTextField(
                                     value = steeringText,
                                     onValueChange = { steeringText = it },
-                                    placeholder = { Text("e.g. Focus more on Vex's reaction...") },
+                                    placeholder = { Text("e.g. she shouldn't leave the room") },
                                     colors = OutlinedTextFieldDefaults.colors(
                                         focusedBorderColor = Color(0xFF8A2BE2),
                                         unfocusedBorderColor = Color.Gray,
@@ -736,6 +949,39 @@ fun ChatWorkspace(
                     )
                 }
             }
+        }
+        }
+    }
+}
+
+/**
+ * One Continuity Engine offered for selection, with the host's reason when it cannot be picked.
+ *
+ * The choice is frozen into a checkpoint the moment one is created, and the Mac Host refuses a
+ * checkpoint naming an engine it cannot run. Showing the reason here is what keeps that refusal
+ * from arriving fifteen exchanges later.
+ */
+@Composable
+private fun ContinuityEngineChoice(
+    engine: ContinuityEngineOption,
+    engines: ContinuityEngineAvailability,
+    prominent: Boolean,
+    onSelect: () -> Unit
+) {
+    val blockedReason = engines.unavailableReason(engine.id)
+    val selectable = engines.isSelectable(engine.id)
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        if (prominent) {
+            Button(onClick = onSelect, enabled = selectable, modifier = Modifier.fillMaxWidth()) {
+                Text(engine.label)
+            }
+        } else {
+            OutlinedButton(onClick = onSelect, enabled = selectable, modifier = Modifier.fillMaxWidth()) {
+                Text(engine.label)
+            }
+        }
+        blockedReason?.let {
+            Text(it, color = Color(0xFFFFC857), fontFamily = Inter, fontSize = 11.sp)
         }
     }
 }
@@ -754,7 +1000,7 @@ private fun MessageActionPill(
         modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
             .border(1.dp, Color(0xFF2C2C35), RoundedCornerShape(8.dp))
-            .background(Color(0xFF17171C))
+            .background(Color(0xC717171C))
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -814,7 +1060,7 @@ fun UserMessageRow(
                 modifier = Modifier
                     .widthIn(max = 300.dp)
                     .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomEnd = 4.dp, bottomStart = 16.dp))
-                    .background(Color(0xFF1F1F23))
+                    .background(Color(0xAD1F1F23))
                     .padding(horizontal = 16.dp, vertical = 12.dp)
             ) {
                 MessageLabelHeader("You", Color(0xFF00FBFB))
@@ -853,6 +1099,7 @@ fun AssistantMessageRow(
     onCopy: (String) -> Unit,
     onEditDraft: () -> Unit,
     onSwitchModel: () -> Unit,
+    rewindEnabled: Boolean = true,
     focusMode: Boolean = false
 ) {
     val committed = turn.generation_status == "committed"
@@ -875,6 +1122,13 @@ fun AssistantMessageRow(
             if (isNotEmpty()) append(" · ")
             append("cache $cacheHit")
         }
+        if (turn.assistant_output_payload.orEmpty().contains("\"usage_unavailable\":true")) {
+            if (isNotEmpty()) append(" · ")
+            append("usage unavailable")
+            val elapsed = Regex("\"elapsed_millis\":(\\d+)")
+                .find(turn.assistant_output_payload.orEmpty())?.groupValues?.getOrNull(1)?.toLongOrNull()
+            if (elapsed != null) append(" · ${elapsed / 1000}s")
+        }
     }
 
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -882,7 +1136,7 @@ fun AssistantMessageRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(14.dp))
-                .background(Color(0xFF1B1B1F))
+                .background(Color(0x9E1B1B1F))
                 .padding(horizontal = 18.dp, vertical = 14.dp)
         ) {
             MessageLabelHeader(characterName, Color(0xFFDCB8FF), meta.ifEmpty { null }, modifier = Modifier.fillMaxWidth())
@@ -951,7 +1205,7 @@ fun AssistantMessageRow(
                     MessageActionPill("Edit reply", Icons.Default.Edit, onEditReply)
                     MessageActionPill("Regenerate", Icons.Default.Autorenew, onRegenerate)
                 }
-                MessageActionPill("Rewind", Icons.Default.Restore, onRewind)
+                MessageActionPill("Rewind", Icons.Default.Restore, onRewind, enabled = rewindEnabled)
                 MessageActionPill("Branch", Icons.Default.AccountTree, onBranch)
                 MessageActionPill("Copy", Icons.Default.ContentCopy, { onCopy(outputText) })
                 MessageActionPill(
@@ -966,7 +1220,7 @@ fun AssistantMessageRow(
                     horizontalArrangement = Arrangement.spacedBy(3.dp)
                 ) {
                     (1..4).forEach { i ->
-                        val selected = turn.feedback_rating != null && turn.feedback_rating!! >= i
+                        val selected = (turn.feedback_rating ?: 0) >= i
                         Icon(
                             imageVector = Icons.Default.Star,
                             contentDescription = "Rate $i",
@@ -982,7 +1236,7 @@ fun AssistantMessageRow(
                 MessageActionPill("Retry", Icons.Default.Autorenew, onRegenerate)
                 MessageActionPill("Edit draft", Icons.Default.Edit, onEditDraft)
                 MessageActionPill("Switch model", Icons.Default.Tune, onSwitchModel)
-                MessageActionPill("Rewind", Icons.Default.Restore, onRewind)
+                MessageActionPill("Discard", Icons.Default.Delete, onRewind)
             }
         }
     }
@@ -995,7 +1249,7 @@ fun TypingIndicator(characterName: String) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .background(Color(0xFF1B1B1F))
+            .background(Color(0x9E1B1B1F))
             .padding(horizontal = 18.dp, vertical = 14.dp)
     ) {
         MessageLabelHeader(characterName, Color(0xFFDCB8FF), "is writing", modifier = Modifier.fillMaxWidth())
@@ -1045,7 +1299,7 @@ fun StreamingAssistantRow(characterName: String, text: String) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .background(Color(0xFF1B1B1F))
+            .background(Color(0x9E1B1B1F))
             .padding(horizontal = 18.dp, vertical = 14.dp)
     ) {
         MessageLabelHeader(characterName, Color(0xFFDCB8FF))
@@ -1069,7 +1323,9 @@ fun StreamingAssistantRow(characterName: String, text: String) {
 @Composable
 fun SpeakerControlRow(
     state: ChatUiState.Success,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onSceneIntent: (SceneIntent) -> Unit = {},
+    onStoryDirection: () -> Unit = {}
 ) {
     val selected = state.castRoster.firstOrNull { it.cast_id == state.activeBranch.active_speaker_id }
     val label = if (state.activeBranch.speaker_mode == "ensemble") "Ensemble" else selected?.canonical_name ?: state.character.name
@@ -1077,14 +1333,25 @@ fun SpeakerControlRow(
     val presentNames = state.currentSnapshot?.entity_state?.filter { it.is_present }?.map { it.canonical_name.lowercase() }?.toSet().orEmpty()
     val offScene = state.activeBranch.speaker_mode != "ensemble" && selected != null &&
         selected.entity_id !in presentIds && selected.canonical_name.lowercase() !in presentNames
-    Row(
+    // Wraps rather than competing for one line. One label here is a story's choice rather than the
+    // app's — "Reply as Dr. Priyanka Oberoi" is more than half a phone — and every arrangement that
+    // keeps these on a single row makes something illegible: SpaceBetween squeezed the last chip until
+    // it could not be read, scrolling hid it behind a drag nobody would guess at, and letting the
+    // speaker yield truncated a person's name to two letters. A second line costs 30dp and costs
+    // nothing else.
+    FlowRow(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         AssistChip(
             onClick = onClick,
-            label = { Text("Reply as $label", fontFamily = SpaceGrotesk) },
+            label = {
+                Text(
+                    "Reply as $label", fontFamily = SpaceGrotesk,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis
+                )
+            },
             leadingIcon = {
                 Box(
                     Modifier.size(24.dp).clip(CircleShape).background(Color(0xFF8A2BE2)),
@@ -1099,6 +1366,219 @@ fun SpeakerControlRow(
             border = BorderStroke(1.dp, Color(0xFF4C4354))
         )
         if (offScene) Text("Off-scene", color = Color(0xFFFFC857), fontSize = 11.sp, fontFamily = SpaceGrotesk)
+        SceneIntentChip(
+            current = SceneIntent.from(state.activeBranch.scene_intent),
+            onSelect = onSceneIntent
+        )
+        StoryDirectionChip(
+            openCount = StoryDirection.decode(state.thread.story_direction).open.size,
+            onClick = onStoryDirection
+        )
+    }
+}
+
+/**
+ * What this scene is for, chosen where the Active Speaker is chosen, because both are decisions about
+ * the same scene. The selection replaces the reply's turn policy outright rather than adding a request
+ * beside it, so picking "Stay here" does not ask the model to resist an instruction to escalate — it
+ * means no such instruction is sent.
+ */
+@Composable
+private fun SceneIntentChip(current: SceneIntent, onSelect: (SceneIntent) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        AssistChip(
+            onClick = { open = true },
+            label = { Text(current.label, fontFamily = SpaceGrotesk, fontSize = 12.sp, maxLines = 1) },
+            trailingIcon = { Icon(Icons.Default.ArrowDropDown, null, Modifier.size(18.dp)) },
+            colors = AssistChipDefaults.assistChipColors(
+                containerColor = Color(0xFF1B1B1F),
+                labelColor = Color(0xFF00FBFB),
+                trailingIconContentColor = Color(0xFF00FBFB)
+            ),
+            border = BorderStroke(1.dp, Color(0xFF2F4E52))
+        )
+        DropdownMenu(
+            expanded = open,
+            onDismissRequest = { open = false },
+            modifier = Modifier.background(Color(0xFF1B1B1F))
+        ) {
+            SceneIntent.entries.forEach { intent ->
+                DropdownMenuItem(
+                    onClick = { onSelect(intent); open = false },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                            Text(
+                                intent.label,
+                                color = if (intent == current) Color(0xFF00FBFB) else Color.White,
+                                fontFamily = SpaceGrotesk,
+                                fontWeight = if (intent == current) FontWeight.Bold else FontWeight.Normal
+                            )
+                            Text(intent.hint, color = Color(0xFF8A8590), fontSize = 11.sp, fontFamily = Inter)
+                        }
+                    },
+                    trailingIcon = {
+                        if (intent == current) Icon(Icons.Default.Check, null, tint = Color(0xFF00FBFB), modifier = Modifier.size(16.dp))
+                    }
+                )
+            }
+        }
+    }
+}
+
+/**
+ * What the player is still waiting to see happen. Sits beside the Scene Intent because both are the
+ * player directing: one decides this reply, the other decides where the story is heading.
+ *
+ * It used to be labelled "Direction", greyed out until something was in it, which is a chip that both
+ * fails to say what it opens and reads as disabled at the one moment it has the most to offer — an
+ * empty list is exactly when a person has not yet discovered they can steer. It asks the question
+ * instead, and an empty one is dimmer than a full one without being the grey the rest of this screen
+ * uses for unavailable.
+ */
+@Composable
+private fun StoryDirectionChip(openCount: Int, onClick: () -> Unit) {
+    val accent = if (openCount == 0) Color(0xFFB89BD0) else Color(0xFFDCB8FF)
+    AssistChip(
+        onClick = onClick,
+        label = {
+            Text(
+                if (openCount == 0) "Where next?" else "Where next · $openCount",
+                fontFamily = SpaceGrotesk, fontSize = 12.sp, maxLines = 1
+            )
+        },
+        leadingIcon = { Icon(Icons.Default.Flag, null, Modifier.size(16.dp)) },
+        colors = AssistChipDefaults.assistChipColors(
+            containerColor = if (openCount == 0) Color(0xFF1B1B1F) else Color(0xFF251C2E),
+            labelColor = accent,
+            leadingIconContentColor = accent
+        ),
+        border = BorderStroke(1.dp, if (openCount == 0) Color(0xFF4C4354) else Color(0xFF6E4E88))
+    )
+}
+
+/**
+ * Where the player says the story should go.
+ *
+ * A list rather than a paragraph, because a want that has landed should be able to leave. The engine's
+ * version of this accumulated thirty-six objectives precisely because nothing could ever tick one off.
+ *
+ * The list scrolls and the composer below it does not. Both were in one unscrolled Column before, so a
+ * player with more than a few wants lost the text field off the bottom of the dialog and could no
+ * longer add one — the panel silently became read-only at exactly the point it was being used most.
+ *
+ * Reached wants are shown under their own heading rather than struck through in place. They are not a
+ * dimmer kind of want, they are the story's past, and that is what the model is now told about them.
+ */
+@Composable
+fun StoryDirectionDialog(
+    direction: StoryDirection,
+    onAdd: (String) -> Unit,
+    onToggle: (String) -> Unit,
+    onRemove: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var draft by remember { mutableStateOf("") }
+    val ahead = direction.open
+    val reached = direction.reached
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF16161C),
+        title = { Text("Where this story is going", color = Color.White, fontFamily = Sora) },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Done", color = Color(0xFFDCB8FF)) } },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    "What you want to happen next. The story works toward these across scenes and will " +
+                        "not force one into a reply where the moment is wrong. Tick one off when it " +
+                        "happens and it becomes part of the story's past instead.",
+                    color = Color(0xFF8A8590), fontSize = 12.sp, fontFamily = Inter
+                )
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                    // A ceiling rather than a weight. A weight needs a bounded parent, and the dialog's
+                    // text slot does not promise one on every Material version; a fixed maximum bounds
+                    // the list the same way and cannot throw at measure time.
+                    modifier = Modifier.heightIn(max = 340.dp)
+                ) {
+                    if (ahead.isEmpty() && reached.isEmpty()) {
+                        item {
+                            Text(
+                                "Nothing yet. Add something you want to see and the story will work " +
+                                    "toward it.",
+                                color = Color(0xFF6E6A74), fontSize = 12.sp, fontFamily = Inter,
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            )
+                        }
+                    }
+                    if (ahead.isNotEmpty()) {
+                        item {
+                            Text(
+                                "STILL AHEAD", color = Color(0xFFDCB8FF), fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold, fontFamily = SpaceGrotesk
+                            )
+                        }
+                        items(ahead, key = { it.id }) { want ->
+                            StoryWantRow(want, onToggle = { onToggle(want.id) }, onRemove = { onRemove(want.id) })
+                        }
+                    }
+                    if (reached.isNotEmpty()) {
+                        item {
+                            Text(
+                                "ALREADY HAPPENED", color = Color(0xFF00FBFB), fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold, fontFamily = SpaceGrotesk,
+                                modifier = Modifier.padding(top = 10.dp)
+                            )
+                        }
+                        items(reached, key = { it.id }) { want ->
+                            StoryWantRow(want, onToggle = { onToggle(want.id) }, onRemove = { onRemove(want.id) })
+                        }
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = draft,
+                        onValueChange = { draft = it.take(300) },
+                        placeholder = { Text("e.g. they finally get to the cottage", fontSize = 13.sp) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFF8A2BE2), unfocusedBorderColor = Color(0xFF4C4354),
+                            focusedTextColor = Color.White, unfocusedTextColor = Color.White
+                        ),
+                        modifier = Modifier.weight(1f)
+                    )
+                    Button(
+                        onClick = { onAdd(draft); draft = "" },
+                        enabled = draft.isNotBlank(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8A2BE2))
+                    ) { Text("Add") }
+                }
+            }
+        }
+    )
+}
+
+@Composable
+private fun StoryWantRow(want: StoryWant, onToggle: () -> Unit, onRemove: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Checkbox(
+            checked = want.done,
+            onCheckedChange = { onToggle() },
+            colors = CheckboxDefaults.colors(checkedColor = Color(0xFF8A2BE2))
+        )
+        Text(
+            want.body,
+            color = if (want.done) Color(0xFF6E6A74) else Color.White,
+            fontSize = 13.sp, fontFamily = Inter,
+            textDecoration = if (want.done) TextDecoration.LineThrough else null,
+            modifier = Modifier.weight(1f)
+        )
+        IconButton(onClick = onRemove, modifier = Modifier.size(28.dp)) {
+            Icon(Icons.Default.Close, "Remove", tint = Color(0xFF6E6A74), modifier = Modifier.size(16.dp))
+        }
     }
 }
 
@@ -1186,8 +1666,8 @@ fun ChatInputBar(
                 unfocusedBorderColor = Color(0xFF4C4354),
                 focusedTextColor = Color.White,
                 unfocusedTextColor = Color.White,
-                focusedContainerColor = Color(0xFF1F1F23),
-                unfocusedContainerColor = Color(0xFF1F1F23),
+                focusedContainerColor = Color(0xC71F1F23),
+                unfocusedContainerColor = Color(0xC71F1F23),
                 cursorColor = Color(0xFF8A2BE2)
             ),
             modifier = Modifier.weight(1f)
@@ -1234,23 +1714,27 @@ fun ChatInputBar(
 @Composable
 fun CastManagerDialog(
     roster: List<CastProfile>,
+    threadId: String,
     onSave: (CastProfile) -> Unit,
-    onAdd: (String, String) -> Unit,
+    onAdd: (CastProfile) -> Unit,
+    onDelete: (CastProfile) -> Unit,
+    newSeed: () -> CastProfile,
     onDismiss: () -> Unit
 ) {
     var editing by remember { mutableStateOf<CastProfile?>(null) }
-    var adding by remember { mutableStateOf(false) }
-    if (editing != null || adding) {
+    var draftSeed by remember { mutableStateOf<CastProfile?>(null) }
+    var confirmingDelete by remember { mutableStateOf<String?>(null) }
+    val target = editing ?: draftSeed
+    if (target != null) {
         CastProfileEditor(
-            initial = editing,
-            onSave = { profile, name, role, personality, voice, appearance, goals, boundaries ->
-                if (profile == null) onAdd(name, role) else onSave(profile.copy(
-                    canonical_name = name, role_background = role, personality = personality,
-                    voice_style = voice, appearance = appearance, goals = goals, boundaries = boundaries
-                ))
-                editing = null; adding = false
+            initial = target,
+            isNew = editing == null,
+            threadId = threadId,
+            onSave = { profile ->
+                if (editing == null) onAdd(profile) else onSave(profile)
+                editing = null; draftSeed = null
             },
-            onDismiss = { editing = null; adding = false }
+            onDismiss = { editing = null; draftSeed = null }
         )
         return
     }
@@ -1259,7 +1743,7 @@ fun CastManagerDialog(
         title = { Text("Cast manager", color = Color.White, fontFamily = Sora) },
         containerColor = Color(0xFF16161C),
         confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } },
-        dismissButton = { TextButton(onClick = { adding = true }) { Text("Add character", color = Color(0xFF00FBFB)) } },
+        dismissButton = { TextButton(onClick = { draftSeed = newSeed() }) { Text("Add character", color = Color(0xFF00FBFB)) } },
         text = {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.heightIn(max = 560.dp)) {
                 items(roster, key = { it.cast_id }) { member ->
@@ -1279,9 +1763,23 @@ fun CastManagerDialog(
                                 if (member.provenance != "primary") TextButton(onClick = { editing = member }) { Text("Edit") }
                             }
                             if (member.role_background.isNotBlank()) Text(member.role_background, color = Color(0xFFCFC2D7), fontSize = 12.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
-                            if (member.provenance != "primary") TextButton(onClick = {
-                                onSave(member.copy(status = if (member.status == "archived") "active" else "archived"))
-                            }) { Text(if (member.status == "archived") "Restore" else "Archive", color = Color(0xFFFFC857), fontSize = 11.sp) }
+                            if (member.provenance != "primary") Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                TextButton(onClick = {
+                                    onSave(member.copy(status = if (member.status == "archived") "active" else "archived"))
+                                }) { Text(if (member.status == "archived") "Restore" else "Archive", color = Color(0xFFFFC857), fontSize = 11.sp) }
+                                // Archiving keeps a Cast Member in the roster with `status: archived`, so it
+                                // cannot resolve a duplicate name — only removal can. Two taps, because a Cast
+                                // Seed is hand-authored and this cannot be undone.
+                                if (member.provenance == "manual_seed") TextButton(onClick = {
+                                    if (confirmingDelete == member.cast_id) { onDelete(member); confirmingDelete = null }
+                                    else confirmingDelete = member.cast_id
+                                }) {
+                                    Text(
+                                        if (confirmingDelete == member.cast_id) "Tap again to delete" else "Delete",
+                                        color = Color(0xFFFF6B81), fontSize = 11.sp
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -1293,40 +1791,74 @@ fun CastManagerDialog(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CastProfileEditor(
-    initial: CastProfile?,
-    onSave: (CastProfile?, String, String, String, String, String, String, String) -> Unit,
+    initial: CastProfile,
+    isNew: Boolean,
+    threadId: String,
+    onSave: (CastProfile) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var name by remember(initial?.cast_id) { mutableStateOf(initial?.canonical_name.orEmpty()) }
-    var role by remember(initial?.cast_id) { mutableStateOf(initial?.role_background.orEmpty()) }
-    var personality by remember(initial?.cast_id) { mutableStateOf(initial?.personality.orEmpty()) }
-    var voice by remember(initial?.cast_id) { mutableStateOf(initial?.voice_style.orEmpty()) }
-    var appearance by remember(initial?.cast_id) { mutableStateOf(initial?.appearance.orEmpty()) }
-    var goals by remember(initial?.cast_id) { mutableStateOf(initial?.goals.orEmpty()) }
-    var boundaries by remember(initial?.cast_id) { mutableStateOf(initial?.boundaries.orEmpty()) }
+    // One CastProfile draft rather than seven loose strings: a pasted Cast Seed can then fill
+    // fields the form does not render (aliases) without them being dropped on save.
+    var draft by remember(initial.cast_id) { mutableStateOf(initial) }
     val colors = OutlinedTextFieldDefaults.colors(
         focusedTextColor = Color.White, unfocusedTextColor = Color.White,
         focusedBorderColor = Color(0xFF8A2BE2), unfocusedBorderColor = Color(0xFF4C4354)
     )
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (initial == null) "Add character" else "Edit ${initial.canonical_name}", color = Color.White) },
+        title = { Text(if (isNew) "Add character" else "Edit ${initial.canonical_name}", color = Color.White) },
         containerColor = Color(0xFF16161C),
-        confirmButton = { Button(onClick = { onSave(initial, name.trim(), role.trim(), personality.trim(), voice.trim(), appearance.trim(), goals.trim(), boundaries.trim()) }, enabled = name.isNotBlank()) { Text("Save") } },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onSave(
+                        draft.copy(
+                            canonical_name = draft.canonical_name.trim(),
+                            role_background = draft.role_background.trim(),
+                            personality = draft.personality.trim(),
+                            voice_style = draft.voice_style.trim(),
+                            appearance = draft.appearance.trim(),
+                            goals = draft.goals.trim(),
+                            boundaries = draft.boundaries.trim()
+                        )
+                    )
+                },
+                enabled = draft.canonical_name.isNotBlank()
+            ) { Text("Save") }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(
-                    "Name" to (name to { v: String -> name = v }),
-                    "Role / background" to (role to { v: String -> role = v }),
-                    "Personality" to (personality to { v: String -> personality = v }),
-                    "Voice style" to (voice to { v: String -> voice = v }),
-                    "Appearance" to (appearance to { v: String -> appearance = v }),
-                    "Goals" to (goals to { v: String -> goals = v }),
-                    "Boundaries" to (boundaries to { v: String -> boundaries = v })
-                ).forEach { (label, valueAndSetter) ->
+                PromptPackPanel(
+                    kind = PortableKind.CAST,
+                    accentColor = Color(0xFF00FBFB),
+                    currentJson = { PortableJsonCodec.serializeCast(draft) },
+                    onImportCast = { data ->
+                        draft = PortableJsonCodec.castDocumentToProfile(
+                            CastDocument(CAST_FORMAT, CAST_VERSION, data),
+                            existing = draft,
+                            threadId = threadId
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (draft.aliases.isNotEmpty()) {
+                    Text(
+                        "Aliases: ${draft.aliases.joinToString(", ")}",
+                        color = Color(0xFF9B95A1), fontSize = 11.sp
+                    )
+                }
+                listOf<Triple<String, String, (String) -> Unit>>(
+                    Triple("Name", draft.canonical_name) { v -> draft = draft.copy(canonical_name = v) },
+                    Triple("Role / background", draft.role_background) { v -> draft = draft.copy(role_background = v) },
+                    Triple("Personality", draft.personality) { v -> draft = draft.copy(personality = v) },
+                    Triple("Voice style", draft.voice_style) { v -> draft = draft.copy(voice_style = v) },
+                    Triple("Appearance", draft.appearance) { v -> draft = draft.copy(appearance = v) },
+                    Triple("Goals", draft.goals) { v -> draft = draft.copy(goals = v) },
+                    Triple("Boundaries", draft.boundaries) { v -> draft = draft.copy(boundaries = v) }
+                ).forEach { (label, value, setter) ->
                     OutlinedTextField(
-                        value = valueAndSetter.first, onValueChange = valueAndSetter.second,
+                        value = value, onValueChange = setter,
                         label = { Text(label) }, minLines = if (label == "Name") 1 else 2,
                         singleLine = label == "Name", colors = colors, modifier = Modifier.fillMaxWidth()
                     )
@@ -1343,29 +1875,27 @@ fun ThreadSettingsDialog(
     connections: List<ConnectionEntity>,
     personas: List<PersonaEntity>,
     onDismiss: () -> Unit,
-    onSave: (connectionId: String, modelId: String, maxTokens: Int, personaId: String?, brainConnectionId: String?, brainModelId: String?, directorNotes: String) -> Unit
+    onSave: (
+        connectionId: String,
+        modelId: String,
+        replyLength: ReplyLength,
+        personaId: String?,
+        directorNotes: String,
+        portraitBackgroundEnabled: Boolean,
+        portraitBackgroundDimness: Float
+    ) -> Unit
 ) {
     var selectedConn by remember { mutableStateOf<ConnectionEntity?>(connections.find { it.id == thread.connection_id } ?: connections.firstOrNull()) }
     var selectedModel by remember { mutableStateOf(thread.model_id) }
-    // Response length presets (web parity): label, token budget, description
-    val lengthPresets = remember {
-        listOf(
-            Triple("Concise", 750, "Short, punchy replies"),
-            Triple("Normal", 2048, "Standard roleplay length"),
-            Triple("Extended", 4096, "Detailed scenes"),
-            Triple("Expansive", 8192, "Long-form creative writing"),
-            Triple("Unlimited", 16384, "Maximum output budget")
-        )
-    }
-    var tokensValue by remember {
-        mutableIntStateOf(thread.max_output_tokens)
-    }
+    // The presets are the Reply Lengths themselves. There is no token budget to show any more, because
+    // there is no token budget stored: the ceiling is derived by the adapter that needs one.
+    val lengths = ReplyLength.entries
+    var replyLength by remember { mutableStateOf(ReplyLength.from(thread.reply_length)) }
     var selectedPersona by remember { mutableStateOf<PersonaEntity?>(personas.find { it.id == thread.persona_id }) }
     var directorNotes by remember { mutableStateOf(thread.director_notes) }
     
-    // HCE brain model override (single combined picker — web parity)
-    var brainConnId by remember { mutableStateOf(thread.brain_connection_id) }
-    var brainModelId by remember { mutableStateOf(thread.brain_model_id) }
+    var portraitBackgroundEnabled by remember { mutableStateOf(thread.portrait_background_enabled) }
+    var portraitBackgroundDimness by remember { mutableFloatStateOf(thread.portrait_background_dimness) }
 
     var connExpanded by remember { mutableStateOf(false) }
     var modelExpanded by remember { mutableStateOf(false) }
@@ -1394,15 +1924,14 @@ fun ThreadSettingsDialog(
             Button(
                 onClick = {
                     val connId = selectedConn?.id ?: return@Button
-                    val tokens = tokensValue
                     onSave(
                         connId,
                         selectedModel,
-                        tokens,
+                        replyLength,
                         selectedPersona?.id,
-                        brainConnId,
-                        brainModelId,
-                        directorNotes
+                        directorNotes,
+                        portraitBackgroundEnabled,
+                        portraitBackgroundDimness
                     )
                 },
                 shape = RoundedCornerShape(8.dp),
@@ -1427,7 +1956,7 @@ fun ThreadSettingsDialog(
                         value = selectedConn?.label ?: "Select Connection",
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("API Provider") },
+                        label = { Text("Roleplay connection") },
                         shape = RoundedCornerShape(8.dp),
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = connExpanded) },
                         colors = dialogTextFieldColors,
@@ -1456,10 +1985,10 @@ fun ThreadSettingsDialog(
                 if (models.isNotEmpty()) {
                     ExposedDropdownMenuBox(expanded = modelExpanded, onExpandedChange = { modelExpanded = it }) {
                         OutlinedTextField(
-                            value = selectedModel,
+                            value = models.find { it.id == selectedModel }?.name ?: selectedModel,
                             onValueChange = {},
                             readOnly = true,
-                            label = { Text("Model ID") },
+                            label = { Text("Roleplay model") },
                             shape = RoundedCornerShape(8.dp),
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modelExpanded) },
                             colors = dialogTextFieldColors,
@@ -1472,7 +2001,14 @@ fun ThreadSettingsDialog(
                         ) {
                             models.forEach { model ->
                                 DropdownMenuItem(
-                                    text = { Text(model.id, color = Color.White) },
+                                    text = {
+                                        Column {
+                                            Text(model.name, color = Color.White)
+                                            model.hint?.let { hint ->
+                                                Text(hint, color = Color(0xFFB8B8C6), fontSize = 11.sp)
+                                            }
+                                        }
+                                    },
                                     onClick = {
                                         selectedModel = model.id
                                         modelExpanded = false
@@ -1481,6 +2017,14 @@ fun ThreadSettingsDialog(
                             }
                         }
                     }
+                }
+                if (selectedConn?.provider == RoleplayProtocol.PROVIDER) {
+                    Text(
+                        "Mac-hosted models receive the same complete roleplay prompt, Continuity Snapshot, and transcript. CLI models do not expose every sampler control, so response length and variation are also enforced through the prompt.",
+                        color = Color(0xFFB8B8C6),
+                        fontFamily = Inter,
+                        fontSize = 12.sp
+                    )
                 }
 
                 // Persona Selector
@@ -1521,21 +2065,23 @@ fun ThreadSettingsDialog(
 
                 // Response length — preset slider (web parity)
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    val curIdx = lengthPresets.indexOfFirst { it.second == tokensValue }.let { if (it >= 0) it else 2 }
-                    val preset = lengthPresets[curIdx]
+                    val curIdx = lengths.indexOf(replyLength)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Response length", color = Color(0xFFCFC2D7), fontFamily = SpaceGrotesk, fontSize = 12.sp)
-                        Text("${preset.first} · ${preset.second} tok", color = Color(0xFFDCB8FF), fontFamily = SpaceGrotesk, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("Reply length", color = Color(0xFFCFC2D7), fontFamily = SpaceGrotesk, fontSize = 12.sp)
+                        Text(
+                            if (replyLength.hasTarget) "${replyLength.label} · ~${replyLength.words} words" else replyLength.label,
+                            color = Color(0xFFDCB8FF), fontFamily = SpaceGrotesk, fontSize = 12.sp, fontWeight = FontWeight.Bold
+                        )
                     }
                     Slider(
                         value = curIdx.toFloat(),
-                        onValueChange = { tokensValue = lengthPresets[it.roundToInt().coerceIn(0, lengthPresets.size - 1)].second },
-                        valueRange = 0f..(lengthPresets.size - 1).toFloat(),
-                        steps = lengthPresets.size - 2,
+                        onValueChange = { replyLength = lengths[it.roundToInt().coerceIn(0, lengths.size - 1)] },
+                        valueRange = 0f..(lengths.size - 1).toFloat(),
+                        steps = lengths.size - 2,
                         colors = SliderDefaults.colors(
                             thumbColor = Color(0xFF8A2BE2),
                             activeTrackColor = Color(0xFF8A2BE2),
@@ -1544,7 +2090,37 @@ fun ThreadSettingsDialog(
                             inactiveTickColor = Color(0xFF4C4354)
                         )
                     )
-                    Text(preset.third, color = Color(0xFF8A8590), fontFamily = Inter, fontSize = 11.sp)
+                    Text(replyLength.description, color = Color(0xFF8A8590), fontFamily = Inter, fontSize = 11.sp)
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Portrait background", color = Color.White, fontFamily = SpaceGrotesk)
+                            Text("Follow the active speaker", color = Color(0xFF8A8590), fontSize = 11.sp)
+                        }
+                        Switch(
+                            checked = portraitBackgroundEnabled,
+                            onCheckedChange = { portraitBackgroundEnabled = it }
+                        )
+                    }
+                    if (portraitBackgroundEnabled) {
+                        Text(
+                            "Background darkness · ${(portraitBackgroundDimness * 100).roundToInt()}%",
+                            color = Color(0xFFCFC2D7),
+                            fontFamily = SpaceGrotesk,
+                            fontSize = 12.sp
+                        )
+                        Slider(
+                            value = portraitBackgroundDimness,
+                            onValueChange = { portraitBackgroundDimness = it },
+                            valueRange = 0.35f..0.80f
+                        )
+                    }
                 }
 
                 // Director's Notes — per-thread out-of-character steering
@@ -1958,45 +2534,6 @@ fun CognitiveStateInspector(
                                 }
                             }
 
-                            // Active Plot Threads
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(
-                                    text = "ACTIVE THREADS",
-                                    color = Color(0xFF00FBFB),
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    fontFamily = SpaceGrotesk,
-                                    letterSpacing = 1.sp
-                                )
-                                if (snapshot.narrative_state.active_threads.isEmpty()) {
-                                    Text("No active plot threads.", color = Color.Gray, fontSize = 13.sp, fontFamily = Inter)
-                                } else {
-                                    snapshot.narrative_state.active_threads.forEach { th ->
-                                        Card(
-                                            shape = RoundedCornerShape(12.dp),
-                                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1B1B1F)),
-                                            modifier = Modifier.fillMaxWidth()
-                                        ) {
-                                            Column(modifier = Modifier.padding(10.dp)) {
-                                                Text(
-                                                    text = th.objective,
-                                                    color = Color.White,
-                                                    fontSize = 13.sp,
-                                                    fontFamily = Inter
-                                                )
-                                                Spacer(modifier = Modifier.height(4.dp))
-                                                Text(
-                                                    text = "STATUS: ${th.status.uppercase()}",
-                                                    color = if (th.status == "open") Color(0xFF00FBFB) else Color.Yellow,
-                                                    fontSize = 10.sp,
-                                                    fontFamily = SpaceGrotesk,
-                                                    fontWeight = FontWeight.Bold
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
                         }
 
                         Spacer(modifier = Modifier.height(16.dp))

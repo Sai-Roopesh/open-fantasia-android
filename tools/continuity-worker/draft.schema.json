@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Continuity Draft",
+  "description": "The semantic state transition a Continuity Engine authors for one Continuity Update. It carries no stored identifier, no envelope identity, and no copy of authoritative input. The Continuity Compiler applies it to the Continuity Baseline to produce a complete Continuity Snapshot.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["narrative", "scene", "operations", "timeline_events"],
+  "properties": {
+    "narrative": { "$ref": "#/$defs/narrative" },
+    "scene": { "$ref": "#/$defs/scene" },
+    "operations": { "type": "array", "items": { "$ref": "#/$defs/operation" } },
+    "timeline_events": { "type": "array", "items": { "$ref": "#/$defs/timeline_event" } }
+  },
+  "$defs": {
+    "narrative": {
+      "description": "Always replaced completely. Omission is not preservation here: whatever is written becomes the whole account.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["story_summary", "scene_summary", "last_turn_beat", "narrative_timestamp", "transition_type"],
+      "properties": {
+        "story_summary": { "type": "string", "maxLength": 20000 },
+        "scene_summary": { "type": "string", "maxLength": 8000 },
+        "last_turn_beat": { "type": "string", "maxLength": 4000 },
+        "narrative_timestamp": { "type": "string" },
+        "transition_type": { "type": "string" }
+      }
+    },
+    "scene": {
+      "description": "A complete replace-set for the present moment. Everyone named here is present; everyone else becomes absent and keeps their last recorded emotion. This is the one place where omission means removal.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["current_location", "adjacent_locations", "present"],
+      "properties": {
+        "current_location": { "type": ["string", "null"], "description": "Location handle, or null when the scene has no established place." },
+        "adjacent_locations": { "type": "array", "items": { "type": "string" } },
+        "present": { "type": "array", "items": { "$ref": "#/$defs/presence" } }
+      }
+    },
+    "presence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entity", "location", "micro_position", "primary_emotion", "emotion_intensity", "emotion_catalyst"],
+      "properties": {
+        "entity": { "type": "string", "description": "Entity handle." },
+        "location": { "type": "string", "description": "Location handle." },
+        "micro_position": { "type": "string" },
+        "primary_emotion": { "type": "string" },
+        "emotion_intensity": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "emotion_catalyst": { "type": "string" }
+      }
+    },
+    "operation": {
+      "description": "One durable-state change. Every field except `op` is nullable, and null means unchanged. The shape is flat rather than a union per operation so that a missing field becomes a named Continuity Defect the compiler can report, instead of a schema rejection that costs the whole engine run.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "op", "handle", "entity", "bucket", "from", "to", "name", "kind", "body", "status",
+        "aliases", "modifiers", "bidirectional", "profile", "evidence", "first_seen_exchange",
+        "account", "retire", "reason"
+      ],
+      "properties": {
+        "op": {
+          "enum": [
+            "describe_entity",
+            "assert_fact",
+            "compact_entity",
+            "retract_fact",
+            "retire_entity",
+            "relate",
+            "remove_relationship",
+            "describe_location",
+            "forget_location",
+            "connect_locations",
+            "remove_edge",
+            "describe_cast_member",
+            "archive_cast_member"
+          ]
+        },
+        "handle": {
+          "type": ["string", "null"],
+          "description": "The object this operation addresses. An existing handle updates it; a `new:`-prefixed handle creates it and the Host assigns its identity."
+        },
+        "entity": { "type": ["string", "null"], "description": "Owning entity handle for assert_fact and describe_cast_member." },
+        "bucket": { "enum": ["knowledge_boundary", "traits", "goals", "secrets", "abilities", "possessions", null] },
+        "from": { "type": ["string", "null"], "description": "Source entity handle for relate; origin location handle for connect_locations." },
+        "to": { "type": ["string", "null"], "description": "Target entity handle for relate; destination location handle for connect_locations." },
+        "name": { "type": ["string", "null"], "description": "Canonical name for an entity, a location, or a Cast Member." },
+        "kind": { "type": ["string", "null"], "description": "Entity type for describe_entity; relationship type for relate." },
+        "body": { "type": ["string", "null"], "description": "Fact text, or location description." },
+        "account": { "type": ["string", "null"], "maxLength": 4000, "description": "Prose superseding the facts a compaction retires." },
+        "retire": { "type": ["array", "null"], "items": { "type": "string" }, "description": "Fact handles the account now covers." },
+        "status": { "type": ["string", "null"], "description": "Relationship dynamic status." },
+        "aliases": { "type": ["array", "null"], "items": { "type": "string" } },
+        "modifiers": { "type": ["array", "null"], "items": { "type": "string" }, "description": "Environmental modifiers for a location." },
+        "bidirectional": { "type": ["boolean", "null"] },
+        "profile": { "anyOf": [{ "$ref": "#/$defs/cast_fields" }, { "type": "null" }] },
+        "evidence": { "type": ["array", "null"], "items": { "type": "string" }, "description": "Short grounded paraphrases. Never a fabricated quotation." },
+        "first_seen_exchange": { "type": ["string", "null"], "description": "Exchange ordinal such as \"#12\" for a newly discovered Cast Member." },
+        "reason": {
+          "type": ["string", "null"],
+          "description": "Required on every removal: the exchange ordinal that justifies it, such as \"#12\", or \"rewind\" when the state belonged to discarded prose, or \"superseded\" when a newer assertion replaces it."
+        }
+      }
+    },
+    "cast_fields": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role_background", "personality", "voice_style", "appearance", "goals", "boundaries", "speaker_eligible"],
+      "properties": {
+        "role_background": { "type": ["string", "null"] },
+        "personality": { "type": ["string", "null"] },
+        "voice_style": { "type": ["string", "null"] },
+        "appearance": { "type": ["string", "null"] },
+        "goals": { "type": ["string", "null"] },
+        "boundaries": { "type": ["string", "null"] },
+        "speaker_eligible": { "type": ["boolean", "null"] }
+      }
+    },
+    "timeline_event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["exchange", "title", "detail", "importance", "event_type", "entities", "relationships"],
+      "properties": {
+        "exchange": { "type": "string", "description": "Exchange ordinal such as \"#12\"." },
+        "title": { "type": "string" },
+        "detail": { "type": "string" },
+        "importance": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "event_type": { "type": "string" },
+        "entities": { "type": "array", "items": { "type": "string" }, "description": "Entity handles." },
+        "relationships": { "type": "array", "items": { "type": "string" }, "description": "Relationship handles." }
+      }
+    }
+  }
+}

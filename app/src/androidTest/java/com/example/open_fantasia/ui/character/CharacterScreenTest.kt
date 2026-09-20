@@ -28,7 +28,7 @@ class CharacterScreenTest {
         db = Room.inMemoryDatabaseBuilder(context, OpenFantasiaDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        viewModel = CharacterViewModel(db.characterDao(), db.portraitTaskDao(), context)
+        viewModel = CharacterViewModel(db.characterDao())
     }
 
     @After
@@ -88,6 +88,8 @@ class CharacterScreenTest {
 
         // Delete character
         composeTestRule.onNodeWithContentDescription("Delete Character").performClick()
+        composeTestRule.onNodeWithText("Delete character?").assertExists()
+        composeTestRule.onNodeWithText("Delete").performClick()
         
         // Wait and check empty state
         composeTestRule.onNodeWithText("No characters created yet.").assertExists()

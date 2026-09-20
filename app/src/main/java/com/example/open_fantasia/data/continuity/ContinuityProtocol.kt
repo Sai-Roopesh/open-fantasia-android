@@ -4,7 +4,6 @@ import com.example.open_fantasia.data.local.dao.ChatDao
 import com.example.open_fantasia.data.local.entity.CharacterEntity
 import com.example.open_fantasia.data.local.entity.ContinuityCheckpointEntity
 import com.example.open_fantasia.data.local.entity.PersonaEntity
-import com.example.open_fantasia.data.local.entity.PinEntity
 import com.example.open_fantasia.data.local.entity.TimelineEntity
 import com.example.open_fantasia.domain.model.DurableMemorySnapshot
 import com.example.open_fantasia.domain.model.CastProfile
@@ -21,7 +20,9 @@ import java.security.MessageDigest
 
 @Serializable
 data class ContinuityRequestEnvelope(
-    val protocol_version: Int = 1,
+    val protocol_version: Int = 2,
+    val job_type: String = "continuity",
+    val engine_id: String,
     val request_id: String,
     val thread_id: String,
     val branch_id: String,
@@ -48,7 +49,7 @@ data class ContinuityRequestEnvelope(
 
 @Serializable
 data class ContinuityResponseEnvelope(
-    val protocol_version: Int = 1,
+    val protocol_version: Int = 2,
     val request_id: String,
     val attempt_count: Int,
     val thread_id: String,
@@ -75,13 +76,14 @@ object ContinuityCheckpointProtocol {
 
     suspend fun buildRequest(
         dao: ChatDao, request: ContinuityCheckpointEntity, character: CharacterEntity, persona: PersonaEntity?,
-        pins: List<PinEntity>, directorNotes: String
+        directorNotes: String
     ): ContinuityRequestEnvelope {
         val baseline = request.baseline_turn_id?.let { dao.getSnapshot(it) }
         val baselineJson = baseline?.let { json.encodeToString(it.world_state) }.orEmpty()
         val hash = sha256(baselineJson)
         val seeds = dao.getCastSeeds(request.thread_id).map { it.toDomain() }
-        val overrides = dao.getCastOverrides(request.branch_id).map { it.toDomain() }
+        val lineageState = dao.resolveLineageState(request.branch_id, request.target_turn_id)
+        val overrides = lineageState.castOverrides.map { it.toDomain() }
         val constraints = buildMap {
             seeds.forEach { put(it.cast_id, it) }
             overrides.forEach { put(it.cast_id, it) }
@@ -93,10 +95,17 @@ object ContinuityCheckpointProtocol {
         while (cursor != null) { val t = ancestors[cursor] ?: break; ordered += t; cursor = t.parent_turn_id }
         ordered.reverse()
         val baselineIndex = request.baseline_turn_id?.let { id -> ordered.indexOfFirst { it.id == id } } ?: -1
-        val exchanges = ordered.drop(baselineIndex + 1).filter { it.generation_status == "committed" && !it.starter_seed }.map {
+        // Evidence is what the Continuity Baseline does not already account for. The Baseline is a
+        // complete account of everything through its own exchange, so re-sending that prose says the
+        // same thing twice and grows without limit as a thread gets longer. With no Baseline yet, every
+        // retained exchange is evidence. See ADR-0016.
+        val evidenceTurns = ordered.drop(baselineIndex + 1)
+            .filter { it.generation_status == "committed" && !it.starter_seed }
+        val exchanges = evidenceTurns.map {
             CheckpointExchange(it.id, it.parent_turn_id, it.user_input_text, it.assistant_output_text.orEmpty(), it.created_at)
         }
         return ContinuityRequestEnvelope(
+            engine_id=request.engine_id,
             request_id=request.id, thread_id=request.thread_id, branch_id=request.branch_id,
             target_turn_id=request.target_turn_id, baseline_turn_id=request.baseline_turn_id,
             baseline_version=request.baseline_version, baseline_hash=hash,
@@ -105,7 +114,8 @@ object ContinuityCheckpointProtocol {
             character=CheckpointCharacter(character.name, character.story, character.core_persona, character.appearance, character.definition, character.style_rules, character.negative_guidance),
             persona=persona?.let { CheckpointPersona(it.name,it.identity,it.backstory,it.goals,it.boundaries) },
             cast_seeds=constraints, current_cast_roster=currentRoster, director_notes=directorNotes,
-            pins=pins.map { CheckpointPin(it.id,it.body) }, baseline_snapshot=baseline?.world_state, exchanges=exchanges
+            pins=lineageState.pins.map { CheckpointPin(it.id,it.body) }, baseline_snapshot=baseline?.world_state,
+            exchanges=exchanges
         )
     }
 
@@ -114,35 +124,83 @@ object ContinuityCheckpointProtocol {
         request: ContinuityCheckpointEntity,
         env: ContinuityResponseEnvelope
     ) {
-        require(env.protocol_version == 1) { "Continuity protocol is incompatible" }
+        require(env.protocol_version == 2) { "Continuity protocol is incompatible" }
         require(env.attempt_count == request.attempt_count) { "Continuity response belongs to a stale attempt" }
         require(env.request_id == request.id && env.thread_id == request.thread_id && env.branch_id == request.branch_id)
         require(env.target_turn_id == request.target_turn_id && env.baseline_hash == request.baseline_hash)
         val timelineEvents = validateAndMaterializeTimeline(dao, request, env.world_state, env.timeline_events)
+        val reachableTurnIds = dao.getAncestorTurns(request.target_turn_id).map { it.id }.toSet()
         val constraints = buildMap {
             dao.getCastSeeds(request.thread_id).forEach { put(it.cast_id, it.toDomain()) }
-            dao.getCastOverrides(request.branch_id).forEach { put(it.cast_id, it.toDomain()) }
+            dao.resolveLineageState(request.branch_id, request.target_turn_id)
+                .castOverrides.forEach { put(it.cast_id, it.toDomain()) }
         }.values.toList()
-        validate(env.world_state, request.target_turn_id, request.baseline_version, constraints)
+        validate(env.world_state, request.target_turn_id, request.baseline_version, constraints, reachableTurnIds)
         dao.acceptCheckpoint(request.id, env.world_state, timelineEvents)
     }
 
-    private fun validate(s: DurableMemorySnapshot, target: String, baselineVersion: Int, seeds: List<CastProfile>) {
+    /**
+     * Exposed so the shared validation fixtures can be run against this implementation directly.
+     * The Mac Host validates the same corpus in JavaScript; the two must reach the same verdict on
+     * every case, or a snapshot the host accepts is rejected here after the engine run is already
+     * spent. Production callers go through [acceptResponse].
+     */
+    internal fun validateForParity(
+        snapshot: DurableMemorySnapshot,
+        target: String,
+        baselineVersion: Int,
+        seeds: List<CastProfile>,
+        reachableTurnIds: Set<String>
+    ) = validate(snapshot, target, baselineVersion, seeds, reachableTurnIds)
+
+    private fun validate(
+        s: DurableMemorySnapshot,
+        target: String,
+        baselineVersion: Int,
+        seeds: List<CastProfile>,
+        reachableTurnIds: Set<String>
+    ) {
         require(s.metadata.current_turn_id == target) { "Snapshot targets the wrong exchange" }
         require(s.metadata.version == baselineVersion + 1) { "Snapshot has the wrong version" }
         require(s.narrative_state.story_summary.length <= 20_000) { "Story Summary exceeds 20,000 characters" }
         require(s.narrative_state.scene_summary.length <= 8_000) { "Scene Summary exceeds 8,000 characters" }
         require(s.narrative_state.last_turn_beat.length <= 4_000) { "Latest Beat exceeds 4,000 characters" }
         val entityIds=s.entity_state.map { it.entity_id }; require(entityIds.size == entityIds.toSet().size) { "Duplicate entity IDs" }
-        val locationIds=s.spatial_state.known_locations.map { it.id }.toSet()
+        // One name, one person. Unique identifiers were the only entity invariant checked, and a
+        // checkpoint that minted a fresh identity for a known character satisfied it perfectly: 304
+        // records describing 24 people all had distinct IDs. The Cast Roster has always been held to the
+        // stronger rule two lines below; entity_state was not, and that asymmetry is what let the defect
+        // run for twenty-three Continuity Updates unnoticed.
+        val entityNames = s.entity_state.map { it.canonical_name.trim().lowercase() }
+        require(entityNames.size == entityNames.toSet().size) {
+            "Two entities share a name: ${entityNames.groupingBy { it }.eachCount().filterValues { it > 1 }.keys.joinToString()}"
+        }
+        val rawLocationIds = s.spatial_state.known_locations.map { it.id }
+        require(rawLocationIds.size == rawLocationIds.toSet().size) { "Duplicate location IDs" }
+        val locationIds = rawLocationIds.toSet()
+        s.spatial_state.current_location?.let {
+            require(it.id in locationIds) { "Invalid current location reference" }
+        }
+        require(s.spatial_state.adjacent_locations.all { it.id in locationIds }) { "Invalid adjacent location reference" }
+        require(s.spatial_state.edges.all { it.from_location_id in locationIds && it.to_location_id in locationIds }) {
+            "Invalid location edge reference"
+        }
         require(s.spatial_state.entity_placements.all { it.entity_id in entityIds && it.location_id in locationIds }) { "Invalid placement reference" }
         require(s.relational_state.all { it.source_entity_id in entityIds && it.target_entity_id in entityIds }) { "Invalid relationship reference" }
+        val relationshipIds = s.relational_state.map { it.relationship_id }
+        require(relationshipIds.size == relationshipIds.toSet().size) { "Duplicate relationship IDs" }
         val roster = s.cast_roster
         require(roster.isNotEmpty()) { "Cast Roster is missing" }
         require(roster.none { it.canonical_name.isBlank() || it.cast_id.isBlank() }) { "Cast member identity is missing" }
         require(roster.map { it.cast_id }.distinct().size == roster.size) { "Duplicate cast IDs" }
         require(roster.map { it.canonical_name.trim().lowercase() }.distinct().size == roster.size) { "Duplicate cast names" }
         require(roster.none { it.player_controlled }) { "Player persona cannot enter Cast Roster" }
+        require(roster.all { !it.entity_id.isNullOrBlank() && it.entity_id in entityIds }) {
+            "Every Cast Member must reference a world entity"
+        }
+        require(roster.filter { it.provenance == "continuity_discovered" }.all {
+            !it.first_seen_turn_id.isNullOrBlank() && it.first_seen_turn_id in reachableTurnIds
+        }) { "Discovered Cast Member has invalid lineage provenance" }
         val byId = roster.associateBy { it.cast_id }
         seeds.forEach { seed ->
             val result = requireNotNull(byId[seed.cast_id]) { "Cast Roster dropped seed ${seed.canonical_name}" }

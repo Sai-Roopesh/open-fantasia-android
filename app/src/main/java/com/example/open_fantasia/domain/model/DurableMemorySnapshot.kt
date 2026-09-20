@@ -10,7 +10,22 @@ data class DurableMemorySnapshot(
     val relational_state: List<RelationalState>,
     val narrative_state: NarrativeState,
     /** Complete, branch-valid speakable cast at this snapshot. */
-    val cast_roster: List<CastProfile> = emptyList()
+    val cast_roster: List<CastProfile> = emptyList(),
+    /**
+     * The snapshot version at which the story last had anything to do with each entity, relationship,
+     * and thread, keyed by identifier. Maintained by the Continuity Compiler; age is
+     * `metadata.version - salience[id]`.
+     *
+     * It is bookkeeping about a record rather than a fact about the story, which is why it sits beside
+     * the records instead of inside them: `entity_state` is serialized into the prompt verbatim, so a
+     * field added there would read to the model as though it were one of a character's secrets.
+     * [PromptWorldState] therefore does not carry it, the same way and for the same kind of reason it
+     * does not carry `cast_roster`.
+     *
+     * Empty on any snapshot written before salience existed. An absent entry means the record is
+     * current, so an old snapshot ages nothing until its next Continuity Update.
+     */
+    val salience: Map<String, Int> = emptyMap()
 )
 
 @Serializable
@@ -87,6 +102,15 @@ data class EntityState(
     val entity_id: String,
     val canonical_name: String,
     val entity_type: String, // "character" | "npc" | "creature" | "object" | "group"
+    /**
+     * Prose superseding the facts a compaction retired: what the story established about this entity,
+     * said once instead of across dozens of rows that each restate it.
+     *
+     * Empty on an entity never compacted, which is the correct reading of every snapshot written before
+     * compaction existed — hence a tolerant default rather than a migration. Written whole and never
+     * appended to, which is the property that keeps it bounded. See docs/plans/memory-hierarchy.md.
+     */
+    val account: String = "",
     val aliases: List<String>,
     val is_present: Boolean,
     val primary_emotion: String,
@@ -121,15 +145,6 @@ data class RelationalState(
 data class NarrativeState(
     val story_summary: String,
     val scene_summary: String,
-    val last_turn_beat: String,
-    val active_threads: List<NarrativeThread>,
-    val resolved_threads: List<String>
+    val last_turn_beat: String
 )
 
-@Serializable
-data class NarrativeThread(
-    val thread_id: String,
-    val objective: String,
-    val status: String, // "open" | "blocked" | "resolving" | "resolved"
-    val dependencies: List<String>
-)

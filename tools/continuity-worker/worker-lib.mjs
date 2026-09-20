@@ -1,3 +1,15 @@
+/**
+ * Semantic validation of a complete Continuity Snapshot.
+ *
+ * Under ADR-0010 the snapshot reaching this point was assembled by the Continuity Compiler rather than
+ * returned by a model, so most of what this checks should now be structurally impossible. That is the
+ * point: this is the host's half of the shared validation contract, written independently of the
+ * compiler, and Android re-validates the same invariants in Kotlin and remains the final authority. A
+ * rule enforced on one side and not the other is a guaranteed late failure, so the shared fixture
+ * corpus in `fixtures/validation` pins both halves to the same verdicts.
+ *
+ * Nothing here repairs anything. Repair belongs to the compiler; this decides.
+ */
 export function validateResponse(request, response) {
   if (response.protocol_version !== request.protocol_version) throw new Error("Response protocol version mismatch");
   if (response.attempt_count !== request.attempt_count) throw new Error("Response attempt mismatch");
@@ -42,6 +54,8 @@ export function validateResponse(request, response) {
   if (state.relational_state.some(relationship => !entityIdSet.has(relationship.source_entity_id) || !entityIdSet.has(relationship.target_entity_id))) {
     throw new Error("Invalid relationship reference");
   }
+  const relationshipIds = state.relational_state.map(relationship => relationship.relationship_id);
+  if (relationshipIds.length !== new Set(relationshipIds).size) throw new Error("Duplicate relationship IDs");
 
   const castIds = state.cast_roster.map(member => member.cast_id);
   const castNames = state.cast_roster.map(member => member.canonical_name?.trim().toLocaleLowerCase());
@@ -49,10 +63,32 @@ export function validateResponse(request, response) {
   if (castIds.some(id => !id) || castIds.length !== new Set(castIds).size) throw new Error("Duplicate or missing cast ID");
   if (castNames.some(name => !name) || castNames.length !== new Set(castNames).size) throw new Error("Duplicate or missing cast name");
   if (state.cast_roster.some(member => member.player_controlled)) throw new Error("Player persona cannot enter Cast Roster");
+  if (state.cast_roster.some(member => !member.entity_id || !entityIdSet.has(member.entity_id))) {
+    throw new Error("Every Cast Member must reference a world entity");
+  }
+  // The request carries only the exchanges since the Continuity Baseline, so the host can vouch for the
+  // lineage of a newly discovered member and nothing more. A member the roster already held was dated
+  // against history this host never saw. Android checks that against the real branch. See ADR-0016.
+  const reachableTurnIds = new Set((request.exchanges ?? []).map(exchange => exchange.turn_id));
+  const establishedCastIds = new Set((request.current_cast_roster ?? []).map(member => member.cast_id));
+  if (state.cast_roster.some(member =>
+    member.provenance === "continuity_discovered" &&
+    !establishedCastIds.has(member.cast_id) &&
+    (!member.first_seen_turn_id || !reachableTurnIds.has(member.first_seen_turn_id))
+  )) throw new Error("Discovered Cast Member has invalid lineage provenance");
   const rosterById = new Map(state.cast_roster.map(member => [member.cast_id, member]));
   for (const seed of request.cast_seeds ?? []) {
     const member = rosterById.get(seed.cast_id);
     if (!member) throw new Error(`Cast Roster dropped seed ${seed.canonical_name}`);
+    if (member.provenance !== seed.provenance) {
+      throw new Error(`Cast seed provenance changed: ${seed.canonical_name}`);
+    }
+    if (member.first_seen_turn_id !== seed.first_seen_turn_id) {
+      throw new Error(`Cast seed first-seen identity changed: ${seed.canonical_name}`);
+    }
+    if (JSON.stringify(member.manual_locks) !== JSON.stringify(seed.manual_locks ?? [])) {
+      throw new Error(`Cast seed lock declaration changed: ${seed.canonical_name}`);
+    }
     for (const field of seed.manual_locks ?? []) {
       if (JSON.stringify(member[field]) !== JSON.stringify(seed[field])) {
         throw new Error(`Locked cast field changed: ${seed.canonical_name}.${field}`);
@@ -63,14 +99,14 @@ export function validateResponse(request, response) {
   if (!Array.isArray(response.timeline_events)) throw new Error("Missing timeline_events");
   if (response.timeline_events.length > 7) throw new Error("Too many timeline events");
   const exchangeTurnIds = new Set((request.exchanges ?? []).map(exchange => exchange.turn_id));
-  const relationshipIds = new Set(state.relational_state.map(relationship => relationship.relationship_id));
+  const relationshipIdSet = new Set(relationshipIds);
   for (const event of response.timeline_events) {
     if (!exchangeTurnIds.has(event.turn_id)) throw new Error("Invalid timeline turn reference");
     if (!Number.isInteger(event.importance) || event.importance < 1 || event.importance > 5) {
       throw new Error("Invalid timeline importance");
     }
     if (event.affected_entity_ids.some(id => !entityIdSet.has(id))) throw new Error("Invalid timeline entity reference");
-    if (event.affected_relationship_ids.some(id => !relationshipIds.has(id))) throw new Error("Invalid timeline relationship reference");
+    if (event.affected_relationship_ids.some(id => !relationshipIdSet.has(id))) throw new Error("Invalid timeline relationship reference");
   }
 }
 

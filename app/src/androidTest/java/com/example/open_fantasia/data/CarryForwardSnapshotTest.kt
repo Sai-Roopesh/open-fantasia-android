@@ -108,7 +108,7 @@ class CarryForwardSnapshotTest {
             spatial_state = SpatialState(null, emptyList(), emptyList(), emptyList(), emptyList()),
             entity_state = emptyList(),
             relational_state = emptyList(),
-            narrative_state = NarrativeState("story", "scene", "beat", emptyList(), emptyList())
+            narrative_state = NarrativeState("story", "scene", "beat")
         )
         chatDao.upsertWorldSnapshot(turn1.id, thread.id, branch.id, null, snapshot1, 1, false)
 

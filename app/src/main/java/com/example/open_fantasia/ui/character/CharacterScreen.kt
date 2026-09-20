@@ -43,6 +43,7 @@ fun CharacterScreen(
     val characters by viewModel.characters.collectAsState()
     var editingChar by remember { mutableStateOf<CharacterEntity?>(null) }
     var isCreating by remember { mutableStateOf(false) }
+    var pendingDelete by remember { mutableStateOf<CharacterEntity?>(null) }
 
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -118,7 +119,7 @@ fun CharacterScreen(
                             CharacterItem(
                                 character = char,
                                 onClick = { editingChar = char },
-                                onDelete = { viewModel.deleteCharacter(char) }
+                                onDelete = { pendingDelete = char }
                             )
                         }
                     }
@@ -130,6 +131,22 @@ fun CharacterScreen(
             hostState = snackbarHostState,
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp)
         )
+        pendingDelete?.let { character ->
+            AlertDialog(
+                onDismissRequest = { pendingDelete = null },
+                title = { Text("Delete character?") },
+                text = { Text("The character can be deleted only when it does not own any thread.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        viewModel.deleteCharacter(character)
+                        pendingDelete = null
+                    }) { Text("Delete") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { pendingDelete = null }) { Text("Cancel") }
+                }
+            )
+        }
     }
 }
 

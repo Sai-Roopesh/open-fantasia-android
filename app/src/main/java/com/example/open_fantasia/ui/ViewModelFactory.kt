@@ -30,21 +30,20 @@ class ViewModelFactory(
             modelClass.isAssignableFrom(CharacterViewModel::class.java) -> {
                 CharacterViewModel(
                     characterDao = appContainer.database.characterDao(),
-                    portraitTaskDao = appContainer.database.portraitTaskDao(),
-                    context = context
+                    portraitGenerationCoordinator = appContainer.portraitGenerationCoordinator
                 ) as T
             }
             modelClass.isAssignableFrom(PersonaViewModel::class.java) -> {
                 PersonaViewModel(
-                    personaDao = appContainer.database.personaDao(),
-                    chatDao = appContainer.database.chatDao()
+                    personaDao = appContainer.database.personaDao()
                 ) as T
             }
             modelClass.isAssignableFrom(SettingsViewModel::class.java) -> {
                 SettingsViewModel(
                     connectionDao = appContainer.database.connectionDao(),
                     llmClient = appContainer.llmClient,
-                    continuityHostClient = appContainer.continuityHostClient
+                    continuityHostClient = appContainer.continuityHostClient,
+                    continuityHostPreferences = appContainer.continuityHostPreferences
                 ) as T
             }
             modelClass.isAssignableFrom(ChatViewModel::class.java) -> {
@@ -55,10 +54,12 @@ class ViewModelFactory(
                     characterDao = appContainer.database.characterDao(),
                     connectionDao = appContainer.database.connectionDao(),
                     personaDao = appContainer.database.personaDao(),
-                    llmClient = appContainer.llmClient,
-                    runContinuityExtractionUseCase = appContainer.runContinuityExtractionUseCase,
                     continuityCheckpointCoordinator = appContainer.continuityCheckpointCoordinator,
+                    roleplayGenerationCoordinator = appContainer.roleplayGenerationCoordinator,
+                    portraitGenerationCoordinator = appContainer.portraitGenerationCoordinator,
+                    portraitTaskDao = appContainer.database.portraitTaskDao(),
                     continuityHostClient = appContainer.continuityHostClient,
+                    continuityHostPreferences = appContainer.continuityHostPreferences,
                     context = context.applicationContext
                 ) as T
             }

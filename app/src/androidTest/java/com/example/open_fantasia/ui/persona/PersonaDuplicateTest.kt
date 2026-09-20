@@ -13,6 +13,7 @@ import org.junit.Before
 import org.junit.Test
 import java.io.IOException
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.delay
 import java.time.Instant
 
 class PersonaDuplicateTest {
@@ -27,7 +28,7 @@ class PersonaDuplicateTest {
         db = Room.inMemoryDatabaseBuilder(context, OpenFantasiaDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        viewModel = PersonaViewModel(db.personaDao(), db.chatDao())
+        viewModel = PersonaViewModel(db.personaDao())
 
         runBlocking {
             db.profileDao().insertProfile(ProfileEntity(fixedUserId, "LocalUser", "", ""))
@@ -63,7 +64,12 @@ class PersonaDuplicateTest {
         viewModel.duplicatePersona(original)
 
         // Then: a copy should exist in the database with the name "Wizard Copy"
-        val all = db.personaDao().getAllPersonas()
+        var all = db.personaDao().getAllPersonas()
+        val deadline = System.currentTimeMillis() + 3_000
+        while (all.size < 2 && System.currentTimeMillis() < deadline) {
+            delay(50)
+            all = db.personaDao().getAllPersonas()
+        }
         assertEquals(2, all.size)
 
         val copy = all.find { it.id != "pers-1" }
@@ -96,7 +102,12 @@ class PersonaDuplicateTest {
         viewModel.duplicatePersona(original)
 
         // Then: the duplicated persona is not a default persona
-        val all = db.personaDao().getAllPersonas()
+        var all = db.personaDao().getAllPersonas()
+        val deadline = System.currentTimeMillis() + 3_000
+        while (all.size < 2 && System.currentTimeMillis() < deadline) {
+            delay(50)
+            all = db.personaDao().getAllPersonas()
+        }
         val copy = all.find { it.id != "pers-1" }
         assertNotNull(copy)
         assertFalse(copy!!.is_default)

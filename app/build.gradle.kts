@@ -1,3 +1,5 @@
+import org.gradle.api.tasks.PathSensitivity
+
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.compose.compiler)
@@ -10,18 +12,28 @@ android {
     compileSdk = 36
     defaultConfig {
         applicationId = "com.example.open_fantasia"
-        minSdk = 24
+        minSdk = 30
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
     }
 
     buildTypes {
+        getByName("debug")
+        create("deviceTest") {
+            initWith(getByName("debug"))
+            applicationIdSuffix = ".sandbox"
+            versionNameSuffix = "-sandbox"
+            isDebuggable = true
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
+    // Connected-test cleanup may uninstall its target. Keep that lifecycle permanently isolated
+    // from the personal app package and its characters, threads, credentials, and portrait files.
+    testBuildType = "deviceTest"
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -50,6 +62,15 @@ kotlin {
     jvmToolchain(17)
 }
 
+// ContinuityValidationParityTest reads the shared validation corpus from the Mac Host tree. Without
+// declaring it as an input, Gradle treats the test as up to date when only a fixture changes, and
+// the parity check silently stops running exactly when a rule has drifted.
+tasks.withType<Test>().configureEach {
+    inputs.dir(rootProject.file("tools/continuity-worker/fixtures/validation"))
+        .withPropertyName("continuityValidationFixtures")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+}
+
 dependencies {
   val composeBom = platform(libs.androidx.compose.bom)
   implementation(composeBom)
@@ -74,7 +95,8 @@ dependencies {
   debugImplementation(libs.androidx.compose.ui.tooling)
   // Instrumented tests
   androidTestImplementation(libs.androidx.compose.ui.test.junit4)
-  debugImplementation(libs.androidx.compose.ui.test.manifest)
+  "deviceTestImplementation"(libs.androidx.compose.ui.tooling)
+  "deviceTestImplementation"(libs.androidx.compose.ui.test.manifest)
 
   // Local tests: jUnit, coroutines, Android runner
   testImplementation(libs.junit)

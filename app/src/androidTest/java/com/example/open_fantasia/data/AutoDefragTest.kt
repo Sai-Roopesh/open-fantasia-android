@@ -107,11 +107,11 @@ class AutoDefragTest {
                 count++
             }
         }
-        return count >= 9
+        return count >= 13
     }
 
     @Test
-    fun testDefragAlgorithm_triggersEvery10Turns() = runBlocking {
+    fun testDefragAlgorithm_triggersEvery15Turns() = runBlocking {
         val chatDao = db.chatDao()
         val thread = chatDao.createThreadWithBranch(
             userId, characterId, connectionId, "gemini-1.5-flash", null, null, null, 2048, "Test"
@@ -121,8 +121,8 @@ class AutoDefragTest {
         val turnsList = mutableListOf<TurnEntity>()
         var prevTurnId: String? = null
 
-        // Create 10 turns sequentially
-        for (i in 1..10) {
+        // Continuity materializes a fresh snapshot at the strict 15-exchange boundary.
+        for (i in 1..15) {
             val turn = chatDao.beginTurn(userId, branch.id, prevTurnId, "User text $i", "[]")
             chatDao.commitTurn(
                 userId = userId,
@@ -155,8 +155,7 @@ class AutoDefragTest {
             val historyTurns = path.reversed().dropLast(1) // exclude current turn for history walk
 
             val isDefrag = shouldDefragmentSimulated(turn, historyTurns)
-            // Verify defrag should only trigger on 10th turn (i = 10)
-            if (i == 10) {
+            if (i == 15) {
                 assertTrue("Expected defragmentation on turn $i", isDefrag)
             } else {
                 assertFalse("Defragmentation should NOT trigger on turn $i", isDefrag)
@@ -169,7 +168,7 @@ class AutoDefragTest {
                 spatial_state = SpatialState(null, emptyList(), emptyList(), emptyList(), emptyList()),
                 entity_state = emptyList(),
                 relational_state = emptyList(),
-                narrative_state = NarrativeState("", "", "", emptyList(), emptyList())
+                narrative_state = NarrativeState("", "", "")
             )
             chatDao.upsertWorldSnapshot(turn.id, thread.id, branch.id, prevTurnId, dummySnapshot, 1, isFull)
 

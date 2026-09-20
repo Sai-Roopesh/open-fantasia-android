@@ -2,9 +2,18 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { requestRevision, validateResponse } from "./worker-lib.mjs";
 
+/**
+ * Semantic validation only.
+ *
+ * Under ADR-0010 the repairs that used to live beside these rules moved into the Continuity Compiler,
+ * and their coverage moved with them into `compiler.test.mjs`. What remains here is the decision half:
+ * given a complete snapshot, is it acceptable? These rules are deliberately unforgiving, because the
+ * compiler has already had its chance to make the snapshot right and Android enforces the same rules
+ * again before anything becomes continuity truth.
+ */
 function fixture() {
   const request = {
-    protocol_version: 1,
+    protocol_version: 2,
     request_id: "request-1",
     thread_id: "thread-1",
     branch_id: "branch-1",
@@ -12,7 +21,10 @@ function fixture() {
     baseline_hash: "baseline-hash",
     baseline_version: 1,
     attempt_count: 0,
-    exchanges: [{ turn_id: "turn-7", parent_turn_id: "turn-6", user: "Hello", assistant: "Hi", created_at: "now" }],
+    exchanges: [
+      { turn_id: "old-turn", parent_turn_id: null, user: "Earlier", assistant: "Earlier reply", created_at: "before" },
+      { turn_id: "turn-7", parent_turn_id: "old-turn", user: "Hello", assistant: "Hi", created_at: "now" }
+    ],
     cast_seeds: [{
       cast_id: "primary:thread-1", entity_id: "hero", canonical_name: "Hero", aliases: [],
       role_background: "Lead", personality: "Steady", voice_style: "", appearance: "",
@@ -22,7 +34,7 @@ function fixture() {
     }]
   };
   const response = {
-    protocol_version: 1,
+    protocol_version: 2,
     request_id: request.request_id,
     attempt_count: request.attempt_count,
     thread_id: request.thread_id,
@@ -58,6 +70,11 @@ function fixture() {
   return { request, response };
 }
 
+test("accepts a complete, referentially whole snapshot", () => {
+  const { request, response } = fixture();
+  assert.doesNotThrow(() => validateResponse(request, response));
+});
+
 test("rejects a placement that references a missing entity", () => {
   const { request, response } = fixture();
   response.world_state.spatial_state.entity_placements[0].entity_id = "missing";
@@ -75,10 +92,10 @@ test("rejects a response from a stale retry attempt", () => {
   assert.throws(() => validateResponse(request, response), /attempt mismatch/);
 });
 
-test("rejects timeline events that reference a turn outside the checkpoint window", () => {
+test("rejects timeline events that reference a turn outside the evidence window", () => {
   const { request, response } = fixture();
   response.timeline_events = [{
-    turn_id: "old-turn",
+    turn_id: "turn-outside-the-window",
     title: "Reveal",
     detail: "A truth emerged.",
     importance: 5,
@@ -89,14 +106,38 @@ test("rejects timeline events that reference a turn outside the checkpoint windo
   assert.throws(() => validateResponse(request, response), /Invalid timeline turn reference/);
 });
 
+test("an oversized timeline array is still a protocol violation", () => {
+  const { request, response } = fixture();
+  response.timeline_events = Array.from({ length: 8 }, () => ({
+    turn_id: "turn-7", title: "Beat", detail: "", importance: 3, event_type: "beat",
+    affected_entity_ids: [], affected_relationship_ids: []
+  }));
+  assert.throws(() => validateResponse(request, response), /Too many timeline events/);
+});
+
 test("rejects a roster that changes a locked seed field", () => {
   const { request, response } = fixture();
   response.world_state.cast_roster[0].personality = "Changed";
   assert.throws(() => validateResponse(request, response), /Locked cast field changed/);
 });
 
+// The compiler makes this unreachable by construction, which is exactly why the rule stays: it is the
+// independent check that the compiler did its job, not a redundant one.
+test("rejects a roster that dropped a seed", () => {
+  const { request, response } = fixture();
+  response.world_state.cast_roster = [];
+  assert.throws(() => validateResponse(request, response), /Missing Cast Roster/);
+});
+
 test("rejects the player persona in the cast roster", () => {
   const { request, response } = fixture();
   response.world_state.cast_roster[0].player_controlled = true;
-  assert.throws(() => validateResponse(request, response), /Player persona/);
+  assert.throws(() => validateResponse(request, response), /Player persona cannot enter Cast Roster/);
+});
+
+test("rejects a discovered member whose lineage is not reachable", () => {
+  const { request, response } = fixture();
+  response.world_state.cast_roster[0].provenance = "continuity_discovered";
+  response.world_state.cast_roster[0].first_seen_turn_id = "turn-99";
+  assert.throws(() => validateResponse(request, response), /invalid lineage provenance/);
 });

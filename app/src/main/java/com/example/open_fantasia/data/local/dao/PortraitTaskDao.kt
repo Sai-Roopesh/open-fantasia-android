@@ -1,43 +1,103 @@
 package com.example.open_fantasia.data.local.dao
 
 import androidx.room.*
-import com.example.open_fantasia.data.local.entity.PortraitTaskEntity
+import com.example.open_fantasia.data.local.entity.CastPortraitEntity
+import com.example.open_fantasia.data.local.entity.CharacterEntity
+import com.example.open_fantasia.data.local.entity.PortraitGenerationJobEntity
+import kotlinx.coroutines.flow.Flow
+import java.time.Instant
 
 @Dao
 abstract class PortraitTaskDao {
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    abstract suspend fun insertTask(task: PortraitTaskEntity)
+    @Upsert
+    abstract suspend fun upsertJob(job: PortraitGenerationJobEntity)
 
-    @Query("SELECT * FROM character_portrait_tasks WHERE id = :id")
-    abstract suspend fun getTask(id: String): PortraitTaskEntity?
+    @Query("SELECT * FROM portrait_generation_jobs WHERE id = :id")
+    abstract suspend fun getJob(id: String): PortraitGenerationJobEntity?
 
-    @Query("SELECT * FROM character_portrait_tasks WHERE status = 'pending' AND datetime(available_at) <= datetime(:now) ORDER BY created_at ASC LIMIT 1")
-    abstract suspend fun getNextPendingTask(now: String): PortraitTaskEntity?
+    @Query("SELECT * FROM portrait_generation_jobs WHERE status NOT IN ('accepted', 'failed', 'superseded') ORDER BY created_at ASC")
+    abstract suspend fun getPendingJobs(): List<PortraitGenerationJobEntity>
 
-    @Query("UPDATE character_portrait_tasks SET status = :status, locked_at = :lockedAt WHERE id = :id")
-    abstract suspend fun updateTaskStatus(id: String, status: String, lockedAt: String?)
+    @Query("SELECT * FROM portrait_generation_jobs ORDER BY created_at ASC")
+    abstract suspend fun getAllJobs(): List<PortraitGenerationJobEntity>
 
-    @Delete
-    abstract suspend fun deleteTask(task: PortraitTaskEntity)
+    @Query("SELECT * FROM portrait_generation_jobs WHERE subject_type = :subjectType AND character_id = :characterId AND source_hash = :sourceHash AND status NOT IN ('failed', 'superseded') LIMIT 1")
+    abstract suspend fun findPrimaryJob(subjectType: String, characterId: String, sourceHash: String): PortraitGenerationJobEntity?
 
-    // Order by available_at so the caller schedules its delayed re-run for the SOONEST upcoming
-    // task, not an arbitrary future one (LIMIT 1 with no ORDER BY could starve an earlier task).
-    @Query("SELECT * FROM character_portrait_tasks WHERE status = 'pending' ORDER BY available_at ASC LIMIT 1")
-    abstract suspend fun peekPendingTask(): PortraitTaskEntity?
+    @Query("SELECT * FROM portrait_generation_jobs WHERE branch_id = :branchId AND cast_id = :castId AND source_hash = :sourceHash AND status NOT IN ('failed', 'superseded') LIMIT 1")
+    abstract suspend fun findCastJob(branchId: String, castId: String, sourceHash: String): PortraitGenerationJobEntity?
 
-    @Query("UPDATE character_portrait_tasks SET status = 'pending', locked_at = null WHERE status = 'running' AND locked_at < :cutoffTimestamp")
-    abstract suspend fun reclaimStaleTasks(cutoffTimestamp: String)
+    @Query("UPDATE portrait_generation_jobs SET status = 'superseded', updated_at = :updatedAt WHERE subject_type = 'primary' AND character_id = :characterId AND status NOT IN ('failed', 'superseded')")
+    abstract suspend fun supersedePrimaryJobs(characterId: String, updatedAt: String)
+
+    @Upsert
+    abstract suspend fun upsertCastPortrait(portrait: CastPortraitEntity)
+
+    @Query("SELECT * FROM cast_portraits WHERE thread_id = :threadId")
+    abstract fun getCastPortraitsForThreadFlow(threadId: String): Flow<List<CastPortraitEntity>>
+
+    @Query("SELECT * FROM cast_portraits WHERE branch_id = :branchId AND cast_id = :castId LIMIT 1")
+    abstract suspend fun getCastPortrait(branchId: String, castId: String): CastPortraitEntity?
+
+    @Query("SELECT * FROM characters WHERE id = :id")
+    protected abstract suspend fun getCharacterForAcceptance(id: String): CharacterEntity?
+
+    @Update
+    protected abstract suspend fun updateCharacterForAcceptance(character: CharacterEntity)
 
     @Transaction
-    open suspend fun claimNextTask(now: String, lockedAt: String): PortraitTaskEntity? {
-        val task = getNextPendingTask(now) ?: return null
-        val updated = task.copy(
-            status = "running",
-            locked_at = lockedAt,
-            attempts = task.attempts + 1,
-            updated_at = lockedAt
-        )
-        insertTask(updated)
-        return updated
+    open suspend fun acceptPortrait(
+        jobId: String,
+        expectedSourceHash: String,
+        portraitPath: String,
+        thumbnailPath: String,
+        portraitBriefJson: String
+    ): PortraitFileSwap {
+        val job = getJob(jobId) ?: error("Portrait job no longer exists")
+        if (job.status == "accepted") return PortraitFileSwap(null, null)
+        require(job.status != "superseded") { "Portrait job was superseded" }
+        require(job.source_hash == expectedSourceHash) { "Portrait source identity changed" }
+        val now = Instant.now().toString()
+        val oldPaths = if (job.subject_type == "primary") {
+            val character = getCharacterForAcceptance(job.character_id)
+                ?: error("Portrait character no longer exists")
+            require(character.portrait_source_hash == expectedSourceHash) {
+                "Portrait source changed while generating"
+            }
+            updateCharacterForAcceptance(
+                character.copy(
+                    portrait_status = "ready",
+                    portrait_path = portraitPath,
+                    portrait_prompt = portraitBriefJson,
+                    portrait_seed = null,
+                    portrait_last_error = null,
+                    portrait_generated_at = now,
+                    updated_at = now
+                )
+            )
+            PortraitFileSwap(character.portrait_path, character.portrait_path?.replace(".webp", ".thumb.webp"))
+        } else {
+            val branchId = requireNotNull(job.branch_id)
+            val castId = requireNotNull(job.cast_id)
+            val current = getCastPortrait(branchId, castId) ?: error("Cast portrait no longer exists")
+            require(current.source_hash == expectedSourceHash) {
+                "Cast profile changed while generating"
+            }
+            upsertCastPortrait(
+                current.copy(
+                    portrait_path = portraitPath,
+                    thumbnail_path = thumbnailPath,
+                    status = "ready",
+                    last_error = null,
+                    generated_at = now,
+                    updated_at = now
+                )
+            )
+            PortraitFileSwap(current.portrait_path, current.thumbnail_path)
+        }
+        upsertJob(job.copy(status = "accepted", failure_detail = null, updated_at = now, accepted_at = now))
+        return oldPaths
     }
 }
+
+data class PortraitFileSwap(val oldPortraitPath: String?, val oldThumbnailPath: String?)

@@ -8,10 +8,11 @@ import com.example.open_fantasia.data.local.db.OpenFantasiaDatabase
 import com.example.open_fantasia.data.local.entity.*
 import com.example.open_fantasia.data.remote.LLMClient
 import com.example.open_fantasia.domain.model.*
-import com.example.open_fantasia.domain.usecase.RunContinuityExtractionUseCase
 import com.example.open_fantasia.data.continuity.ContinuityCheckpointCoordinator
 import com.example.open_fantasia.data.continuity.ContinuityHostClient
 import com.example.open_fantasia.data.continuity.ContinuityHostPreferences
+import com.example.open_fantasia.data.continuity.PortraitGenerationCoordinator
+import com.example.open_fantasia.data.continuity.RoleplayGenerationCoordinator
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.runBlocking
@@ -55,8 +56,6 @@ class ChatScreenTest {
             jsonSchema: kotlinx.serialization.json.JsonObject?
         ): Flow<com.example.open_fantasia.data.remote.StreamChunk> = emptyFlow()
     }
-
-    private val useCase by lazy { RunContinuityExtractionUseCase(fakeLlmClient) }
 
     @Before
     fun setup() {
@@ -158,16 +157,31 @@ class ChatScreenTest {
 
         val hostPreferences = ContinuityHostPreferences(context.applicationContext)
         val hostClient = ContinuityHostClient(hostPreferences)
+        val portraitCoordinator = PortraitGenerationCoordinator(
+            context.applicationContext,
+            db.characterDao(),
+            db.portraitTaskDao(),
+            hostClient,
+            hostPreferences
+        )
         viewModel = ChatViewModel(
             threadId = "thread-1",
             chatDao = db.chatDao(),
             characterDao = db.characterDao(),
             connectionDao = db.connectionDao(),
             personaDao = db.personaDao(),
-            llmClient = fakeLlmClient,
-            runContinuityExtractionUseCase = useCase,
             continuityCheckpointCoordinator = ContinuityCheckpointCoordinator(db.chatDao(), hostClient, hostPreferences),
+            roleplayGenerationCoordinator = RoleplayGenerationCoordinator(
+                db.chatDao(),
+                db.connectionDao(),
+                fakeLlmClient,
+                hostClient,
+                hostPreferences
+            ),
+            portraitGenerationCoordinator = portraitCoordinator,
+            portraitTaskDao = db.portraitTaskDao(),
             continuityHostClient = hostClient,
+            continuityHostPreferences = hostPreferences,
             context = context.applicationContext
         )
     }
@@ -179,7 +193,7 @@ class ChatScreenTest {
     }
 
     @Test
-    fun chatScreen_showsWorkspace_andDeepScanButton() {
+    fun chatScreen_showsWorkspaceAndHceInspector() {
         composeTestRule.setContent {
             ChatScreen(viewModel = viewModel, onBack = {})
         }
@@ -191,8 +205,62 @@ class ChatScreenTest {
         // Open Inspector panel
         composeTestRule.onNodeWithContentDescription("Inspector").performClick()
         
-        // Check for cognitive state inspector headers/texts
-        composeTestRule.onNodeWithText("Cognitive State Inspector").assertExists()
+        // Check the provider-neutral Continuity inspector.
+        composeTestRule.onNodeWithText("HCE Inspector").assertExists()
         composeTestRule.onNodeWithText("No world state materialized yet.").assertExists()
+    }
+
+    @Test
+    fun rewindActionIsDisabledWhileAnotherGenerationOwnsTheBranch() {
+        val now = java.time.Instant.now().toString()
+        val turn = TurnEntity(
+            id = "turn-1",
+            thread_id = "thread-1",
+            branch_origin_id = "branch-1",
+            parent_turn_id = null,
+            user_input_text = "Stay.",
+            user_input_payload = "{}",
+            user_input_hidden = false,
+            starter_seed = false,
+            assistant_output_text = "I am not going anywhere.",
+            assistant_output_payload = "{}",
+            generation_status = "committed",
+            reserved_by_user_id = "00000000-0000-0000-0000-000000000000",
+            assistant_provider = "antigravity_host",
+            assistant_model = "antigravity:gemini-3.6-flash:high",
+            assistant_connection_label = "Antigravity (Mac)",
+            finish_reason = "stop",
+            total_tokens = null,
+            prompt_tokens = null,
+            completion_tokens = null,
+            feedback_rating = null,
+            generation_started_at = now,
+            generation_finished_at = now,
+            failure_code = null,
+            failure_message = null,
+            created_at = now,
+            updated_at = now
+        )
+
+        composeTestRule.setContent {
+            AssistantMessageRow(
+                turn = turn,
+                characterName = "Valeria",
+                isPinned = false,
+                isHead = true,
+                onEditReply = {},
+                onRegenerate = {},
+                onBranch = {},
+                onRewind = {},
+                onPinToggle = {},
+                onRate = {},
+                onCopy = {},
+                onEditDraft = {},
+                onSwitchModel = {},
+                rewindEnabled = false
+            )
+        }
+
+        composeTestRule.onNodeWithContentDescription("Rewind").assertIsNotEnabled()
     }
 }

@@ -1,0 +1,120 @@
+{
+  "name": "accepts a minimal valid snapshot",
+  "expect": "accept",
+  "reason": "baseline",
+  "target_turn_id": "turn-7",
+  "baseline_version": 1,
+  "reachable_turn_ids": [
+    "old-turn",
+    "turn-7"
+  ],
+  "seeds": [
+    {
+      "cast_id": "primary:thread-1",
+      "entity_id": "hero",
+      "canonical_name": "Hero",
+      "aliases": [],
+      "role_background": "Lead",
+      "personality": "Steady",
+      "voice_style": "",
+      "appearance": "",
+      "goals": "",
+      "boundaries": "",
+      "provenance": "primary",
+      "first_seen_turn_id": null,
+      "evidence": [],
+      "status": "active",
+      "speaker_eligible": true,
+      "player_controlled": false,
+      "manual_locks": [
+        "canonical_name",
+        "personality"
+      ]
+    }
+  ],
+  "world_state": {
+    "metadata": {
+      "current_turn_id": "turn-7",
+      "narrative_timestamp": "now",
+      "transition_type": "continuation",
+      "version": 2
+    },
+    "spatial_state": {
+      "current_location": {
+        "id": "room",
+        "name": "Room",
+        "description": "",
+        "environmental_modifiers": []
+      },
+      "adjacent_locations": [],
+      "known_locations": [
+        {
+          "id": "room",
+          "name": "Room",
+          "description": "",
+          "environmental_modifiers": []
+        }
+      ],
+      "edges": [],
+      "entity_placements": [
+        {
+          "entity_id": "hero",
+          "entity_name": "Hero",
+          "location_id": "room",
+          "location_name": "Room",
+          "micro_position": "inside"
+        }
+      ]
+    },
+    "entity_state": [
+      {
+        "entity_id": "hero",
+        "canonical_name": "Hero",
+        "entity_type": "character",
+        "aliases": [],
+        "is_present": true,
+        "primary_emotion": "calm",
+        "emotion_intensity": 10,
+        "emotion_catalyst": "",
+        "knowledge_boundary": [],
+        "traits": [],
+        "goals": [],
+        "secrets": [],
+        "abilities": [],
+        "possessions": []
+      }
+    ],
+    "relational_state": [],
+    "narrative_state": {
+      "story_summary": "Story",
+      "scene_summary": "Scene",
+      "last_turn_beat": "Beat",
+      "active_threads": [],
+      "resolved_threads": []
+    },
+    "cast_roster": [
+      {
+        "cast_id": "primary:thread-1",
+        "entity_id": "hero",
+        "canonical_name": "Hero",
+        "aliases": [],
+        "role_background": "Lead",
+        "personality": "Steady",
+        "voice_style": "",
+        "appearance": "",
+        "goals": "",
+        "boundaries": "",
+        "provenance": "primary",
+        "first_seen_turn_id": null,
+        "evidence": [],
+        "status": "active",
+        "speaker_eligible": true,
+        "player_controlled": false,
+        "manual_locks": [
+          "canonical_name",
+          "personality"
+        ]
+      }
+    ]
+  }
+}

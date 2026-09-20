@@ -27,7 +27,10 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.open_fantasia.data.local.entity.ConnectionEntity
+import com.example.open_fantasia.data.continuity.ContinuityEngineAvailability
 import com.example.open_fantasia.data.continuity.ContinuityHostState
+import com.example.open_fantasia.data.continuity.ContinuityHostPreferences
+import com.example.open_fantasia.data.continuity.RoleplayProtocol
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,8 +41,11 @@ fun SettingsScreen(
     val connections by viewModel.connections.collectAsState()
     val hostState by viewModel.continuityHostState.collectAsState()
     val continuityMessage by viewModel.continuityMessage.collectAsState()
+    val continuityEngineId by viewModel.continuityEngineId.collectAsState()
+    val continuityEngines by viewModel.continuityEngines.collectAsState()
     var editingConn by remember { mutableStateOf<ConnectionEntity?>(null) }
     var isCreating by remember { mutableStateOf(false) }
+    var pendingDelete by remember { mutableStateOf<ConnectionEntity?>(null) }
     val context = androidx.compose.ui.platform.LocalContext.current
 
     LaunchedEffect(continuityMessage) {
@@ -100,7 +106,10 @@ fun SettingsScreen(
                     state = hostState,
                     onPair = viewModel::pairContinuityHost,
                     onTest = viewModel::testContinuityHost,
-                    onForget = viewModel::forgetContinuityHost
+                    onForget = viewModel::forgetContinuityHost,
+                    engineId = continuityEngineId,
+                    engines = continuityEngines,
+                    onEngineSelected = viewModel::selectContinuityEngine
                 )
 
                 Spacer(Modifier.height(20.dp))
@@ -128,16 +137,33 @@ fun SettingsScreen(
                         items(connections) { conn ->
                             ConnectionItem(
                                 connection = conn,
-                                onClick = { editingConn = conn },
-                                onDelete = { viewModel.deleteConnection(conn) },
+                                onClick = { if (conn.provider != RoleplayProtocol.PROVIDER) editingConn = conn },
+                                onDelete = { pendingDelete = conn },
                                 onTest = { viewModel.testConnection(conn.id) },
-                                onRefresh = { viewModel.refreshModelCache(conn.id) }
+                                onRefresh = { viewModel.refreshModelCache(conn.id) },
+                                managed = conn.provider == RoleplayProtocol.PROVIDER
                             )
                         }
                     }
                 }
 
             }
+        }
+        pendingDelete?.let { connection ->
+            AlertDialog(
+                onDismissRequest = { pendingDelete = null },
+                title = { Text("Delete connection?") },
+                text = { Text("The connection can be deleted only when no thread uses it.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        viewModel.deleteConnection(connection)
+                        pendingDelete = null
+                    }) { Text("Delete") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { pendingDelete = null }) { Text("Cancel") }
+                }
+            )
         }
     }
 }
@@ -147,7 +173,10 @@ private fun ContinuityHostCard(
     state: ContinuityHostState,
     onPair: (String, String) -> Unit,
     onTest: () -> Unit,
-    onForget: () -> Unit
+    onForget: () -> Unit,
+    engineId: String?,
+    engines: ContinuityEngineAvailability,
+    onEngineSelected: (String) -> Unit
 ) {
     var endpoint by remember { mutableStateOf("") }
     var code by remember { mutableStateOf("") }
@@ -157,12 +186,12 @@ private fun ContinuityHostCard(
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("CONTINUITY HOST", color = Color(0xFF00FBFB), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("MAC HOST", color = Color(0xFF00FBFB), fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Text(
                 when (state) {
                     ContinuityHostState.Unpaired -> "Not paired"
                     ContinuityHostState.Checking -> "Checking your Mac…"
-                    is ContinuityHostState.Available -> "Available — continuity updates can run"
+                    is ContinuityHostState.Available -> "Available — continuity and Antigravity replies can run"
                     is ContinuityHostState.Unavailable -> "Unavailable — chat will stay locked at a checkpoint"
                     is ContinuityHostState.Incompatible -> "App and host versions do not match"
                 },
@@ -198,6 +227,37 @@ private fun ContinuityHostCard(
                     TextButton(onClick = onForget) { Text("Remove pairing") }
                 }
             }
+            Text("CONTINUITY ENGINE", color = Color.Gray, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                ContinuityHostPreferences.CONTINUITY_ENGINES.forEach { engine ->
+                    val blockedReason = engines.unavailableReason(engine.id)
+                    val selectable = engines.isSelectable(engine.id)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(enabled = selectable) { onEngineSelected(engine.id) },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = engineId == engine.id,
+                            enabled = selectable,
+                            onClick = { onEngineSelected(engine.id) }
+                        )
+                        Column {
+                            Text(
+                                engine.label,
+                                color = if (selectable) Color.White else Color.Gray,
+                                fontSize = 13.sp
+                            )
+                            Text(
+                                blockedReason ?: engine.hint,
+                                color = if (blockedReason == null) Color.Gray else Color(0xFFFFC857),
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -209,7 +269,8 @@ fun ConnectionItem(
     onClick: () -> Unit,
     onDelete: () -> Unit,
     onTest: () -> Unit,
-    onRefresh: () -> Unit
+    onRefresh: () -> Unit,
+    managed: Boolean = false
 ) {
     Card(
         onClick = onClick,
@@ -307,12 +368,13 @@ fun ConnectionItem(
                 Icon(Icons.Default.Bolt, contentDescription = "Test connection", tint = Color(0xFF00FBFB))
             }
 
-            IconButton(onClick = onRefresh) {
-                Icon(Icons.Default.Refresh, contentDescription = "Refresh models", tint = Color.Gray)
-            }
-
-            IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Gray)
+            if (!managed) {
+                IconButton(onClick = onRefresh) {
+                    Icon(Icons.Default.Refresh, contentDescription = "Refresh models", tint = Color.Gray)
+                }
+                IconButton(onClick = onDelete) {
+                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Gray)
+                }
             }
         }
     }
