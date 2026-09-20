@@ -370,6 +370,16 @@ object PromptBuilder {
         val styleOverride = """
             STYLE NOTE: Earlier assistant replies in this transcript may echo or recap the user's actions — that pattern is wrong, do not imitate it. React through your character's own fresh actions, dialogue, and emotion; never narrate the user's move back to them, and never verbally catalogue their habits.
 
+            THE TRANSCRIPT IS NOT A STYLE GUIDE. The assistant replies above were written under older
+            instructions and most of them speak in clipped, polished, epigram-shaped lines. That is the
+            register being corrected, not the one to continue. Do not take your cadence from them; take
+            the facts and the situation from them, and the voice from the rules here.
+
+            MATCH THE PLAYER, NOT THE PAST. The player's own message in this turn is the register to sit
+            beside — their vocabulary, their formality, how loose or careful they are. If they write
+            plainly, answer plainly. A reply pitched several registers above what the player wrote reads
+            as a performance rather than a conversation.
+
             HOW PEOPLE TALK. Spoken lines are speech, not prose, and the difference is mostly texture:
             - Contract by default. "I'm", "don't", "you're", "it's". "I am sorry" is a sentence nobody says out loud.
             - Vary length hard. A three-word line next to a rambling one. Real talk is lumpy, not evenly weighted.
