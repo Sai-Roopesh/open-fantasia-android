@@ -105,7 +105,7 @@
     "cast_fields": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["role_background", "personality", "voice_style", "appearance", "goals", "boundaries", "speaker_eligible"],
+      "required": ["role_background", "personality", "voice_style", "appearance", "goals", "boundaries", "speaker_eligible", "voice_samples"],
       "properties": {
         "role_background": { "type": ["string", "null"] },
         "personality": { "type": ["string", "null"] },
@@ -113,7 +113,8 @@
         "appearance": { "type": ["string", "null"] },
         "goals": { "type": ["string", "null"] },
         "boundaries": { "type": ["string", "null"] },
-        "speaker_eligible": { "type": ["boolean", "null"] }
+        "speaker_eligible": { "type": ["boolean", "null"] },
+        "voice_samples": { "type": ["array", "null"], "items": { "type": "string" }, "description": "Lines this Cast Member actually spoke in the exchanges, verbatim. Null leaves their existing samples unchanged." }
       }
     },
     "timeline_event": {

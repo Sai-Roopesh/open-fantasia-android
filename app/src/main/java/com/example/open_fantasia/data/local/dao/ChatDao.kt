@@ -6,6 +6,8 @@ import com.example.open_fantasia.domain.model.BranchLineage
 import com.example.open_fantasia.domain.model.BranchLineageRef
 import com.example.open_fantasia.domain.model.TurnLineageRef
 import com.example.open_fantasia.domain.model.DurableMemorySnapshot
+import com.example.open_fantasia.domain.model.VoiceMeter
+import com.example.open_fantasia.domain.model.VoiceMetrics
 import kotlinx.coroutines.flow.Flow
 import java.time.Instant
 import java.util.UUID
@@ -642,7 +644,12 @@ abstract class ChatDao {
             continuityEngineId = continuityEngineId
         )
         if (sceneReport != null) updateTurn(getTurn(committed.id)?.copy(scene_report = sceneReport) ?: committed)
-        updateRoleplayJob(job.copy(status = "accepted", failure_detail = null, updated_at = Instant.now().toString(), accepted_at = Instant.now().toString()))
+        // How the dialogue came out, beside the request that produced it. See [VoiceMetrics].
+        val voiceMetrics = VoiceMetrics.encode(VoiceMeter.measure(replyText))
+        updateRoleplayJob(job.copy(
+            status = "accepted", failure_detail = null, voice_metrics = voiceMetrics,
+            updated_at = Instant.now().toString(), accepted_at = Instant.now().toString()
+        ))
         return committed
     }
 

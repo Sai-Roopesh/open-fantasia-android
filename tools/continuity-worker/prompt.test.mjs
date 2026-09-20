@@ -62,3 +62,13 @@ test("every engine is given the same instructions", () => {
   assert.ok(rendered.includes("## How to write it"));
   assert.ok(CONTRACT_FILES.includes("PROMPT.md"));
 });
+
+test("a voice is sample lines, asked for positively", () => {
+  // The old paragraph listed the adjectives to avoid, and naming a thing raises its frequency. The
+  // engine is now told what a voice description is and asked to copy real lines into voice_samples.
+  const flat = prompt.replace(/\s+/g, " ");
+  assert.match(flat, /`voice_samples` is the part that does the work/);
+  assert.match(flat, /copy up to six of their actual lines/);
+  assert.match(flat, /Never invent a sample line/);
+  assert.equal(prompt.includes('Avoid "concise"'), false);
+});

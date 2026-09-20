@@ -247,13 +247,68 @@ class KtorLLMClientTest {
         assertEquals(0.9, payload["temperature"]?.jsonPrimitive?.double ?: 0.0, 0.0)
         assertEquals(0.9, payload["top_p"]?.jsonPrimitive?.double ?: 0.0, 0.0)
         assertEquals(1024, payload["max_tokens"]?.jsonPrimitive?.int)
-        assertEquals(0.4, payload["presence_penalty"]?.jsonPrimitive?.double ?: 0.0, 0.0)
-        assertEquals(0.4, payload["frequency_penalty"]?.jsonPrimitive?.double ?: 0.0, 0.0)
+        // No repetition penalties on roleplay: they taxed the tokens speech is made of (ADR-0024). And
+        // no min_p to a provider that would 400 on it.
+        assertFalse(payload.containsKey("presence_penalty"))
+        assertFalse(payload.containsKey("frequency_penalty"))
+        assertFalse(payload.containsKey("min_p"))
         val messages = payload["messages"]!!.jsonArray
         assertEquals(listOf("system", "user"), messages.map { it.jsonObject["role"]!!.jsonPrimitive.content })
         assertEquals(listOf("system", "hello"), messages.map { it.jsonObject["content"]!!.jsonPrimitive.content })
         assertEquals("Yunxi replies.", chunks.joinToString("") { it.text.orEmpty() })
         assertEquals(8, chunks.last().promptCacheHitTokens)
+    }
+
+    @Test
+    fun ollamaReceivesMinPAndOpenRouterOnlyWhenTheModelAdvertisesIt() = runBlocking {
+        var requestJson = ""
+        val mockEngine = MockEngine { request ->
+            requestJson = (request.body as OutgoingContent.ByteArrayContent).bytes().decodeToString()
+            respond(
+                content = """{"message":{"content":"ok"},"done":true}""",
+                status = HttpStatusCode.OK,
+                headers = headersOf(HttpHeaders.ContentType, "application/x-ndjson")
+            )
+        }
+        val http = HttpClient(mockEngine) {
+            install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+            install(HttpTimeout)
+        }
+        KtorLLMClient(http).streamGenerateText(
+            connection = makeMockConnection("ollama", baseUrl = "http://localhost:11434"),
+            modelId = "llama", systemPrompt = "system", messages = listOf(ChatMessage("user", "hi")),
+            temperature = 0.95, topP = 1.0, maxTokens = 512, minP = 0.05
+        ).toList()
+        val options = Json.parseToJsonElement(requestJson).jsonObject["options"]!!.jsonObject
+        assertEquals(0.05, options["min_p"]?.jsonPrimitive?.double ?: 0.0, 0.0)
+
+        // OpenRouter: sent only when the discovered catalogue says the model takes it.
+        val sseEngine = MockEngine { request ->
+            requestJson = (request.body as OutgoingContent.ByteArrayContent).bytes().decodeToString()
+            respond(
+                content = "data: {\"choices\":[{\"delta\":{\"content\":\"ok\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n",
+                status = HttpStatusCode.OK,
+                headers = headersOf(HttpHeaders.ContentType, "text/event-stream")
+            )
+        }
+        val sseHttp = HttpClient(sseEngine) {
+            install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+            install(HttpTimeout)
+        }
+        val advertising = makeMockConnection("openrouter", key = "k").copy(
+            model_cache = listOf(ModelCatalogEntry(id = "vendor/model", name = "m", provider = "openrouter", supportsMinP = true))
+        )
+        KtorLLMClient(sseHttp).streamGenerateText(
+            connection = advertising, modelId = "vendor/model", systemPrompt = "s",
+            messages = listOf(ChatMessage("user", "hi")), temperature = 0.9, topP = 0.9, maxTokens = 256, minP = 0.05
+        ).toList()
+        assertEquals(0.05, Json.parseToJsonElement(requestJson).jsonObject["min_p"]?.jsonPrimitive?.double ?: 0.0, 0.0)
+
+        KtorLLMClient(sseHttp).streamGenerateText(
+            connection = makeMockConnection("openrouter", key = "k"), modelId = "vendor/model", systemPrompt = "s",
+            messages = listOf(ChatMessage("user", "hi")), temperature = 0.9, topP = 0.9, maxTokens = 256, minP = 0.05
+        ).toList()
+        assertFalse(Json.parseToJsonElement(requestJson).jsonObject.containsKey("min_p"))
     }
 
     @Test

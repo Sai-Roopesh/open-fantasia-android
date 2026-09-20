@@ -172,37 +172,31 @@ object ExchangeRecall {
 
 object RecallRendering {
 
-    const val TAG = "recalled_exchanges"
+    const val TAG = "earlier"
 
     /**
      * How recalled prose is presented.
      *
      * The one thing that must not happen is a model mistaking an exchange from two hundred turns ago for
-     * something that just happened. Each is stamped with its distance and stated to be finished, and the
-     * whole block says plainly that the recent transcript is still where the scene lives.
+     * something that just happened. Each is stamped with its distance, and the frame says they are memory.
      *
-     * The block is three prohibitions and no invitation, which looks like poor prompt design and was
-     * tried the other way. Adding a paragraph telling the model to read these for how they felt — the
-     * one thing a Snapshot cannot carry, since it keeps 0 of 897 moments' dialogue — was measured over
-     * twenty stored production prompts, each regenerated under both wordings and scored blind by a
-     * judge on emotional carry. It lost, 7 to 13, and an earlier six-pair pilot had it winning 4 to 2.
-     * Both sit inside chance (p is about 0.26), so the wording was reverted rather than shipped on a
-     * result that could not tell itself apart from noise. Two separate A/Bs have now failed to show
-     * this block moving a reply at all; establish that it can before investing in better retrieval.
+     * The frame used to be three prohibitions — do not treat them as recent, do not continue from them,
+     * do not repeat them back — and two A/Bs failed to show the block moving a reply at all. This is the
+     * same information as one sentence about what the moments are, which costs less and cannot be worse;
+     * if a third A/B also shows nothing, drop the block and keep the retrieval for the Continuity Engine.
      */
-    fun render(recalled: List<RecalledExchange>): String? {
+    fun render(recalled: List<RecalledExchange>, playerName: String, speakerName: String): String? {
         if (recalled.isEmpty()) return null
         return buildString {
             appendLine(
-                "Earlier moments this turn seems to be reaching for, quoted exactly. They already happened " +
-                    "and are long past — do not treat them as recent, do not continue from them, and do not " +
-                    "repeat them back. The conversation below is still where the scene is."
+                "Something $playerName just said reaches back to these moments. They're memory now \u2014 " +
+                    "what they left behind is what matters."
             )
             recalled.forEach { item ->
                 appendLine()
-                appendLine("— ${item.exchangesAgo} exchanges ago —")
-                appendLine("Player: ${item.playerProse.trim()}")
-                appendLine("Reply: ${item.assistantProse.trim()}")
+                appendLine("\u2014 ${item.exchangesAgo} exchanges ago \u2014")
+                appendLine("$playerName: ${item.playerProse.trim()}")
+                appendLine("$speakerName: ${item.assistantProse.trim()}")
             }
         }.trimEnd()
     }

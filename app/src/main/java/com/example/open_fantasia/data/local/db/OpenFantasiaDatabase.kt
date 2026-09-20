@@ -462,6 +462,26 @@ val MIGRATION_14_15 = object : Migration(14, 15) {
     }
 }
 
+/**
+ * Voice. Things a person has actually said, on every kind of speaker, and a measurement of how each
+ * accepted reply's dialogue came out.
+ *
+ * `voice_samples` is empty everywhere on migration: a sample line is something an author writes or a
+ * Continuity Update copies from the transcript, never something to invent in SQL. `voice_metrics` is
+ * null on every existing job because the meter did not exist when they were accepted; a replay tool can
+ * fill it in from the stored reply. Older column names (`style_rules`, `negative_guidance`) keep their
+ * stored spelling, the same way `fork_turn_id` does — what changed is what they mean to the prompt.
+ */
+val MIGRATION_15_16 = object : Migration(15, 16) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE characters ADD COLUMN voice_samples TEXT NOT NULL DEFAULT '[]'")
+        db.execSQL("ALTER TABLE user_personas ADD COLUMN voice_samples TEXT NOT NULL DEFAULT '[]'")
+        db.execSQL("ALTER TABLE cast_seeds ADD COLUMN voice_samples TEXT NOT NULL DEFAULT '[]'")
+        db.execSQL("ALTER TABLE cast_profile_overrides ADD COLUMN voice_samples TEXT NOT NULL DEFAULT '[]'")
+        db.execSQL("ALTER TABLE roleplay_generation_jobs ADD COLUMN voice_metrics TEXT")
+    }
+}
+
 @Database(
     entities = [
         ProfileEntity::class,
@@ -481,7 +501,7 @@ val MIGRATION_14_15 = object : Migration(14, 15) {
         PortraitGenerationJobEntity::class,
         CastPortraitEntity::class
     ],
-    version = 15,
+    version = 16,
     exportSchema = false
 )
 @TypeConverters(Converters::class)

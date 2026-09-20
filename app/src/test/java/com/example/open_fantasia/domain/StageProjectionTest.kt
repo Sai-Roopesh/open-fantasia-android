@@ -24,7 +24,7 @@ class StageProjectionTest {
         castId = castId, entityId = entityId, canonicalName = name, aliases = emptyList(),
         roleBackground = "$name background", personality = "$name personality", voiceStyle = "dry",
         appearance = "tall", goals = "goal", boundaries = "", origin = "Authored by the player",
-        evidence = emptyList(), status = "active", speakerEligible = true
+        evidence = emptyList(), status = "active", speakerEligible = true, voiceSamples = emptyList()
     )
 
     private fun world(

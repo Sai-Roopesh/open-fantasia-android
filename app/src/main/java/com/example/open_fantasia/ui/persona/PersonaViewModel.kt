@@ -46,7 +46,8 @@ class PersonaViewModel(
         goals: String,
         boundaries: String,
         privateNotes: String,
-        isDefault: Boolean
+        isDefault: Boolean,
+        voiceSamples: List<String> = emptyList()
     ) {
         viewModelScope.launch {
             val now = Instant.now().toString()
@@ -66,7 +67,8 @@ class PersonaViewModel(
                 private_notes = privateNotes,
                 is_default = isDefault,
                 created_at = existingPersona?.created_at ?: now,
-                updated_at = now
+                updated_at = now,
+                voice_samples = voiceSamples.map { it.trim().trim('"', '\u201C', '\u201D').trim() }.filter { it.isNotEmpty() }
             )
 
             personaDao.insertPersona(persona)

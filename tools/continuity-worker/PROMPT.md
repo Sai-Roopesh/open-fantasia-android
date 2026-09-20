@@ -166,10 +166,16 @@ and any change you write to them is discarded. Every other field on a Cast Seed 
 the story earns it — use `describe_cast_member` when evidence genuinely changes who someone is, and
 leave it alone otherwise.
 
-When you write `voice_style`, describe speech habits rather than efficiency: what someone says while
-stalling, the word they overuse, how they interrupt, when they trail off. Avoid "concise", "economical",
-"precise", "measured" and "controlled" — those describe prose, and a cast described that way all ends up
-talking in the same clipped epigrams.
+When you write `voice_style`, write about a person talking: where they're from in their vowels, what
+they say while stalling, the word they lean on, how they interrupt, whether they finish sentences, how
+they swear or don't. It describes speech, not prose.
+
+`voice_samples` is the part that does the work. When a Cast Member has spoken in the exchanges, copy up
+to six of their actual lines into `profile.voice_samples`, verbatim, quotation marks stripped — the ones
+that sound most like a person: a short one, a long one, one that restarts or trails off, one that is
+plain. A line the model wrote in a good turn is the best possible anchor for that character's next
+turn. Never invent a sample line; a member who has not spoken gets `null`, which leaves whatever they
+already have. The compiler keeps the ten most recent.
 
 Add a discovered Cast Member only when the exchanges establish a named person with meaningful
 participation, recurring dialogue, or a consequential relationship. Do not add unnamed extras, crowds,

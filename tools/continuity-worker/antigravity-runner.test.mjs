@@ -9,18 +9,20 @@ import {
   createAntigravityRoleplayRunner,
   MAX_ANTIGRAVITY_ROLEPLAY_PROMPT_BYTES,
   renderRoleplayTask,
+  roleplayNames,
   validatePortraitImage,
-  validateRoleplayOutput
+  validateRoleplayOutput,
+  validateRoleplayRequest
 } from "./antigravity-runner.mjs";
 
 function generationRequest() {
   return {
     contract_version: 1,
-    system_prompt: "SYSTEM-RULE: Speak only as Yunxi.\n<durable_state>\n{\"story\":\"continuity\"}\n</durable_state>",
+    system_prompt: "<voice_card name=\"Yunxi\">\nSYSTEM-RULE: Speak only as Yunxi.\n</voice_card>\n<player name=\"Dan\">\nDAN\n</player>\n<where_things_stand>\nThe story so far.\n</where_things_stand>",
     messages: [
       { role: "user", content: "First user beat." },
       { role: "assistant", content: "Earlier assistant beat." },
-      { role: "user", content: "<reply_control>Yunxi</reply_control>\\nLatest user beat." }
+      { role: "user", content: "Latest user beat.\n\n<whisper>\nYou're Yunxi now.\n</whisper>" }
     ],
     requested_speaker_id: "cast-yunxi",
     speaker_mode: "single",
@@ -34,14 +36,37 @@ function generationRequest() {
   };
 }
 
-test("roleplay task preserves authoritative prompt and ordered roles without transport metadata", () => {
+test("roleplay task preserves authoritative prompt and ordered turns without transport metadata", () => {
   const task = renderRoleplayTask(generationRequest());
   assert.match(task, /SYSTEM-RULE: Speak only as Yunxi\./);
   assert.ok(task.indexOf("First user beat.") < task.indexOf("Earlier assistant beat."));
   assert.ok(task.indexOf("Earlier assistant beat.") < task.indexOf("Latest user beat."));
-  assert.match(task, /role="user"/);
-  assert.match(task, /role="assistant"/);
+  // Turns carry the speakers' names, read from the system prompt, rather than protocol roles.
+  assert.match(task, /\nDan: First user beat\./);
+  assert.match(task, /\nYunxi: Earlier assistant beat\./);
+  assert.doesNotMatch(task, /role="user"|<message |Generation Contract|system_instruction|generation_preferences/);
   assert.doesNotMatch(task, /request_id|thread_id|Tailscale|queue/);
+  // The whisper is the last thing before the one-line instruction.
+  assert.ok(task.indexOf("<whisper>") > task.indexOf("Latest user beat."));
+});
+
+test("roleplay names fall back to plain words when the system prompt carries no tags", () => {
+  const names = roleplayNames("no tags here\n<where_things_stand>\nx\n</where_things_stand>");
+  assert.equal(names.player, "Player");
+  assert.equal(names.character, "Reply");
+});
+
+test("roleplay request accepts a Voice Anchor ahead of a full window and rejects more", () => {
+  const request = generationRequest();
+  request.messages = [];
+  for (let index = 1; index <= 19; index++) {
+    request.messages.push({ role: "user", content: `U${index}` });
+    request.messages.push({ role: "assistant", content: `A${index}` });
+  }
+  request.messages.push({ role: "user", content: "now\n<whisper>\nx\n</whisper>" });
+  assert.doesNotThrow(() => validateRoleplayRequest(request));
+  request.messages.unshift({ role: "user", content: "U0" }, { role: "assistant", content: "A0" });
+  assert.throws(() => validateRoleplayRequest(request), /exceeds fifteen/);
 });
 
 test("roleplay task preserves every sentinel across a full fifteen-exchange window", () => {
@@ -59,7 +84,7 @@ test("roleplay task preserves every sentinel across a full fifteen-exchange wind
   }
   request.messages.push({
     role: "user",
-    content: "<reply_control>Yunxi</reply_control>\\nCURRENT-USER-SENTINEL"
+    content: "CURRENT-USER-SENTINEL\n\n<whisper>\nYou're Yunxi now.\n</whisper>"
   });
 
   const task = renderRoleplayTask(request);
@@ -68,9 +93,8 @@ test("roleplay task preserves every sentinel across a full fifteen-exchange wind
     assert.match(task, new RegExp(`ASSISTANT-SENTINEL-${index}`));
   }
   assert.match(task, /CURRENT-USER-SENTINEL/);
-  assert.equal(task.split("<durable_state>").length - 1, 1);
-  const conversation = task.split("<conversation>")[1].split("</conversation>")[0];
-  assert.equal(conversation.split("<reply_control>").length - 1, 1);
+  assert.equal(task.split("<where_things_stand>").length - 1, 1);
+  assert.equal(task.split("<whisper>").length - 1, 1);
 });
 
 test("roleplay runner gives Antigravity the complete canonical task as direct model input", async () => {
@@ -108,7 +132,8 @@ test("roleplay runner gives Antigravity the complete canonical task as direct mo
     assert.equal(result.reply_text, "Yunxi answers in character.");
     assert.equal(args[0], "--print");
     assert.doesNotMatch(args.join(" "), /roleplay-task\.md|read_file/);
-    assert.match(task, /Open Fantasia Roleplay Generation Contract/);
+    assert.match(task, /SYSTEM-RULE: Speak only as Yunxi/);
+    assert.match(task, /Write the next part of the story/);
     assert.doesNotMatch(task, /transport-only/);
   } finally {
     await rm(root, { recursive: true, force: true });

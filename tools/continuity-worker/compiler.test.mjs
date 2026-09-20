@@ -6,7 +6,8 @@ import {
   ContinuityCompileError,
   assertSatisfiableRequest,
   compileContinuityDraft,
-  projectContinuityEvidence
+  projectContinuityEvidence,
+  mergeVoiceSamples, MAX_VOICE_SAMPLES
 } from "./compiler.mjs";
 import { validateResponse } from "./worker-lib.mjs";
 
@@ -896,4 +897,32 @@ test("the evidence projection is smaller than the request it replaces", () => {
   const projected = Buffer.byteLength(JSON.stringify(projectContinuityEvidence(request)));
   const raw = Buffer.byteLength(JSON.stringify(request));
   assert.ok(projected < raw, `projection ${projected} should undercut the raw request ${raw}`);
+});
+
+test("voice samples merge without duplicates, strip quotes, and keep the newest ten", () => {
+  const merged = mergeVoiceSamples(
+    ["Mm.", "\u201CRight. Okay.\u201D"],
+    ["right. okay.", "  ", "\"No, hang on.\"", null]
+  );
+  assert.deepEqual(merged, ["Mm.", "Right. Okay.", "No, hang on."]);
+  const many = mergeVoiceSamples([], Array.from({ length: 14 }, (_, i) => `line ${i + 1}`));
+  assert.equal(many.length, MAX_VOICE_SAMPLES);
+  assert.equal(many[0], "line 5");
+  assert.deepEqual(mergeVoiceSamples(undefined, undefined), []);
+});
+
+test("describe_cast_member accumulates voice samples and the roster always carries a bounded array", () => {
+  const { request, response } = compile({}, {
+    operations: [op({
+      op: "describe_cast_member", handle: "hero",
+      profile: { role_background: null, personality: null, voice_style: null, appearance: null, goals: null, boundaries: null, speaker_eligible: null, voice_samples: ["I didn't say that.", "Mm."] }
+    })]
+  });
+  const hero = castById(response, "primary:thread-1");
+  assert.deepEqual(hero.voice_samples, ["I didn't say that.", "Mm."]);
+  for (const member of response.world_state.cast_roster) {
+    assert.ok(Array.isArray(member.voice_samples));
+    assert.ok(member.voice_samples.length <= MAX_VOICE_SAMPLES);
+  }
+  assert.doesNotThrow(() => validateResponse(request, response));
 });

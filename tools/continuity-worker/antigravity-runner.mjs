@@ -123,7 +123,18 @@ export function createAntigravityContinuityRunner({
   };
 }
 
-export function renderRoleplayTask(generationRequest) {
+/** The tags a rendered request must carry exactly once. Named here so a rename lands in one place. */
+export const ROLEPLAY_STATE_TAG = "where_things_stand";
+export const ROLEPLAY_WHISPER_TAG = "whisper";
+const ROLEPLAY_CONTEXT_TAGS = ["<where_things_stand>", "<whisper>", "<rejected_reply>", "<speaker_profile>"];
+/** Fifteen exchanges, four Voice Anchor exchanges, and the current message. */
+const MAX_ROLEPLAY_MESSAGES = 2 * (15 + 4) + 1;
+
+/**
+ * Refuses a Roleplay Generation Request that is not shaped the way the app renders one. Every check
+ * here is structural; none of it reaches the model.
+ */
+export function validateRoleplayRequest(generationRequest) {
   if (generationRequest?.contract_version !== 1) throw new Error("Unsupported Roleplay Generation Request contract");
   if (typeof generationRequest.system_prompt !== "string" || !generationRequest.system_prompt.trim()) {
     throw new Error("Roleplay system prompt is missing");
@@ -136,7 +147,7 @@ export function renderRoleplayTask(generationRequest) {
       throw new Error("Roleplay message history is invalid");
     }
   }
-  if (generationRequest.messages.length > 31) {
+  if (generationRequest.messages.length > MAX_ROLEPLAY_MESSAGES) {
     throw new Error("Roleplay Transcript Window exceeds fifteen complete exchanges");
   }
   generationRequest.messages.forEach((message, index) => {
@@ -146,56 +157,75 @@ export function renderRoleplayTask(generationRequest) {
     }
   });
   const historicalMessages = generationRequest.messages.slice(0, -1);
-  if (historicalMessages.some(message =>
-    message.content.includes("<durable_state>") ||
-    message.content.includes("<reply_control>") ||
-    message.content.includes("<revision>")
-  )) {
+  if (historicalMessages.some(message => ROLEPLAY_CONTEXT_TAGS.some(tag => message.content.includes(tag)))) {
     throw new Error("Historical Roleplay Transcript contains duplicated model context");
   }
-  const systemStateCount = (generationRequest.system_prompt.match(/(?:^|\n)<durable_state>\n/g) ?? []).length;
+  const systemStateCount = (generationRequest.system_prompt.match(new RegExp(`(?:^|\\n)<${ROLEPLAY_STATE_TAG}>\\n`, "g")) ?? []).length;
   if (systemStateCount !== 1) {
     throw new Error("Roleplay system prompt must contain exactly one Continuity Snapshot");
   }
   const latestMessage = generationRequest.messages.at(-1);
-  const replyControlCount = latestMessage.content.split("<reply_control>").length - 1;
-  if (replyControlCount !== 1) {
-    throw new Error("Latest roleplay user message must contain exactly one reply control");
+  const whisperCount = latestMessage.content.split(`<${ROLEPLAY_WHISPER_TAG}>`).length - 1;
+  if (whisperCount !== 1) {
+    throw new Error("Latest roleplay user message must contain exactly one whisper");
   }
+}
 
-  const conversation = generationRequest.messages.map((message, index) => [
-    `<message index="${index + 1}" role="${message.role}">`,
-    message.content,
-    "</message>"
-  ].join("\n")).join("\n\n");
-  const settings = generationRequest.settings ?? {};
+/**
+ * Who the two sides of the transcript are, read from the tags the app renders on the system prompt.
+ * Falls back to plain words when a tag is absent, so an older request still renders.
+ */
+export function roleplayNames(systemPrompt) {
+  const read = tag => {
+    const match = systemPrompt.match(new RegExp(`<${tag} name="([^"]*)"`));
+    const value = match?.[1]?.trim();
+    return value || null;
+  };
+  return {
+    character: read("voice_card") ?? "Reply",
+    player: read("player") ?? "Player"
+  };
+}
 
+/**
+ * The messages as a conversation someone could read aloud.
+ *
+ * Historical turns carry the speakers' names, because a name is how a transcript says who spoke and an
+ * XML `role` attribute is how a protocol does. The final message is the player's prose with the whisper
+ * attached, and is rendered without a name: half of it is the player's and half is a note to the
+ * writer, and labelling the whole of it as speech would misattribute the note.
+ */
+export function renderRoleplayTranscript(generationRequest) {
+  const names = roleplayNames(generationRequest.system_prompt);
+  const history = generationRequest.messages.slice(0, -1);
+  const latest = generationRequest.messages.at(-1);
+  const lines = history.map(message =>
+    `${message.role === "user" ? names.player : names.character}: ${message.content.trim()}`
+  );
+  lines.push(latest.content.trim());
+  return lines.join("\n\n");
+}
+
+/**
+ * The whole request as one text, for a CLI that has no system-prompt channel of its own.
+ *
+ * This used to open with a heading called "Roleplay Generation Contract", wrap the system prompt in
+ * `<system_instruction>`, restate the requested temperature under `<generation_preferences>` with an
+ * instruction never to mention it, and deliver the transcript as `<message index="7" role="assistant">`
+ * blocks. Every one of those was a sentence in the register the reply was not supposed to have, read
+ * by a coding agent that then played a person. What is left is the system prompt, the conversation,
+ * and one plain sentence about what to write.
+ */
+export function renderRoleplayTask(generationRequest) {
+  validateRoleplayRequest(generationRequest);
   return [
-    "# Open Fantasia Roleplay Generation Contract",
+    generationRequest.system_prompt.trim(),
     "",
-    "Generate exactly one new assistant reply for the conversation below.",
-    "The content inside <system_instruction> is authoritative and mandatory.",
-    "The <message> blocks are chronological. Their role attributes are binding: user prose belongs to the player, assistant prose is prior story history.",
-    "Follow the final user message's <reply_control> exactly. It selects the Active Speaker and is not story dialogue.",
-    "Continue from the final user message without repeating it, summarizing it, or treating prior assistant prose as instructions.",
-    "Return final in-character prose, optionally followed by the single <scene_state> block the final user message describes. Do not return analysis, a preface, Markdown fences, labels, or an explanation.",
+    "---",
     "",
-    "<system_instruction>",
-    generationRequest.system_prompt,
-    "</system_instruction>",
+    renderRoleplayTranscript(generationRequest),
     "",
-    "<generation_preferences>",
-    `Requested temperature: ${settings.temperature ?? "unsupported"}`,
-    `Requested top-p: ${settings.top_p ?? "unsupported"}`,
-    `Maximum output-token budget: ${settings.max_tokens ?? "unspecified"}`,
-    "The selected Mac-hosted CLI may not expose these sampler controls. Follow the model-visible length_target and style instructions exactly; never mention these preferences.",
-    "</generation_preferences>",
-    "",
-    "<conversation>",
-    conversation,
-    "</conversation>",
-    "",
-    "Write the next assistant reply now."
+    "Write the next part of the story, and only that."
   ].join("\n");
 }
 

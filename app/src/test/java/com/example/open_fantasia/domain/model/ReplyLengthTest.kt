@@ -14,7 +14,7 @@ class ReplyLengthTest {
     @Test
     fun `the target is stated in words, never in paragraphs`() {
         val directive = ReplyLengthCalibration.directive(ReplyLength.Full, "any-model")
-        assertTrue(directive.contains("words of visible prose"))
+        assertTrue(directive.contains("About 256\u2013384 words."))
         assertFalse("paragraphs are elastic; the model sizes them to taste", directive.contains("paragraph"))
     }
 
@@ -55,8 +55,8 @@ class ReplyLengthTest {
     @Test
     fun `an unbounded reply asks for no number at all`() {
         val directive = ReplyLengthCalibration.directive(ReplyLength.Unbounded, "any-model")
-        assertFalse(directive.contains("words of visible prose"))
-        assertTrue(directive.contains("whatever length this beat genuinely needs"))
+        assertFalse(directive.contains("words"))
+        assertTrue(directive.contains("As long as it needs."))
     }
 
     @Test

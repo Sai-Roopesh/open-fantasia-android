@@ -123,18 +123,21 @@ class ExchangeRecallTest {
     }
 
     @Test
-    fun `recalled prose is stamped as past and told not to be continued`() {
+    fun `recalled prose is stamped as past and framed as memory, with the speakers named`() {
         val out = RecallRendering.render(
-            listOf(RecalledExchange("t", 55, "we bought the jammer", "she switched it on", listOf("jammer")))
+            listOf(RecalledExchange("t", 55, "we bought the jammer", "she switched it on", listOf("jammer"))),
+            playerName = "Dan", speakerName = "Vera"
         )!!
         assertTrue(out.contains("55 exchanges ago"))
-        assertTrue(out.contains("do not treat them as recent"))
-        assertTrue(out.contains("do not continue from them"))
-        assertTrue(out.contains("we bought the jammer"))
+        assertTrue(out.contains("They're memory now"))
+        assertTrue(out.contains("Dan: we bought the jammer"))
+        assertTrue(out.contains("Vera: she switched it on"))
+        // The old frame was three prohibitions, and two A/Bs could not show it moving a reply.
+        assertFalse(out.contains("do not"))
     }
 
     @Test
     fun `nothing recalled renders nothing`() {
-        org.junit.Assert.assertNull(RecallRendering.render(emptyList()))
+        org.junit.Assert.assertNull(RecallRendering.render(emptyList(), "Dan", "Vera"))
     }
 }

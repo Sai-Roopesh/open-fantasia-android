@@ -78,8 +78,11 @@ class SceneReportTest {
 
     @Test
     fun `the report names the cast so a model has something exact to copy`() {
-        val contract = SceneReportCodec.outputContract(listOf("Dr. Avni Mehra", "Dr. Ayushi Mehra"))
-        assertTrue(contract.contains("Dr. Avni Mehra"))
-        assertTrue("the block must be optional or it can block a reply", contract.contains("leave the block out entirely"))
+        val contract = SceneReportCodec.outputContract(listOf("Dr. Avni Mehra", "Dr. Ayushi Mehra"), playerName = "Dan")
+        assertTrue(contract.contains("\"Dr. Avni Mehra\", \"Dr. Ayushi Mehra\", \"Dan\""))
+        assertTrue(contract.contains("<${SceneReportCodec.TAG}>"))
+        // Two lines. The codec forgives anything the model gets wrong, so the instruction no longer has
+        // to say so; a paragraph about what happens if a field is missing was register, not information.
+        assertTrue(contract.lines().size <= 2)
     }
 }

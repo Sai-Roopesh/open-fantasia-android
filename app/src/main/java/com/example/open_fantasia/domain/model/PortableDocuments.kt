@@ -25,7 +25,9 @@ data class CharacterDocumentData(
     val definition: String,
     val negative_guidance: String,
     val suggested_starters: List<String>,
-    val example_conversations: List<ExampleConversation>
+    val example_conversations: List<ExampleConversation>,
+    /** Optional so documents written before it existed still parse. */
+    val voice_samples: List<String> = emptyList()
 )
 
 // ─── Persona Document (v1) ─────────────────────────────────────────
@@ -48,7 +50,8 @@ data class PersonaDocumentData(
     val voice_style: String,
     val goals: String,
     val boundaries: String,
-    val private_notes: String
+    val private_notes: String,
+    val voice_samples: List<String> = emptyList()
 )
 
 // ─── Cast Seed Document (v1) ───────────────────────────────────────
@@ -77,7 +80,8 @@ data class CastDocumentData(
     val voice_style: String,
     val appearance: String,
     val goals: String,
-    val boundaries: String
+    val boundaries: String,
+    val voice_samples: List<String> = emptyList()
 )
 
 // ─── Prompt Pack Variant ────────────────────────────────────────────

@@ -63,8 +63,8 @@ fun PersonaScreen(
                     editingPersona = null
                     isCreating = false
                 },
-                onSave = { id, name, identity, backstory, voice, goals, boundaries, notes, isDefault ->
-                    viewModel.savePersona(id, name, identity, backstory, voice, goals, boundaries, notes, isDefault)
+                onSave = { id, name, identity, backstory, voice, goals, boundaries, notes, isDefault, voiceSamples ->
+                    viewModel.savePersona(id, name, identity, backstory, voice, goals, boundaries, notes, isDefault, voiceSamples)
                     editingPersona = null
                     isCreating = false
                 }
@@ -220,7 +220,8 @@ fun PersonaEditor(
         goals: String,
         boundaries: String,
         privateNotes: String,
-        isDefault: Boolean
+        isDefault: Boolean,
+        voiceSamples: List<String>
     ) -> Unit
 ) {
     var name by rememberSaveable { mutableStateOf(persona?.name ?: "") }
@@ -230,7 +231,9 @@ fun PersonaEditor(
     var goals by rememberSaveable { mutableStateOf(persona?.goals ?: "") }
     var boundaries by rememberSaveable { mutableStateOf(persona?.boundaries ?: "") }
     var privateNotes by rememberSaveable { mutableStateOf(persona?.private_notes ?: "") }
+    var voiceSamplesInput by rememberSaveable { mutableStateOf(persona?.voice_samples?.joinToString("\n") ?: "") }
     var isDefault by rememberSaveable { mutableStateOf(persona?.is_default ?: false) }
+    fun collectVoiceSamples(): List<String> = voiceSamplesInput.lines().map { it.trim() }.filter { it.isNotEmpty() }
 
     val scrollState = rememberScrollState()
 
@@ -239,12 +242,13 @@ fun PersonaEditor(
     val isDirty = if (persona == null) {
         name.isNotBlank() || identity.isNotBlank() || backstory.isNotBlank() ||
             voiceStyle.isNotBlank() || goals.isNotBlank() || boundaries.isNotBlank() ||
-            privateNotes.isNotBlank() || isDefault
+            privateNotes.isNotBlank() || voiceSamplesInput.isNotBlank() || isDefault
     } else {
         name != persona.name || identity != persona.identity ||
             backstory != persona.backstory || voiceStyle != persona.voice_style ||
             goals != persona.goals || boundaries != persona.boundaries ||
-            privateNotes != persona.private_notes || isDefault != persona.is_default
+            privateNotes != persona.private_notes || isDefault != persona.is_default ||
+            collectVoiceSamples() != persona.voice_samples
     }
 
     Scaffold(
@@ -291,7 +295,7 @@ fun PersonaEditor(
             OutlinedTextField(
                 value = identity,
                 onValueChange = { identity = it },
-                label = { Text("Identity / Role") },
+                label = { Text("Who they are") },
                 shape = RoundedCornerShape(8.dp),
                 colors = textFieldColors,
                 modifier = Modifier.fillMaxWidth()
@@ -310,7 +314,19 @@ fun PersonaEditor(
             OutlinedTextField(
                 value = voiceStyle,
                 onValueChange = { voiceStyle = it },
-                label = { Text("Voice Style / Speech Habits") },
+                label = { Text("How they talk") },
+                placeholder = { Text("Habits of a person, not adjectives about prose: filler words, how they hedge, what they say when uncomfortable.") },
+                shape = RoundedCornerShape(8.dp),
+                colors = textFieldColors,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            OutlinedTextField(
+                value = voiceSamplesInput,
+                onValueChange = { voiceSamplesInput = it },
+                label = { Text("Things they've said (one per line)") },
+                placeholder = { Text("A few lines in their own mouth, uneven on purpose. The model reads these to know who it's talking to.") },
+                minLines = 3,
                 shape = RoundedCornerShape(8.dp),
                 colors = textFieldColors,
                 modifier = Modifier.fillMaxWidth()
@@ -319,7 +335,7 @@ fun PersonaEditor(
             OutlinedTextField(
                 value = goals,
                 onValueChange = { goals = it },
-                label = { Text("Goals / Motivation") },
+                label = { Text("What they want") },
                 shape = RoundedCornerShape(8.dp),
                 colors = textFieldColors,
                 modifier = Modifier.fillMaxWidth()
@@ -328,7 +344,7 @@ fun PersonaEditor(
             OutlinedTextField(
                 value = boundaries,
                 onValueChange = { boundaries = it },
-                label = { Text("Boundaries") },
+                label = { Text("Won't") },
                 shape = RoundedCornerShape(8.dp),
                 colors = textFieldColors,
                 modifier = Modifier.fillMaxWidth()
@@ -379,7 +395,7 @@ fun PersonaEditor(
 
             Button(
                 onClick = {
-                    onSave(persona?.id, name, identity, backstory, voiceStyle, goals, boundaries, privateNotes, isDefault)
+                    onSave(persona?.id, name, identity, backstory, voiceStyle, goals, boundaries, privateNotes, isDefault, collectVoiceSamples())
                 },
                 enabled = name.isNotBlank(),
                 shape = RoundedCornerShape(8.dp),
@@ -408,7 +424,8 @@ fun PersonaEditor(
                         private_notes = privateNotes,
                         is_default = isDefault,
                         created_at = "",
-                        updated_at = ""
+                        updated_at = "",
+                        voice_samples = collectVoiceSamples()
                     )
                     PortableJsonCodec.serializePersona(tempEntity)
                 },
@@ -420,6 +437,7 @@ fun PersonaEditor(
                     goals = data.goals
                     boundaries = data.boundaries
                     privateNotes = data.private_notes
+                    voiceSamplesInput = data.voice_samples.joinToString("\n")
                 }
             )
 

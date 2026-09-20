@@ -29,7 +29,7 @@ class StoryDirectionTest {
         intent: SceneIntent = SceneIntent.Develop
     ): String = PromptBuilder.render(
         RoleplayContext(
-            character = PromptCharacter("Avni", "", "", "", "", "", "", emptyList()),
+            character = PromptCharacter("Avni", "", "", "", "", "", "", emptyList(), emptyList()),
             persona = null, directorNotes = "", world = null, cast = emptyList(),
             activeSpeaker = null, speakerMode = "single", sceneIntent = intent,
             storyDirection = StoryDirectionRendering.place(direction, lineage), recalled = emptyList(),
@@ -44,14 +44,16 @@ class StoryDirectionTest {
 
     @Test
     fun `an empty direction adds nothing to the prompt`() {
-        assertFalse(render(StoryDirection.Empty).contains("<${StoryDirectionRendering.TAG}>"))
+        val out = render(StoryDirection.Empty)
+        assertFalse(out.contains("wants this to get to"))
+        assertFalse(out.contains("Already happened"))
     }
 
     @Test
-    fun `the player's wants reach the model`() {
+    fun `the player's wants reach the model as direction`() {
         val out = render(StoryDirection(listOf(want("they get to the cottage"))))
         assertTrue(out.contains("they get to the cottage"))
-        assertTrue(out.contains("Still ahead"))
+        assertTrue(out.contains("Where the player wants this to get to, eventually:"))
     }
 
     @Test
@@ -61,8 +63,7 @@ class StoryDirectionTest {
         val out = render(StoryDirection(listOf(want("the wedding", done = true), want("the cottage"))))
         assertTrue(out.contains("the cottage"))
         assertTrue("a reached want must still reach the model", out.contains("the wedding"))
-        assertTrue(out.contains("Already reached"))
-        assertTrue(out.contains("Do not stage it a second time"))
+        assertTrue(out.contains("Already happened, don't stage again:"))
     }
 
     @Test
@@ -76,7 +77,7 @@ class StoryDirectionTest {
             turns
         )
         // Head is turn-040, so turn-010 is thirty exchanges back and turn-032 is eight.
-        assertTrue("an open want states how long it has gone unserved", out.contains("(asked for 30 exchanges ago)"))
+        assertTrue("an open want states how long it has gone unserved", out.contains("(asked 30 exchanges ago)"))
         assertTrue("a reached want states when it landed", out.contains("(reached 8 exchanges ago)"))
     }
 
@@ -100,25 +101,20 @@ class StoryDirectionTest {
     }
 
     @Test
-    fun `the model is told a long-open want is not a one-reply job`() {
+    fun `a want is a destination, not a one-reply job`() {
         val out = render(StoryDirection(listOf(want("the cottage"))))
-        assertTrue(out.contains("not one to resolve in a single reply"))
-        assertTrue("the story may have arrived without the player ticking it off",
-            out.contains("already arrived at something listed as still ahead"))
+        assertTrue(out.contains("Not this reply necessarily \u2014 when it fits."))
     }
 
     @Test
-    fun `direction never outranks what the player just wrote`() {
-        val out = render(StoryDirection(listOf(want("they get to the cottage"))))
-        assertTrue(out.contains("their prose this turn outranks anything here"))
-        assertTrue(out.contains("Do not force one into this reply if the moment is wrong"))
-    }
-
-    @Test
-    fun `direction does not override the scene intent`() {
+    fun `direction is two sentences, and sits beside the turn policy that decides whether anything moves`() {
         val out = render(StoryDirection(listOf(want("they get to the cottage"))), intent = SceneIntent.Dwell)
-        assertTrue(out.contains("Do NOT introduce a new event"))
-        assertTrue(out.contains("still decides whether this reply moves the story at all"))
+        // The three paragraphs of hedging are gone; the policy line does the work they used to do.
+        assertFalse(out.contains("outranks"))
+        assertFalse(out.contains("Do not force"))
+        assertTrue(out.contains("Stay in this moment"))
+        val whisper = out.substringAfter("<${PromptBuilder.WHISPER_TAG}>")
+        assertTrue(whisper.indexOf("Stay in this moment") < whisper.indexOf("they get to the cottage"))
     }
 
     @Test

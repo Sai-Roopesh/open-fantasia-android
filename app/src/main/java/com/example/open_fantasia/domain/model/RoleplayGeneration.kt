@@ -15,14 +15,33 @@ data class RoleplayMessage(
     }
 }
 
+/**
+ * Sampling, as the reply was asked for.
+ *
+ * `presence_penalty` and `frequency_penalty` used to default to 0.4 "to discourage echoing". A
+ * frequency penalty is a tax on tokens that have already appeared, and what appears most in human
+ * dialogue is *I, you, it's, don't, yeah, okay,* the other person's name, and the word someone just
+ * said twice because they are stalling — the exact surface the prompt asks for. The sampler was
+ * fighting the instructions and winning. Both are zero now; a provider that offers nothing better and
+ * loops anyway may be given at most 0.1.
+ *
+ * `min_p` is the truncation that suits creative writing at the temperatures roleplay runs at. Top-p
+ * degrades there (Nguyen et al., ICLR 2025); min-p keeps coherence while leaving the tail alive. It is
+ * recorded here as the intention and sent only where the adapter knows the backend accepts it.
+ */
 @Serializable
 data class RoleplayGenerationSettings(
     val temperature: Double,
     val top_p: Double,
     val max_tokens: Int,
-    val presence_penalty: Double = 0.4,
-    val frequency_penalty: Double = 0.4
-)
+    val presence_penalty: Double = 0.0,
+    val frequency_penalty: Double = 0.0,
+    val min_p: Double? = DEFAULT_MIN_P
+) {
+    companion object {
+        const val DEFAULT_MIN_P = 0.05
+    }
+}
 
 /**
  * Provider-neutral, immutable input for one reply attempt. Only [system_prompt] and [messages]
@@ -62,7 +81,8 @@ data class RoleplayProviderCapabilities(
     val applies_top_p: Boolean,
     val applies_max_tokens: Boolean,
     val applies_presence_penalty: Boolean,
-    val applies_frequency_penalty: Boolean
+    val applies_frequency_penalty: Boolean,
+    val applies_min_p: Boolean = false
 )
 
 object RoleplayOutputValidator {

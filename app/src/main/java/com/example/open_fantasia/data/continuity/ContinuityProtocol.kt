@@ -221,6 +221,7 @@ object ContinuityCheckpointProtocol {
         "boundaries" -> profile.boundaries
         "status" -> profile.status
         "speaker_eligible" -> profile.speaker_eligible
+        "voice_samples" -> profile.voice_samples
         else -> null
     }
 

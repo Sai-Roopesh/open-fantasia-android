@@ -107,7 +107,9 @@ data class PromptCastMember(
     val origin: String,
     val evidence: List<String>,
     val status: String,
-    val speakerEligible: Boolean
+    val speakerEligible: Boolean,
+    /** Things they have said, in their own words. Empty when nobody has written any yet. */
+    val voiceSamples: List<String>
 ) {
     companion object {
         fun from(profile: CastProfile): PromptCastMember = PromptCastMember(
@@ -128,7 +130,8 @@ data class PromptCastMember(
             },
             evidence = profile.evidence,
             status = profile.status,
-            speakerEligible = profile.speaker_eligible
+            speakerEligible = profile.speaker_eligible,
+            voiceSamples = profile.voice_samples.map { it.trim() }.filter { it.isNotEmpty() }
         )
     }
 }
@@ -139,6 +142,11 @@ data class PromptCastMember(
  * `greeting` and `starters` are deliberately absent: they open a conversation the transcript has already
  * superseded. Recorded as a decision rather than an omission, because an undocumented withheld field
  * looks exactly like the three defects ADR-0014 removes.
+ *
+ * The stored names are kept and the meaning is stated here once. [styleRules] is the author's brief on
+ * how the story is written — plot, pacing, what to steer around — and renders under the author's notes,
+ * never as a voice. [definition] is extra lore and renders with the persona. [negativeGuidance] is the
+ * hard limits. [voiceSamples] is the voice.
  */
 data class PromptCharacter(
     val name: String,
@@ -148,7 +156,8 @@ data class PromptCharacter(
     val styleRules: String,
     val definition: String,
     val negativeGuidance: String,
-    val exampleConversations: List<ExampleConversation>
+    val exampleConversations: List<ExampleConversation>,
+    val voiceSamples: List<String>
 )
 
 /** The Persona as the model receives it. `private_notes` is deliberately absent — it is private. */
@@ -158,7 +167,8 @@ data class PromptPersona(
     val backstory: String,
     val voiceStyle: String,
     val goals: String,
-    val boundaries: String
+    val boundaries: String,
+    val voiceSamples: List<String>
 )
 
 /**
@@ -206,7 +216,8 @@ fun CharacterRecord.toPromptCharacter(exampleConversations: List<ExampleConversa
     styleRules = style_rules,
     definition = definition,
     negativeGuidance = negative_guidance,
-    exampleConversations = exampleConversations
+    exampleConversations = exampleConversations,
+    voiceSamples = voice_samples.map { it.trim() }.filter { it.isNotEmpty() }
 )
 
 fun UserPersonaRecord.toPromptPersona() = PromptPersona(
@@ -215,5 +226,6 @@ fun UserPersonaRecord.toPromptPersona() = PromptPersona(
     backstory = backstory,
     voiceStyle = voice_style,
     goals = goals,
-    boundaries = boundaries
+    boundaries = boundaries,
+    voiceSamples = voice_samples.map { it.trim() }.filter { it.isNotEmpty() }
 )
