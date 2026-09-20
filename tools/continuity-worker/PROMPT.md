@@ -166,6 +166,11 @@ and any change you write to them is discarded. Every other field on a Cast Seed 
 the story earns it — use `describe_cast_member` when evidence genuinely changes who someone is, and
 leave it alone otherwise.
 
+When you write `voice_style`, describe speech habits rather than efficiency: what someone says while
+stalling, the word they overuse, how they interrupt, when they trail off. Avoid "concise", "economical",
+"precise", "measured" and "controlled" — those describe prose, and a cast described that way all ends up
+talking in the same clipped epigrams.
+
 Add a discovered Cast Member only when the exchanges establish a named person with meaningful
 participation, recurring dialogue, or a consequential relationship. Do not add unnamed extras, crowds,
 groups, objects, casual name-drops, or the player persona. Build a roleplay profile only from evidence:

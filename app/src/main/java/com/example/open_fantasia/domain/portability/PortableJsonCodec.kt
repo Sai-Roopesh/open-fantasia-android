@@ -327,7 +327,11 @@ You are a creative writing assistant. Your task is to generate a complete charac
 - **definition**: Additional lore, abilities, relationships, or world-building details.
 - **negative_guidance**: Things the character should NEVER do or say.
 - **suggested_starters**: 3–5 conversation starter prompts the user could pick from.
-- **example_conversations**: 2–4 example exchanges showing the character's voice.
+- **example_conversations**: 2–4 example exchanges showing the character's voice. These matter more
+  than any instruction, because the roleplay model imitates them directly. Write them as the person
+  actually talks, not as a novel would polish them: contractions by default, sentence lengths that vary
+  wildly, and somewhere a hesitation, a false start, or a line that is simply ordinary. Do not end every
+  line on a clever beat — a character who is always quotable reads as a machine.
 
 ## Blank Template
 ```json
@@ -379,7 +383,11 @@ it is a character the primary character shares the world with, who may be select
 - **aliases**: Other names, titles, or epithets they are called by. Use an empty array if none.
 - **role_background**: Who they are in this world and how they relate to the story so far.
 - **personality**: Temperament, values, contradictions, and how they behave under pressure.
-- **voice_style**: How they speak — register, rhythm, vocabulary, verbal tics.
+- **voice_style**: How they speak — register, rhythm, vocabulary, verbal tics. Describe speech habits,
+  not efficiency. What they say while stalling, the word they overuse, how they interrupt, when they
+  trail off, what makes them repeat themselves. Avoid "concise", "economical", "precise", "measured"
+  and "controlled": those describe prose, not people, and a cast described that way all talks in the
+  same clipped epigrams.
 - **appearance**: Physical description. Also used to generate their portrait, so be concrete and visual.
 - **goals**: What they are trying to get, in and beyond the current scene.
 - **boundaries**: What this character will never do or say.
@@ -432,7 +440,9 @@ You are a creative writing assistant. Your task is to generate a complete user p
 - **name**: The persona's name or alias.
 - **identity**: Who this persona is — their role, title, or nature.
 - **backstory**: The persona's history and how they arrived at their current situation.
-- **voice_style**: How the persona speaks — dialect, formality, verbal tics.
+- **voice_style**: How the persona speaks — dialect, formality, verbal tics. Describe habits rather
+  than efficiency: filler words, how they hedge, what they say when uncomfortable. Avoid "concise" and
+  "precise", which produce speech no person would say aloud.
 - **goals**: What the persona wants to achieve in their interactions.
 - **boundaries**: Lines the persona will not cross; topics they avoid.
 - **private_notes**: Out-of-character notes for the AI about how to handle this persona.

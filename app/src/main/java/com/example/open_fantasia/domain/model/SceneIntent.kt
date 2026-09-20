@@ -89,7 +89,7 @@ object TurnPolicy {
      */
     fun variationRules(intent: SceneIntent): String {
         val shared = """
-            - Do NOT reuse the sentence shapes, rhythm, or opening move of your previous reply. If it opened on an action, open the next on dialogue, interiority, or the environment instead.
+            - Do NOT reuse the opening move of your previous reply. If it opened on an action, open the next on dialogue, interiority, or the environment instead. This is about how a reply starts, not about a character's own speech habits, which should stay recognisably theirs.
             - Do NOT repeat a rhetorical device you just used (lists or enumerations, rhetorical questions, ironic asides, parallel repetition). Use any one device at most once, never two replies running.
             - Do NOT reuse a physical gesture or piece of blocking from a recent beat. Reach for new, specific physicality each time.
             - Do NOT lean on one mechanical sentence rhythm; in particular, never stack short parallel/staccato sentences into the same cadence more than once in a reply.
@@ -102,7 +102,7 @@ object TurnPolicy {
             """.trimIndent()
             else -> """
                 - Do NOT re-play an emotional beat already shown. Once a feeling has landed, it is established — escalate it, complicate it, or move past it; never re-stage the same realization.
-                - Do NOT re-ask or circle back to a question or topic already raised or answered. Answered things stay answered; pull a new thread forward instead.
+                - Do NOT re-litigate a question the scene has already settled. People do circle back in conversation, so returning to something briefly is fine; what is forbidden is re-staging a resolved beat as though it were still open.
             """.trimIndent()
         }
 
