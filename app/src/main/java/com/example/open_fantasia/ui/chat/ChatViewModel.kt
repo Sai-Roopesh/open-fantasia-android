@@ -501,7 +501,11 @@ class ChatViewModel(
                 lineage = lineage,
                 head_exchange_id = contextHeadTurnId,
                 continuity_baseline_exchange_id = contextSnapshot?.turn_id,
-                current_user_message = renderedUserMessage
+                current_user_message = renderedUserMessage,
+                // The character's sample exchanges as real dialogue, ahead of the story. Always the
+                // Primary Character's: it sits at the head of the messages and so inside the prefix
+                // cache, and swapping it per speaker would invalidate that cache on every switch.
+                voice_anchor = RoleplayContextAssembler.voiceAnchor(state.character.example_conversations)
             )
             val systemPrompt = rendered.systemPrompt
 
@@ -840,7 +844,8 @@ class ChatViewModel(
                         provenance = profile.provenance, first_seen_turn_id = profile.first_seen_turn_id,
                         evidence = profile.evidence, status = profile.status,
                         speaker_eligible = profile.speaker_eligible, player_controlled = false,
-                        manual_locks = locked, created_at = now, updated_at = now
+                        manual_locks = locked, created_at = now, updated_at = now,
+                        voice_samples = profile.voice_samples
                     )
                 )
             } else {
@@ -854,7 +859,8 @@ class ChatViewModel(
                         provenance = profile.provenance, first_seen_turn_id = profile.first_seen_turn_id,
                         evidence = profile.evidence, status = profile.status,
                         speaker_eligible = profile.speaker_eligible, player_controlled = false,
-                        manual_locks = locked, updated_at = now
+                        manual_locks = locked, updated_at = now,
+                        voice_samples = profile.voice_samples
                     )
                 )
             }

@@ -11,7 +11,9 @@ data class ModelCatalogEntry(
     val provider: String, // "google" | "groq" | "mistral" | "openrouter" | "ollama" | "deepseek"
     val contextWindow: Int? = null,
     val hint: String? = null,
-    val supportsJson: Boolean = false // verified JSON-mode capable (strict: only true from a discovery signal)
+    val supportsJson: Boolean = false, // verified JSON-mode capable (strict: only true from a discovery signal)
+    /** The backend advertises `min_p` (OpenRouter `supported_parameters`). Only true from a discovery signal. */
+    val supportsMinP: Boolean = false
 )
 
 @Serializable
@@ -47,7 +49,9 @@ data class UserPersonaRecord(
     val private_notes: String = "",
     val is_default: Boolean = false,
     val created_at: String,
-    val updated_at: String
+    val updated_at: String,
+    /** Things this persona has said, in their own words. See [CastProfile.voice_samples]. */
+    val voice_samples: List<String> = emptyList()
 )
 
 @Serializable
@@ -80,7 +84,14 @@ data class CharacterRecord(
     val portrait_last_error: String? = null,
     val portrait_generated_at: String? = null,
     val created_at: String,
-    val updated_at: String
+    val updated_at: String,
+    /**
+     * Things this character has said, in their own words. Six to ten lines, uneven on purpose. They
+     * are what the Roleplay Model imitates most, so they matter more than any description of style.
+     * The stored spelling of the older fields is kept: `style_rules` is the author's brief on how the
+     * story is written, `definition` is extra lore, `negative_guidance` is the hard limits.
+     */
+    val voice_samples: List<String> = emptyList()
 )
 
 @Serializable

@@ -39,55 +39,37 @@ data class Revision(
 
 object RevisionRendering {
 
-    const val TAG = "revision"
+    const val REJECTED_TAG = "rejected_reply"
 
     /**
-     * The block a revision renders to.
+     * The paragraph a revision renders to, inside the whisper.
      *
      * The conservation rule is the load-bearing part. Without it a direction is an invitation to rewrite
      * everything, and the reply comes back in a different scene with different people doing something
-     * else — technically responsive to the note and useless as a replacement.
+     * else — technically responsive to the note and useless as a replacement. It used to be stated in
+     * capitals across four sentences; it is one sentence now, in the register the reply should have.
      */
-    fun render(revision: Revision): String = buildString {
+    fun render(revision: Revision, playerName: String): String = buildString {
         if (revision.isRevisionOfProse) {
-            appendLine(
-                "You already wrote a reply to the player's turn above. It was rejected and is NOT part of " +
-                    "the story: it never happened, no one remembers it, and nothing you write may refer to it."
-            )
-            appendLine()
-            appendLine("<rejected_reply>")
+            appendLine("The reply below didn't land. It never happened and nobody remembers it:")
+            appendLine("<$REJECTED_TAG>")
             appendLine(revision.rejected!!.trim())
-            appendLine("</rejected_reply>")
-            appendLine()
+            appendLine("</$REJECTED_TAG>")
             if (revision.direction.isNotEmpty()) {
-                appendLine("Write it again, changing this and only this:")
-                appendLine(revision.direction)
-                appendLine()
                 appendLine(
-                    "KEEP EVERYTHING ELSE. Same scene, same place, same people, same moment in time, same " +
-                        "speaker, same length. Anything the instruction above does not name was acceptable and " +
-                        "should survive largely as it was. This is a revision of that reply, not a new idea for " +
-                        "the same turn — if your new reply could not be recognized as a rewrite of the one above, " +
-                        "you have changed too much."
+                    "Write it again \u2014 same scene, same people, same moment, same speaker, about the same length \u2014 " +
+                        "and change just this: ${revision.direction.trim().trimEnd('.')}. Everything the note doesn't touch was fine."
                 )
             } else {
                 appendLine(
-                    "Write a genuinely different reply to the same player turn. Same scene, same place, same " +
-                        "people, same moment, same speaker, same length — a different choice about what happens " +
-                        "inside it. Do not reuse its opening move, its structure, or the beat it landed on."
+                    "Write it again with a different choice about what happens \u2014 same scene, same people, same moment, " +
+                        "same speaker, about the same length. Don't open the way that one opened."
                 )
             }
         } else {
             appendLine(
-                "The previous attempt at this reply was discarded before it finished, so there is nothing to " +
-                    "revise. Write the reply fresh, following this direction:"
-            )
-            appendLine(revision.direction)
-            appendLine()
-            appendLine(
-                "The direction is out-of-character and the player never said it. Do not quote it, acknowledge " +
-                    "it, or treat it as something a character knows. It shapes how you write this reply; it is " +
-                    "not an event in the story."
+                "Fresh attempt; the last one never finished. $playerName asked for this, out of character: " +
+                    "${revision.direction.trim().trimEnd('.')}. It shapes the reply; nobody in the story said it."
             )
         }
     }.trimEnd()

@@ -1800,6 +1800,10 @@ private fun CastProfileEditor(
     // One CastProfile draft rather than seven loose strings: a pasted Cast Seed can then fill
     // fields the form does not render (aliases) without them being dropped on save.
     var draft by remember(initial.cast_id) { mutableStateOf(initial) }
+    // Sample lines are edited as one text, one line each, and split on save.
+    var voiceSamplesInput by remember(initial.cast_id) { mutableStateOf(initial.voice_samples.joinToString("\n")) }
+    fun collectVoiceSamples(): List<String> =
+        voiceSamplesInput.lines().map { it.trim().trim('"', '\u201C', '\u201D').trim() }.filter { it.isNotEmpty() }
     val colors = OutlinedTextFieldDefaults.colors(
         focusedTextColor = Color.White, unfocusedTextColor = Color.White,
         focusedBorderColor = Color(0xFF8A2BE2), unfocusedBorderColor = Color(0xFF4C4354)
@@ -1819,7 +1823,8 @@ private fun CastProfileEditor(
                             voice_style = draft.voice_style.trim(),
                             appearance = draft.appearance.trim(),
                             goals = draft.goals.trim(),
-                            boundaries = draft.boundaries.trim()
+                            boundaries = draft.boundaries.trim(),
+                            voice_samples = collectVoiceSamples()
                         )
                     )
                 },
@@ -1839,6 +1844,7 @@ private fun CastProfileEditor(
                             existing = draft,
                             threadId = threadId
                         )
+                        voiceSamplesInput = draft.voice_samples.joinToString("\n")
                     },
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -1852,10 +1858,11 @@ private fun CastProfileEditor(
                     Triple("Name", draft.canonical_name) { v -> draft = draft.copy(canonical_name = v) },
                     Triple("Role / background", draft.role_background) { v -> draft = draft.copy(role_background = v) },
                     Triple("Personality", draft.personality) { v -> draft = draft.copy(personality = v) },
-                    Triple("Voice style", draft.voice_style) { v -> draft = draft.copy(voice_style = v) },
+                    Triple("How they talk", draft.voice_style) { v -> draft = draft.copy(voice_style = v) },
+                    Triple("Things they've said (one per line)", voiceSamplesInput) { v -> voiceSamplesInput = v },
                     Triple("Appearance", draft.appearance) { v -> draft = draft.copy(appearance = v) },
-                    Triple("Goals", draft.goals) { v -> draft = draft.copy(goals = v) },
-                    Triple("Boundaries", draft.boundaries) { v -> draft = draft.copy(boundaries = v) }
+                    Triple("Wants", draft.goals) { v -> draft = draft.copy(goals = v) },
+                    Triple("Won't", draft.boundaries) { v -> draft = draft.copy(boundaries = v) }
                 ).forEach { (label, value, setter) ->
                     OutlinedTextField(
                         value = value, onValueChange = setter,

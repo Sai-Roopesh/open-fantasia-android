@@ -35,7 +35,8 @@ object PortableJsonCodec {
                 definition = entity.definition,
                 negative_guidance = entity.negative_guidance,
                 suggested_starters = entity.starters,
-                example_conversations = entity.example_conversations
+                example_conversations = entity.example_conversations,
+                voice_samples = entity.voice_samples
             )
         )
         return strictJson.encodeToString(CharacterDocument.serializer(), doc)
@@ -52,7 +53,8 @@ object PortableJsonCodec {
                 voice_style = entity.voice_style,
                 goals = entity.goals,
                 boundaries = entity.boundaries,
-                private_notes = entity.private_notes
+                private_notes = entity.private_notes,
+                voice_samples = entity.voice_samples
             )
         )
         return strictJson.encodeToString(PersonaDocument.serializer(), doc)
@@ -70,7 +72,8 @@ object PortableJsonCodec {
                 voice_style = profile.voice_style,
                 appearance = profile.appearance,
                 goals = profile.goals,
-                boundaries = profile.boundaries
+                boundaries = profile.boundaries,
+                voice_samples = profile.voice_samples
             )
         )
         return strictJson.encodeToString(CastDocument.serializer(), doc)
@@ -243,7 +246,8 @@ object PortableJsonCodec {
             portrait_last_error = null,
             portrait_generated_at = null,
             created_at = now,
-            updated_at = now
+            updated_at = now,
+            voice_samples = d.voice_samples.map { it.trim() }.filter { it.isNotEmpty() }
         )
     }
 
@@ -267,7 +271,8 @@ object PortableJsonCodec {
             private_notes = d.private_notes,
             is_default = isDefault,
             created_at = now,
-            updated_at = now
+            updated_at = now,
+            voice_samples = d.voice_samples.map { it.trim() }.filter { it.isNotEmpty() }
         )
     }
 
@@ -291,7 +296,8 @@ object PortableJsonCodec {
             voice_style = d.voice_style.trim(),
             appearance = d.appearance.trim(),
             goals = d.goals.trim(),
-            boundaries = d.boundaries.trim()
+            boundaries = d.boundaries.trim(),
+            voice_samples = d.voice_samples.map { it.trim() }.filter { it.isNotEmpty() }
         )
     }
 
@@ -320,18 +326,25 @@ You are a creative writing assistant. Your task is to generate a complete charac
 ## Content Guidelines
 - **name**: The character's full name or alias.
 - **story**: The world, setting, or narrative context this character inhabits.
-- **core_persona**: A rich, multi-paragraph personality and backstory description.
-- **greeting**: The character's opening line when a new conversation begins.
-- **appearance**: Detailed physical description (used for portrait generation).
-- **style_rules**: Writing style directives — tone, vocabulary, mannerisms.
-- **definition**: Additional lore, abilities, relationships, or world-building details.
-- **negative_guidance**: Things the character should NEVER do or say.
-- **suggested_starters**: 3–5 conversation starter prompts the user could pick from.
-- **example_conversations**: 2–4 example exchanges showing the character's voice. These matter more
-  than any instruction, because the roleplay model imitates them directly. Write them as the person
-  actually talks, not as a novel would polish them: contractions by default, sentence lengths that vary
-  wildly, and somewhere a hesitation, a false start, or a line that is simply ordinary. Do not end every
-  line on a clever beat — a character who is always quotable reads as a machine.
+- **core_persona**: Who this person is, as prose: their history, what they want, what they're afraid of,
+  the contradictions. Several paragraphs. Not a list of adjectives.
+- **greeting**: The first thing they say when a new story starts, written the way they'd actually say it.
+- **appearance**: What they look like. Concrete and visual; this also drives the portrait.
+- **style_rules**: The author's notes on how the story should be written — pacing, what to lean into,
+  what to steer around. This is about the story, not about how the character talks; the voice comes
+  from `voice_samples` and `example_conversations`.
+- **definition**: Extra lore: abilities, relationships, history, the world as they know it.
+- **negative_guidance**: Up to five hard limits, one per line, each stated as a fact about the person
+  that the story can't contradict: "Has never left the valley." "Won't say her father's name." Facts,
+  not rules about writing.
+- **voice_samples**: Eight to ten things they've said, in their own mouth, on different days about
+  different things. This is what the roleplay model imitates most, so write them the way the person
+  actually talks: contractions, a two-word one, a rambling one, one that restarts halfway, one that is
+  flat and ordinary. Where they're from should be audible.
+- **suggested_starters**: 3–5 scene-openers the player could pick from.
+- **example_conversations**: 2–4 sample exchanges. These are played back to the model as real dialogue
+  ahead of the story, so each `character_line` should run a few sentences with at least one spoken
+  line, written the way they'd really say it rather than the way a novel would polish it.
 
 ## Blank Template
 ```json
@@ -352,6 +365,7 @@ The output must conform to:
 - `data.negative_guidance`: string (required)
 - `data.suggested_starters`: array of strings (required)
 - `data.example_conversations`: array of objects with `user_line` (string) and `character_line` (string) (required)
+- `data.voice_samples`: array of strings (required; 8–10 lines)
 - No additional properties allowed at any level.
         """.trimIndent()
     }
@@ -383,14 +397,16 @@ it is a character the primary character shares the world with, who may be select
 - **aliases**: Other names, titles, or epithets they are called by. Use an empty array if none.
 - **role_background**: Who they are in this world and how they relate to the story so far.
 - **personality**: Temperament, values, contradictions, and how they behave under pressure.
-- **voice_style**: How they speak — register, rhythm, vocabulary, verbal tics. Describe speech habits,
-  not efficiency. What they say while stalling, the word they overuse, how they interrupt, when they
-  trail off, what makes them repeat themselves. Avoid "concise", "economical", "precise", "measured"
-  and "controlled": those describe prose, not people, and a cast described that way all talks in the
-  same clipped epigrams.
+- **voice_style**: How this person sounds when they speak. Where they're from in their vowels, what
+  they say when they're stalling, the word they lean on, whether they finish sentences, how they swear
+  or don't. Write it about a person talking, not about prose.
+- **voice_samples**: Six to ten things they've said, in their own mouth, on different days about
+  different things. Make them uneven: a two-word one, a rambling one, one that restarts, one that's
+  flat and ordinary. The roleplay model imitates these directly, so they matter more than the
+  description above.
 - **appearance**: Physical description. Also used to generate their portrait, so be concrete and visual.
 - **goals**: What they are trying to get, in and beyond the current scene.
-- **boundaries**: What this character will never do or say.
+- **boundaries**: Things that are simply true about them and the story can't contradict, stated as facts.
 
 Write every field as prose. Leave a field as an empty string only when you genuinely have nothing
 for it; blank fields simply give the model less to work with.
@@ -412,6 +428,7 @@ The output must conform to:
 - `data.appearance`: string (required)
 - `data.goals`: string (required)
 - `data.boundaries`: string (required)
+- `data.voice_samples`: array of strings (required; 6–10 lines)
 - No additional properties allowed at any level.
         """.trimIndent()
     }
@@ -440,9 +457,10 @@ You are a creative writing assistant. Your task is to generate a complete user p
 - **name**: The persona's name or alias.
 - **identity**: Who this persona is — their role, title, or nature.
 - **backstory**: The persona's history and how they arrived at their current situation.
-- **voice_style**: How the persona speaks — dialect, formality, verbal tics. Describe habits rather
-  than efficiency: filler words, how they hedge, what they say when uncomfortable. Avoid "concise" and
-  "precise", which produce speech no person would say aloud.
+- **voice_style**: How the persona talks — dialect, formality, the habits of a person: filler words,
+  how they hedge, what they say when uncomfortable.
+- **voice_samples**: A few things they've said, in their own mouth, uneven on purpose. The model reads
+  these to know who it's talking to.
 - **goals**: What the persona wants to achieve in their interactions.
 - **boundaries**: Lines the persona will not cross; topics they avoid.
 - **private_notes**: Out-of-character notes for the AI about how to handle this persona.
@@ -463,6 +481,7 @@ The output must conform to:
 - `data.goals`: string (required)
 - `data.boundaries`: string (required)
 - `data.private_notes`: string (required)
+- `data.voice_samples`: array of strings (required)
 - No additional properties allowed at any level.
         """.trimIndent()
     }

@@ -46,7 +46,14 @@ data class CastProfile(
     val status: String = "active", // active | archived
     val speaker_eligible: Boolean = true,
     val player_controlled: Boolean = false,
-    val manual_locks: List<String> = emptyList()
+    val manual_locks: List<String> = emptyList(),
+    /**
+     * Things this person has actually said, in their own words. The load-bearing part of a voice:
+     * a description of speech is not speech, and a model imitates what it is shown far more than what
+     * it is told (RoleLLM, Table 7). Authored on a seed, or copied verbatim from the transcript by a
+     * Continuity Update for a discovered member. Capped at ten by the Continuity Compiler.
+     */
+    val voice_samples: List<String> = emptyList()
 )
 
 @Serializable

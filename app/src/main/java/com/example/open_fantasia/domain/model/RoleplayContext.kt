@@ -26,21 +26,62 @@ data class AssembledRoleplayContext(
  * Deep module that owns branch selection and the checkpoint-bounded Roleplay Transcript.
  *
  * Its interface guarantees that every Roleplay Model receives the same retained lineage:
- * the latest fifteen retained exchanges on the selected lineage together with its reachable
- * Continuity Baseline, followed by exactly one current user message carrying volatile reply
- * controls. Missing ancestry, cycles, and snapshot-lineage mismatch fail loudly instead of
- * silently dropping context.
+ * the character's Voice Anchor, then the latest fifteen retained exchanges on the selected lineage
+ * together with its reachable Continuity Baseline, followed by exactly one current user message
+ * carrying volatile reply controls. Missing ancestry, cycles, and snapshot-lineage mismatch fail
+ * loudly instead of silently dropping context.
  */
 object RoleplayContextAssembler {
     const val MAX_TRANSCRIPT_EXCHANGES = 15
+
+    /**
+     * How much of a character's sample dialogue rides ahead of the transcript.
+     *
+     * Four exchanges is enough to set a voice and few enough that a thread's own first exchanges are
+     * not crowded out of the model's attention by demonstrations. The character cap is a guard against a
+     * sheet whose "example" is a page of prose.
+     */
+    const val MAX_ANCHOR_EXCHANGES = 4
+    const val MAX_ANCHOR_CHARS = 1_200
+
+    /**
+     * The character's sample exchanges as real dialogue turns, ahead of the story so far.
+     *
+     * A demonstration in the assistant's own turn slot is worth more than the same words quoted in a
+     * system prompt: RoleLLM measured dialogue placed as turns winning 63% of judgements against 30% for
+     * the same examples as few-shot text (Table 7). And fifteen exchanges of a thread's own history are
+     * the strongest style signal in any request — when they are the defect being fixed, these turns are
+     * the only demonstration of the wanted voice that arrives as dialogue at all.
+     *
+     * Static per thread, so it sits inside any provider prefix cache. Excluded from
+     * [AssembledRoleplayContext.transcript_exchange_ids], because it is not story.
+     */
+    fun voiceAnchor(examples: List<ExampleConversation>): List<RoleplayMessage> {
+        val usable = examples.filter { it.user_line.isNotBlank() && it.character_line.isNotBlank() }
+        val out = mutableListOf<RoleplayMessage>()
+        var budget = MAX_ANCHOR_CHARS
+        for (example in usable) {
+            if (out.size / 2 >= MAX_ANCHOR_EXCHANGES) break
+            val reply = example.character_line.trim()
+            if (reply.length > budget) continue
+            budget -= reply.length
+            out += RoleplayMessage("user", example.user_line.trim())
+            out += RoleplayMessage("assistant", reply)
+        }
+        return out
+    }
 
     fun assemble(
         lineage: List<RoleplayLineageEntry>,
         head_exchange_id: String?,
         continuity_baseline_exchange_id: String?,
-        current_user_message: String
+        current_user_message: String,
+        voice_anchor: List<RoleplayMessage> = emptyList()
     ): AssembledRoleplayContext {
         require(current_user_message.isNotBlank()) { "Current roleplay user message is missing" }
+        require(voice_anchor.size % 2 == 0 && voice_anchor.withIndex().all { (i, m) -> m.role == if (i % 2 == 0) "user" else "assistant" }) {
+            "Voice anchor must be whole user/assistant exchanges"
+        }
 
         val byId = lineage.associateBy { it.id }
         require(byId.size == lineage.size) { "Roleplay lineage contains duplicate exchange IDs" }
@@ -72,6 +113,9 @@ object RoleplayContextAssembler {
             .takeLast(MAX_TRANSCRIPT_EXCHANGES)
 
         val messages = buildList {
+            // The Voice Anchor first: demonstrations, then the story. Nothing separates them, because a
+            // separator would be one more thing in the request that is not story.
+            addAll(voice_anchor)
             transcript.forEach { exchange ->
                 val assistantText = requireNotNull(exchange.assistant_text) {
                     "Committed Roleplay Exchange ${exchange.id} has no assistant reply"

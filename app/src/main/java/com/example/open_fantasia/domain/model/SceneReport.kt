@@ -86,19 +86,16 @@ object SceneReportCodec {
         return runCatching { json.decodeFromString(SceneReport.serializer(), stored) }.getOrNull()
     }
 
-    /** The instruction the model is given, rendered with the reply controls. */
-    fun outputContract(castNames: List<String>): String {
-        val examples = castNames.take(2).joinToString("\", \"", prefix = "\"", postfix = "\"")
+    /**
+     * The instruction the model is given, at the end of the whisper. Two lines. The shape is shown once
+     * with real names from the roster so the model has nothing to work out; the codec forgives anything
+     * it gets wrong, so nothing here needs to say so.
+     */
+    fun outputContract(castNames: List<String>, playerName: String?): String {
+        val names = (castNames.take(2) + listOfNotNull(playerName)).distinct().take(3)
+        val examples = names.joinToString("\", \"", prefix = "\"", postfix = "\"")
             .ifBlank { "\"A Name\", \"Another Name\"" }
-        return """
-            After the prose, on its own final line, add exactly one <$TAG> block. It is not story text and the reader never sees it.
-
-            <$TAG>{"present": [$examples], "scene_ended": false}</$TAG>
-
-            - "present": everyone in the scene when this reply ends, by their exact name from <cast_roster>. Include the player's character if they are there.
-            - "scene_ended": true only if this reply closed the scene and the next one begins elsewhere or later.
-
-            Write the prose first and completely. If you are unsure of any field, omit it or leave the block out entirely — nothing depends on it being there.
-        """.trimIndent()
+        return "Then, on its own last line, who's in the room when you stop and whether the scene ended:\n" +
+            "<$TAG>{\"present\": [$examples], \"scene_ended\": false}</$TAG>"
     }
 }

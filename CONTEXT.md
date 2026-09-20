@@ -179,3 +179,31 @@ _Avoid_: Story Summary, recent transcript
 **Latest Beat**:
 A focused account of how the newest Roleplay Exchange changed the scene, using up to a 4,000-character safety ceiling. It replaces the prior Latest Beat at every Continuity Update.
 _Avoid_: Scene Summary, latest reply
+
+**Voice Samples**:
+Things a speaker has actually said, in their own words, kept on a Character, Cast Profile or Persona. Six to ten lines, uneven on purpose. They are what a Roleplay Model imitates most and reach it three times per reply: in the Voice Card, in the Dossier, and quoted in the Whisper. A Continuity Update may copy a Cast Member's real lines from the transcript into theirs; nothing ever invents one. The Continuity Compiler keeps the newest ten.
+_Avoid_: Example dialogue, catchphrases, style guide
+
+**Voice Card**:
+The system-prompt block that says who the Primary Character is and how they sound: their persona, how they sound, their Voice Samples, their hard limits stated as facts, their appearance. It replaces `character_persona` and every rule block that used to sit beside it.
+_Avoid_: Character persona block, style rules
+
+**Voice Anchor**:
+The Primary Character's sample exchanges delivered as real user/assistant turns ahead of the Roleplay Transcript Window. Capped at four exchanges and 1,200 characters of reply text; static per thread so it stays inside a provider prefix cache; never counted as story.
+_Avoid_: Few-shot examples, example_conversations block
+
+**Dossier**:
+The Continuity Snapshot as the Roleplay Model reads it: the Stage rendered as prose by a deterministic module with no model in it. Where things are, who is here and how they are, what each knows and wants, what is between them, the story so far. Identifiers, version numbers, edge flags and the integer behind an emotion never appear; presence is stated by section and only when it was actually read.
+_Avoid_: durable_state, world-state JSON, state dump
+
+**Whisper**:
+The one per-reply instruction, about a hundred words, placed after the player's prose as the last thing a Roleplay Model reads: who speaks, what this scene is for, where the player wants it to go, any Revision, two or three of the speaker's Voice Samples, how long, and the Scene Report shape. Written in the register the reply should have. It replaces reply_control, style_override, this_turn, story_direction, variation_rules, length_target and scene_report.
+_Avoid_: Reply control, style override, output contract, instructions block
+
+**Voice Metrics**:
+How an accepted reply's dialogue measured — contraction rate, hedge rate, restarts, median line length and its variance, question rate, epigram endings, antithesis and stock-phrase density — computed on the text inside quotation marks and stored beside the Roleplay Generation Job that produced it. A prompt change is judged by what it did to these.
+_Avoid_: Quality score, style check
+
+**Voice Lint**:
+The after-the-fact scan for the tells of machine prose: the "not X, but Y" family, stock phrases, dash density. It never rejects a reply and is never shown to a model, because naming a thing to avoid raises its frequency.
+_Avoid_: Slop filter, banned words, content filter

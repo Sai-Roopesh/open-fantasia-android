@@ -41,7 +41,8 @@ class ChatScreenTest {
             topP: Double,
             maxTokens: Int,
             jsonMode: Boolean,
-            jsonSchema: kotlinx.serialization.json.JsonObject?
+            jsonSchema: kotlinx.serialization.json.JsonObject?,
+            minP: Double?
         ): String = "Generated response"
 
         override fun streamGenerateText(
@@ -53,7 +54,8 @@ class ChatScreenTest {
             topP: Double,
             maxTokens: Int,
             jsonMode: Boolean,
-            jsonSchema: kotlinx.serialization.json.JsonObject?
+            jsonSchema: kotlinx.serialization.json.JsonObject?,
+            minP: Double?
         ): Flow<com.example.open_fantasia.data.remote.StreamChunk> = emptyFlow()
     }
 

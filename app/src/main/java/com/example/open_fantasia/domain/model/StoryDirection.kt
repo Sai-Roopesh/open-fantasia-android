@@ -107,8 +107,6 @@ data class PlacedWant(
 
 object StoryDirectionRendering {
 
-    const val TAG = "story_direction"
-
     /**
      * How many reached wants are carried. Past wants are bounded for the same reason every other
      * section is: a story that runs long enough accumulates them, and the ones from two hundred
@@ -146,67 +144,37 @@ object StoryDirectionRendering {
     }
 
     /**
-     * What the model is told about the player's wants.
+     * What the model is told about the player's wants: at most two sentences, inside the whisper.
      *
      * Stated as direction rather than as material, which is the opposite of how engine-authored threads
-     * were framed, and deliberately: these were chosen. The hedging that kept invented objectives from
-     * becoming obligations would here just be the app declining to do what it was asked.
+     * were framed, and deliberately: these were chosen. It is split into what is still ahead and what
+     * has already been reached, because sending only the open ones was a hole — a want ticked off
+     * vanished from the prompt entirely, so a model could not tell a wedding that had happened from one
+     * that was never wanted, and nothing stopped it building toward the wedding again.
      *
-     * It is split into what is still ahead and what has already been reached, because sending only the
-     * open ones was a hole. A want ticked off vanished from the prompt entirely, so a model could not
-     * tell a wedding that had happened from one that was never wanted, and nothing stopped it building
-     * toward the wedding again. Past and future are both direction; only one of them is a destination.
-     *
-     * It still is not a script. A want says where the story should get to, not when, and the player's
-     * own prose in this exchange always outranks it — if they went somewhere else this turn, follow them
-     * there. The Scene Intent still decides whether this reply moves anything at all.
+     * The three paragraphs of hedging that used to follow the lists are gone. "When it fits" is the
+     * whole of "do not force one into this reply if the moment is wrong"; the Scene Intent line beside
+     * this one already decides whether the reply moves at all; and the player's prose this turn is what
+     * the reply is answering, so nothing needs to say it outranks a list.
      */
-    fun render(placed: List<PlacedWant>): String? {
+    fun render(placed: List<PlacedWant>, playerName: String): String? {
         if (placed.isEmpty()) return null
         val ahead = placed.filterNot { it.reached }
         val reached = placed.filter { it.reached }
 
+        fun stamp(ago: Int?, verb: String) = ago?.let { " ($verb $it exchanges ago)" }.orEmpty()
+
         return buildString {
-            appendLine(
-                "Where the player wants this story to go. They wrote these themselves, so they are " +
-                    "direction rather than suggestion."
-            )
             if (ahead.isNotEmpty()) {
-                appendLine()
-                appendLine("Still ahead — none of these has happened yet:")
-                ahead.forEach { want ->
-                    appendLine("- ${want.body}${want.askedAgo?.let { " (asked for $it exchanges ago)" }.orEmpty()}")
-                }
+                append("Where $playerName wants this to get to, eventually: ")
+                append(ahead.joinToString("; ") { it.body.trim().trimEnd('.') + stamp(it.askedAgo, "asked") })
+                append(". Not this reply necessarily \u2014 when it fits.")
             }
             if (reached.isNotEmpty()) {
-                appendLine()
-                appendLine("Already reached — these happened and are part of the past:")
-                reached.forEach { want ->
-                    appendLine("- ${want.body}${want.reachedAgo?.let { " (reached $it exchanges ago)" }.orEmpty()}")
-                }
-            }
-            if (ahead.isNotEmpty()) {
-                appendLine()
-                appendLine(
-                    "Work toward what is still ahead across the coming scenes. Do not force one into " +
-                        "this reply if the moment is wrong, do not name them aloud as goals, and never " +
-                        "let one override what the player just did — their prose this turn outranks " +
-                        "anything here. The <this_turn> policy still decides whether this reply moves " +
-                        "the story at all."
-                )
-                appendLine()
-                appendLine(
-                    "One asked for a long time ago is a direction the story has not served yet, not one " +
-                        "to resolve in a single reply. If the story has already arrived at something " +
-                        "listed as still ahead, continue from there rather than staging it again."
-                )
-            }
-            if (reached.isNotEmpty()) {
-                appendLine()
-                append(
-                    "Anything under \"already reached\" has happened. Do not stage it a second time, do " +
-                        "not build toward it again, and do not treat it as unresolved."
-                )
+                if (isNotEmpty()) append('\n')
+                append("Already happened, don't stage again: ")
+                append(reached.joinToString("; ") { it.body.trim().trimEnd('.') + stamp(it.reachedAgo, "reached") })
+                append('.')
             }
         }.trimEnd()
     }

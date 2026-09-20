@@ -34,7 +34,13 @@ data class Stage(
     val relationships: List<RelationalState>,
     val timeline: List<TimelineEventRecord>,
     /** What a budget forced out, reported rather than dropped quietly. Empty when nothing was cut. */
-    val omissions: List<String>
+    val omissions: List<String>,
+    /**
+     * Whether presence was actually read. False before the first Continuity Update and when a snapshot
+     * places nobody anywhere; then everything is [StageTier.OnStage] by fallback, and a renderer must not
+     * say "who's here" about people it only knows exist.
+     */
+    val sceneResolved: Boolean = false
 ) {
     fun entitiesAt(tier: StageTier): List<EntityState> =
         entities.filter { it.tier == tier }.map { it.entity }
@@ -208,7 +214,8 @@ object StageProjection {
             cast = stagedCast,
             relationships = stagedRelationships,
             timeline = stagedTimeline,
-            omissions = omissions
+            omissions = omissions,
+            sceneResolved = true
         )
     }
 

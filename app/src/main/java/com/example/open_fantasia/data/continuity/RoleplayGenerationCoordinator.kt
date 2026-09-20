@@ -146,7 +146,9 @@ class RoleplayGenerationCoordinator(
             applies_top_p = true,
             applies_max_tokens = true,
             applies_presence_penalty = appliesOpenAiPenalties,
-            applies_frequency_penalty = appliesOpenAiPenalties
+            applies_frequency_penalty = appliesOpenAiPenalties,
+            // Ollama always; OpenRouter per model, decided at send time from the discovered catalogue.
+            applies_min_p = job.provider in setOf("ollama", "openrouter")
         )
     }
 
@@ -191,7 +193,8 @@ class RoleplayGenerationCoordinator(
                 topP = request.settings.top_p,
                 // The frozen request records the requested prose length; the wire needs that plus
                 // room for reasoning the transcript never sees, or the reply is cut mid-sentence.
-                maxTokens = ReplyBudget.transportCeiling(request.settings.max_tokens, connection.provider)
+                maxTokens = ReplyBudget.transportCeiling(request.settings.max_tokens, connection.provider),
+                minP = request.settings.min_p
             ).collect { chunk ->
                 accumulatedText += chunk.text.orEmpty()
                 providerTotalTokens = chunk.totalTokens ?: providerTotalTokens

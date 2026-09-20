@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.open_fantasia.data.local.entity.CharacterEntity
 import com.example.open_fantasia.domain.model.ExampleConversation
+import com.example.open_fantasia.domain.model.VoiceMeter
 import com.example.open_fantasia.domain.portability.PortableJsonCodec
 import com.example.open_fantasia.ui.components.PortableKind
 import com.example.open_fantasia.ui.components.PromptPackPanel
@@ -65,8 +66,8 @@ fun CharacterScreen(
                     editingChar = null
                     isCreating = false
                 },
-                onSave = { id, name, story, core, greeting, appearance, style, def, neg, temp, topP, starters, examples, triggerGen ->
-                    viewModel.saveCharacter(id, name, story, core, greeting, appearance, style, def, neg, temp, topP, starters, examples, triggerGen)
+                onSave = { id, name, story, core, greeting, appearance, style, def, neg, temp, topP, starters, examples, voiceSamples, triggerGen ->
+                    viewModel.saveCharacter(id, name, story, core, greeting, appearance, style, def, neg, temp, topP, starters, examples, triggerGen, voiceSamples)
                     editingChar = null
                     isCreating = false
                 },
@@ -258,6 +259,7 @@ fun CharacterEditor(
         topP: Double,
         starters: List<String>,
         exampleConversations: List<ExampleConversation>,
+        voiceSamples: List<String>,
         triggerPortraitGen: Boolean
     ) -> Unit,
     onRegeneratePortrait: (characterId: String) -> Unit = {}
@@ -270,6 +272,7 @@ fun CharacterEditor(
     var appearance by remember { mutableStateOf(character?.appearance ?: "") }
     var styleRules by remember { mutableStateOf(character?.style_rules ?: "") }
     var negativeGuidance by remember { mutableStateOf(character?.negative_guidance ?: "") }
+    var voiceSamplesInput by remember { mutableStateOf(character?.voice_samples?.joinToString("\n") ?: "") }
     var temperature by remember { mutableStateOf(character?.temperature ?: 0.92) }
     var topP by remember { mutableStateOf(character?.top_p ?: 0.94) }
     var startersInput by remember { mutableStateOf(character?.starters?.joinToString("\n") ?: "") }
@@ -292,7 +295,7 @@ fun CharacterEditor(
         exampleUserLine.isNotBlank() || exampleCharLine.isNotBlank()
     val tabComplete = listOf(
         name.isNotBlank() && story.isNotBlank(), // Story
-        styleRules.isNotBlank(),                 // Voice
+        voiceSamplesInput.lines().count { it.isNotBlank() } >= 3, // Voice
         startersComplete,                        // Starters
         examplesComplete                         // Examples
     )
@@ -388,7 +391,8 @@ fun CharacterEditor(
                     OutlinedTextField(
                         value = story,
                         onValueChange = { story = it },
-                        label = { Text("Story Setting / Lore") },
+                        label = { Text("Setting") },
+                        placeholder = { Text("The world this story happens in. Where, when, what's true about the place.") },
                         minLines = 3,
                         shape = RoundedCornerShape(8.dp),
                         colors = textFieldColors,
@@ -398,7 +402,8 @@ fun CharacterEditor(
                     OutlinedTextField(
                         value = corePersona,
                         onValueChange = { corePersona = it },
-                        label = { Text("Core Persona / Backstory") },
+                        label = { Text("Who they are") },
+                        placeholder = { Text("Their history, what they want, what they're afraid of, the contradictions. Prose, not a list of adjectives.") },
                         minLines = 3,
                         shape = RoundedCornerShape(8.dp),
                         colors = textFieldColors,
@@ -408,7 +413,8 @@ fun CharacterEditor(
                     OutlinedTextField(
                         value = greeting,
                         onValueChange = { greeting = it },
-                        label = { Text("Greeting Message") },
+                        label = { Text("Greeting") },
+                        placeholder = { Text("The first thing they say when a new story starts. Write it the way they'd actually say it.") },
                         minLines = 2,
                         shape = RoundedCornerShape(8.dp),
                         colors = textFieldColors,
@@ -418,7 +424,8 @@ fun CharacterEditor(
                     OutlinedTextField(
                         value = appearance,
                         onValueChange = { appearance = it },
-                        label = { Text("Physical Appearance (for portrait generation)") },
+                        label = { Text("Appearance") },
+                        placeholder = { Text("What they look like. Concrete and visual; this also drives the portrait.") },
                         shape = RoundedCornerShape(8.dp),
                         colors = textFieldColors,
                         modifier = Modifier.fillMaxWidth()
@@ -519,10 +526,26 @@ fun CharacterEditor(
 
                 // ── Tab 2: Voice ──────────────────────────────────────
                 1 -> {
+                    // The load-bearing field. A description of speech is not speech; the model imitates
+                    // what it is shown far more than what it is told, and these lines are shown to it
+                    // three times per reply. See docs/plans/human-speech-refactor.md.
+                    OutlinedTextField(
+                        value = voiceSamplesInput,
+                        onValueChange = { voiceSamplesInput = it },
+                        label = { Text("Things they've said (one per line)") },
+                        placeholder = { Text("8\u201310 lines, in their own mouth, on different days about different things. Make them uneven: a two-word one, a rambling one, one that restarts, one that's just ordinary.") },
+                        minLines = 5,
+                        shape = RoundedCornerShape(8.dp),
+                        colors = textFieldColors,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    VoiceSamplesReadout(voiceSamplesInput)
+
                     OutlinedTextField(
                         value = styleRules,
                         onValueChange = { styleRules = it },
-                        label = { Text("Writing Style / Style Rules") },
+                        label = { Text("Author's notes on the story") },
+                        placeholder = { Text("How you want this story written: pacing, what to lean into, what to steer around. This is about the story, not about how the character talks \u2014 their voice comes from the lines above.") },
                         minLines = 3,
                         shape = RoundedCornerShape(8.dp),
                         colors = textFieldColors,
@@ -532,7 +555,8 @@ fun CharacterEditor(
                     OutlinedTextField(
                         value = definition,
                         onValueChange = { definition = it },
-                        label = { Text("Behavior Rules / Definition") },
+                        label = { Text("More about them") },
+                        placeholder = { Text("Extra lore: abilities, relationships, history, the world as they know it.") },
                         minLines = 3,
                         shape = RoundedCornerShape(8.dp),
                         colors = textFieldColors,
@@ -542,7 +566,8 @@ fun CharacterEditor(
                     OutlinedTextField(
                         value = negativeGuidance,
                         onValueChange = { negativeGuidance = it },
-                        label = { Text("Negative Guidance / Boundaries") },
+                        label = { Text("Hard limits (up to five, one per line)") },
+                        placeholder = { Text("Facts the story can't contradict, stated as facts. \u201CHas never left the valley.\u201D \u201CWon't say her father's name.\u201D") },
                         minLines = 2,
                         shape = RoundedCornerShape(8.dp),
                         colors = textFieldColors,
@@ -604,7 +629,12 @@ fun CharacterEditor(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
-                            Text("Example Conversations", color = Color.White, fontWeight = FontWeight.Bold)
+                            Text("Sample exchanges", color = Color.White, fontWeight = FontWeight.Bold)
+                            Text(
+                                "These are played back to the model as real dialogue, ahead of the story. Write the character's line the way they'd really say it \u2014 a few sentences, at least one spoken.",
+                                color = Color.Gray,
+                                fontSize = 12.sp
+                            )
                             Spacer(modifier = Modifier.height(12.dp))
                             exampleConversations.forEachIndexed { idx, ex ->
                                 Row(
@@ -613,8 +643,8 @@ fun CharacterEditor(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Text("USER: ${ex.user_line}", color = Color.Gray, fontSize = 13.sp)
-                                        Text("CHAR: ${ex.character_line}", color = Color.White, fontSize = 13.sp)
+                                        Text("Player: ${ex.user_line}", color = Color.Gray, fontSize = 13.sp)
+                                        Text("${name.ifBlank { "Character" }}: ${ex.character_line}", color = Color.White, fontSize = 13.sp)
                                     }
                                     IconButton(onClick = { exampleConversations.removeAt(idx) }) {
                                         Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Gray)
@@ -625,7 +655,7 @@ fun CharacterEditor(
                             OutlinedTextField(
                                 value = exampleUserLine,
                                 onValueChange = { exampleUserLine = it },
-                                label = { Text("User line") },
+                                label = { Text("What the player says or does") },
                                 shape = RoundedCornerShape(8.dp),
                                 colors = textFieldColors,
                                 modifier = Modifier.fillMaxWidth()
@@ -634,7 +664,7 @@ fun CharacterEditor(
                             OutlinedTextField(
                                 value = exampleCharLine,
                                 onValueChange = { exampleCharLine = it },
-                                label = { Text("Character line") },
+                                label = { Text("What ${name.ifBlank { "the character" }} says back") },
                                 shape = RoundedCornerShape(8.dp),
                                 colors = textFieldColors,
                                 modifier = Modifier.fillMaxWidth()
@@ -667,6 +697,7 @@ fun CharacterEditor(
                 }
                 return list
             }
+            fun collectVoiceSamples(): List<String> = voiceSamplesInput.lines().map { it.trim() }.filter { it.isNotEmpty() }
 
             // Save Buttons
             Button(
@@ -675,7 +706,7 @@ fun CharacterEditor(
                     onSave(
                         character?.id, name, story, corePersona, greeting, appearance, styleRules,
                         definition, negativeGuidance, temperature, topP, startersList, collectExamples(),
-                        false
+                        collectVoiceSamples(), false
                     )
                 },
                 enabled = name.isNotBlank(),
@@ -692,7 +723,7 @@ fun CharacterEditor(
                     onSave(
                         character?.id, name, story, corePersona, greeting, appearance, styleRules,
                         definition, negativeGuidance, temperature, topP, startersList, collectExamples(),
-                        true
+                        collectVoiceSamples(), true
                     )
                 },
                 enabled = name.isNotBlank(),
@@ -735,7 +766,8 @@ fun CharacterEditor(
                         portrait_last_error = null,
                         portrait_generated_at = null,
                         created_at = "",
-                        updated_at = ""
+                        updated_at = "",
+                        voice_samples = collectVoiceSamples()
                     )
                     PortableJsonCodec.serializeCharacter(tempEntity)
                 },
@@ -748,6 +780,7 @@ fun CharacterEditor(
                     styleRules = data.style_rules
                     definition = data.definition
                     negativeGuidance = data.negative_guidance
+                    voiceSamplesInput = data.voice_samples.joinToString("\n")
                     startersInput = data.suggested_starters.joinToString("\n")
                     exampleConversations.clear()
                     exampleConversations.addAll(data.example_conversations)
@@ -757,4 +790,23 @@ fun CharacterEditor(
             Spacer(modifier = Modifier.height(32.dp))
         }
     }
+}
+
+/**
+ * What the sample lines measure, so the author sees when every line is a zinger before the model does.
+ * The same meter that scores replies ([VoiceMeter]); the lines are wrapped in quotes so it reads them as
+ * speech.
+ */
+@Composable
+private fun VoiceSamplesReadout(input: String) {
+    val lines = input.lines().map { it.trim().trim('"', '\u201C', '\u201D') }.filter { it.isNotEmpty() }
+    if (lines.isEmpty()) return
+    val metrics = VoiceMeter.measure(lines.joinToString(" ") { "\u201C$it\u201D" })
+    val contractions = (metrics.contractionRate * 100).toInt()
+    val lumpy = if (metrics.lineWordsCV >= 0.6) "uneven" else "all about the same length"
+    Text(
+        "${lines.size} lines \u00B7 $contractions% use a contraction \u00B7 median ${metrics.medianLineWords.toInt()} words \u00B7 $lumpy",
+        color = if (contractions >= 50 && metrics.lineWordsCV >= 0.6) Color(0xFF00FF87) else Color.Gray,
+        fontSize = 12.sp
+    )
 }

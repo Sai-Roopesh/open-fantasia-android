@@ -95,17 +95,17 @@ object ReplyLengthCalibration {
 
     /**
      * The sentence the model reads. A range rather than a point, because a single number invites either
-     * padding or a truncated thought, and both read worse than prose that landed near the mark.
+     * padding or a truncated thought, and both read worse than prose that landed near the mark. One
+     * sentence, inside the whisper, in the register the reply should have: it used to be three, and the
+     * second one argued with the first.
      */
     fun directive(length: ReplyLength, modelId: String): String {
         if (!length.hasTarget) {
-            return "Write at whatever length this beat genuinely needs. Stop when it is finished rather than filling space."
+            return "As long as it needs. Stop when it's done."
         }
         val target = targetWords(length, modelId)
         val low = (target * 0.8).toInt()
         val high = (target * 1.2).toInt()
-        return "Write roughly $low-$high words of visible prose, around $target. " +
-            "This is the length being asked for, not a floor to exceed: if the beat is finished at $low words, stop there. " +
-            "Finish on a complete sentence."
+        return "About $low\u2013$high words. Finish the thought and stop."
     }
 }

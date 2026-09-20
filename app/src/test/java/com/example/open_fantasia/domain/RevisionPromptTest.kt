@@ -17,11 +17,11 @@ class RevisionPromptTest {
         "Her phone lit up on the nightstand. She took the call, already reaching for her coat, and was " +
             "gone before he could answer."
 
-    private fun render(revision: Revision?): String = PromptBuilder.render(
+    private fun render(revision: Revision?, intent: SceneIntent = SceneIntent.Develop): String = PromptBuilder.render(
         RoleplayContext(
-            character = PromptCharacter("Avni", "", "", "", "", "", "", emptyList()),
+            character = PromptCharacter("Avni", "", "", "", "", "", "", emptyList(), emptyList()),
             persona = null, directorNotes = "", world = null, cast = emptyList(),
-            activeSpeaker = null, speakerMode = "single", sceneIntent = SceneIntent.Develop, storyDirection = emptyList(), recalled = emptyList(),
+            activeSpeaker = null, speakerMode = "single", sceneIntent = intent, storyDirection = emptyList(), recalled = emptyList(),
             pins = emptyList(), timeline = emptyList(),
             currentUserMessage = "USER-PROSE", revision = revision,
             replyLength = ReplyLength.Full, modelId = "m"
@@ -32,53 +32,60 @@ class RevisionPromptTest {
     fun `the model is shown the reply it is being asked to fix`() {
         val out = render(Revision(rejected, "Don't let her leave the room."))
         assertTrue("a direction with no referent is read as the brief", out.contains(rejected))
-        assertTrue(out.contains("Don't let her leave the room."))
+        assertTrue(out.contains("Don't let her leave the room"))
     }
 
     @Test
     fun `a revision is told what must not change`() {
         val out = render(Revision(rejected, "Don't let her leave the room."))
         assertTrue("without a conservation rule the model rewrites the whole scene",
-            out.contains("KEEP EVERYTHING ELSE"))
-        assertTrue(out.contains("not a new idea for the same turn"))
+            out.contains("same scene, same people, same moment, same speaker"))
+        assertTrue(out.contains("change just this"))
+        assertTrue(out.contains("Everything the note doesn't touch was fine"))
     }
 
     @Test
     fun `the rejected reply is marked as never having happened`() {
         val out = render(Revision(rejected, "Warmer."))
-        assertTrue(out.contains("NOT part of the story"))
-        assertTrue(out.contains("nothing you write may refer to it"))
+        assertTrue(out.contains("never happened"))
+        assertTrue(out.contains("<${RevisionRendering.REJECTED_TAG}>"))
     }
 
     @Test
     fun `direction never enters the player's voice`() {
         val out = render(Revision(rejected, "Make her stay."))
         val prose = out.indexOf("USER-PROSE")
-        val block = out.indexOf("<${RevisionRendering.TAG}>")
+        val block = out.indexOf("<${RevisionRendering.REJECTED_TAG}>")
+        val whisper = out.indexOf("<${PromptBuilder.WHISPER_TAG}>")
         assertTrue("the direction must not read as something the player said", block > prose)
+        assertTrue("the revision lives inside the whisper", block > whisper)
     }
 
     @Test
     fun `a plain regeneration still says what not to repeat`() {
         val out = render(Revision(rejected, ""))
         assertTrue("regenerating with no note must not be a blind reroll", out.contains(rejected))
-        assertTrue(out.contains("genuinely different reply"))
+        assertTrue(out.contains("different choice about what happens"))
         assertFalse("there is nothing to conserve against when nothing was named",
-            out.contains("changing this and only this"))
+            out.contains("change just this"))
     }
 
     @Test
     fun `a discarded attempt is a brief, not a revision of nothing`() {
         val out = render(Revision(rejected = null, direction = "Slow it down."))
-        assertTrue(out.contains("nothing to revise"))
-        assertTrue(out.contains("Slow it down."))
+        assertTrue(out.contains("Fresh attempt"))
+        assertTrue(out.contains("Slow it down"))
         assertTrue("an out-of-character note must never become an event in the story",
-            out.contains("not an event in the story"))
+            out.contains("nobody in the story said it"))
+        assertFalse(out.contains("<${RevisionRendering.REJECTED_TAG}>"))
     }
 
     @Test
-    fun `a normal send carries no revision block at all`() {
-        assertFalse(render(null).contains("<${RevisionRendering.TAG}>"))
+    fun `a normal send carries no revision at all`() {
+        val out = render(null)
+        assertFalse(out.contains("<${RevisionRendering.REJECTED_TAG}>"))
+        assertFalse(out.contains("Write it again"))
+        assertFalse(out.contains("Fresh attempt"))
     }
 
     @Test
@@ -90,19 +97,10 @@ class RevisionPromptTest {
 
     @Test
     fun `a revision still obeys the scene intent`() {
-        val out = PromptBuilder.render(
-            RoleplayContext(
-                character = PromptCharacter("Avni", "", "", "", "", "", "", emptyList()),
-                persona = null, directorNotes = "", world = null, cast = emptyList(),
-                activeSpeaker = null, speakerMode = "single", sceneIntent = SceneIntent.Dwell, storyDirection = emptyList(), recalled = emptyList(),
-                pins = emptyList(), timeline = emptyList(),
-                currentUserMessage = "USER-PROSE", revision = Revision(rejected, "Warmer."),
-                replyLength = ReplyLength.Full, modelId = "m"
-            )
-        ).currentUserMessage
+        val out = render(Revision(rejected, "Warmer."), intent = SceneIntent.Dwell)
         // A revision is not an escape hatch from the scene. Dwell still forbids the intrusion that the
         // rejected reply committed, which is often why it was rejected.
-        assertTrue(out.contains("Do NOT introduce a new event"))
-        assertFalse(out.contains("an event that intrudes on the scene"))
+        assertTrue(out.contains("Stay in this moment"))
+        assertFalse(out.contains("Push."))
     }
 }

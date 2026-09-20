@@ -14,11 +14,11 @@ import {
 function generationRequest() {
   return {
     contract_version: 1,
-    system_prompt: "SYSTEM-SENTINEL\n<durable_state>\n{\"story\":\"continuity\"}\n</durable_state>",
+    system_prompt: "<voice_card name=\"Jean Grey\">\nSYSTEM-SENTINEL\n</voice_card>\n<where_things_stand>\nThe story so far.\n</where_things_stand>",
     messages: [
       { role: "user", content: "Earlier user beat." },
       { role: "assistant", content: "Earlier assistant beat." },
-      { role: "user", content: "<reply_control>Jean Grey</reply_control>\nLatest user beat." }
+      { role: "user", content: "Latest user beat.\n\n<whisper>\nYou're Jean Grey now.\n</whisper>" }
     ],
     requested_speaker_id: "cast-jean",
     speaker_mode: "single",
@@ -26,7 +26,7 @@ function generationRequest() {
   };
 }
 
-test("Claude roleplay receives the same complete canonical request with no tools", async () => {
+test("Claude roleplay gets the app's system prompt as its system prompt and the transcript as its task", async () => {
   const root = await mkdtemp(`${tmpdir()}/open-fantasia-claude-runner-test-`);
   const generation = generationRequest();
   const requestHash = createHash("sha256").update(JSON.stringify(generation)).digest("hex");
@@ -67,10 +67,16 @@ test("Claude roleplay receives the same complete canonical request with no tools
     assert.equal(invocation.binary, "claude");
     assert.equal(invocation.args[0], "--safe-mode");
     const task = invocation.args[invocation.args.indexOf("-p") + 1];
-    assert.match(task, /SYSTEM-SENTINEL/);
-    assert.match(task, /Earlier user beat/);
-    assert.match(task, /Earlier assistant beat/);
+    const systemPrompt = invocation.args[invocation.args.indexOf("--system-prompt") + 1];
+    // The system prompt is the app's, verbatim — not a three-sentence "stateless Roleplay Model" meta
+    // with the real one demoted into the user turn.
+    assert.match(systemPrompt, /SYSTEM-SENTINEL/);
+    assert.doesNotMatch(systemPrompt, /stateless Roleplay Model|generation contract/);
+    assert.doesNotMatch(task, /SYSTEM-SENTINEL/);
+    assert.match(task, /Player: Earlier user beat/);
+    assert.match(task, /Jean Grey: Earlier assistant beat/);
     assert.match(task, /Latest user beat/);
+    assert.match(task, /<whisper>/);
     assert.equal(invocation.args[invocation.args.indexOf("--tools") + 1], "");
     assert.equal(invocation.args[invocation.args.indexOf("--max-turns") + 1], "1");
     assert.equal(invocation.options.env.ANTHROPIC_API_KEY, undefined);

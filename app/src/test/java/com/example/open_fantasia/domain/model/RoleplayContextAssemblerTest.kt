@@ -135,4 +135,59 @@ class RoleplayContextAssemblerTest {
             )
         }
     }
+
+    // ---- Voice Anchor -------------------------------------------------------------------------------
+
+    private val examples = listOf(
+        ExampleConversation("Where were you?", "Out. Walking. I don't — it doesn't matter where."),
+        ExampleConversation("You okay?", "Mm."),
+        ExampleConversation("", "orphan line with no player side"),
+        ExampleConversation("Tea?", "God, yes. Yes. Two sugars, don't judge me.")
+    )
+
+    @Test
+    fun `the voice anchor is whole exchanges, as real turns, skipping half-written ones`() {
+        val anchor = RoleplayContextAssembler.voiceAnchor(examples)
+        assertEquals(6, anchor.size)
+        assertEquals(RoleplayMessage("user", "Where were you?"), anchor[0])
+        assertEquals("assistant", anchor[1].role)
+        assertFalse(anchor.any { it.content.contains("orphan") })
+    }
+
+    @Test
+    fun `the anchor is capped in exchanges and in characters`() {
+        val many = (1..10).map { ExampleConversation("u$it", "a$it") }
+        assertEquals(RoleplayContextAssembler.MAX_ANCHOR_EXCHANGES * 2, RoleplayContextAssembler.voiceAnchor(many).size)
+        val huge = listOf(ExampleConversation("u", "x".repeat(RoleplayContextAssembler.MAX_ANCHOR_CHARS + 1)), ExampleConversation("u2", "short"))
+        val anchor = RoleplayContextAssembler.voiceAnchor(huge)
+        assertEquals(listOf("u2", "short"), anchor.map { it.content })
+    }
+
+    @Test
+    fun `the anchor precedes the transcript and is not counted as story`() {
+        val anchor = RoleplayContextAssembler.voiceAnchor(examples)
+        val result = RoleplayContextAssembler.assemble(
+            lineage = linear(20),
+            head_exchange_id = "turn-20",
+            continuity_baseline_exchange_id = "turn-15",
+            current_user_message = "current-user",
+            voice_anchor = anchor
+        )
+        assertEquals(anchor.size + 31, result.messages.size)
+        assertEquals(anchor, result.messages.take(anchor.size))
+        assertEquals(RoleplayMessage("user", "raw-user-6"), result.messages[anchor.size])
+        assertEquals("the anchor is not story", (6..20).map { "turn-$it" }, result.transcript_exchange_ids)
+        assertFalse(result.retained_lineage_exchange_ids.any { it.startsWith("anchor") })
+    }
+
+    @Test
+    fun `a broken anchor is refused rather than misattributed`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            RoleplayContextAssembler.assemble(
+                lineage = linear(3), head_exchange_id = "turn-3", continuity_baseline_exchange_id = null,
+                current_user_message = "now",
+                voice_anchor = listOf(RoleplayMessage("assistant", "who said this?"))
+            )
+        }
+    }
 }

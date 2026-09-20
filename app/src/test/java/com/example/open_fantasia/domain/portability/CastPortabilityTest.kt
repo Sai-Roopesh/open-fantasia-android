@@ -3,6 +3,7 @@ package com.example.open_fantasia.domain.portability
 import com.example.open_fantasia.domain.model.CastProfile
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -113,7 +114,27 @@ class CastPortabilityTest {
         val pack = PortableJsonCodec.buildCastPromptPack(com.example.open_fantasia.domain.model.PromptPackVariant.CLAUDE)
         listOf(
             "openfantasia.cast", "canonical_name", "aliases", "role_background",
-            "personality", "voice_style", "appearance", "goals", "boundaries"
+            "personality", "voice_style", "voice_samples", "appearance", "goals", "boundaries"
         ).forEach { assertTrue("prompt pack omits $it", pack.contains(it)) }
+        // Naming what to avoid names the thing. The pack asks for speech habits and sample lines instead.
+        assertFalse(pack.contains("Avoid \"concise\""))
+    }
+
+    @Test
+    fun voiceSamplesRoundTripAndOldDocumentsStillParse() {
+        val profile = CastProfile(
+            cast_id = "seed:thread-1:abc", canonical_name = "Tunde", provenance = "manual_seed",
+            voice_samples = listOf("Mm.", "No, hang on \u2014 say that again.")
+        )
+        val json = PortableJsonCodec.serializeCast(profile)
+        assertTrue(json.contains("voice_samples"))
+        val parsed = PortableJsonCodec.parseCastDocument(json).getOrThrow()
+        assertEquals(profile.voice_samples, parsed.data.voice_samples)
+        val restored = PortableJsonCodec.castDocumentToProfile(parsed, existing = profile, threadId = "thread-1")
+        assertEquals(profile.voice_samples, restored.voice_samples)
+
+        val old = """{"format":"openfantasia.cast","version":1,"data":{"canonical_name":"Tunde","aliases":[],
+            "role_background":"","personality":"","voice_style":"","appearance":"","goals":"","boundaries":""}}"""
+        assertTrue("a document written before voice_samples existed must still import", PortableJsonCodec.parseCastDocument(old).isSuccess)
     }
 }

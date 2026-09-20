@@ -21,7 +21,9 @@ interface LLMClient {
         // model's output is grammar-constrained to this shape. Far more reliable than the loose
         // json_object mode for structured extraction (HCE). Providers that can't do schema-
         // constrained decoding ignore it — callers should retry with plain jsonMode as a fallback.
-        jsonSchema: JsonObject? = null
+        jsonSchema: JsonObject? = null,
+        // Sent only where the backend is known to accept it (Ollama; OpenRouter models advertising it).
+        minP: Double? = null
     ): String
 
     fun streamGenerateText(
@@ -33,7 +35,8 @@ interface LLMClient {
         topP: Double,
         maxTokens: Int,
         jsonMode: Boolean = false,
-        jsonSchema: JsonObject? = null
+        jsonSchema: JsonObject? = null,
+        minP: Double? = null
     ): Flow<StreamChunk>
 }
 

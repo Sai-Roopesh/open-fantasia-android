@@ -13,16 +13,14 @@ import org.junit.Test
  * resolved list discarded at the call site, and fields dropped by a serializer nobody configured. Each
  * survived for months because nothing failed when context went missing. These tests fail instead.
  *
- * The reflection cases are the ones that matter: add a property to a context type and forget to render
- * it, and the build breaks. See ADR-0014.
+ * The world state used to be checked by reflection over field *names*, which worked because the prompt
+ * was the JSON. It is prose now ([com.example.open_fantasia.domain.reducer.DossierRendering]), so every
+ * field is checked by its *value* — the stronger property, since a field can be named in a prompt without
+ * its content arriving and cannot be valued there without it. What is deliberately withheld is listed at
+ * the bottom, and asserted absent. See ADR-0014 and ADR-0024.
  */
 class PromptCompletenessTest {
 
-    /**
-     * Every field gets a sentinel derived from its own name. PromptCastMember declares no defaults, so
-     * adding a field breaks this fixture until it is named here, and [everyCastFieldReachesTheModel]
-     * then fails until it is rendered. That pairing is the guarantee.
-     */
     private fun castMember(
         castId: String,
         name: String,
@@ -41,39 +39,52 @@ class PromptCompletenessTest {
         origin = origin,
         evidence = listOf("$name-evidence"),
         status = "active",
-        speakerEligible = true
+        speakerEligible = true,
+        voiceSamples = listOf("$name-sample")
     )
 
-    /** The sentinels above, by the field they stand for. */
+    /** Every authored field of a non-primary member. */
     private fun castSentinels(name: String) = listOf(
-        "$name-entityId", "$name-aliases", "$name-roleBackground", "$name-personality",
-        "$name-voiceStyle", "$name-appearance", "$name-goals", "$name-boundaries", "$name-evidence"
+        "$name-aliases", "$name-roleBackground", "$name-personality",
+        "$name-voiceStyle", "$name-appearance", "$name-goals", "$name-boundaries", "$name-sample"
     )
 
     private fun world() = PromptWorldState(
-        metadata = SnapshotMetadata("turn-9", "NARRATIVE-TIMESTAMP", "TRANSITION-TYPE", 4),
+        metadata = SnapshotMetadata("turn-9", "NARRATIVE-TIMESTAMP", "time_skip", 4),
         spatial_state = SpatialState(
             current_location = LocationState("loc:ward", "WARD-NAME", "WARD-DESCRIPTION", listOf("MODIFIER")),
             adjacent_locations = listOf(LocationRef("loc:icu", "ICU-NAME")),
-            known_locations = listOf(LocationState("loc:ward", "WARD-NAME", "WARD-DESCRIPTION", listOf("MODIFIER"))),
+            known_locations = listOf(
+                LocationState("loc:ward", "WARD-NAME", "WARD-DESCRIPTION", listOf("MODIFIER")),
+                LocationState("loc:icu", "ICU-NAME", "ICU-DESCRIPTION", emptyList())
+            ),
             edges = listOf(LocationEdge("edge:1", "loc:ward", "loc:icu", true)),
-            entity_placements = listOf(EntityPlacement("e1", "PLACED-NAME", "loc:ward", "WARD-NAME", "MICRO-POSITION"))
+            entity_placements = listOf(EntityPlacement("e1", "ENTITY-NAME", "loc:ward", "WARD-NAME", "MICRO-POSITION"))
         ),
         entity_state = listOf(
             EntityState(
-                entity_id = "e1", canonical_name = "ENTITY-NAME", entity_type = "ENTITY-TYPE",
+                entity_id = "e1", canonical_name = "ENTITY-NAME", entity_type = "creature",
+                account = "ENTITY-ACCOUNT",
                 aliases = listOf("ENTITY-ALIAS"), is_present = true,
-                primary_emotion = "PRIMARY-EMOTION", emotion_intensity = 71, emotion_catalyst = "EMOTION-CATALYST",
+                primary_emotion = "primary-emotion", emotion_intensity = 71, emotion_catalyst = "emotion-catalyst",
                 knowledge_boundary = listOf(FactRef("f1", "KNOWLEDGE-FACT")),
                 traits = listOf(FactRef("f2", "TRAIT-FACT")),
                 goals = listOf(FactRef("f3", "GOAL-FACT")),
                 secrets = listOf(FactRef("f4", "SECRET-FACT")),
                 abilities = listOf(FactRef("f5", "ABILITY-FACT")),
                 possessions = listOf(FactRef("f6", "POSSESSION-FACT"))
+            ),
+            EntityState(
+                entity_id = "e2", canonical_name = "ABSENT-NAME", entity_type = "character",
+                account = "ABSENT-ACCOUNT",
+                aliases = emptyList(), is_present = false,
+                primary_emotion = "", emotion_intensity = 0, emotion_catalyst = "",
+                knowledge_boundary = emptyList(), traits = emptyList(), goals = emptyList(),
+                secrets = emptyList(), abilities = emptyList(), possessions = emptyList()
             )
         ),
         relational_state = listOf(
-            RelationalState("r1", "e1", "SOURCE-NAME", "e2", "TARGET-NAME", "RELATIONSHIP-TYPE", "DYNAMIC-STATUS")
+            RelationalState("r1", "e1", "ENTITY-NAME", "e2", "ABSENT-NAME", "adversarial", "DYNAMIC-STATUS")
         ),
         narrative_state = NarrativeState(
             story_summary = "STORY-SUMMARY",
@@ -94,19 +105,23 @@ class PromptCompletenessTest {
             appearance = "CHARACTER-APPEARANCE",
             styleRules = "STYLE-RULES",
             definition = "CHARACTER-DEFINITION",
-            negativeGuidance = "NEGATIVE-GUIDANCE",
-            exampleConversations = listOf(ExampleConversation("EXAMPLE-USER", "EXAMPLE-CHARACTER"))
+            negativeGuidance = "NEGATIVE-GUIDANCE-1\nNEGATIVE-GUIDANCE-2",
+            exampleConversations = listOf(ExampleConversation("EXAMPLE-USER", "EXAMPLE-CHARACTER")),
+            voiceSamples = listOf("CHARACTER-SAMPLE")
         ),
         persona = PromptPersona(
             name = "PERSONA-NAME", identity = "PERSONA-IDENTITY", backstory = "PERSONA-BACKSTORY",
-            voiceStyle = "PERSONA-VOICE", goals = "PERSONA-GOALS", boundaries = "PERSONA-BOUNDARIES"
+            voiceStyle = "PERSONA-VOICE", goals = "PERSONA-GOALS", boundaries = "PERSONA-BOUNDARIES",
+            voiceSamples = listOf("PERSONA-SAMPLE")
         ),
         directorNotes = "DIRECTOR-NOTES",
         world = world,
         cast = cast,
         activeSpeaker = cast.firstOrNull(),
         speakerMode = speakerMode,
-        sceneIntent = SceneIntent.Escalate, storyDirection = emptyList(), recalled = emptyList(),
+        sceneIntent = SceneIntent.Escalate,
+        storyDirection = listOf(PlacedWant("WANT-AHEAD", reached = false, askedAgo = 3, reachedAgo = null), PlacedWant("WANT-DONE", reached = true, askedAgo = 9, reachedAgo = 2)),
+        recalled = listOf(RecalledExchange("turn-2", 40, "RECALLED-PLAYER", "RECALLED-REPLY", listOf("match"))),
         pins = listOf(ChatPinRecord("p1", "t", "b", null, "PIN-BODY", "active", "", "")),
         timeline = listOf(
             TimelineEventRecord("tl1", "t", "b", "turn-9", "TIMELINE-TITLE", "TIMELINE-DETAIL", 5, "reveal", emptyList(), emptyList(), "")
@@ -127,41 +142,62 @@ class PromptCompletenessTest {
         val out = rendered()
         for (marker in listOf(
             "STORY-SETTING", "CORE-PERSONA", "CHARACTER-APPEARANCE", "STYLE-RULES",
-            "CHARACTER-DEFINITION", "NEGATIVE-GUIDANCE", "EXAMPLE-USER", "EXAMPLE-CHARACTER",
+            "CHARACTER-DEFINITION", "NEGATIVE-GUIDANCE-1", "NEGATIVE-GUIDANCE-2", "CHARACTER-SAMPLE",
             "PERSONA-IDENTITY", "PERSONA-BACKSTORY", "PERSONA-VOICE", "PERSONA-GOALS",
-            "PERSONA-BOUNDARIES", "DIRECTOR-NOTES", "CURRENT-USER-MESSAGE"
+            "PERSONA-BOUNDARIES", "PERSONA-SAMPLE", "DIRECTOR-NOTES", "CURRENT-USER-MESSAGE"
         )) {
             assertTrue("$marker is missing from the prompt", out.contains(marker))
         }
     }
 
-    // The reflection cases. Add a property to a context type without rendering it and these fail.
+    /**
+     * Example conversations are not quoted in the prompt any more; they ride as real dialogue turns
+     * ahead of the transcript. Their absence here is asserted so the move is not mistaken for a leak,
+     * and their presence is asserted in [RoleplayContextAssemblerTest].
+     */
     @Test
-    fun `every property of the world state reaches the model`() {
+    fun `example conversations travel as turns, not as prompt text`() {
         val out = rendered()
-        // Java reflection rather than kotlin-reflect: a build-breaking guarantee should not need a
-        // dependency to hold. Data class properties are declared fields of the same name.
-        val types = listOf(
-            SnapshotMetadata::class.java, SpatialState::class.java, LocationState::class.java,
-            LocationRef::class.java, LocationEdge::class.java, EntityPlacement::class.java,
-            EntityState::class.java, FactRef::class.java, RelationalState::class.java,
-            NarrativeState::class.java
-        )
-        for (type in types) {
-            for (field in type.declaredFields) {
-                if (field.isSynthetic || field.name == "Companion" || field.name.startsWith("\$")) continue
-                assertTrue(
-                    "${type.simpleName}.${field.name} never reaches the prompt",
-                    out.contains(field.name)
-                )
-            }
+        assertFalse(out.contains("EXAMPLE-USER"))
+        assertFalse(out.contains("EXAMPLE-CHARACTER"))
+        val anchor = RoleplayContextAssembler.voiceAnchor(context().character.exampleConversations)
+        assertTrue(anchor.any { it.role == "user" && it.content == "EXAMPLE-USER" })
+        assertTrue(anchor.any { it.role == "assistant" && it.content == "EXAMPLE-CHARACTER" })
+    }
+
+    /** Every value in the Continuity Snapshot the Stage sends, as prose. */
+    @Test
+    fun `every value of the world state reaches the model`() {
+        val out = rendered()
+        for (marker in listOf(
+            "NARRATIVE-TIMESTAMP", "Time has passed",
+            "WARD-NAME", "WARD-DESCRIPTION", "MODIFIER", "ICU-NAME", "ICU-DESCRIPTION", "MICRO-POSITION",
+            "ENTITY-NAME", "creature", "ENTITY-ALIAS", "ENTITY-ACCOUNT",
+            "KNOWLEDGE-FACT", "TRAIT-FACT", "GOAL-FACT", "SECRET-FACT", "ABILITY-FACT", "POSSESSION-FACT",
+            "ABSENT-NAME", "ABSENT-ACCOUNT",
+            "DYNAMIC-STATUS", "adversarial",
+            "STORY-SUMMARY", "SCENE-SUMMARY", "LAST-TURN-BEAT"
+        )) {
+            assertTrue("$marker never reaches the prompt", out.contains(marker))
         }
+        // The emotion arrives as words: "very primary-emotion, since emotion-catalyst."
+        assertTrue(out.contains("Right now: very primary-emotion, since emotion-catalyst."))
+        // Presence is stated by section, not by a boolean.
+        assertTrue(out.indexOf("WHO'S HERE") < out.indexOf("ENTITY-NAME"))
+        assertTrue(out.substringAfter("<who_else>").contains("ABSENT-NAME"))
+        assertTrue(out.substringAfter("<who_else>").contains("Not here right now"))
     }
 
     @Test
     fun everyCastFieldReachesTheModel() {
         val out = rendered()
-        for (marker in castSentinels("Arjun") + castSentinels("Ayushi")) {
+        for (marker in castSentinels("Arjun")) {
+            assertTrue("$marker is carried in the context but never rendered", out.contains(marker))
+        }
+        // The Primary Character is described by the Character Sheet in the voice card. Of the seed's own
+        // fields, the ones the sheet does not lock — voice, sample lines, goals — are rendered from the
+        // seed; the locked ones are, by construction, the sheet's values under other names.
+        for (marker in listOf("Ayushi-voiceStyle", "Ayushi-goals", "Ayushi-aliases")) {
             assertTrue("$marker is carried in the context but never rendered", out.contains(marker))
         }
     }
@@ -172,7 +208,8 @@ class PromptCompletenessTest {
     fun `the full cast is sent before any Continuity Snapshot exists`() {
         val out = rendered(context(world = null))
         for (marker in castSentinels("Arjun")) assertTrue(marker, out.contains(marker))
-        assertTrue(out.contains("Ayushi"))
+        assertTrue(out.contains("THE CAST"))
+        assertFalse("nobody is claimed present when nothing has been observed", out.contains("WHO'S HERE"))
     }
 
     @Test
@@ -186,36 +223,47 @@ class PromptCompletenessTest {
     fun `ensemble mode receives the same cast knowledge as single speaker`() {
         val single = rendered(context(speakerMode = "single"))
         val ensemble = rendered(context(speakerMode = "ensemble"))
-        for (marker in castSentinels("Arjun") + listOf("Ayushi-personality")) {
+        for (marker in castSentinels("Arjun")) {
             assertTrue(marker, single.contains(marker))
             assertTrue(marker, ensemble.contains(marker))
         }
+        assertTrue(ensemble.contains("Anyone in the room can speak this time"))
     }
 
     @Test
-    fun `timeline events reach the model`() {
+    fun `timeline, pins, direction and recall reach the model`() {
         val out = rendered()
-        assertTrue("timeline detail never reached the prompt", out.contains("TIMELINE-DETAIL"))
-        assertTrue(out.contains("TIMELINE-TITLE"))
+        for (marker in listOf("TIMELINE-DETAIL", "TIMELINE-TITLE", "PIN-BODY", "WANT-AHEAD", "WANT-DONE", "RECALLED-PLAYER", "RECALLED-REPLY", "40 exchanges ago")) {
+            assertTrue("$marker never reached the prompt", out.contains(marker))
+        }
     }
 
-    @Test
-    fun `pins reach the model`() {
-        assertTrue(rendered().contains("PIN-BODY"))
-    }
-
-    // Cast lives in exactly one section. Sending it twice was the cost of moving it out of durable_state.
+    // Cast lives in exactly one place.
     @Test
     fun `no cast member is described twice`() {
         val out = rendered()
         val occurrences = out.split("Arjun-personality").size - 1
         assertTrue("expected one description, found $occurrences", occurrences == 1)
+        assertTrue("the primary's persona is in the voice card only", out.split("CORE-PERSONA").size - 1 == 1)
     }
 
+    /**
+     * What the model deliberately never sees. Identifiers and flags are bookkeeping (ADR-0008); the
+     * integer behind an emotion becomes an adverb; provenance, evidence and eligibility describe the
+     * record, not the person.
+     */
     @Test
     fun `deliberately withheld fields stay withheld`() {
         val out = rendered()
-        assertFalse("private_notes must never reach the model", out.contains("private_notes"))
-        assertFalse(out.contains("greeting"))
+        for (marker in listOf(
+            "private_notes", "greeting",
+            "loc:ward", "loc:icu", "edge:1", "\"e1\"", "f1", "r1",
+            "Ayushi-entityId", "Arjun-entityId", "Arjun-evidence",
+            "emotion_intensity", "is_present", "is_bidirectional", "entity_id",
+            "eligible to speak", "World entity", "Origin:", "Status: active"
+        )) {
+            assertFalse("$marker must never reach the model", out.contains(marker))
+        }
+        assertFalse("the intensity integer must not leak", Regex("\\b71\\b").containsMatchIn(out))
     }
 }

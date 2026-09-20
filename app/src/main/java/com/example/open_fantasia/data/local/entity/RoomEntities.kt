@@ -75,10 +75,12 @@ data class PersonaEntity(
     val private_notes: String,
     val is_default: Boolean,
     val created_at: String,
-    val updated_at: String
+    val updated_at: String,
+    val voice_samples: List<String> = emptyList()
 ) {
     fun toDomain() = UserPersonaRecord(
-        id, user_id, name, identity, backstory, voice_style, goals, boundaries, private_notes, is_default, created_at, updated_at
+        id, user_id, name, identity, backstory, voice_style, goals, boundaries, private_notes, is_default, created_at, updated_at,
+        voice_samples = voice_samples
     )
 }
 
@@ -118,12 +120,14 @@ data class CharacterEntity(
     val portrait_last_error: String?,
     val portrait_generated_at: String?,
     val created_at: String,
-    val updated_at: String
+    val updated_at: String,
+    val voice_samples: List<String> = emptyList()
 ) {
     fun toDomain() = CharacterRecord(
         id, user_id, name, story, core_persona, greeting, appearance, style_rules, definition, negative_guidance,
         temperature, top_p, starters, example_conversations, portrait_status, portrait_path, portrait_prompt,
-        portrait_seed, portrait_source_hash, portrait_last_error, portrait_generated_at, created_at, updated_at
+        portrait_seed, portrait_source_hash, portrait_last_error, portrait_generated_at, created_at, updated_at,
+        voice_samples = voice_samples
     )
 }
 
@@ -236,12 +240,14 @@ data class CastSeedEntity(
     val player_controlled: Boolean = false,
     val manual_locks: List<String> = emptyList(),
     val created_at: String,
-    val updated_at: String
+    val updated_at: String,
+    val voice_samples: List<String> = emptyList()
 ) {
     fun toDomain() = CastProfile(
         cast_id, entity_id, canonical_name, aliases, role_background, personality,
         voice_style, appearance, goals, boundaries, provenance, first_seen_turn_id,
-        evidence, status, speaker_eligible, player_controlled, manual_locks
+        evidence, status, speaker_eligible, player_controlled, manual_locks,
+        voice_samples = voice_samples
     )
 }
 
@@ -318,12 +324,14 @@ data class CastProfileOverrideEntity(
     val speaker_eligible: Boolean = true,
     val player_controlled: Boolean = false,
     val manual_locks: List<String> = emptyList(),
-    val updated_at: String
+    val updated_at: String,
+    val voice_samples: List<String> = emptyList()
 ) {
     fun toDomain() = CastProfile(
         cast_id, entity_id, canonical_name, aliases, role_background, personality,
         voice_style, appearance, goals, boundaries, provenance, first_seen_turn_id,
-        evidence, status, speaker_eligible, player_controlled, manual_locks
+        evidence, status, speaker_eligible, player_controlled, manual_locks,
+        voice_samples = voice_samples
     )
 }
 
@@ -498,7 +506,13 @@ data class RoleplayGenerationJobEntity(
     val failure_detail: String? = null,
     val created_at: String,
     val updated_at: String,
-    val accepted_at: String? = null
+    val accepted_at: String? = null,
+    /**
+     * How the accepted reply's dialogue measured, as stored [com.example.open_fantasia.domain.model.VoiceMetrics]
+     * JSON. Beside the request that produced it, so a prompt change can be judged by what it did to
+     * the numbers rather than by how it reads. Null until accepted.
+     */
+    val voice_metrics: String? = null
 )
 
 @Entity(

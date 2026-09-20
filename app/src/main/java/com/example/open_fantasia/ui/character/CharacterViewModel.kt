@@ -45,7 +45,8 @@ class CharacterViewModel(
         topP: Double,
         starters: List<String>,
         exampleConversations: List<ExampleConversation>,
-        triggerPortraitGen: Boolean
+        triggerPortraitGen: Boolean,
+        voiceSamples: List<String> = emptyList()
     ) {
         viewModelScope.launch {
             val now = Instant.now().toString()
@@ -88,7 +89,8 @@ class CharacterViewModel(
                 portrait_last_error = existingChar?.portrait_last_error,
                 portrait_generated_at = existingChar?.portrait_generated_at,
                 created_at = existingChar?.created_at ?: now,
-                updated_at = now
+                updated_at = now,
+                voice_samples = voiceSamples.map { it.trim().trim('"', '\u201C', '\u201D').trim() }.filter { it.isNotEmpty() }
             )
 
             characterDao.saveCharacterAndSyncPrimarySeeds(character)

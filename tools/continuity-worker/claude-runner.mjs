@@ -12,7 +12,7 @@ import {
   requireDirectModelInputSize,
   unfenceJson
 } from "./host-lib.mjs";
-import { renderRoleplayTask, validateRoleplayOutput } from "./antigravity-runner.mjs";
+import { renderRoleplayTranscript, validateRoleplayOutput, validateRoleplayRequest } from "./antigravity-runner.mjs";
 
 const CONTINUITY_SYSTEM_PROMPT = [
   "You are Open Fantasia's stateless Continuity Engine.",
@@ -20,11 +20,14 @@ const CONTINUITY_SYSTEM_PROMPT = [
   "Read every exchange, then return only one Continuity Draft JSON object — no prose, no preface, no Markdown fence."
 ].join(" ");
 
-const ROLEPLAY_SYSTEM_PROMPT = [
-  "You are Open Fantasia's stateless Roleplay Model.",
-  "The user prompt contains the complete authoritative generation contract, character instructions, Continuity Snapshot, chronological transcript, and reply control.",
-  "Obey that contract exactly and return only the next in-character prose reply."
-].join(" ");
+/**
+ * The roleplay lane has no system prompt of its own any more. It used to replace the app's with three
+ * sentences announcing "Open Fantasia's stateless Roleplay Model" and a "generation contract", and
+ * demote the real one into the user turn; the character was then played by something that had just
+ * been told it was a contract-executing machine. Claude Code's `--system-prompt` replaces its own
+ * coding-agent prompt entirely, so the app's system prompt goes there, as a system prompt, and the
+ * transcript goes in the user turn as a transcript.
+ */
 
 /**
  * Claude Code gives API keys and cloud-provider credentials precedence over a signed-in
@@ -108,12 +111,13 @@ export function createClaudeRoleplayRunner({
         throw new Error("Roleplay Generation Request hash mismatch");
       }
 
-      const task = renderRoleplayTask(generationRequest);
-      requireDirectModelInputSize(task, "Canonical roleplay context");
+      validateRoleplayRequest(generationRequest);
+      const task = renderRoleplayTranscript(generationRequest);
+      requireDirectModelInputSize(task + generationRequest.system_prompt, "Canonical roleplay context");
       let output;
       try {
         output = await runProcess(claude, claudeArguments({
-          task, model, effort, systemPrompt: ROLEPLAY_SYSTEM_PROMPT
+          task, model, effort, systemPrompt: generationRequest.system_prompt
         }), {
           cwd: work,
           env: subscriptionOnlyEnvironment(processEnvironment),

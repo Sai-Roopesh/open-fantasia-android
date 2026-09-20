@@ -167,9 +167,10 @@ class KtorLLMClient(
                         val contextLength = obj["context_length"]?.jsonPrimitive?.intOrNull
                         val supportedParams = obj["supported_parameters"]?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList()
                         val jsonCapable = supportedParams.contains("response_format") || supportedParams.contains("structured_outputs")
+                        val minPCapable = supportedParams.contains("min_p")
                         if (id.isNotEmpty() && !filterRegex.containsMatchIn(id)) {
                             val hint = if (id.contains(":free") || id == "openrouter/free") "free" else null
-                            result.add(ModelCatalogEntry(id = id, name = name, provider = "openrouter", contextWindow = contextLength, hint = hint, supportsJson = jsonCapable))
+                            result.add(ModelCatalogEntry(id = id, name = name, provider = "openrouter", contextWindow = contextLength, hint = hint, supportsJson = jsonCapable, supportsMinP = minPCapable))
                         }
                     }
                     return result.take(80)
@@ -215,10 +216,11 @@ class KtorLLMClient(
         topP: Double,
         maxTokens: Int,
         jsonMode: Boolean,
-        jsonSchema: JsonObject?
+        jsonSchema: JsonObject?,
+        minP: Double?
     ): String {
         var fullText = ""
-        streamGenerateText(connection, modelId, systemPrompt, messages, temperature, topP, maxTokens, jsonMode, jsonSchema)
+        streamGenerateText(connection, modelId, systemPrompt, messages, temperature, topP, maxTokens, jsonMode, jsonSchema, minP)
             .collect { chunk ->
                 chunk.text?.let { fullText += it }
             }
@@ -234,9 +236,18 @@ class KtorLLMClient(
         topP: Double,
         maxTokens: Int,
         jsonMode: Boolean,
-        jsonSchema: JsonObject?
+        jsonSchema: JsonObject?,
+        minP: Double?
     ): Flow<StreamChunk> = flow {
         val apiKey = decryptKey(connection)
+        // min_p goes only where the backend is known to take it. Ollama always does; an OpenRouter model
+        // says so in its discovered `supported_parameters`; nobody else on this list does, and an unknown
+        // field is a 400 from most of them.
+        val sendMinP = minP != null && !jsonMode && when (connection.provider) {
+            "ollama" -> true
+            "openrouter" -> connection.model_cache.any { it.id == modelId && it.supportsMinP }
+            else -> false
+        }
 
         val url: String
         val payload: JsonObject
@@ -319,12 +330,10 @@ class KtorLLMClient(
                         })
                     } else if (jsonMode) {
                         put("response_format", buildJsonObject { put("type", "json_object") })
-                    } else {
-                        // Creative roleplay generation only — discourage echoing/repetition.
-                        // Never applied to jsonMode (HCE continuity extraction), where penalties
-                        // would distort the structured JSON output.
-                        put("presence_penalty", 0.4)
-                        put("frequency_penalty", 0.4)
+                    } else if (sendMinP) {
+                        // No presence or frequency penalty on roleplay any more: both taxed the tokens
+                        // speech is made of. See RoleplayGenerationSettings.
+                        put("min_p", minP!!)
                     }
                 }
             }
@@ -354,6 +363,7 @@ class KtorLLMClient(
                         put("temperature", temperature)
                         put("top_p", topP)
                         put("num_predict", maxTokens)
+                        if (sendMinP) put("min_p", minP!!)
                     })
                     if (jsonMode) put("format", "json")
                     put("stream", true)
