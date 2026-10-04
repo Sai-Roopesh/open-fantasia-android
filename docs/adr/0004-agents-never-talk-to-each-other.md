@@ -15,7 +15,9 @@ same time:
 The exact prompt and answer of every agent call are kept beside the entry they produced, never part of the Story,
 so any Reply can be traced to what produced it.
 
-Every part of the State has exactly one kind of writer: the player's Moves and edits can set anything; the
+Every part of the State has exactly one kind of writer: the player's Moves and edits can set anything, and they
+alone make facts about the **Player Character**, so a Reply's claim about what the Player Character did or said is
+prose and is never recorded as true; the
 Chronicler records what happened in a Scene; the Weaver owns Lives, Threads, Happenings and Meanwhile; the Writer
 owns the Scene's beats; the Director owns its plan. That is why the Chronicler and the Weaver can run at the same
 time without contradicting each other. Each agent sees a different view: the Actor only what the people in the

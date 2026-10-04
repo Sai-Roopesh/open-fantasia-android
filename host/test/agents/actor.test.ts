@@ -32,8 +32,7 @@ describe("the Actor's prompt", () => {
     expect(second!.prompt).toContain("don't they have mirrors at the mission?");
     expect(second!.prompt).toContain("I raise my glass to her.");
     expect(second!.prompt).toContain("Reply 0");
-    expect(second!.prompt.trimEnd().endsWith("Write what happens next.")).toBe(true);
-    expect(second!.prompt).toMatch(/<move by="Roopesh Gantasala">\nI ask the barman for another.\n<\/move>\n\nWrite what happens next.$/);
+    expect(second!.prompt).toMatch(/<move by="Roopesh Gantasala">\nI ask the barman for another.\n<\/move>\n\nWrite what happens next\. What Roopesh Gantasala says, chooses, thinks and feels belongs to the player/);
   });
 
   it("describes the people in the Scene and the Player Character, and never the Premise or the Arcs", () => {

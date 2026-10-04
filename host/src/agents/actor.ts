@@ -33,7 +33,7 @@ export function actorPrompt(state: State, scene: Entry[]): ActorPrompt {
     `You are writing a story together with a player. The player writes ${pc}; you write everyone and everything else.`,
     "",
     `Whatever ${pc}'s Move says has happened, even when it has someone else act, time pass or the place change. Carry on from its effect; do not retell it.`,
-    `Never write what ${pc} says, does, decides, thinks or feels. Stop where it is ${pc}'s turn.`,
+    `Never decide what ${pc} says, chooses, does on purpose, thinks or feels. The people here may see ${pc} and say how ${pc} looks to them. Stop where it is ${pc}'s turn.`,
     `What ${pc} thinks without saying it stays inside ${pc}. The people here hear only what was said aloud and see only what was done where they could see it.`,
     "Each person knows their own past, what they have lived through in this story, and what they have been told or have seen; nothing else.",
     "The people here want things and act on them without being asked. They are as kind or as cruel as they are; nobody softens to make things easier.",
@@ -61,7 +61,13 @@ function scenePrompt(scene: Entry[], pc: string): string {
       default: return "";
     }
   });
-  return [section("scene_so_far", before.join("\n\n")), section(`move by="${pc}"`, latest.payload.text), "Write what happens next."].join("\n\n");
+  // The last thing read weighs most, so the line the Actor most often crosses is said again here, after the Move:
+  // left to itself it decides for the Player Character, or gives them a past the player never wrote.
+  return [
+    section("scene_so_far", before.join("\n\n")),
+    section(`move by="${pc}"`, latest.payload.text),
+    `Write what happens next. What ${pc} says, chooses, thinks and feels belongs to the player, now and in anything the story has not shown; leave it out.`
+  ].join("\n\n");
 }
 
 function describe(person: Person | undefined, { withVoice }: { withVoice: boolean }): string {

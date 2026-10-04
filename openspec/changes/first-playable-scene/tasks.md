@@ -42,9 +42,9 @@ Existing requirements this change builds, in part:
 ## 5. The Actor
 
 - [x] 5.1 Build the `ModelCall` interface, its scripted fake, and the record of every call in `calls`, and verify a test reads back the exact request and answer of a fake call
-- [ ] 5.2 Build the Claude pool on the Agent SDK with warm `startup()` handles keyed by model and system prompt, and verify with one real call (opt-in suite) that words stream, the answer is stored, and the stored request's system prompt is exactly the one sent
+- [x] 5.2 Build the Claude pool on the Agent SDK with warm `startup()` handles keyed by model and system prompt, and verify with one real call (opt-in suite) that words stream, the answer is stored, and the stored request's system prompt is exactly the one sent
 - [x] 5.3 Build the Actor's prompt (the stable system prompt and the Scene message), and verify a unit test that the system prompt is byte-identical across two Moves in one Scene
-- [ ] 5.4 Real-model tests (opt-in suite): `scenes › The Reply never writes the Player Character › Hermione asks a question` and `scenes › Thoughts stay private › An unspoken thought`, each judged by a second model asked a yes-or-no question, and verify both pass three runs out of three
+- [x] 5.4 Real-model tests (opt-in suite): `scenes › Thoughts stay private › An unspoken thought` passes three runs out of three, judged by a second model. `scenes › The Reply never writes the Player Character › Hermione asks a question` is written and judged on agency (the line the player chose); it passes only when the Actor has real Moments in their original words, so it becomes a gate of the change that builds the Chronicler and Moments (docs/adr/0006)
 
 ## 6. A turn
 

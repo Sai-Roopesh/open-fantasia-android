@@ -29,9 +29,12 @@ working Scene, is cheaper than discovering their mistakes five capabilities late
   a Story in step with live events, without losing any across a dropped connection.
 
 ### Modified Capabilities
+- `scenes`: "The Reply never writes the Player Character" is about agency. Others may describe how the Player
+  Character looks, and narration may keep plain physical continuity; decided by the player on 4 October 2026, after
+  the real-model tests showed where the strict reading made the prose work around him.
 
-None. This change builds part of `stories`, `scenes` and `presence` as they are specified; their requirements do
-not change. The parts it builds are listed in tasks.md.
+This change also builds part of `stories`, `scenes` and `presence` as they are specified. The parts it builds are
+listed in tasks.md.
 
 ## Impact
 

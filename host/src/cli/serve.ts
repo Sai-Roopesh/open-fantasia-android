@@ -29,7 +29,7 @@ function keepAwake(): (busy: boolean) => void {
  */
 function fakeModels(): ModelRunner {
   return new ScriptedRunner([], request => {
-    const move = /<move by="[^"]*">\n([\s\S]*?)\n<\/move>\n\nWrite what happens next\.$/.exec(request.prompt)?.[1] ?? "";
+    const move = /<move by="[^"]*">\n([\s\S]*?)\n<\/move>\n\nWrite what happens next\./.exec(request.prompt)?.[1] ?? "";
     return { answer: `(A scripted Reply.) They hear you say: ${move.slice(0, 80)}` };
   });
 }
