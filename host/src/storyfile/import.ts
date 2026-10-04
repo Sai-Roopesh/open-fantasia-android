@@ -31,7 +31,7 @@ export function importStoryFile(folder: string, mac: Mac): Imported {
       mac.db.prepare("INSERT INTO stories (id, title, folder, created_at) VALUES (?, ?, ?, ?)").run(storyId, storyFile.title, folder, new Date().toISOString());
       const setUp = mac.tree.append(storyId, null, { kind: "story_set_up", storyFile, portraits });
       const { title, place, at, who, prose } = storyFile.opening;
-      const opened = mac.tree.append(storyId, setUp.id, { kind: "scene_opened", number: 1, title, place, at, who, prose });
+      const opened = mac.tree.append(storyId, setUp.id, { kind: "scene_opened", number: 1, title, place, at, who, prose, startsAt: null, purpose: null, exit: null });
       mac.tree.createPath(storyId, "Main", opened.id, true);
     })();
   } catch (error) {

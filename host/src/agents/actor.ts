@@ -26,7 +26,7 @@ const LENGTH = {
 export function actorPrompt(state: State, scene: Entry[]): ActorPrompt {
   if (!state.scene) throw new Error("The Actor writes inside a Scene, and none is open");
   const pc = state.playerCharacter;
-  const here = state.scene.who.map(name => state.people[name]).filter((person): person is Person => person !== undefined);
+  const here = state.scene.here.map(name => state.people[name]).filter((person): person is Person => person !== undefined);
   const at = parseStoryTime(state.scene.at);
 
   const system = [
@@ -47,27 +47,52 @@ export function actorPrompt(state: State, scene: Entry[]): ActorPrompt {
     section("scene", `${state.scene.title}. ${state.scene.place}, ${at ? sayStoryTime(at, state.dayOneWeekday).replace(" · ", ", ") : state.scene.at}.`)
   ].filter(part => part !== null).join("\n");
 
-  return { system, prompt: scenePrompt(scene, pc) };
+  return { system, prompt: scenePrompt(state, scene, pc) };
 }
 
-function scenePrompt(scene: Entry[], pc: string): string {
-  const latest = scene.at(-1);
-  if (latest?.payload.kind !== "move") throw new Error("The Actor answers a Move, and the Scene does not end on one");
-  const before = scene.slice(0, -1).map(entry => {
+/** What the Writer's call means for the Reply the Actor is writing. */
+const CALL = {
+  continue: null,
+  land: "Bring the Scene toward its turn.",
+  end: "This Reply closes the Scene on this moment. End on someone else's closing moment, never one of "
+} as const;
+
+/**
+ * The Scene so far, the Move to answer, and what changes Reply by Reply: the time, the Beat Note, what the call
+ * means, Focus, Linger and Taste. They come after the Move so the system prompt stays the same through a Scene. The
+ * Writer's beats, purpose and exit never reach the Actor: a Reply told where the Scene is going performs it.
+ */
+function scenePrompt(state: State, scene: Entry[], pc: string): string {
+  const moveAt = scene.findLastIndex(entry => entry.payload.kind === "move");
+  const latest = scene[moveAt];
+  if (latest?.payload.kind !== "move") throw new Error("The Actor answers a Move, and the Scene has none to answer");
+  const before = scene.slice(0, moveAt).flatMap(entry => {
     switch (entry.payload.kind) {
-      case "scene_opened": return entry.payload.prose;
-      case "move": return section(`move by="${pc}"`, entry.payload.text);
-      case "reply": return entry.payload.text;
-      default: return "";
+      case "scene_opened": return entry.payload.prose ? [entry.payload.prose] : [];
+      case "move": return [section(`move by="${pc}"`, entry.payload.text)];
+      case "reply": return [entry.payload.text];
+      default: return [];
     }
   });
-  // The last thing read weighs most, so the line the Actor most often crosses is said again here, after the Move:
+  const current = state.scene;
+  const now = parseStoryTime(state.clock);
+  const call = current?.call ? CALL[current.call] : null;
+  const thisReply = [
+    `It is ${now ? sayStoryTime(now, state.dayOneWeekday).replace(" · ", ", ") : state.clock}.`,
+    current?.note ? `What happens next: ${current.note}` : "",
+    call ? (current?.call === "end" ? `${call}${pc}'s.` : call) : "",
+    current?.focus ? `Stay close beside ${current.focus}: mostly their words, actions and thoughts. Nobody new comes in unless the Move brings them.` : "",
+    current?.linger ? "Force nothing. Let the moment breathe, and answer only what the Move does." : ""
+  ].filter(Boolean).join("\n");
+  // The last thing read weighs most, so the line the Actor most often crosses is said again here, at the end:
   // left to itself it decides for the Player Character, or gives them a past the player never wrote.
   return [
     section("scene_so_far", before.join("\n\n")),
     section(`move by="${pc}"`, latest.payload.text),
+    section("this_reply", thisReply),
+    section("taste", state.taste.map(line => `- ${line}`).join("\n")),
     `Write what happens next. What ${pc} says, chooses, thinks and feels belongs to the player, now and in anything the story has not shown; leave it out.`
-  ].join("\n\n");
+  ].filter(part => part !== null).join("\n\n");
 }
 
 function describe(person: Person | undefined, { withVoice }: { withVoice: boolean }): string {

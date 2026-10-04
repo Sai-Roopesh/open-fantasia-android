@@ -1,7 +1,12 @@
 import type { StoryFile } from "../protocol/generated/story-file.js";
 import type { Weekday } from "../time.js";
-import type { Entry, SceneOpened, StorySetUp } from "./entries.js";
-import type { ModelChoice, Person, State } from "./state.js";
+import type { BeatNote, Entry, SceneOpened, StorySetUp } from "./entries.js";
+import type { Beat, CurrentScene, ModelChoice, Person, State } from "./state.js";
+
+/** How many lines of Taste a Story keeps (openspec long-run: Taste is short, readable and the player's). */
+export const TASTE_LINES = 10;
+/** How many earlier Directions the Writer is shown, to tell when one recurs. */
+const DIRECTIONS_KEPT = 10;
 
 /** The Actor a Story uses when its Story File names none: the model that wrote the first Story best. */
 export const DEFAULT_ACTOR: ModelChoice = { provider: "claude", model: "claude-opus-5-5" };
@@ -21,12 +26,50 @@ export function apply(state: State | null, entry: Entry): State {
       throw new Error("A Story is set up once, by its first entry");
     case "scene_opened":
       return openScene(state, payload, entry.id);
+    case "beat_note":
+      return { ...state, clock: payload.clock, scene: followScene(inScene(state), payload), taste: payload.taste ? [...state.taste, payload.taste].slice(-TASTE_LINES) : state.taste, pendingDirection: null };
+    case "redo":
+      return { ...state, pendingDirection: { text: payload.direction, remember: payload.remember }, directions: payload.direction ? [...state.directions, payload.direction].slice(-DIRECTIONS_KEPT) : state.directions };
+    case "scene_closed":
+      return { ...state, scene: { ...inScene(state), closed: payload.by, focus: null, linger: false } };
+    case "focus_set":
+      return { ...state, scene: { ...inScene(state), focus: payload.on } };
+    case "linger_set":
+      return { ...state, scene: { ...inScene(state), linger: payload.on } };
     case "move":
     case "reply":
       // A Move and a Reply change the Story through what they say; the agents that record it (the Chronicler, the
       // Weaver) arrive in later changes. For now they only lengthen the Scene, which is read from the Path.
       return state;
   }
+}
+
+function inScene(state: State): CurrentScene {
+  if (!state.scene) throw new Error("No Scene has opened in this Story");
+  return state.scene;
+}
+
+const inPlayIndex = (beats: Beat[]) => beats.findIndex(beat => beat.status === "in_play");
+
+/**
+ * The Scene after the Writer's step. The two counts are worked out here, from the Beat Notes on the Path, so a Redo
+ * or a Rewind counts right with nothing kept anywhere else.
+ */
+function followScene(scene: CurrentScene, note: BeatNote): CurrentScene {
+  const inPlay = inPlayIndex(note.beats);
+  const sameBeat = inPlay >= 0 && scene.beats.length > 0 && inPlay === inPlayIndex(scene.beats);
+  return {
+    ...scene,
+    purpose: note.plan?.purpose ?? scene.purpose,
+    exit: note.plan?.exit ?? scene.exit,
+    here: note.here,
+    beats: note.beats,
+    note: note.note,
+    call: note.call,
+    intensity: note.intensity,
+    beatInPlayFor: inPlay < 0 ? 0 : sameBeat ? scene.beatInPlayFor + 1 : 1,
+    withoutArc: note.arcMoved ? 0 : scene.withoutArc + 1
+  };
 }
 
 function setUp({ storyFile, portraits }: StorySetUp): State {
@@ -66,15 +109,38 @@ function setUp({ storyFile, portraits }: StorySetUp): State {
     arcs: file.arcs ?? [],
     landmarks: (file.landmarks ?? []).map(landmark => ({ name: landmark.name, at: landmark.at, what: landmark.what })),
     scene: null,
-    scenesPlayed: 0
+    scenesPlayed: 0,
+    taste: [],
+    directions: [],
+    pendingDirection: null
   };
 }
 
+/** A Scene that opens with exactly one other person starts focused on them (openspec scenes: Focus). */
 function openScene(state: State, scene: SceneOpened, entryId: string): State {
   return {
     ...state,
     clock: scene.at,
-    scene: { number: scene.number, title: scene.title, place: scene.place, at: scene.at, who: scene.who, openedBy: entryId },
+    scene: {
+      number: scene.number,
+      title: scene.title,
+      place: scene.place,
+      at: scene.at,
+      here: scene.who,
+      openedBy: entryId,
+      startsAt: scene.startsAt ?? entryId,
+      purpose: scene.purpose,
+      exit: scene.exit,
+      beats: [],
+      note: null,
+      call: null,
+      intensity: null,
+      beatInPlayFor: 0,
+      withoutArc: 0,
+      focus: scene.who.length === 1 ? scene.who[0] ?? null : null,
+      linger: false,
+      closed: null
+    },
     scenesPlayed: state.scenesPlayed + (state.scene ? 1 : 0)
   };
 }

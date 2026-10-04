@@ -8,7 +8,7 @@ import linkSchema from "../../../protocol/schemas/link.schema.json" with { type:
 import type { Engine } from "../engine/engine.js";
 import type { Mac } from "../mac.js";
 import { CONTRACT_VERSION } from "../protocol/generated/contract.js";
-import type { ErrorBody, MoveRequest, PairRequest } from "../protocol/generated/link.js";
+import type { EndSceneRequest, ErrorBody, FocusRequest, LingerRequest, MoveRequest, PairRequest, RedoRequest } from "../protocol/generated/link.js";
 import { newTraceId, Traces } from "../trace.js";
 import { sceneView } from "../views/scene.js";
 import { listStories } from "../views/stories.js";
@@ -25,6 +25,10 @@ const ajv = new Ajv2020({ strict: false });
 ajv.addSchema(linkSchema, "link");
 const validMove = ajv.compile<MoveRequest>({ $ref: "link#/$defs/MoveRequest" });
 const validPair = ajv.compile<PairRequest>({ $ref: "link#/$defs/PairRequest" });
+const validEndScene = ajv.compile<EndSceneRequest>({ $ref: "link#/$defs/EndSceneRequest" });
+const validFocus = ajv.compile<FocusRequest>({ $ref: "link#/$defs/FocusRequest" });
+const validLinger = ajv.compile<LingerRequest>({ $ref: "link#/$defs/LingerRequest" });
+const validRedo = ajv.compile<RedoRequest>({ $ref: "link#/$defs/RedoRequest" });
 
 const IMAGE_TYPES: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp" };
 
@@ -105,6 +109,26 @@ export function buildLink(options: LinkOptions): FastifyInstance {
   });
 
   app.post<{ Params: { id: string } }>("/stories/:id/retry", async request => engine.retry(request.params.id, request.traceId));
+
+  app.post<{ Params: { id: string } }>("/stories/:id/end-scene", async request => {
+    if (!validEndScene(request.body)) throw new LinkError("invalid", "End scene needs the entry the phone last saw.");
+    return engine.endScene(request.params.id, request.body.after, request.traceId);
+  });
+
+  app.post<{ Params: { id: string } }>("/stories/:id/focus", async request => {
+    if (!validFocus(request.body)) throw new LinkError("invalid", "Focus needs who to focus on, or null, and the entry the phone last saw.");
+    return engine.setFocus(request.params.id, request.body.after, request.body.on, request.traceId);
+  });
+
+  app.post<{ Params: { id: string } }>("/stories/:id/linger", async request => {
+    if (!validLinger(request.body)) throw new LinkError("invalid", "Linger needs on or off, and the entry the phone last saw.");
+    return engine.setLinger(request.params.id, request.body.after, request.body.on, request.traceId);
+  });
+
+  app.post<{ Params: { id: string } }>("/stories/:id/redo", async request => {
+    if (!validRedo(request.body)) throw new LinkError("invalid", "Redo needs the entry the phone last saw, a Direction or null, and whether to remember it.");
+    return engine.redo(request.params.id, request.body.after, request.body.direction, request.body.remember, request.traceId);
+  });
 
   app.get<{ Params: { id: string; file: string } }>("/stories/:id/portraits/:file", async (request, reply) => {
     const file = join(mac.home, "portraits", basename(request.params.id), basename(request.params.file));

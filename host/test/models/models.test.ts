@@ -35,6 +35,26 @@ describe("model calls", () => {
     expect(row).toEqual({ error: "Claude is overloaded", answer: null });
   });
 
+  it("answers in JSON when the request carries a schema, and keeps what the prompt was written from", async () => {
+    const { db } = freshHome();
+    const models = new Models(db, { claude: new ScriptedRunner([{ answer: "{\"note\": \"Meera looks up.\", \"intensity\": 2}" }]) });
+    const schema = { type: "object", required: ["note"], properties: { note: { type: "string" }, intensity: { type: "integer" } } };
+    const answer = await models.call({ ...request, agent: "writer", schema, facts: { clock: "Day 1 23:10" } });
+    expect(answer.json).toEqual({ note: "Meera looks up.", intensity: 2 });
+    const row = db.prepare("SELECT request FROM calls WHERE id = ?").get(answer.callId) as { request: string };
+    expect(JSON.parse(row.request)).toMatchObject({ schema, facts: { clock: "Day 1 23:10" } });
+  });
+
+  it("fails a call asked for JSON that answers with something else, and keeps what it said", async () => {
+    const { db } = freshHome();
+    const models = new Models(db, { claude: new ScriptedRunner([{ answer: "Meera looks up." }]) });
+    const failure = await models.call({ ...request, schema: { type: "object" } }).then(() => null, (error: unknown) => error as ModelCallFailed);
+    expect(failure).toBeInstanceOf(ModelCallFailed);
+    expect(failure!.message).toMatch(/not JSON/);
+    const row = db.prepare("SELECT answer, error FROM calls WHERE id = ?").get((failure as ModelCallFailed).callId) as { answer: string; error: string };
+    expect(row.answer).toBe("Meera looks up.");
+  });
+
   it("fails a provider it has no way to reach", async () => {
     const { db } = freshHome();
     const models = new Models(db, {});

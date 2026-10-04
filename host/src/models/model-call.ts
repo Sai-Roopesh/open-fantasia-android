@@ -13,6 +13,13 @@ export interface ModelRequest {
   system: string;
   /** What changes every call. */
   prompt: string;
+  /** When set, the answer is JSON matching this schema, and the provider is asked for exactly that. */
+  schema?: Record<string, unknown>;
+  /**
+   * What the prompt was written from, as data: kept with the call so a trace shows it plainly, and read by a
+   * scripted model that has to answer from it.
+   */
+  facts?: unknown;
   traceId: string;
   storyId: string | null;
 }
@@ -20,6 +27,8 @@ export interface ModelRequest {
 export interface ModelAnswer {
   callId: string;
   text: string;
+  /** The answer read as JSON, when the request carried a schema. Checking it against the schema is the caller's. */
+  json?: unknown;
 }
 
 /** How one provider runs a call. It streams words through [onText] as they come, and returns the whole answer. */
@@ -55,13 +64,28 @@ export class Models {
       if (!runner) throw new Error(`No way to reach ${request.model.provider} models is set up on this Mac`);
       const text = await runner.run(request, onText, signal);
       if (!text.trim()) throw new Error(`${request.model.model} returned nothing`);
+      if (!request.schema) {
+        this.finish(callId, text, null);
+        return { callId, text };
+      }
+      const json = readJson(text);
+      if (json === undefined) {
+        this.finish(callId, text, `${request.model.model} answered with something that is not JSON`);
+        throw new ModelCallFailed(`${request.model.model} answered with something that is not JSON`, callId);
+      }
       this.finish(callId, text, null);
-      return { callId, text };
+      return { callId, text, json };
     } catch (error) {
+      if (error instanceof ModelCallFailed) throw error;
       const message = error instanceof Error ? error.message : String(error);
       this.finish(callId, null, message);
       throw new ModelCallFailed(message, callId);
     }
+  }
+
+  /** Records that a call's answer was refused by the check its caller made, and why. */
+  refuse(callId: string, reason: string): void {
+    this.db.prepare("UPDATE calls SET error = ? WHERE id = ?").run(`Refused: ${reason}`, callId);
   }
 
   /** Ties a finished call to the entry it produced, once that entry is written. */
@@ -71,5 +95,13 @@ export class Models {
 
   private finish(callId: string, answer: string | null, error: string | null): void {
     this.db.prepare("UPDATE calls SET answer = ?, error = ?, finished_at = ? WHERE id = ?").run(answer, error, new Date().toISOString(), callId);
+  }
+}
+
+function readJson(text: string): unknown {
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return undefined;
   }
 }

@@ -52,7 +52,7 @@ describe("story-file", () => {
     expect(state.groups).toEqual([]);
     expect(state.arcs).toEqual([]);
     expect(state.landmarks).toEqual([]);
-    expect(state.scene).toMatchObject({ number: 1, title: "The night train", place: "A sleeper compartment", at: "Day 1 23:10", who: ["Mira"] });
+    expect(state.scene).toMatchObject({ number: 1, title: "The night train", place: "A sleeper compartment", at: "Day 1 23:10", here: ["Mira"] });
   });
 
   // WHEN a Story File has two people named "Weasley"

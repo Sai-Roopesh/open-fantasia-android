@@ -7,7 +7,10 @@ import { localAddresses } from "../link/bonjour.js";
 import { Pairing, PAIRING_MINUTES } from "../link/pairing.js";
 import { ensureCertificate } from "../link/tls.js";
 import type { Mac } from "../mac.js";
+import { DEFAULT_JOB_MODELS, JOBS, jobModels, setJobModel, type Job } from "../models/jobs.js";
 import { CLAUDE_TOKEN, readSecret, storeSecret } from "../secrets.js";
+import type { ModelChoice } from "../story/state.js";
+import type { Payload } from "../story/entries.js";
 import { importStoryFile } from "../storyfile/import.js";
 import { Traces } from "../trace.js";
 import { listStories } from "../views/stories.js";
@@ -63,10 +66,52 @@ export function show(mac: Mac, storyId: string, entryId: string | undefined, out
   if (!path) return (out(`No Story ${storyId}.`), false);
   out(`Path "${path.name}", head ${path.headEntryId}`);
   for (const entry of mac.tree.pathTo(path.headEntryId)) {
-    const payload = entry.payload;
-    const text = payload.kind === "move" || payload.kind === "reply" ? payload.text : payload.kind === "scene_opened" ? `Scene ${payload.number}: ${payload.title}` : payload.storyFile.title;
-    out(`${String(entry.seq).padStart(5)}  ${entry.id}  ${payload.kind.padEnd(13)}  ${text.replace(/\s+/g, " ").slice(0, 90)}`);
+    out(`${String(entry.seq).padStart(5)}  ${entry.id}  ${entry.payload.kind.padEnd(13)}  ${describe(entry.payload).replace(/\s+/g, " ").slice(0, 90)}`);
   }
+  return true;
+}
+
+/** One line for an entry, as `fantasia show` lists a Path. */
+function describe(payload: Payload): string {
+  switch (payload.kind) {
+    case "story_set_up": return payload.storyFile.title;
+    case "scene_opened": return `Scene ${payload.number}: ${payload.title}, ${payload.place}, ${payload.at}`;
+    case "move":
+    case "reply": return payload.text;
+    case "redo": return payload.direction ? `Redo: ${payload.direction}${payload.remember ? " (remember)" : ""}` : "Redo";
+    case "beat_note": return `[${payload.call}, ${payload.intensity}${payload.arcMoved ? ", an Arc moved" : ""}] ${payload.clock} ${payload.note}`;
+    case "scene_closed": return `closed by the ${payload.by}`;
+    case "focus_set": return payload.on ? `Focus on ${payload.on}` : "Focus cleared";
+    case "linger_set": return payload.on ? "Linger on" : "Linger off";
+  }
+}
+
+const PROVIDERS: readonly ModelChoice["provider"][] = ["claude", "codex", "antigravity"];
+/** The providers `fantasia serve` can reach today; the others arrive with their runners. */
+const REACHABLE: readonly ModelChoice["provider"][] = ["claude"];
+
+/**
+ * `fantasia models`: with no arguments, the model for each job; with a job, a provider, a model and an optional
+ * effort, sets that job's model from its next call (until the Models screen arrives).
+ */
+export function models(mac: Mac, args: string[], out: Out): boolean {
+  const [job, provider, model, effort] = args;
+  if (!job) {
+    const current = jobModels(mac.home);
+    for (const name of JOBS) {
+      const choice = current[name];
+      const isDefault = JSON.stringify(choice) === JSON.stringify(DEFAULT_JOB_MODELS[name]);
+      out(`${name}  ${choice.provider}  ${choice.model}${choice.effort ? `  effort ${choice.effort}` : ""}${isDefault ? "  (default)" : ""}`);
+    }
+    return true;
+  }
+  if (!JOBS.includes(job as Job)) return (out(`No job "${job}". The jobs are: ${JOBS.join(", ")}.`), false);
+  if (!provider || !PROVIDERS.includes(provider as ModelChoice["provider"])) return (out(`No provider "${provider ?? ""}". The providers are: ${PROVIDERS.join(", ")}.`), false);
+  if (!REACHABLE.includes(provider as ModelChoice["provider"])) return (out(`${provider} models cannot be reached from this Mac yet. Use ${REACHABLE.join(" or ")}.`), false);
+  if (!model) return (out("Name the model, as its provider lists it: fantasia models writer claude claude-sonnet-5-5"), false);
+  const choice: ModelChoice = effort ? { provider: provider as ModelChoice["provider"], model, effort } : { provider: provider as ModelChoice["provider"], model };
+  setJobModel(mac.home, job as Job, choice);
+  out(`The ${job.charAt(0).toUpperCase()}${job.slice(1)} now uses ${provider} ${model}${effort ? ` (effort ${effort})` : ""}, from its next call.`);
   return true;
 }
 

@@ -24,7 +24,8 @@ export class ClaudeRunner implements ModelRunner {
   }
 
   async run(request: ModelRequest, onText: (delta: string) => void, signal: AbortSignal): Promise<string> {
-    const key = JSON.stringify([request.model, request.system]);
+    // A warm process is started with its system prompt and answer schema, so both are part of what it is for.
+    const key = JSON.stringify([request.model, request.system, request.schema ?? null]);
     const handle = await (this.take(key) ?? this.start(request));
     this.prewarm(key, request);
     signal.addEventListener("abort", () => handle.close(), { once: true });
@@ -39,7 +40,8 @@ export class ClaudeRunner implements ModelRunner {
       }
       if (message.type === "result") {
         if (message.subtype !== "success" || message.is_error) throw new Error(failureOf(message));
-        result = message.result;
+        // Asked for a schema, Claude answers through a tool the SDK checks against it; that answer is the result.
+        result = request.schema ? JSON.stringify(message.structured_output ?? null) : message.result;
       }
     }
     handle.close();
@@ -91,6 +93,7 @@ export class ClaudeRunner implements ModelRunner {
         CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1"
       }
     };
+    if (request.schema) options.outputFormat = { type: "json_schema", schema: request.schema };
     if (request.model.effort) options.effort = request.model.effort as NonNullable<Options["effort"]>;
     return options;
   }

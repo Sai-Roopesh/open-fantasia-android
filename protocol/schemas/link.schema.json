@@ -227,7 +227,8 @@
           "type": "array",
           "items": {
             "$ref": "#/$defs/PersonCard"
-          }
+          },
+          "description": "Who is in the Scene now besides the Player Character, with their Portraits; someone a Move or the Story brings in is added."
         }
       }
     },
@@ -323,7 +324,11 @@
         "earlier_scenes",
         "exchanges",
         "turn",
-        "trace_id"
+        "trace_id",
+        "last_event_id",
+        "focus",
+        "linger",
+        "day_view"
       ],
       "properties": {
         "story_id": {
@@ -333,7 +338,7 @@
           "type": "string"
         },
         "seq": {
-          "description": "The newest entry this view reflects; the live stream resumes after it.",
+          "description": "The newest entry in the Story when this view was taken.",
           "type": "integer"
         },
         "head_entry_id": {
@@ -364,6 +369,32 @@
         },
         "trace_id": {
           "type": "string"
+        },
+        "last_event_id": {
+          "description": "The id of the newest event this view reflects, including the words of a Reply under way; the live stream resumes after it.",
+          "type": "string"
+        },
+        "focus": {
+          "description": "Who the Scene is focused on, or null.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "linger": {
+          "description": "Whether Linger is on.",
+          "type": "boolean"
+        },
+        "day_view": {
+          "description": "Present once the Scene has closed, by the Story or by End scene: the Day View, whose composer takes the next Move.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/DayView"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     },
@@ -422,7 +453,7 @@
       }
     },
     "StoryEvent": {
-      "description": "One event on a Story's live stream. Entry events (scene_opened, move, reply) are replayed after a reconnect; reply_started, reply_delta and reply_failed describe the turn under way.",
+      "description": "One event on a Story's live stream. Entry events (scene_opened, move, reply, scene_closed, focus_set, linger_set, redo) are replayed after a reconnect; reply_started, reply_delta and reply_failed describe the turn under way. After scene_opened, scene_closed and redo the phone reads the Scene again, because they change more than one part of it.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -436,6 +467,10 @@
             "scene_opened",
             "move",
             "reply",
+            "scene_closed",
+            "focus_set",
+            "linger_set",
+            "redo",
             "reply_started",
             "reply_delta",
             "reply_failed"
@@ -446,7 +481,8 @@
           "type": "integer"
         },
         "scene": {
-          "$ref": "#/$defs/SceneCard"
+          "$ref": "#/$defs/SceneCard",
+          "description": "scene_opened and reply: the Scene's card as it stands."
         },
         "passage": {
           "$ref": "#/$defs/Passage"
@@ -456,6 +492,161 @@
           "type": "string"
         },
         "reason": {
+          "type": "string"
+        },
+        "trace_id": {
+          "type": "string"
+        },
+        "day_view": {
+          "description": "scene_closed: the Day View.",
+          "$ref": "#/$defs/DayView"
+        },
+        "focus": {
+          "description": "scene_opened and focus_set: who the Scene is focused on, or null.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "linger": {
+          "description": "linger_set: whether Linger is on.",
+          "type": "boolean"
+        }
+      }
+    },
+    "DayView": {
+      "description": "Where and when the Player Character is between Scenes (openspec day-view).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "at",
+        "at_label",
+        "place",
+        "countdowns"
+      ],
+      "properties": {
+        "at": {
+          "description": "Story time, \"Day N HH:MM\".",
+          "type": "string"
+        },
+        "at_label": {
+          "description": "Story time as people say it: \"Sunday · 7:40 am\".",
+          "type": "string"
+        },
+        "place": {
+          "description": "Where the Player Character is.",
+          "type": "string"
+        },
+        "countdowns": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Countdown"
+          }
+        }
+      }
+    },
+    "Countdown": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "landmark",
+        "label"
+      ],
+      "properties": {
+        "landmark": {
+          "type": "string"
+        },
+        "label": {
+          "description": "\"3 days to Draconia's flying test\", \"Tomorrow: the first match\", \"Today at 6:00 pm: the feast\".",
+          "type": "string"
+        }
+      }
+    },
+    "EndSceneRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after"
+      ],
+      "properties": {
+        "after": {
+          "description": "The head the phone saw; refused as stale if the Story has moved on.",
+          "type": "string"
+        }
+      }
+    },
+    "FocusRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after",
+        "on"
+      ],
+      "properties": {
+        "after": {
+          "type": "string"
+        },
+        "on": {
+          "description": "The person to focus on, by name, or null to clear Focus.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "LingerRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after",
+        "on"
+      ],
+      "properties": {
+        "after": {
+          "type": "string"
+        },
+        "on": {
+          "type": "boolean"
+        }
+      }
+    },
+    "RedoRequest": {
+      "description": "Write the latest Reply again. The Direction reaches the Writer only, never the Story.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after",
+        "direction",
+        "remember"
+      ],
+      "properties": {
+        "after": {
+          "description": "The head the phone saw: the latest Reply, or the end of the Scene that Reply closed.",
+          "type": "string"
+        },
+        "direction": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "remember": {
+          "description": "Keep the Direction as a line of Taste.",
+          "type": "boolean"
+        }
+      }
+    },
+    "Accepted": {
+      "description": "A change to the Story that is done when it is answered.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "head_entry_id",
+        "trace_id"
+      ],
+      "properties": {
+        "head_entry_id": {
           "type": "string"
         },
         "trace_id": {

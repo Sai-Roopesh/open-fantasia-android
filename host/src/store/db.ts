@@ -89,10 +89,20 @@ CREATE TABLE IF NOT EXISTS pairing_codes (
 );
 `;
 
+/**
+ * The shape of the State that saved States have. When the State gains or changes a field, this goes up, and the
+ * saved States are thrown away the next time the store opens: they are a cache, and the entries are the truth.
+ */
+export const STATE_SHAPE = 2;
+
 export function openDb(file: string): Db {
   const db = new Database(file);
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
   db.exec(SCHEMA);
+  if (db.pragma("user_version", { simple: true }) !== STATE_SHAPE) {
+    db.exec("DELETE FROM states");
+    db.pragma(`user_version = ${STATE_SHAPE}`);
+  }
   return db;
 }

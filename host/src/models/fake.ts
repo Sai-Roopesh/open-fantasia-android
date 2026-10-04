@@ -1,0 +1,73 @@
+import type { ModelRequest, ModelRunner } from "./model-call.js";
+import { ScriptedRunner, type Script } from "./scripted.js";
+
+/** What the Writer's prompt was written from, as the Writer agent records it with each call. */
+interface WriterFacts {
+  now: string;
+  opening: "day_view" | "unplanned" | null;
+  title: string | null;
+  place: string | null;
+  here: string[];
+  beats: { text: string; status: string }[];
+  direction: { text: string | null; remember: boolean } | null;
+}
+
+/**
+ * A Writer's answer that keeps every rule, made from the facts its prompt was written from: it frames a Scene when
+ * one is needed, keeps who is here, leaves the beats where they stand, and lets the Scene go on. Scripted models
+ * answer the Writer with it unless a test says otherwise.
+ */
+export function fakeWriterAnswer(request: ModelRequest): Script {
+  const facts = request.facts as WriterFacts;
+  const beats = facts.beats.length >= 3 ? facts.beats : [
+    { text: "Someone wants something from the Player Character.", status: "in_play" },
+    { text: "It costs them something to ask.", status: "pending" },
+    { text: "The answer changes what is between them.", status: "pending" }
+  ];
+  const frame = facts.opening === "day_view"
+    ? { title: "The next Scene", place: facts.place ?? "Somewhere new", purpose: "Something between two people turns.", exit: "It turns, or it does not." }
+    : facts.opening === "unplanned"
+      ? { title: facts.title ?? "", place: facts.place ?? "", purpose: "Something between two people turns.", exit: "It turns, or it does not." }
+      : null;
+  return {
+    answer: JSON.stringify({
+      leaves_scene: false,
+      frame,
+      here: facts.opening === "day_view" ? [] : facts.here,
+      beats,
+      note: "Someone answers the Move, and wants something back.",
+      call: "continue",
+      intensity: 2,
+      arc_moved: true,
+      clock: facts.now,
+      taste: facts.direction?.remember && facts.direction.text ? `Remember: ${facts.direction.text}` : null
+    })
+  };
+}
+
+/** A Reply that quotes the Move it answers, so the phone's end-to-end tests can see which Move a Reply answers. */
+export function fakeReply(request: ModelRequest): Script {
+  const move = /<move by="[^"]*">\n([\s\S]*?)\n<\/move>\n\n<this_reply>/.exec(request.prompt)?.[1] ?? "";
+  return { answer: `(A scripted Reply.) They hear you say: ${move.slice(0, 80)}` };
+}
+
+/**
+ * Scripted models for every agent: each job has its own queue of answers, and answers by itself when its queue is
+ * empty. Every scenario test runs on this, and `fantasia serve --fake-models` too.
+ */
+export class FakeModels implements ModelRunner {
+  readonly writer: ScriptedRunner;
+  readonly actor: ScriptedRunner;
+  /** Every request, in the order it was made. */
+  readonly requests: ModelRequest[] = [];
+
+  constructor(scripts: { writer?: Script[]; actor?: Script[] } = {}, actorFallback: (request: ModelRequest) => Script = () => ({ answer: "She looks at you, and waits." })) {
+    this.writer = new ScriptedRunner(scripts.writer ?? [], fakeWriterAnswer);
+    this.actor = new ScriptedRunner(scripts.actor ?? [], actorFallback);
+  }
+
+  run(request: ModelRequest, onText: (delta: string) => void, signal: AbortSignal): Promise<string> {
+    this.requests.push(request);
+    return (request.agent === "writer" ? this.writer : this.actor).run(request, onText, signal);
+  }
+}

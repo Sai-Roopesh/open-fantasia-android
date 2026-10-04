@@ -114,6 +114,9 @@ export interface SceneCard {
    * Story time as people say it: "Friday · 9:40 pm".
    */
   at_label: string;
+  /**
+   * Who is in the Scene now besides the Player Character, with their Portraits; someone a Move or the Story brings in is added.
+   */
   people: PersonCard[];
 }
 /**
@@ -167,7 +170,7 @@ export interface SceneView {
   story_id: string;
   path_id: string;
   /**
-   * The newest entry this view reflects; the live stream resumes after it.
+   * The newest entry in the Story when this view was taken.
    */
   seq: number;
   /**
@@ -183,6 +186,22 @@ export interface SceneView {
   exchanges: Exchange[];
   turn: TurnState;
   trace_id: string;
+  /**
+   * The id of the newest event this view reflects, including the words of a Reply under way; the live stream resumes after it.
+   */
+  last_event_id: string;
+  /**
+   * Who the Scene is focused on, or null.
+   */
+  focus: string | null;
+  /**
+   * Whether Linger is on.
+   */
+  linger: boolean;
+  /**
+   * Present once the Scene has closed, by the Story or by End scene: the Day View, whose composer takes the next Move.
+   */
+  day_view: DayView | null;
 }
 /**
  * This interface was referenced by `Link`'s JSON-Schema
@@ -192,6 +211,38 @@ export interface SceneSummaryLine {
   number: number;
   title: string;
   summary: string;
+}
+/**
+ * Where and when the Player Character is between Scenes (openspec day-view).
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "DayView".
+ */
+export interface DayView {
+  /**
+   * Story time, "Day N HH:MM".
+   */
+  at: string;
+  /**
+   * Story time as people say it: "Sunday · 7:40 am".
+   */
+  at_label: string;
+  /**
+   * Where the Player Character is.
+   */
+  place: string;
+  countdowns: Countdown[];
+}
+/**
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "Countdown".
+ */
+export interface Countdown {
+  landmark: string;
+  /**
+   * "3 days to Draconia's flying test", "Tomorrow: the first match", "Today at 6:00 pm: the feast".
+   */
+  label: string;
 }
 /**
  * This interface was referenced by `Link`'s JSON-Schema
@@ -213,18 +264,28 @@ export interface TurnAccepted {
   trace_id: string;
 }
 /**
- * One event on a Story's live stream. Entry events (scene_opened, move, reply) are replayed after a reconnect; reply_started, reply_delta and reply_failed describe the turn under way.
+ * One event on a Story's live stream. Entry events (scene_opened, move, reply, scene_closed, focus_set, linger_set, redo) are replayed after a reconnect; reply_started, reply_delta and reply_failed describe the turn under way. After scene_opened, scene_closed and redo the phone reads the Scene again, because they change more than one part of it.
  *
  * This interface was referenced by `Link`'s JSON-Schema
  * via the `definition` "StoryEvent".
  */
 export interface StoryEvent {
-  kind: "scene_opened" | "move" | "reply" | "reply_started" | "reply_delta" | "reply_failed";
+  kind:
+    | "scene_opened"
+    | "move"
+    | "reply"
+    | "scene_closed"
+    | "focus_set"
+    | "linger_set"
+    | "redo"
+    | "reply_started"
+    | "reply_delta"
+    | "reply_failed";
   /**
    * The newest entry this event follows.
    */
   seq: number;
-  scene?: SceneCard;
+  scene?: SceneCard1;
   passage?: Passage;
   /**
    * reply_delta: the words that just arrived.
@@ -232,4 +293,107 @@ export interface StoryEvent {
   text?: string;
   reason?: string;
   trace_id?: string;
+  day_view?: DayView1;
+  /**
+   * scene_opened and focus_set: who the Scene is focused on, or null.
+   */
+  focus?: string | null;
+  /**
+   * linger_set: whether Linger is on.
+   */
+  linger?: boolean;
+}
+/**
+ * A Scene's title card.
+ */
+export interface SceneCard1 {
+  number: number;
+  title: string;
+  place: string;
+  /**
+   * Story time, "Day N HH:MM".
+   */
+  at: string;
+  /**
+   * Story time as people say it: "Friday · 9:40 pm".
+   */
+  at_label: string;
+  /**
+   * Who is in the Scene now besides the Player Character, with their Portraits; someone a Move or the Story brings in is added.
+   */
+  people: PersonCard[];
+}
+/**
+ * Where and when the Player Character is between Scenes (openspec day-view).
+ */
+export interface DayView1 {
+  /**
+   * Story time, "Day N HH:MM".
+   */
+  at: string;
+  /**
+   * Story time as people say it: "Sunday · 7:40 am".
+   */
+  at_label: string;
+  /**
+   * Where the Player Character is.
+   */
+  place: string;
+  countdowns: Countdown[];
+}
+/**
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "EndSceneRequest".
+ */
+export interface EndSceneRequest {
+  /**
+   * The head the phone saw; refused as stale if the Story has moved on.
+   */
+  after: string;
+}
+/**
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "FocusRequest".
+ */
+export interface FocusRequest {
+  after: string;
+  /**
+   * The person to focus on, by name, or null to clear Focus.
+   */
+  on: string | null;
+}
+/**
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "LingerRequest".
+ */
+export interface LingerRequest {
+  after: string;
+  on: boolean;
+}
+/**
+ * Write the latest Reply again. The Direction reaches the Writer only, never the Story.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "RedoRequest".
+ */
+export interface RedoRequest {
+  /**
+   * The head the phone saw: the latest Reply, or the end of the Scene that Reply closed.
+   */
+  after: string;
+  direction: string | null;
+  /**
+   * Keep the Direction as a line of Taste.
+   */
+  remember: boolean;
+}
+/**
+ * A change to the Story that is done when it is answered.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "Accepted".
+ */
+export interface Accepted {
+  head_entry_id: string;
+  trace_id: string;
 }

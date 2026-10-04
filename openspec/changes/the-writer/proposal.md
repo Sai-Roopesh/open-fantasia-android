@@ -46,6 +46,6 @@ which. `.openspec.yaml` sets `skip_specs`.
 
 - host: the Writer agent and its prompt; new entry kinds; the engine's turn gains the Writer's step; new commands on
   the link (end scene, Focus, Linger, Redo) and a Day View; `fantasia models`.
-- protocol: the Scene view gains Focus, Linger, the Writer's call and whether the Scene has closed; a Day View view;
+- protocol: contract 2. The Scene view gains Focus, Linger and the Day View once the Scene has closed;
   new requests.
 - android: End scene, Focus by tapping a Portrait, Linger, Redo with a Direction, the Day View.

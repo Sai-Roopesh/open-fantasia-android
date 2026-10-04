@@ -3,6 +3,7 @@ import { Engine } from "../../src/engine/engine.js";
 import { buildLink } from "../../src/link/server.js";
 import { Pairing } from "../../src/link/pairing.js";
 import { Models, type ModelRequest, type ModelRunner } from "../../src/models/model-call.js";
+import { fakeWriterAnswer } from "../../src/models/fake.js";
 import { ScriptedRunner } from "../../src/models/scripted.js";
 import { CONTRACT_VERSION } from "../../src/protocol/generated/contract.js";
 import type { StoryEvent } from "../../src/protocol/generated/link.js";
@@ -42,12 +43,17 @@ export class GatedRunner implements ModelRunner {
   }
 }
 
+/** Models where [actor] writes the Replies and a scripted Writer plans them, keeping every rule. */
+export function withWriter(actor: ModelRunner, writer: ModelRunner = new ScriptedRunner([], fakeWriterAnswer)): ModelRunner {
+  return { run: (request, onText, signal) => (request.agent === "writer" ? writer : actor).run(request, onText, signal) };
+}
+
 /** A Mac with the Harry Potter Story imported, listening on a free port, and a paired phone's token. */
-export async function runningMac(actor: ModelRunner = new ScriptedRunner()) {
+export async function runningMac(actor: ModelRunner = new ScriptedRunner(), writer?: ModelRunner) {
   const mac = freshHome();
   const imported = importStoryFile(writeStoryFile(malfoyProblemStoryFile()), mac);
   if (!imported.ok) throw new Error("import failed");
-  const engine = new Engine(mac, new Models(mac.db, { claude: actor }));
+  const engine = new Engine(mac, new Models(mac.db, { claude: withWriter(actor, writer) }));
   const pairing = new Pairing(mac.db);
   const app = buildLink({ mac, engine, pairing, hostId: "mac-1", hostName: "Test Mac" });
   await app.listen({ port: 0, host: "127.0.0.1" });

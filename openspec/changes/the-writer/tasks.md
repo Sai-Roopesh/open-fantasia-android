@@ -13,40 +13,40 @@ Requirements this change builds:
 
 ## 1. The Writer
 
-- [ ] 1.1 Port the deciding-verbs check (`decidesForPlayer`) from the first Open Fantasia's host to `host/src/agents/deciding.ts`, and verify unit tests that "Ishaan tells her", "makes Ishaan cry" and "Ishaan goes quiet" are caught while "Ishaan is offered a seat" and "Meera tells him" pass
-- [ ] 1.2 Add JSON-schema answers to the model call (`ModelRequest.schema`, the Agent SDK's `outputFormat`, and scripted answers as JSON), and verify a scripted call returns a parsed answer and a real one (opt-in) returns one that matches its schema
-- [ ] 1.3 Write `host/src/agents/WRITER.md` from the first Open Fantasia's draft, adapted: the Writer sees the Move first; Focus and Linger instead of Pace; Arcs, the Premise and Taste instead of a chapter; `arc_moved`, `clock`, `leaves_scene` and `taste`; and verify by reading it against design.md
-- [ ] 1.4 Write the Writer's schema and its check (note length, beats, frame, `who`, `clock`, deciding for the Player Character) with one repair, and verify unit tests: a good answer passes, each broken rule is named, and a repaired answer is taken
+- [x] 1.1 Port the deciding-verbs check (`decidesForPlayer`) from the first Open Fantasia's host to `host/src/agents/deciding.ts`, and verify unit tests that "Ishaan tells her", "makes Ishaan cry" and "Ishaan goes quiet" are caught while "Ishaan is offered a seat" and "Meera tells him" pass
+- [x] 1.2 Add JSON-schema answers to the model call (`ModelRequest.schema`, the Agent SDK's `outputFormat`, and scripted answers as JSON), and verify a scripted call returns a parsed answer and a real one (opt-in) returns one that matches its schema
+- [x] 1.3 Write `host/src/agents/WRITER.md` from the first Open Fantasia's draft, adapted: the Writer sees the Move first; Focus and Linger instead of Pace; Arcs, the Premise and Taste instead of a chapter; `arc_moved`, `clock`, `leaves_scene` and `taste`; and verify by reading it against design.md
+- [x] 1.4 Write the Writer's schema and its check (note length, beats, frame, `who`, `clock`, deciding for the Player Character) with one repair, and verify unit tests: a good answer passes, each broken rule is named, and a repaired answer is taken
 
 ## 2. Scenes in the tree
 
-- [ ] 2.1 Add entries `beat_note`, `scene_closed`, `focus_set`, `linger_set` and `taste_added`, and a `scene_opened` that carries a frame and may start at a Move; verify reducer tests for each
-- [ ] 2.2 Read the counts from the Path (beat in play for, exchanges without an Arc moving), and verify they restart in a new Scene and are left out while Linger is on
+- [x] 2.1 Add entries `beat_note` (carrying any Taste line), `redo`, `scene_closed`, `focus_set` and `linger_set`, and a `scene_opened` that carries a frame and may start at a Move; verify reducer tests for each
+- [x] 2.2 Read the counts from the Path (beat in play for, exchanges without an Arc moving), and verify they restart in a new Scene and are left out while Linger is on
 
 ## 3. The turn with the Writer
 
-- [ ] 3.1 Test first, then build: `scenes › A Move can contain anything, and what it says has happened › A time skip in a Move` (the Writer's clock is kept; a clock earlier than now is refused)
-- [ ] 3.2 Test first, then build: `scenes › A Scene ends in one of three ways › Walking out of a Scene` (the Writer leaves the Scene; the Move opens the next one with a title card; no Day View)
-- [ ] 3.3 Test first, then build: `scenes › A Scene ends in one of three ways › The Story closes a Scene` (a call of `end`; the Day View after the Reply)
-- [ ] 3.4 Test first, then build: `scenes › A Scene ends in one of three ways › The player ends a Scene` (End scene after a Reply)
-- [ ] 3.5 Test first, then build: `scenes › Only what matters earns time › A stalled Scene moves on` (three exchanges with no Arc moving put it in the Writer's task) and the beat cap at four
-- [ ] 3.6 Test first, then build: `scenes › Linger holds the moment › Lingering with Hermione` (eight exchanges, nothing forced, the Scene still open)
-- [ ] 3.7 Test first, then build: a Writer that fails twice fails the turn with its reason, the Move stays the head, and Retry runs the Writer again
+- [x] 3.1 Test first, then build: `scenes › A Move can contain anything, and what it says has happened › A time skip in a Move` (the Writer's clock is kept; a clock earlier than now is refused)
+- [x] 3.2 Test first, then build: `scenes › A Scene ends in one of three ways › Walking out of a Scene` (the Writer leaves the Scene; the Move opens the next one with a title card; no Day View)
+- [x] 3.3 Test first, then build: `scenes › A Scene ends in one of three ways › The Story closes a Scene` (a call of `end`; the Day View after the Reply)
+- [x] 3.4 Test first, then build: `scenes › A Scene ends in one of three ways › The player ends a Scene` (End scene after a Reply)
+- [x] 3.5 Test first, then build: `scenes › Only what matters earns time › A stalled Scene moves on` (three exchanges with no Arc moving put it in the Writer's task) and the beat cap at four
+- [x] 3.6 Test first, then build: `scenes › Linger holds the moment › Lingering with Hermione` (eight exchanges, nothing forced, the Scene still open)
+- [x] 3.7 Test first, then build: a Writer that fails twice fails the turn with its reason, the Move stays the head, and Retry runs the Writer again
 
 ## 4. Focus, Linger and Redo
 
-- [ ] 4.1 Test first, then build: `scenes › Focus keeps a Scene close to one person › Focus starts and clears by itself`
-- [ ] 4.2 Test first, then build: `scenes › Focus keeps a Scene close to one person › A private moment stays private` and `› A Move brings someone in` (Focus reaches the Writer and the Actor's prompt; nobody new is framed in while it is on)
-- [ ] 4.3 Test first, then build: `scenes › Redo, with a Direction and another model if wanted › A Direction that is not remembered` (the Direction reaches the Writer, never the Actor or the Story; the new Reply replaces the old on the Path)
-- [ ] 4.4 Test first, then build: `scenes › Redo, with a Direction and another model if wanted › Remember this` and Taste kept to ten lines
-- [ ] 4.5 Add the Beat Note, the call, the time, Focus and Linger to the end of the Actor's prompt, and verify a unit test that the beats, purpose and exit never reach it
+- [x] 4.1 Test first, then build: `scenes › Focus keeps a Scene close to one person › Focus starts and clears by itself`
+- [x] 4.2 Test first, then build: `scenes › Focus keeps a Scene close to one person › A private moment stays private` and `› A Move brings someone in` (Focus reaches the Writer and the Actor's prompt; nobody new is framed in while it is on)
+- [x] 4.3 Test first, then build: `scenes › Redo, with a Direction and another model if wanted › A Direction that is not remembered` (the Direction reaches the Writer, never the Actor or the Story; the new Reply replaces the old on the Path)
+- [x] 4.4 Test first, then build: `scenes › Redo, with a Direction and another model if wanted › Remember this` and Taste kept to ten lines
+- [x] 4.5 Add the Beat Note, the call, the time, Focus and Linger to the end of the Actor's prompt, and verify a unit test that the beats, purpose and exit never reach it
 
 ## 5. The link and the Day View
 
-- [ ] 5.1 Extend the contract: the Scene view's Focus, Linger and closing; the Day View; End scene, Focus, Linger and Redo requests; regenerate both sides
-- [ ] 5.2 Test first, then build: `day-view › The Day View says where and when the player is › A countdown`
-- [ ] 5.3 Serve End scene, Focus, Linger and Redo, each refused with a reason while a Reply is being written, and verify link tests
-- [ ] 5.4 Add `fantasia models` and `models.json`, with the Writer on Claude Sonnet 5.5 by default, and verify a test that a change reaches the next Writer call
+- [x] 5.1 Extend the contract: the Scene view's Focus, Linger and closing; the Day View; End scene, Focus, Linger and Redo requests; regenerate both sides
+- [x] 5.2 Test first, then build: `day-view › The Day View says where and when the player is › A countdown`
+- [x] 5.3 Serve End scene, Focus, Linger and Redo, each refused with a reason while a Reply is being written, and verify link tests
+- [x] 5.4 Add `fantasia models` and `models.json`, with the Writer on Claude Sonnet 5.5 by default, and verify a test that a change reaches the next Writer call
 
 ## 6. The phone
 
@@ -58,8 +58,8 @@ Requirements this change builds:
 
 ## 7. Real models (opt-in)
 
-- [ ] 7.1 `scenes › Only what matters earns time › Procedure does not take over`, judged by a second model, three runs out of three
-- [ ] 7.2 The Writer, three runs each: it leaves the Scene for "I go to my room; Harry, Ron and Neville are playing a board game"; it moves the clock at least an hour for "after an hour, I'm still sitting on her broom"; its notes never soften anyone (judged)
+- [x] 7.1 `scenes › Only what matters earns time › Procedure does not take over`, judged by a second model, three runs out of three
+- [x] 7.2 The Writer, three runs each: it leaves the Scene for "I go to my room; Harry, Ron and Neville are playing a board game"; it moves the clock at least an hour for "after an hour, I'm still sitting on her broom"; its notes never soften anyone (judged)
 
 ## 8. Together
 

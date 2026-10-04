@@ -83,3 +83,38 @@ export function writeStoryFile(story: unknown, options: { omitPortraits?: string
   }
   return folder;
 }
+
+/**
+ * Hogwarts after dark, for the Scene scenarios: Roopesh with Hermione in the Gryffindor common room on a Friday
+ * night, with Harry, Ron, Neville and Draconia in the Story. [opening] changes where and when it begins.
+ */
+export function hogwartsStoryFile(opening: Partial<StoryFile["opening"]> = {}): StoryFile {
+  return {
+    format: 1,
+    title: "After Curfew",
+    premise: "An enemies-to-lovers romance with Draconia Malfoy at Hogwarts as a university.",
+    style: "Close third person, British English, 1991.",
+    clock: { starts: opening.at ?? "Day 3 21:40", day_one_weekday: "wednesday" },
+    people: [
+      { name: "Roopesh Gantasala", who_they_are: "A Muggle-born from Bangalore with powers he hides.", aliases: ["Roo"] },
+      { name: "Hermione Granger", who_they_are: "Muggle-born, Gryffindor, top of every class." },
+      { name: "Harry Potter", who_they_are: "The Boy Who Lived, Gryffindor." },
+      { name: "Ron Weasley", who_they_are: "Harry's best friend, Gryffindor, sixth of seven children." },
+      { name: "Neville Longbottom", who_they_are: "A Gryffindor who is better with plants than wands." },
+      { name: "Draconia Malfoy", who_they_are: "Pure-blood heir, Slytherin, sharp-tongued and proud." },
+      { name: "Severus Snape", who_they_are: "Potions master, Head of Slytherin." }
+    ] as StoryFile["people"],
+    leads: ["Draconia Malfoy", "Hermione Granger"],
+    player_character: "Roopesh Gantasala",
+    arcs: ["Draconia comes round to Roopesh, slowly, against everything she was raised to be."],
+    landmarks: [{ name: "Draconia's flying test", at: "Day 8 10:00", what: "Madam Hooch tests the first-years on brooms." }],
+    opening: {
+      title: "After curfew",
+      place: "The Gryffindor common room",
+      at: "Day 3 21:40",
+      who: ["Hermione Granger"],
+      prose: "The fire has burned down to red. Hermione is on the sofa with a book she has not turned a page of in ten minutes.",
+      ...opening
+    }
+  };
+}

@@ -17,6 +17,11 @@ export function parseStoryTime(text: string): StoryTime | null {
   return { day: Number(match[1]), minuteOfDay: Number(match[2]) * 60 + Number(match[3]) };
 }
 
+/** Minutes since Day 1 00:00, for comparing and counting Story times. */
+export function minutesOf(time: StoryTime): number {
+  return (time.day - 1) * 24 * 60 + time.minuteOfDay;
+}
+
 export function formatStoryTime(time: StoryTime): string {
   const hour = Math.floor(time.minuteOfDay / 60);
   const minute = time.minuteOfDay % 60;

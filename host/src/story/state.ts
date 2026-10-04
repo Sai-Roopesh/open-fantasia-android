@@ -33,15 +33,55 @@ export interface Landmark {
   what: string;
 }
 
-/** The Scene being played: its title card and who is there besides the Player Character. */
+export type BeatStatus = "done" | "in_play" | "pending" | "skipped";
+
+/** One thing that happens on the way to a Scene's purpose, as the Writer last judged it. */
+export interface Beat {
+  text: string;
+  status: BeatStatus;
+}
+
+/** What the Writer says the next Reply does with the Scene: go on, bring it to its turn, or close it. */
+export type SceneCall = "continue" | "land" | "end";
+
+/**
+ * The Scene being played, or the last one played when it has closed: its title card, who is there besides the
+ * Player Character, the Writer's plan for it, and the player's Focus and Linger.
+ */
 export interface CurrentScene {
   number: number;
   title: string;
   place: string;
+  /** When the Scene began. */
   at: string;
-  who: string[];
-  /** The entry that opened it; the Scene is every entry from here to the head. */
+  /** Who is in the Scene now besides the Player Character. */
+  here: string[];
+  /** The entry that opened it. */
   openedBy: string;
+  /** Where the Scene's entries begin: the Move that opened it, or the opening itself. */
+  startsAt: string;
+  /** What should change by its end, and what ending looks like; null until the Writer plans it. */
+  purpose: string | null;
+  exit: string | null;
+  beats: Beat[];
+  /** The latest Beat Note and call, which the next Reply plays. */
+  note: string | null;
+  call: SceneCall | null;
+  intensity: number | null;
+  /** How many Beat Notes in a row have had the same beat in play. */
+  beatInPlayFor: number;
+  /** How many Beat Notes in a row have judged that no Arc moved. */
+  withoutArc: number;
+  focus: string | null;
+  linger: boolean;
+  /** Who closed the Scene, once it has closed. A Scene left by a Move is simply followed by the next. */
+  closed: "story" | "player" | null;
+}
+
+/** A Redo waiting for its Reply: what the player asked of the Writer, if anything. */
+export interface PendingDirection {
+  text: string | null;
+  remember: boolean;
 }
 
 /**
@@ -65,4 +105,10 @@ export interface State {
   landmarks: Landmark[];
   scene: CurrentScene | null;
   scenesPlayed: number;
+  /** Lasting lessons from the player's Directions, oldest first, at most ten (openspec long-run: Taste). */
+  taste: string[];
+  /** The Directions given on this Path, oldest first, so the Writer can tell when one recurs. */
+  directions: string[];
+  /** The Direction of a Redo whose Reply is still to be written. */
+  pendingDirection: PendingDirection | null;
 }

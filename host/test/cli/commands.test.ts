@@ -3,11 +3,12 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { importCommand, pair, show, stories, trace } from "../../src/cli/commands.js";
+import { importCommand, models, pair, show, stories, trace } from "../../src/cli/commands.js";
 import { Engine } from "../../src/engine/engine.js";
 import { Models } from "../../src/models/model-call.js";
 import { ScriptedRunner } from "../../src/models/scripted.js";
 import { freshHome } from "../support/host.js";
+import { playable } from "../support/play.js";
 import { minimalStoryFile, writeStoryFile } from "../support/story-files.js";
 
 function capture() {
@@ -74,5 +75,34 @@ describe("the fantasia command", () => {
     const home = mkdtempSync(join(tmpdir(), "fantasia-cli-"));
     const output = execFileSync(process.execPath, [join(import.meta.dirname, "..", "..", "bin", "fantasia.mjs"), "stories"], { env: { ...process.env, FANTASIA_HOME: home }, encoding: "utf8" });
     expect(output).toContain("No Stories yet.");
+  });
+
+  it("shows the model for each job, and a change reaches the next Writer call", async () => {
+    const { mac, play, models: scripted } = playable();
+    const shown = capture();
+    expect(models(mac, [], shown.out)).toBe(true);
+    expect(shown.text()).toBe("writer  claude  claude-sonnet-5-5  (default)");
+
+    const set = capture();
+    expect(models(mac, ["writer", "claude", "claude-opus-5-5", "high"], set.out)).toBe(true);
+    expect(set.text()).toBe("The Writer now uses claude claude-opus-5-5 (effort high), from its next call.");
+    await play("I sit down.");
+    expect(scripted.writer.requests[0]!.model).toEqual({ provider: "claude", model: "claude-opus-5-5", effort: "high" });
+    const after = capture();
+    models(mac, [], after.out);
+    expect(after.text()).toBe("writer  claude  claude-opus-5-5  effort high");
+  });
+
+  it("refuses a job or a provider it does not know", () => {
+    const mac = freshHome();
+    const refused = capture();
+    expect(models(mac, ["director", "claude", "claude-opus-5-5"], refused.out)).toBe(false);
+    expect(refused.text()).toMatch(/No job "director"\. The jobs are: writer/);
+    const provider = capture();
+    expect(models(mac, ["writer", "openai", "gpt-6.1-sol"], provider.out)).toBe(false);
+    expect(provider.text()).toMatch(/No provider "openai"\. The providers are: claude, codex, antigravity/);
+    const unreachable = capture();
+    expect(models(mac, ["writer", "codex", "gpt-6.1-sol"], unreachable.out)).toBe(false);
+    expect(unreachable.text()).toMatch(/codex models cannot be reached from this Mac yet/);
   });
 });

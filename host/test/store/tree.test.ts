@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { openDb, STATE_SHAPE } from "../../src/store/db.js";
 import { apply } from "../../src/story/reducer.js";
 import type { Entry } from "../../src/story/entries.js";
 import { freshHome } from "../support/host.js";
@@ -8,7 +9,7 @@ function storyWithScene() {
   const { db, tree, states } = freshHome();
   db.prepare("INSERT INTO stories (id, title, folder, created_at) VALUES ('s', 'T', '/x', 'now')").run();
   const setUp = tree.append("s", null, { kind: "story_set_up", storyFile: malfoyProblemStoryFile(), portraits: { "Draconia Malfoy": "draconia.png" } });
-  const opened = tree.append("s", setUp.id, { kind: "scene_opened", number: 1, title: "The insult", place: "The Three Broomsticks", at: "Day 1 21:40", who: ["Draconia Malfoy"], prose: "She laughs." });
+  const opened = tree.append("s", setUp.id, { kind: "scene_opened", number: 1, title: "The insult", place: "The Three Broomsticks", at: "Day 1 21:40", who: ["Draconia Malfoy"], prose: "She laughs.", startsAt: null, purpose: null, exit: null });
   return { db, tree, states, setUp, opened };
 }
 
@@ -78,5 +79,16 @@ describe("working out the State on a Path", () => {
     const cached = states.at(head);
     states.forget();
     expect(states.at(head)).toEqual(cached);
+  });
+
+  it("throws away saved States of an older shape when the store opens", () => {
+    const { db, opened } = storyWithScene();
+    db.prepare("INSERT OR REPLACE INTO states (entry_id, state) VALUES (?, ?)").run(opened.id, JSON.stringify({ an: "old shape" }));
+    db.pragma("user_version = 1");
+    const file = db.name;
+    db.close();
+    const reopened = openDb(file);
+    expect(reopened.prepare("SELECT COUNT(*) AS n FROM states").get()).toEqual({ n: 0 });
+    expect(reopened.pragma("user_version", { simple: true })).toBe(STATE_SHAPE);
   });
 });

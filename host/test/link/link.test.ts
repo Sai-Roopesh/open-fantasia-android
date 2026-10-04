@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { ScriptedRunner } from "../../src/models/scripted.js";
+import { CONTRACT_VERSION } from "../../src/protocol/generated/contract.js";
 import type { SceneView } from "../../src/protocol/generated/link.js";
 import { Traces } from "../../src/trace.js";
 import { GatedRunner, openStream, runningMac, type ReceivedEvent } from "../support/link.js";
@@ -135,7 +136,7 @@ describe("mac-link", () => {
     const body = await response.json() as { error: { code: string; message: string } };
     expect(body.error.code).toBe("version_mismatch");
     expect(body.error.message).toMatch(/Update the app to match your Mac/);
-    expect(response.headers.get("fantasia-contract")).toBe("1");
+    expect(response.headers.get("fantasia-contract")).toBe(String(CONTRACT_VERSION));
   });
 
   // GIVEN the app showed a failure with its trace id
@@ -168,5 +169,83 @@ describe("mac-link", () => {
     await actor.ready();
     actor.release();
     await engine.settled(storyId);
+  });
+
+  it("ends a Scene, sets Focus and Linger, and redoes a Reply, each change reaching the phone live", async () => {
+    const { base, headers, storyId, call, engine } = await mac([{ answer: "Draconia laughs." }, { answer: "Hermione does not laugh." }]);
+    const post = async (path: string, body: unknown) => {
+      const response = await call(`/stories/${storyId}/${path}`, { method: "POST", body: JSON.stringify(body) });
+      expect(response.status, path).toBe(200);
+      return await response.json() as { head_entry_id: string; trace_id: string };
+    };
+    const view = async () => await (await call(`/stories/${storyId}/scene`)).json() as SceneView;
+    const stream = openStream(base, storyId, headers, String((await view()).seq));
+    closers.push(stream.close);
+
+    await post("moves", { text: "I raise my glass.", after: (await view()).head_entry_id });
+    await engine.settled(storyId);
+    const focused = await post("focus", { after: (await view()).head_entry_id, on: "Hermione Granger" });
+    expect(focused.head_entry_id).toBe((await view()).head_entry_id);
+    await post("linger", { after: (await view()).head_entry_id, on: true });
+    expect(await view()).toMatchObject({ focus: "Hermione Granger", linger: true, day_view: null });
+
+    await post("redo", { after: (await view()).head_entry_id, direction: "less Draconia", remember: false });
+    await engine.settled(storyId);
+    expect((await view()).exchanges.at(-1)!.reply!.text).toBe("Hermione does not laugh.");
+
+    await post("end-scene", { after: (await view()).head_entry_id });
+    expect((await view()).day_view).toMatchObject({ place: "The Three Broomsticks" });
+    await stream.until(events => events.some(event => event.event.kind === "scene_closed"));
+    const kinds = stream.received.map(event => event.event.kind).filter(kind => kind !== "reply_delta");
+    expect(kinds).toEqual(["move", "reply_started", "reply", "focus_set", "linger_set", "redo", "reply_started", "reply", "scene_closed"]);
+    expect(stream.received.find(event => event.event.kind === "focus_set")!.event.focus).toBe("Hermione Granger");
+    expect(stream.received.find(event => event.event.kind === "scene_closed")!.event.day_view).toMatchObject({ place: "The Three Broomsticks" });
+  });
+
+  it("refuses End scene, Focus, Linger and Redo while a Reply is being written, with the reason", async () => {
+    const actor = new GatedRunner(["Slowly."]);
+    const { call, storyId, engine } = await mac(actor);
+    const scene = await (await call(`/stories/${storyId}/scene`)).json() as SceneView;
+    await call(`/stories/${storyId}/moves`, { method: "POST", body: JSON.stringify({ text: "I wave.", after: scene.head_entry_id }) });
+    for (const [path, body] of [["end-scene", {}], ["focus", { on: "Hermione Granger" }], ["linger", { on: true }], ["redo", { direction: null, remember: false }]] as const) {
+      const refused = await call(`/stories/${storyId}/${path}`, { method: "POST", body: JSON.stringify({ after: scene.head_entry_id, ...body }) });
+      expect(refused.status, path).toBe(409);
+      expect((await refused.json() as { error: { message: string } }).error.message, path).toMatch(/still being written/);
+    }
+    await actor.ready();
+    actor.release();
+    await engine.settled(storyId);
+  });
+
+  it("refuses a command that does not match the contract", async () => {
+    const { call, storyId } = await mac();
+    for (const [path, body] of [["end-scene", {}], ["focus", { after: "x" }], ["linger", { after: "x", on: "yes" }], ["redo", { after: "x", direction: "less" }]] as const) {
+      const refused = await call(`/stories/${storyId}/${path}`, { method: "POST", body: JSON.stringify(body) });
+      expect(refused.status, path).toBe(400);
+    }
+  });
+
+  it("says in the Scene view how far into a Reply it is, so reading it mid-Reply repeats no word", async () => {
+    const words = ["One ", "two ", "three ", "four."];
+    const actor = new GatedRunner(words);
+    const { base, headers, storyId, call, engine } = await mac(actor);
+    const scene = await (await call(`/stories/${storyId}/scene`)).json() as SceneView;
+    await call(`/stories/${storyId}/moves`, { method: "POST", body: JSON.stringify({ text: "Count.", after: scene.head_entry_id }) });
+    await actor.ready();
+    actor.release(2);
+    await actor.ready();
+    const midway = await (await call(`/stories/${storyId}/scene`)).json() as SceneView;
+    expect(midway.turn).toMatchObject({ kind: "writing", text_so_far: "One two " });
+    expect(midway.last_event_id).toMatch(/^\d+\.2$/);
+    actor.release();
+    await actor.ready();
+    const stream = openStream(base, storyId, headers, midway.last_event_id);
+    closers.push(stream.close);
+    await stream.until(events => events.some(event => event.event.kind === "reply_delta"));
+    actor.release();
+    await engine.settled(storyId);
+    await stream.until(events => events.some(event => event.event.kind === "reply"));
+    expect(stream.received.filter(event => event.event.kind === "reply_delta").map(event => event.event.text).join("")).toBe("three four.");
+    expect(stream.received.some(event => event.event.kind === "reply_started")).toBe(false);
   });
 });

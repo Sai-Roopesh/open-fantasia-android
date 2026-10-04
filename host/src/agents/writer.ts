@@ -1,0 +1,410 @@
+import { readFileSync } from "node:fs";
+import { Ajv2020 } from "ajv/dist/2020.js";
+import type { Models } from "../models/model-call.js";
+import type { Entry } from "../story/entries.js";
+import type { Beat, ModelChoice, PendingDirection, Person, SceneCall, State } from "../story/state.js";
+import { minutesOf, parseStoryTime, sayStoryTime } from "../time.js";
+import { decidesForPlayer, playerNames } from "./deciding.js";
+
+/**
+ * The Writer: each Scene's author (docs/adr/0004). It reads every Move before the Actor answers it, and answers one
+ * question: what is this Scene for, what happens next in it, and is it done? Its answer is checked here, repaired
+ * once with what was wrong, and only then written to the Story as a Beat Note.
+ *
+ * What the Writer must not be trusted to count is counted by code and said to it outright: how long the beat in
+ * play has been in play, and how long it has been since an Arc moved (openspec scenes: Only what matters earns time).
+ */
+
+const PROMPT = readFileSync(new URL("./WRITER.md", import.meta.url), "utf8");
+
+/** A beat in play for this many Beat Notes is made to happen by the next one. */
+export const BEAT_CAP = 4;
+/** After this many Beat Notes in a row with no Arc moving, the next one moves the Scene on. */
+export const STALL_AFTER = 3;
+
+const MIN_BEATS = 3;
+const MAX_BEATS = 5;
+const MAX_NOTE_WORDS = 40;
+const MAX_TASTE_WORDS = 25;
+/** How much of the Scene the Writer reads word for word. */
+const WRITER_EXCHANGES = 12;
+
+const text = { type: "string", minLength: 1 } as const;
+
+/** The Writer's answer, as the provider is asked to give it. */
+export const WRITER_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["leaves_scene", "frame", "here", "beats", "note", "call", "intensity", "arc_moved", "clock", "taste"],
+  properties: {
+    leaves_scene: { type: "boolean", description: "The Move leaves this Scene or skips well ahead, so the next Scene begins with it." },
+    frame: {
+      description: "The Scene's frame, when one opens or has no plan yet; otherwise null.",
+      anyOf: [
+        {
+          type: "object",
+          additionalProperties: false,
+          required: ["title", "place", "purpose", "exit"],
+          properties: { title: text, place: text, purpose: text, exit: text }
+        },
+        { type: "null" }
+      ]
+    },
+    here: { type: "array", items: { type: "string" }, description: "Everyone in the Scene for the next Reply besides the player's character." },
+    beats: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["text", "status"],
+        properties: { text, status: { type: "string", enum: ["done", "in_play", "pending", "skipped"] } }
+      }
+    },
+    note: { ...text, description: "The Beat Note for the Reply: forty words or fewer." },
+    call: { type: "string", enum: ["continue", "land", "end"] },
+    intensity: { type: "integer", minimum: 1, maximum: 5 },
+    arc_moved: { type: "boolean" },
+    clock: { type: "string", description: "The story time the Reply begins, \"Day N HH:MM\"." },
+    taste: { type: ["string", "null"] }
+  }
+} as const;
+
+interface RawAnswer {
+  leaves_scene: boolean;
+  frame: { title: string; place: string; purpose: string; exit: string } | null;
+  here: string[];
+  beats: Beat[];
+  note: string;
+  call: SceneCall;
+  intensity: number;
+  arc_moved: boolean;
+  clock: string;
+  taste: string | null;
+}
+
+const ajv = new Ajv2020({ strict: false, allErrors: true });
+const matchesSchema = ajv.compile<RawAnswer>(WRITER_SCHEMA);
+
+/** What the Writer is asked about: the State, the Scene so far, the Move, and a Redo's Direction. */
+export interface WriterAsk {
+  /** The State before the Move. */
+  state: State;
+  /** The Scene's entries before the Move: the open Scene, or the last one when it has closed. */
+  scene: Entry[];
+  move: string;
+  direction: PendingDirection | null;
+}
+
+/** A new Scene's frame. */
+export interface Frame {
+  title: string;
+  place: string;
+  purpose: string;
+  exit: string;
+}
+
+/** The Writer's answer as the engine writes it: checked, with every name as the Story keeps it. */
+export interface WriterPlan {
+  /** The Scene this Move opens, from the Day View or by leaving the last one. */
+  opens: Frame | null;
+  /** The purpose and exit of the open Scene, which had no plan until now. */
+  plans: { purpose: string; exit: string } | null;
+  here: string[];
+  beats: Beat[];
+  note: string;
+  call: SceneCall;
+  intensity: number;
+  arcMoved: boolean;
+  clock: string;
+  taste: string | null;
+}
+
+export type Checked = { ok: true; plan: WriterPlan } | { ok: false; problems: string[] };
+
+/** The Writer could not give an answer the Story can use, in words the player can read. */
+export class WriterFailed extends Error {}
+
+/** Why the Writer must frame a Scene whatever the Move does, if it must. */
+type Opening = "day_view" | "unplanned" | null;
+
+function openingOf(state: State): Opening {
+  if (!state.scene || state.scene.closed) return "day_view";
+  return state.scene.purpose === null ? "unplanned" : null;
+}
+
+/**
+ * Every name a person answers to, mapped to the name the Story keeps: full names, aliases and first names. A
+ * model writing "Meera" means Meera Kulkarni. A full name always wins; a shorter name two people share is nobody's.
+ */
+function nameIndex(people: Person[]): Map<string, string> {
+  const key = (name: string) => name.trim().toLocaleLowerCase();
+  const full = new Map(people.map(person => [key(person.name), person.name]));
+  const shorter = new Map<string, string>();
+  const shared = new Set<string>();
+  for (const person of people) {
+    for (const alias of [...person.aliases, person.name.trim().split(/\s+/)[0] ?? ""]) {
+      const id = key(alias);
+      if (!id || full.has(id)) continue;
+      if (shorter.has(id) && shorter.get(id) !== person.name) shared.add(id);
+      else shorter.set(id, person.name);
+    }
+  }
+  for (const alias of shared) shorter.delete(alias);
+  return new Map([...shorter, ...full]);
+}
+
+/** Whether [text] names [person]: by full name, an alias, or any word of their name. */
+function names(text: string, person: Person): boolean {
+  const words = [person.name, ...person.aliases, ...person.name.split(/\s+/).filter(word => word.length >= 3)];
+  return words.some(word => new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(text));
+}
+
+const wordCount = (value: string) => value.trim().split(/\s+/).filter(Boolean).length;
+const inPlayIndex = (beats: Beat[]) => beats.findIndex(beat => beat.status === "in_play");
+
+/**
+ * Checks the Writer's answer against the moment it was written for, and returns the plan the engine writes, or every
+ * problem a repair could fix.
+ */
+export function checkWriterAnswer(ask: WriterAsk, raw: unknown): Checked {
+  if (!matchesSchema(raw)) {
+    return { ok: false, problems: (matchesSchema.errors ?? []).map(error => `${error.instancePath.replace(/^\//, "").replace(/\//g, ".") || "answer"}: ${error.message ?? "is not as the schema says"}`) };
+  }
+  const { state } = ask;
+  const problems: string[] = [];
+  const pc = state.playerCharacter;
+  const pcNames = playerNames({ name: pc, aliases: state.people[pc]?.aliases ?? [] });
+  const decides = (where: string, value: string) => {
+    const phrase = decidesForPlayer(value, pcNames);
+    if (phrase) problems.push(`${where} decides for the player's character ("${phrase}"); make it a circumstance or someone else's choice`);
+  };
+  const index = nameIndex(Object.values(state.people));
+  const opening = openingOf(state);
+  const scene = state.scene;
+  const opensScene = opening === "day_view" || raw.leaves_scene;
+
+  // The frame: required when a Scene opens or has no plan yet.
+  let opens: Frame | null = null;
+  let plans: WriterPlan["plans"] = null;
+  if (opensScene || opening === "unplanned") {
+    if (!raw.frame) {
+      problems.push(opening === "day_view"
+        ? "frame: the last Scene has closed, so this Move opens a new one; write its frame"
+        : raw.leaves_scene
+          ? "frame: this Move opens a new Scene (leaves_scene is true); write its frame"
+          : "frame: this Scene opened without a plan; write its frame, keeping its title and place");
+    } else {
+      const frame = { title: raw.frame.title.trim(), place: raw.frame.place.trim(), purpose: raw.frame.purpose.trim(), exit: raw.frame.exit.trim() };
+      for (const field of ["title", "purpose", "exit"] as const) decides(`frame: its ${field}`, frame[field]);
+      if (opensScene) opens = frame;
+      else plans = { purpose: frame.purpose, exit: frame.exit };
+    }
+  }
+
+  // Who is here, as the Story names them.
+  const here: string[] = [];
+  for (const name of raw.here) {
+    const known = index.get(name.trim().toLocaleLowerCase());
+    if (!known) problems.push(`here: ${name.trim() || "a blank name"} is not in the story; use a name from the people, and leave walk-ons unnamed`);
+    else if (known === pc) problems.push(`here: ${pc} is the player's character, who is always here; leave them out`);
+    else if (!here.includes(known)) here.push(known);
+  }
+  if (!opens && scene?.focus) {
+    for (const name of here) {
+      const person = state.people[name];
+      if (!scene.here.includes(name) && person && !names(ask.move, person)) {
+        problems.push(`here: Focus is on ${scene.focus}, and the Move does not bring in ${name}; leave them out`);
+      }
+    }
+  }
+
+  // The beats.
+  const beats = raw.beats.map(beat => ({ text: beat.text.trim(), status: beat.status }));
+  if (beats.length < MIN_BEATS || beats.length > MAX_BEATS) problems.push(`beats: there are ${beats.length}; a Scene has three to five`);
+  const inPlay = beats.filter(beat => beat.status === "in_play").length;
+  const open = beats.some(beat => beat.status === "in_play" || beat.status === "pending");
+  if (open && inPlay !== 1) problems.push(`beats: ${inPlay} are in play; exactly one is, the next to happen, until every beat is done or skipped`);
+  beats.forEach((beat, position) => decides(`beats: beat ${position + 1}`, beat.text));
+
+  // The note.
+  const note = raw.note.trim();
+  const words = wordCount(note);
+  if (words > MAX_NOTE_WORDS) problems.push(`note: it is ${words} words; say it in forty or fewer`);
+  decides("note: it", note);
+
+  // Linger holds the moment, and a stalled Scene moves on.
+  if (!opens && scene?.linger && raw.call !== "continue") {
+    problems.push("call: Linger is on, so the Scene is not brought to its turn or closed; call continue");
+  }
+  if (!opens && scene && !scene.linger && scene.purpose !== null && scene.withoutArc >= STALL_AFTER && !raw.arc_moved) {
+    const before = inPlayIndex(scene.beats);
+    const after = inPlayIndex(beats);
+    const advanced = after > before || (before >= 0 && after === -1) || raw.call !== "continue";
+    if (!advanced) problems.push(`beats: no Arc has moved for ${scene.withoutArc} exchanges; move to the next beat, or call land or end`);
+  }
+
+  // The clock never goes back.
+  const clock = raw.clock.trim();
+  const at = parseStoryTime(clock);
+  const now = parseStoryTime(state.clock);
+  if (!at) problems.push(`clock: "${clock}" is not a time like "Day 3 21:30"`);
+  else if (now && minutesOf(at) < minutesOf(now)) problems.push(`clock: ${clock} is before now (${state.clock}); the clock never goes back`);
+
+  // Taste comes only from a Direction.
+  const taste = raw.taste?.trim() || null;
+  if (ask.direction?.remember && !taste) problems.push("taste: the player asked to remember the Direction; write it as one short line");
+  if (taste && !ask.direction?.text) problems.push("taste: only a Direction becomes Taste; leave it null");
+  if (taste && wordCount(taste) > MAX_TASTE_WORDS) problems.push(`taste: it is ${wordCount(taste)} words; keep it to twenty-five`);
+
+  if (problems.length) return { ok: false, problems };
+  return { ok: true, plan: { opens, plans, here, beats, note, call: raw.call, intensity: raw.intensity, arcMoved: raw.arc_moved, clock, taste } };
+}
+
+function section(tag: string, body: string): string | null {
+  if (!body.trim()) return null;
+  return `<${tag}>\n${body.trim()}\n</${tag.split(" ")[0]}>`;
+}
+
+function say(state: State, at: string): string {
+  const time = parseStoryTime(at);
+  return time ? `${at} (${sayStoryTime(time, state.dayOneWeekday)})` : at;
+}
+
+/** The Story the Writer writes for: the same for every call, so its prompt cache hits (docs/adr/0005). */
+function storyPrompt(state: State): string {
+  const pc = state.playerCharacter;
+  const people = Object.values(state.people).filter(person => person.name !== pc).map(person =>
+    `- ${person.name}${person.aliases.length ? ` (also ${person.aliases.join(", ")})` : ""}: ${person.whoTheyAre}${person.after ? ` After: ${person.after}` : ""}`);
+  return [
+    PROMPT,
+    section("story", [
+      `Title: ${state.title}`,
+      `Premise: ${state.premise}`,
+      state.arcs.length ? `Arcs:\n${state.arcs.map(arc => `- ${arc}`).join("\n")}` : "Arcs: none set.",
+      state.landmarks.length ? `Landmarks:\n${state.landmarks.map(landmark => `- ${landmark.name}, ${say(state, landmark.at)}: ${landmark.what}`).join("\n")}` : "",
+      `Style: ${state.style}`,
+      state.world.summary ? `World: ${state.world.summary}` : ""
+    ].filter(Boolean).join("\n")),
+    section(`player_character name="${pc}"`, state.people[pc]?.whoTheyAre ?? ""),
+    section("people", people.join("\n"))
+  ].filter(part => part !== null).join("\n\n");
+}
+
+/** The Scene so far as the Writer reads it: the opening, then each Move and Reply, the last twelve exchanges. */
+function sceneSoFar(entries: Entry[], pc: string): string {
+  const exchanges: string[][] = [];
+  for (const entry of entries) {
+    const payload = entry.payload;
+    if (payload.kind === "scene_opened" && payload.prose) exchanges.push([`<reply>\n${payload.prose}\n</reply>`]);
+    if (payload.kind === "move") exchanges.push([`<move by="${pc}">\n${payload.text}\n</move>`]);
+    if (payload.kind === "reply") {
+      const last = exchanges.at(-1);
+      const reply = `<reply>\n${payload.text}\n</reply>`;
+      if (last?.length === 1 && last[0]?.startsWith("<move")) last.push(reply);
+      else exchanges.push([reply]);
+    }
+  }
+  return exchanges.slice(-WRITER_EXCHANGES).map(exchange => exchange.join("\n")).join("\n\n");
+}
+
+/** What the Writer is sent: the Story in its system prompt, the moment in its task, and the facts both came from. */
+export function writerPrompt(ask: WriterAsk): { system: string; prompt: string; facts: Record<string, unknown> } {
+  const { state, move, direction } = ask;
+  const pc = state.playerCharacter;
+  const scene = state.scene;
+  const opening = openingOf(state);
+
+  const sceneLines = scene ? [
+    `Title: ${scene.title}`,
+    `Place: ${scene.place}`,
+    `Here besides ${pc}: ${scene.here.join(", ") || "nobody"}`,
+    scene.purpose ? `Purpose: ${scene.purpose}\nExit: ${scene.exit ?? ""}` : "Not planned yet.",
+    scene.beats.length ? `Beats:\n${scene.beats.map((beat, position) => `${position + 1}. [${beat.status}] ${beat.text}`).join("\n")}` : ""
+  ].filter(Boolean).join("\n") : "";
+
+  const task: string[] = [];
+  if (opening === "day_view") task.push(`The last Scene has closed, and ${pc} is between Scenes. This Move opens the next Scene: frame it, with its beats, and write the note for its first Reply.`);
+  else if (opening === "unplanned") task.push("This Scene opened without a plan. Frame it, keeping its title and place, judge its beats against the Move, and write the note for the Reply that answers it. If the Move leaves the Scene, set leaves_scene and frame the next one instead.");
+  else task.push("Judge the beats against this Move, re-plan around it, and write the note for the Reply that answers it. If the Move leaves this Scene, set leaves_scene and frame the next one instead; `frame` is otherwise null.");
+  if (opening !== "day_view" && scene) {
+    if (scene.focus) task.push(`Focus is on ${scene.focus}: stay close beside them; nobody new comes in unless the Move brings them.`);
+    if (scene.linger) task.push("Linger is on: hold the beat in play however long it has been, force nothing, and call continue.");
+    else if (scene.purpose !== null) {
+      if (scene.beatInPlayFor >= BEAT_CAP) task.push(`The beat in play has been in play for ${scene.beatInPlayFor} exchanges. Unless this Move did it, the note makes it happen now.`);
+      if (scene.withoutArc >= STALL_AFTER) task.push(`No Arc has moved for ${scene.withoutArc} exchanges. Unless this Move moved one, move the Scene to its next beat, or call land or end.`);
+    }
+  }
+  if (direction) {
+    task.push(direction.text
+      ? "The player asked for the last Reply again, with the Direction above. Follow it in the beats and the note, and never quote it."
+      : "The player asked for the last Reply again. Write a different note from the last one.");
+    if (direction.remember) task.push("They asked you to remember the Direction: write taste.");
+  }
+  task.push("Return only the JSON object.");
+
+  const prompt = [
+    section("now", say(state, state.clock)),
+    section(opening === "day_view" ? "last_scene" : "scene", sceneLines),
+    section(opening === "day_view" ? "last_scene_so_far" : "scene_so_far", sceneSoFar(ask.scene, pc)),
+    section(`move by="${pc}"`, move),
+    direction?.text ? section("direction", direction.text) : null,
+    section("taste", state.taste.map(line => `- ${line}`).join("\n")),
+    direction?.text ? section("directions_before", state.directions.map(line => `- ${line}`).join("\n")) : null,
+    section("task", task.join("\n"))
+  ].filter(part => part !== null).join("\n\n");
+
+  const facts = {
+    now: state.clock,
+    opening,
+    title: scene?.title ?? null,
+    place: scene?.place ?? null,
+    here: scene?.here ?? [],
+    beats: scene?.beats ?? [],
+    focus: scene?.focus ?? null,
+    linger: scene?.linger ?? false,
+    beatInPlayFor: scene?.beatInPlayFor ?? 0,
+    withoutArc: scene?.withoutArc ?? 0,
+    move,
+    direction
+  };
+  return { system: storyPrompt(state), prompt, facts };
+}
+
+function repairSection(answer: unknown, problems: string[]): string {
+  return [
+    "",
+    "<previous_answer>",
+    JSON.stringify(answer),
+    "</previous_answer>",
+    "That answer could not be used:",
+    ...problems.map(problem => `- ${problem}`),
+    "Return one corrected, complete answer. Keep everything the problems do not touch."
+  ].join("\n");
+}
+
+/**
+ * Runs the Writer for one Move: one call, checked, and repaired once with what was wrong. Throws WriterFailed with the
+ * reasons when no usable answer comes back.
+ */
+export async function writeBeat(models: Models, model: ModelChoice, ask: WriterAsk, storyId: string, traceId: string, signal: AbortSignal): Promise<{ plan: WriterPlan; callId: string }> {
+  const { system, prompt, facts } = writerPrompt(ask);
+  let repair: { answer: unknown; problems: string[] } | null = null;
+  let reason = "";
+  for (let attempt = 0; attempt < 2; attempt++) {
+    let answer;
+    try {
+      answer = await models.call({ agent: "writer", model, system, prompt: repair ? prompt + repairSection(repair.answer, repair.problems) : prompt, schema: WRITER_SCHEMA, facts, traceId, storyId }, () => {}, signal);
+    } catch (error) {
+      if (signal.aborted) throw error;
+      reason = error instanceof Error ? error.message : String(error);
+      repair = null;
+      continue;
+    }
+    const checked = checkWriterAnswer(ask, answer.json);
+    if (checked.ok) return { plan: checked.plan, callId: answer.callId };
+    models.refuse(answer.callId, checked.problems.join("; "));
+    repair = { answer: answer.json, problems: checked.problems };
+    reason = checked.problems.join("; ");
+  }
+  throw new WriterFailed(`The Writer's answer could not be used: ${reason}`);
+}

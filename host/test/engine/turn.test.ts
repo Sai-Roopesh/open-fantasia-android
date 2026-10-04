@@ -6,13 +6,14 @@ import { ScriptedRunner } from "../../src/models/scripted.js";
 import { importStoryFile } from "../../src/storyfile/import.js";
 import { sceneView } from "../../src/views/scene.js";
 import { freshHome } from "../support/host.js";
+import { withWriter } from "../support/link.js";
 import { malfoyProblemStoryFile, writeStoryFile } from "../support/story-files.js";
 
 function playable(actor = new ScriptedRunner()) {
   const mac = freshHome();
   const result = importStoryFile(writeStoryFile(malfoyProblemStoryFile()), mac);
   if (!result.ok) throw new Error("import failed");
-  const engine = new Engine(mac, new Models(mac.db, { claude: actor }));
+  const engine = new Engine(mac, new Models(mac.db, { claude: withWriter(actor) }));
   const events: OutgoingEvent[] = [];
   engine.subscribe(result.storyId, event => events.push(event));
   const head = () => mac.tree.currentPath(result.storyId)!.headEntryId;
@@ -28,9 +29,10 @@ describe("a turn", () => {
     const move = "I go to the pitch and nobody is there, then suddenly Draconia yanks me from behind and pins me to the stands";
     const accepted = engine.move(storyId, move, head(), "trace-a");
     await engine.settled(storyId);
-    const path = mac.tree.pathTo(head()).map(entry => entry.payload);
-    expect(path.at(-2)).toEqual({ kind: "move", text: move });
-    expect(path.at(-1)).toMatchObject({ kind: "reply", text: "Her forearm is across his collarbone. \"Late again, Stray.\"" });
+    // Between the Move and its Reply the Writer's Beat Note is written; the Story as played is the Move, then the Reply.
+    const played = mac.tree.pathTo(head()).map(entry => entry.payload).filter(payload => payload.kind === "move" || payload.kind === "reply");
+    expect(played.at(-2)).toEqual({ kind: "move", text: move });
+    expect(played.at(-1)).toMatchObject({ kind: "reply", text: "Her forearm is across his collarbone. \"Late again, Stray.\"" });
     expect(actor.requests[0]!.prompt).toContain(move);
     expect(accepted.trace_id).toBe("trace-a");
   });
@@ -44,11 +46,13 @@ describe("a turn", () => {
     engine.move(storyId, "I sit beside her.", head(), "trace-b");
     await engine.settled(storyId);
 
-    expect(mac.tree.entry(head())!.payload).toEqual({ kind: "move", text: "I sit beside her." });
+    const path = mac.tree.pathTo(head()).map(entry => entry.payload);
+    expect(path.filter(payload => payload.kind === "move").at(-1)).toEqual({ kind: "move", text: "I sit beside her." });
+    expect(path.at(-1)!.kind).not.toBe("reply");
     const view = sceneView(mac, engine, storyId, "trace-view");
     expect(view.turn).toEqual({ kind: "failed", reason: expect.stringContaining("Claude is overloaded"), trace_id: "trace-b" });
     expect(events.map(event => event.event.kind)).toContain("reply_failed");
-    const call = mac.db.prepare("SELECT error FROM calls WHERE trace_id = 'trace-b'").get() as { error: string };
+    const call = mac.db.prepare("SELECT error FROM calls WHERE trace_id = 'trace-b' AND agent = 'actor'").get() as { error: string };
     expect(call.error).toBe("Claude is overloaded");
 
     engine.retry(storyId, "trace-c");
