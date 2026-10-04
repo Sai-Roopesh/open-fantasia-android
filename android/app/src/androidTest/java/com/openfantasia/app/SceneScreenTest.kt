@@ -10,12 +10,10 @@ import org.junit.runner.RunWith
 class SceneScreenTest {
     @get:Rule val compose = createComposeRule()
 
-    // GIVEN the player is in Scene 14
-    // THEN Scenes 1 to 13 appear above it as one-line summaries
-    // AND tapping Scene 13's summary shows that Scene in full
-    // The contract supplies summaries only; full earlier Scenes need a contract addition.
-    @Scenario("scenes › Every Scene opens with a title card › Scrolling back")
-    @Test fun scrollingBack() {
+    // GIVEN the player opens a Story in the Scene "After curfew" in the Common room on Friday at 9:40 pm, with Hermione there
+    // THEN the title card shows "After curfew", "Common room", "Friday · 9:40 pm" and Hermione's Portrait
+    @Scenario("scenes › Every Scene opens with a title card › The title card")
+    @Test fun theTitleCard() {
         val model = FantasiaModel(FakeFantasiaLink())
         compose.setContent { FantasiaApp(model, PairingScanner { error("Already paired") }) }
         compose.onNodeWithText("The Malfoy Problem").performClick()
@@ -23,8 +21,21 @@ class SceneScreenTest {
         compose.onNodeWithText("Common room").assertIsDisplayed()
         compose.onNodeWithText("Friday · 9:40 pm").assertIsDisplayed()
         compose.onNodeWithContentDescription("Hermione's Portrait").assertIsDisplayed()
-        for (number in 1..13) compose.onNodeWithTag("earlier-$number").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithTag("earlier-13").performScrollTo().performClick()
-        compose.onNodeWithText("What happened in Scene 13.").assertIsDisplayed()
+    }
+
+    // Not yet the "Scrolling back" scenario: reading an earlier Scene in full needs it in the contract. This only
+    // shows that the summaries the Mac sends are there and open on a tap.
+    @Test fun earlierScenesShowTheirSummaries() {
+        val model = FantasiaModel(FakeFantasiaLink())
+        compose.setContent { FantasiaApp(model, PairingScanner { error("Already paired") }) }
+        compose.onNodeWithText("The Malfoy Problem").performClick()
+        for (number in 1..13) {
+            compose.onNodeWithTag("scene-passages").performScrollToNode(hasTestTag("earlier-$number"))
+            compose.onNodeWithTag("earlier-$number").assertIsDisplayed()
+        }
+        compose.onNodeWithText("What happened in Scene 13.", useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithTag("earlier-13").performClick()
+        // The collapsed line holds the summary inside "Scene 13 · …"; opened, it is also shown on its own.
+        compose.onNodeWithText("What happened in Scene 13.", useUnmergedTree = true).assertExists()
     }
 }

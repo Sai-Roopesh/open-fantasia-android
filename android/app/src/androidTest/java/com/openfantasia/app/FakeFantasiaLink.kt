@@ -11,8 +11,8 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
     var retries = 0
     override suspend fun pair(invite: PairingInvite) { pairedInvite = invite; isPaired = true }
     override suspend fun stories() = StoryList(listOf(
-        StorySummary("story", "Scene 14 · After curfew", "The Malfoy Problem", "now"),
-        StorySummary("other", "Sunday 7:40 am · choosing where to go", "The coast", "now")
+        StorySummary(id = "story", standing = "Scene 14 · After curfew", title = "The Malfoy Problem", updatedAt = "now"),
+        StorySummary(id = "other", standing = "Sunday 7:40 am · choosing where to go", title = "The coast", updatedAt = "now")
     ), "list")
     override suspend fun scene(storyID: String) = current.value
     override suspend fun move(storyID: String, move: MoveRequest): TurnAccepted {
@@ -26,14 +26,18 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
     override fun watch(initial: SceneView): Flow<SceneView> = current
 
     companion object {
+        // Named arguments throughout: the generated classes list their fields alphabetically, so positional ones
+        // put a summary where a title belongs without a compiler error.
         fun sceneView() = SceneView(
-            (1L..13L).map { SceneSummaryLine(it, "Earlier Scene $it", "What happened in Scene $it.") },
-            listOf(Exchange(reply = Passage("opening", "Hermione looks up.")),
-                Exchange(Passage("move", "I sit beside her."), Passage("reply", "She smiles."))),
-            "reply", "path", "Roopesh Gantasala",
-            SceneCard("Day 1 21:40", "Friday · 9:40 pm", 14,
-                listOf(PersonCard("Hermione", null)), "Common room", "After curfew"),
-            3, "story", "view", TurnState(TurnStateKind.Idle)
+            earlierScenes = (1L..13L).map { SceneSummaryLine(number = it, title = "Earlier Scene $it", summary = "What happened in Scene $it.") },
+            exchanges = listOf(
+                Exchange(reply = Passage(entryID = "opening", text = "Hermione looks up.")),
+                Exchange(move = Passage(entryID = "move", text = "I sit beside her."), reply = Passage(entryID = "reply", text = "She smiles."))
+            ),
+            headEntryID = "reply", pathID = "path", playerCharacter = "Roopesh Gantasala",
+            scene = SceneCard(at = "Day 1 21:40", atLabel = "Friday · 9:40 pm", number = 14,
+                people = listOf(PersonCard(name = "Hermione", portraitURL = null)), place = "Common room", title = "After curfew"),
+            seq = 3, storyID = "story", traceID = "view", turn = TurnState(TurnStateKind.Idle)
         )
     }
 }

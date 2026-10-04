@@ -70,16 +70,16 @@ Existing requirements this change builds, in part:
 
 ## 9. The phone
 
-- [ ] 9.1 Test first, then build (on a device, against `fantasia serve --fake-models`): `mac-link › Pairing happens once, by QR code › First pairing`, scanning the QR code with Google's code scanner and pinning the certificate
-- [ ] 9.2 Test first, then build: `mac-link › The phone finds the Mac on the network they share › The Mac's address changes`, with `NsdManager` and the last address that worked
-- [ ] 9.3 Test first, then build: `stories › Home shows where every Story stands › Two Stories on the home screen` (the mid-Scene line for both)
-- [ ] 9.4 Test first, then build: `scenes › Every Scene opens with a title card` (title, place, day and time, people with Portraits) as a Compose UI test
-- [ ] 9.5 Test first, then build: `presence › Replies stream in › Watching a Reply arrive` and `presence › The player can always write › Typing during a Reply`
-- [ ] 9.6 Test first, then build: `scenes › The latest Reply has its actions in view › Copying the latest Reply`
-- [ ] 9.7 Test first, then build: `presence › Nothing fails silently › A model is down` on the phone (the failure, its trace id, and Retry)
-- [ ] 9.8 Test first, then build: `stories › Opening a Story returns exactly where the player left` (mid-Scene, at the latest Reply)
+- [x] 9.1 Test first, then build (on a device, against `fantasia serve --fake-models`): `mac-link › Pairing happens once, by QR code › First pairing`, scanning the QR code with Google's code scanner and pinning the certificate
+- [x] 9.2 Test first, then build: `mac-link › The phone finds the Mac on the network they share › The Mac's address changes`, with `NsdManager` and the last address that worked
+- [x] 9.3 Test first, then build: `stories › Home shows where every Story stands › Two Stories on the home screen` (the mid-Scene line for both)
+- [x] 9.4 Test first, then build: `scenes › Every Scene opens with a title card › The title card` (title, place, day and time, people with Portraits) as a Compose UI test; "Scrolling back" waits for earlier Scenes in full, which the contract does not carry yet
+- [x] 9.5 Test first, then build: `presence › Replies stream in › Watching a Reply arrive` and `presence › The player can always write › Typing during a Reply`
+- [x] 9.6 Test first, then build: `scenes › The latest Reply has its actions in view › Copying the latest Reply`
+- [x] 9.7 Test first, then build: `presence › Nothing fails silently › A model is down` on the phone (the failure, its trace id, and Retry)
+- [x] 9.8 Test first, then build: `stories › Opening a Story returns exactly where the player left` (mid-Scene, at the latest Reply)
 
 ## 10. Together
 
-- [ ] 10.1 Write a real Story File for a short test Story with Claude, import it with `fantasia import`, pair the phone, and play five exchanges of its opening Scene on Opus 5.5; verify Replies stream, the Copy button works, and `fantasia trace` shows each call
-- [ ] 10.2 Run `scripts/scenarios.mjs`, `npm test`, `./gradlew testDebugUnitTest connectedDebugAndroidTest` and `openspec validate --all --strict`, and verify all pass
+- [x] 10.1 Write a real Story File for a short test Story with Claude, import it with `fantasia import`, pair the phone, and play five exchanges of its opening Scene on Opus 5.5; verify Replies stream, the Copy button works, and `fantasia trace` shows each call
+- [x] 10.2 Run `scripts/scenarios.mjs`, `npm test`, `./gradlew testDebugUnitTest connectedDebugAndroidTest` and `openspec validate --all --strict`, and verify all pass
