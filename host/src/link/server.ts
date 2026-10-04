@@ -65,6 +65,8 @@ export function buildLink(options: LinkOptions): FastifyInstance {
   app.addHook("onRequest", async (request, reply) => {
     request.traceId = newTraceId();
     reply.header(TRACE_HEADER, request.traceId);
+    // Both sides say which contract they speak, so a phone that is behind can say so instead of misreading.
+    reply.header(CONTRACT_HEADER, String(CONTRACT_VERSION));
     const spoken = Number(request.headers[CONTRACT_HEADER]);
     if (spoken !== CONTRACT_VERSION) {
       throw new LinkError("version_mismatch", `This app speaks contract ${Number.isNaN(spoken) ? "none" : spoken} and your Mac speaks contract ${CONTRACT_VERSION}. Update the app to match your Mac.`);
@@ -118,7 +120,7 @@ export function buildLink(options: LinkOptions): FastifyInstance {
     const missed = engine.catchUp(storyId, lastEventId);
     reply.hijack();
     const raw = reply.raw;
-    raw.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive", [TRACE_HEADER]: request.traceId });
+    raw.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive", [TRACE_HEADER]: request.traceId, [CONTRACT_HEADER]: String(CONTRACT_VERSION) });
     const send = (id: string, data: unknown) => raw.write(`id: ${id}\ndata: ${JSON.stringify(data)}\n\n`);
     for (const event of missed) send(event.id, event.event);
     const unsubscribe = engine.subscribe(storyId, event => send(event.id, event.event));

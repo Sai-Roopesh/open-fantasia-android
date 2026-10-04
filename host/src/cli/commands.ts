@@ -16,11 +16,18 @@ import { identity } from "./identity.js";
 /** Everything a command prints, so tests can read it and the terminal can show it. */
 export type Out = (line: string) => void;
 
-export async function pair(mac: Mac, out: Out): Promise<void> {
+/**
+ * Shows a pairing QR code, or with [adb], the adb command that hands a debug build the same invite without a camera.
+ */
+export async function pair(mac: Mac, out: Out, options: { adb?: boolean } = {}): Promise<void> {
   const me = identity(mac.home);
   const certificate = await ensureCertificate(mac.home);
   const invite = new Pairing(mac.db).invite({ hostId: me.hostId, hostName: me.hostName, addresses: localAddresses(), port: me.port, fingerprint: certificate.fingerprint });
   const text = JSON.stringify(invite);
+  if (options.adb) {
+    out(`adb shell am start -n com.openfantasia/com.openfantasia.app.MainActivity --es invite_b64 ${Buffer.from(text).toString("base64")}`);
+    return;
+  }
   await new Promise<void>(done => qrcode.generate(text, { small: true }, (code: string) => {
     out(code);
     done();

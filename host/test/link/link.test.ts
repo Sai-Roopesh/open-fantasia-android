@@ -135,6 +135,7 @@ describe("mac-link", () => {
     const body = await response.json() as { error: { code: string; message: string } };
     expect(body.error.code).toBe("version_mismatch");
     expect(body.error.message).toMatch(/Update the app to match your Mac/);
+    expect(response.headers.get("fantasia-contract")).toBe("1");
   });
 
   // GIVEN the app showed a failure with its trace id

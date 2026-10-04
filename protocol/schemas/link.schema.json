@@ -319,6 +319,7 @@
         "seq",
         "head_entry_id",
         "scene",
+        "player_character",
         "earlier_scenes",
         "exchanges",
         "turn",
@@ -341,6 +342,10 @@
         },
         "scene": {
           "$ref": "#/$defs/SceneCard"
+        },
+        "player_character": {
+          "description": "The name of the person the player plays, for labelling their Moves.",
+          "type": "string"
         },
         "earlier_scenes": {
           "type": "array",

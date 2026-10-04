@@ -20,7 +20,8 @@ program.command("serve").description("Serve the phone: the link, the engine and 
   .action(async (options: { port?: number; fakeModels?: boolean }) => serve(mac(), { ...(options.port ? { port: options.port } : {}), fakeModels: options.fakeModels ?? false }));
 
 program.command("pair").description("Show a QR code that pairs a phone with this Mac")
-  .action(async () => pair(mac(), out));
+  .option("--adb", "print the adb command that pairs a debug build without a camera")
+  .action(async (options: { adb?: boolean }) => pair(mac(), out, { adb: options.adb ?? false }));
 
 program.command("import").argument("<folder>", "a Story File folder").description("Take a Story File in as a new Story")
   .action((folder: string) => exitWith(importCommand(mac(), folder, out)));

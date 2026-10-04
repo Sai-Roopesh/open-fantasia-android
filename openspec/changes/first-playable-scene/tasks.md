@@ -15,14 +15,14 @@ Existing requirements this change builds, in part:
 ## 1. Repository and toolchains
 
 - [x] 1.1 Create `host/` as a TypeScript package on Node 22 with Vitest, ESLint and `tsc --noEmit`, and verify `npm test` runs an empty suite and `npm run typecheck` passes
-- [ ] 1.2 Create `android/` as a Gradle project (AGP 9.0.1, Kotlin 2.3.20, Gradle 9.1.0, compileSdk 36, minSdk 30, Compose BOM 2026.03.01) with one empty Compose screen, and verify `./gradlew assembleDebug testDebugUnitTest` succeeds
-- [ ] 1.3 Create `protocol/` with a `generate` script that turns its JSON Schemas into `host/src/protocol/` types and `android/.../protocol/` classes, and verify a sample schema generates both and both compile
+- [x] 1.2 Create `android/` as a Gradle project (AGP 9.0.1, Kotlin 2.3.20, Gradle 9.1.0, compileSdk 36, minSdk 30, Compose BOM 2026.03.01) with one empty Compose screen, and verify `./gradlew assembleDebug testDebugUnitTest` succeeds
+- [x] 1.3 Create `protocol/` with a `generate` script that turns its JSON Schemas into `host/src/protocol/` types and `android/.../protocol/` classes, and verify a sample schema generates both and both compile
 - [x] 1.4 Add `scripts/scenarios.mjs`, which lists every scenario in `openspec/specs` and every test that names one, and fails when a test names a scenario that does not exist; verify it fails on a test naming a made-up scenario
 
 ## 2. The contract
 
 - [x] 2.1 Write the Story File schema (format version 1) covering every part the story-file spec lists, and verify a hand-written minimal Story File and a full one both validate
-- [ ] 2.2 Write the link's request, response, view and event schemas (pairing, stories list, Scene view, Move, Retry, the event stream, errors with trace ids, the contract version header), and verify generated types compile on both sides
+- [x] 2.2 Write the link's request, response, view and event schemas (pairing, stories list, Scene view, Move, Retry, the event stream, errors with trace ids, the contract version header), and verify generated types compile on both sides
 
 ## 3. The tree of entries
 
@@ -66,7 +66,7 @@ Existing requirements this change builds, in part:
 ## 8. The `fantasia` command
 
 - [x] 8.1 Build `fantasia serve`, `pair`, `import`, `stories`, `show` and `trace`, and verify each against a temporary store in a test
-- [ ] 8.2 Install `fantasia serve` as a LaunchAgent that keeps the Mac awake while a turn is under way, and verify it starts at login and `fantasia doctor` reports it, the Claude token and the database
+- [x] 8.2 Install `fantasia serve` as a LaunchAgent that keeps the Mac awake while a turn is under way, and verify it starts at login and `fantasia doctor` reports it, the Claude token and the database
 
 ## 9. The phone
 

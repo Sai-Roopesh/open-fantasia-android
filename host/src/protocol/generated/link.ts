@@ -175,6 +175,10 @@ export interface SceneView {
    */
   head_entry_id: string;
   scene: SceneCard;
+  /**
+   * The name of the person the player plays, for labelling their Moves.
+   */
+  player_character: string;
   earlier_scenes: SceneSummaryLine[];
   exchanges: Exchange[];
   turn: TurnState;

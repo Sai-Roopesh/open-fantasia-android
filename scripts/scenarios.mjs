@@ -51,7 +51,8 @@ export function testClaims() {
     ...walk(join(repo, "android"), p => /\/(test|androidTest)\//.test(p) && p.endsWith(".kt"))
   ];
   const claims = [];
-  const name = /[`"']([^`"'\n]*? › [^`"'\n]*? › [^`"'\n]*?)[`"']/g;
+  // Test names are written in double quotes or backticks; an apostrophe belongs to the name ("Draconia's action").
+  const name = /[`"]([^`"\n]*? › [^`"\n]*? › [^`"\n]*?)[`"]/g;
   for (const file of tests) {
     const text = readFileSync(file, "utf8");
     for (const match of text.matchAll(name)) {

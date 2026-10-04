@@ -52,6 +52,7 @@ export function sceneView(mac: Mac, engine: Engine, storyId: string, traceId: st
     seq: Math.max(...all.map(entry => entry.seq)),
     head_entry_id: path.headEntryId,
     scene: sceneCard(storyId, state),
+    player_character: state.playerCharacter,
     earlier_scenes: all
       .filter(entry => entry.payload.kind === "scene_opened" && entry.id !== state.scene?.openedBy)
       .map(entry => entry.payload.kind === "scene_opened" ? { number: entry.payload.number, title: entry.payload.title, summary: "" } : { number: 0, title: "", summary: "" }),
