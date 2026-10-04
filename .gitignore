@@ -1,0 +1,13 @@
+# Dependencies and builds
+node_modules/
+dist/
+build/
+.gradle/
+*.apk
+local.properties
+.idea/
+.DS_Store
+
+# Runtime data: the Mac's Story store lives outside the repo
+*.db
+*.db-journal
