@@ -17,9 +17,9 @@ class StoredPairingTest {
                 override fun read() = value
                 override fun write(mac: PairedMac) { value = mac }
             }
-            val invite = PairingInvite(listOf("127.0.0.1"), "code", 1, mac.fingerprint, "mac", "Mac", mac.server.port.toLong())
+            val invite = PairingInvite(addresses = listOf("127.0.0.1"), code = "code", contract = 2, fingerprint = mac.fingerprint, hostID = "mac", hostName = "Mac", port = mac.server.port.toLong())
             val link = MacConnection(store, MacDiscovery { emptyList() }, "Phone")
-            mac.server.enqueue(MockResponse().setBody("""{"host_id":"mac","host_name":"Mac","device_token":"token","trace_id":"pair"}"""))
+            mac.enqueue(MockResponse().setBody("""{"host_id":"mac","host_name":"Mac","device_token":"token","trace_id":"pair"}"""))
             link.pair(invite)
             val paired = requireNotNull(store.read())
             assertEquals("mac", paired.hostID)
@@ -30,16 +30,16 @@ class StoredPairingTest {
             mac.server.takeRequest()
             val reopened = MacConnection(store, MacDiscovery { emptyList() }, "Phone")
             assertTrue(reopened.isPaired)
-            mac.server.enqueue(MockResponse().setBody("""{"stories":[],"trace_id":"list"}"""))
+            mac.enqueue(MockResponse().setBody("""{"stories":[],"trace_id":"list"}"""))
             assertEquals("list", reopened.stories().traceID)
             mac.server.takeRequest()
             val portrait = requireNotNull(reopened.portrait("/portraits/hermione.jpg"))
-            mac.server.enqueue(MockResponse().setBody("portrait"))
+            mac.enqueue(MockResponse().setBody("portrait"))
             portrait.http.newCall(Request.Builder().url(portrait.url).build()).execute().close()
             val request = mac.server.takeRequest()
             assertEquals("/portraits/hermione.jpg", request.path)
             assertEquals("Bearer token", request.getHeader("Authorization"))
-            assertEquals("1", request.getHeader("Fantasia-Contract"))
+            assertEquals("2", request.getHeader("Fantasia-Contract"))
             assertNull(reopened.portrait("http://127.0.0.1/portrait.jpg"))
         }
     }

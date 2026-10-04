@@ -44,7 +44,8 @@ class FantasiaModel(private val link: FantasiaLink) : ViewModel() {
                 val invite = linkJson.decodeFromString<PairingInvite>(scanner.scan())
                 if (invite.contract != CONTRACT_VERSION.toLong()) throw LinkFailure(UPDATE_REQUIRED, versionMismatch = true)
                 link.pair(invite)
-                mutable.update { it.copy(paired = true, stories = link.stories().stories) }
+                val stories = link.stories().stories
+                mutable.update { it.copy(paired = true, stories = stories) }
             } catch (e: CancellationException) { throw e
             } catch (e: Exception) {
                 showProblem(if (e is SerializationException || e is IllegalArgumentException)
@@ -57,7 +58,9 @@ class FantasiaModel(private val link: FantasiaLink) : ViewModel() {
         stream?.cancel()
         viewModelScope.launch {
             mutable.update { it.copy(scene = null, loading = true, problem = null) }
-            try { mutable.update { it.copy(stories = link.stories().stories) }
+            try {
+                val stories = link.stories().stories
+                mutable.update { it.copy(stories = stories) }
             } catch (e: CancellationException) { throw e
             } catch (e: Exception) { showProblem(e)
             } finally { mutable.update { it.copy(loading = false) } }
@@ -98,7 +101,7 @@ class FantasiaModel(private val link: FantasiaLink) : ViewModel() {
         mutable.update { it.copy(sending = true, problem = null) }
         viewModelScope.launch {
             try {
-                val accepted = link.move(scene.storyID, MoveRequest(scene.headEntryID, state.draft))
+                val accepted = link.move(scene.storyID, MoveRequest(after = scene.headEntryID, text = state.draft))
                 pendingMoveID = accepted.moveEntryID
                 val current = mutable.value.scene
                 val finished = current != null && current.seq > scene.seq && current.headEntryID != accepted.moveEntryID && current.turn.kind == TurnStateKind.Idle
@@ -135,6 +138,71 @@ class FantasiaModel(private val link: FantasiaLink) : ViewModel() {
         }
     }
 
+    fun focus(name: String) {
+        val scene = mutable.value.scene ?: return
+        if (scene.dayView != null) return
+        changeScene { link.focus(it.storyID, FocusRequest(after = it.headEntryID, on = name.takeUnless { it == scene.focus })) }
+    }
+
+    fun linger(on: Boolean) {
+        if (mutable.value.scene?.dayView != null) return
+        changeScene { link.linger(it.storyID, LingerRequest(after = it.headEntryID, on = on)) }
+    }
+
+    fun redo(direction: String?, remember: Boolean) {
+        val state = mutable.value
+        val scene = state.scene ?: return
+        if (!state.canChangeScene || scene.exchanges.lastOrNull()?.let { it.move != null && it.reply != null } != true) return
+        afterSeq = scene.seq
+        mutable.update { it.copy(sending = true, problem = null) }
+        viewModelScope.launch {
+            try {
+                val accepted = link.redo(scene.storyID, RedoRequest(after = scene.headEntryID,
+                    direction = direction?.trim()?.takeIf { it.isNotEmpty() }, remember = remember))
+                pendingMoveID = accepted.moveEntryID
+                val current = mutable.value.scene
+                val finished = current != null && current.seq > scene.seq && current.headEntryID != accepted.moveEntryID && current.turn.kind == TurnStateKind.Idle
+                mutable.update { it.copy(waiting = !finished) }
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) {
+                showProblem(e)
+                if (e !is LinkFailure || !e.versionMismatch) {
+                    try { val fresh = link.scene(scene.storyID); mutable.update { it.copy(scene = fresh) } }
+                    catch (cancelled: CancellationException) { throw cancelled }
+                    catch (_: Exception) { }
+                }
+            } finally { mutable.update { it.copy(sending = false) } }
+        }
+    }
+
+    fun endScene() {
+        val scene = mutable.value.scene ?: return
+        if (scene.dayView != null) return
+        changeScene { link.endScene(it.storyID, EndSceneRequest(after = it.headEntryID)) }
+    }
+
+    private fun changeScene(command: suspend (SceneView) -> Unit) {
+        val state = mutable.value
+        val scene = state.scene ?: return
+        if (!state.canChangeScene) return
+        mutable.update { it.copy(sending = true, problem = null) }
+        viewModelScope.launch {
+            try {
+                command(scene)
+                openStory(scene.storyID)
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) {
+                showProblem(e)
+                if (e !is LinkFailure || !e.versionMismatch) {
+                    // Reload before another command, preserving the reason for the refusal.
+                    try { val fresh = link.scene(scene.storyID); mutable.update { it.copy(scene = fresh) } }
+                    catch (cancelled: CancellationException) { throw cancelled }
+                    catch (_: Exception) { }
+                }
+            } finally { mutable.update { it.copy(sending = false) } }
+        }
+    }
+
     fun portrait(url: String) = link.portrait(url)
 
     private fun showProblem(e: Exception) {
@@ -143,3 +211,6 @@ class FantasiaModel(private val link: FantasiaLink) : ViewModel() {
         mutable.update { it.copy(problem = problem) }
     }
 }
+
+val FantasiaState.canChangeScene: Boolean
+    get() = scene?.turn?.kind == TurnStateKind.Idle && reachable && !loading && !sending && !waiting && problem?.needsUpdate != true

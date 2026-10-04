@@ -13,17 +13,17 @@ class ReconnectionTest {
     // THEN the phone shows the whole finished Reply and everything after it, with nothing missing or repeated
     @Test fun `mac-link › A dropped connection loses nothing › Wi-Fi drops mid-Reply`() = runBlocking {
         MacServer().use { mac ->
-            mac.server.enqueue(MockResponse().setHeader("Content-Type", "text/event-stream").setBody(
-                eventData("2", StoryEvent(StoryEventKind.Move, passage = Passage("move", "I smile."), seq = 2)) +
-                eventData(null, StoryEvent(StoryEventKind.ReplyStarted, seq = 2)) +
-                eventData("2.1", StoryEvent(StoryEventKind.ReplyDelta, seq = 2, text = "She "))
+            mac.enqueue(MockResponse().setHeader("Content-Type", "text/event-stream").setBody(
+                eventData("2", StoryEvent(kind = StoryEventKind.Move, passage = Passage(entryID = "move", text = "I smile."), seq = 2)) +
+                eventData(null, StoryEvent(kind = StoryEventKind.ReplyStarted, seq = 2)) +
+                eventData("2.1", StoryEvent(kind = StoryEventKind.ReplyDelta, seq = 2, text = "She "))
             ))
-            val reply = StoryEvent(StoryEventKind.Reply, passage = Passage("reply", "She smiles back."), seq = 3)
-            mac.server.enqueue(MockResponse().setHeader("Content-Type", "text/event-stream").setBody(
-                eventData("2.1", StoryEvent(StoryEventKind.ReplyDelta, seq = 2, text = "She ")) +
+            val reply = StoryEvent(kind = StoryEventKind.Reply, passage = Passage(entryID = "reply", text = "She smiles back."), seq = 3)
+            mac.enqueue(MockResponse().setHeader("Content-Type", "text/event-stream").setBody(
+                eventData("2.1", StoryEvent(kind = StoryEventKind.ReplyDelta, seq = 2, text = "She ")) +
                 eventData("3", reply) + eventData("3", reply) +
-                eventData("4", StoryEvent(StoryEventKind.Move, passage = Passage("next", "I wait."), seq = 4)) +
-                eventData("5", StoryEvent(StoryEventKind.Reply, passage = Passage("last", "The fire settles."), seq = 5))
+                eventData("4", StoryEvent(kind = StoryEventKind.Move, passage = Passage(entryID = "next", text = "I wait."), seq = 4)) +
+                eventData("5", StoryEvent(kind = StoryEventKind.Reply, passage = Passage(entryID = "last", text = "The fire settles."), seq = 5))
             ))
             val view = withTimeout(5000) { StoryStream { mac.client }.follow(sceneFixture()).first { it.seq == 5L } }
             assertEquals(listOf("opening", "reply", "last"), view.exchanges.mapNotNull { it.reply?.entryID })

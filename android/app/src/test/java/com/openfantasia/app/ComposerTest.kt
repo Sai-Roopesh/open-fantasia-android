@@ -14,19 +14,19 @@ class ComposerTest {
     @Test fun `presence › The player can always write › Typing during a Reply`() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         try {
-            val view = MutableStateFlow(sceneFixture().copy(turn = TurnState(TurnStateKind.Writing, textSoFar = "She ")))
+            val view = MutableStateFlow(sceneFixture().copy(turn = TurnState(kind = TurnStateKind.Writing, textSoFar = "She ")))
             val moves = mutableListOf<MoveRequest>()
-            val link = object : FantasiaLink {
+            val link = object : StubFantasiaLink() {
                 override val isPaired = true
                 override val reachable = MutableStateFlow(true)
                 override suspend fun pair(invite: PairingInvite) = Unit
-                override suspend fun stories() = StoryList(emptyList(), "list")
+                override suspend fun stories() = StoryList(stories = emptyList(), traceID = "list")
                 override suspend fun scene(storyID: String) = view.value
                 override suspend fun move(storyID: String, move: MoveRequest): TurnAccepted {
                     moves += move
-                    return TurnAccepted("move", "turn")
+                    return TurnAccepted(moveEntryID = "move", traceID = "turn")
                 }
-                override suspend fun retry(storyID: String) = TurnAccepted("move", "turn")
+                override suspend fun retry(storyID: String) = TurnAccepted(moveEntryID = "move", traceID = "turn")
                 override fun watch(initial: SceneView): Flow<SceneView> = view
             }
             val model = FantasiaModel(link)
@@ -37,11 +37,11 @@ class ComposerTest {
             advanceUntilIdle()
             assertTrue(moves.isEmpty())
             assertEquals("I wait.", model.state.value.draft)
-            view.value = view.value.copy(turn = TurnState(TurnStateKind.Idle))
+            view.value = view.value.copy(turn = TurnState(kind = TurnStateKind.Idle))
             advanceUntilIdle()
             model.sendMove()
             advanceUntilIdle()
-            assertEquals(MoveRequest("opening", "I wait."), moves.single())
+            assertEquals(MoveRequest(after = "opening", text = "I wait."), moves.single())
             assertEquals("", model.state.value.draft)
             model.pause()
         } finally { Dispatchers.resetMain() }

@@ -17,14 +17,14 @@ class OpenStoryTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         try {
             val view = sceneFixture()
-            val link = object : FantasiaLink {
+            val link = object : StubFantasiaLink() {
                 override val isPaired = true
                 override val reachable = MutableStateFlow(true)
                 override suspend fun pair(invite: PairingInvite) = Unit
-                override suspend fun stories() = StoryList(emptyList(), "list")
+                override suspend fun stories() = StoryList(stories = emptyList(), traceID = "list")
                 override suspend fun scene(storyID: String) = view
-                override suspend fun move(storyID: String, move: MoveRequest) = TurnAccepted("move", "turn")
-                override suspend fun retry(storyID: String) = TurnAccepted("move", "turn")
+                override suspend fun move(storyID: String, move: MoveRequest) = TurnAccepted(moveEntryID = "move", traceID = "turn")
+                override suspend fun retry(storyID: String) = TurnAccepted(moveEntryID = "move", traceID = "turn")
                 override fun watch(initial: SceneView) = emptyFlow<SceneView>()
             }
             val model = FantasiaModel(link)

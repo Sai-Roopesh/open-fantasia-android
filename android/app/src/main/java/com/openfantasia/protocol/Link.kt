@@ -20,6 +20,13 @@
 // val moveRequest      = json.parse(MoveRequest.serializer(), jsonString)
 // val turnAccepted     = json.parse(TurnAccepted.serializer(), jsonString)
 // val storyEvent       = json.parse(StoryEvent.serializer(), jsonString)
+// val dayView          = json.parse(DayView.serializer(), jsonString)
+// val countdown        = json.parse(Countdown.serializer(), jsonString)
+// val endSceneRequest  = json.parse(EndSceneRequest.serializer(), jsonString)
+// val focusRequest     = json.parse(FocusRequest.serializer(), jsonString)
+// val lingerRequest    = json.parse(LingerRequest.serializer(), jsonString)
+// val redoRequest      = json.parse(RedoRequest.serializer(), jsonString)
+// val accepted         = json.parse(Accepted.serializer(), jsonString)
 
 package com.openfantasia.protocol
 
@@ -137,16 +144,40 @@ data class StorySummary (
  */
 @Serializable
 data class SceneView (
+    /**
+     * Present once the Scene has closed, by the Story or by End scene: the Day View, whose
+     * composer takes the next Move.
+     */
+    @SerialName("day_view")
+    val dayView: DayView? = null,
+
     @SerialName("earlier_scenes")
     val earlierScenes: List<SceneSummaryLine>,
 
     val exchanges: List<Exchange>,
 
     /**
+     * Who the Scene is focused on, or null.
+     */
+    val focus: String? = null,
+
+    /**
      * The entry a Move must follow.
      */
     @SerialName("head_entry_id")
     val headEntryID: String,
+
+    /**
+     * The id of the newest event this view reflects, including the words of a Reply under way;
+     * the live stream resumes after it.
+     */
+    @SerialName("last_event_id")
+    val lastEventID: String,
+
+    /**
+     * Whether Linger is on.
+     */
+    val linger: Boolean,
 
     @SerialName("path_id")
     val pathID: String,
@@ -160,7 +191,7 @@ data class SceneView (
     val scene: SceneCard,
 
     /**
-     * The newest entry this view reflects; the live stream resumes after it.
+     * The newest entry in the Story when this view was taken.
      */
     val seq: Long,
 
@@ -171,6 +202,60 @@ data class SceneView (
     val traceID: String,
 
     val turn: TurnState
+)
+
+/**
+ * Where and when the Player Character is between Scenes (openspec day-view).
+ *
+ * scene_closed: the Day View.
+ */
+@Serializable
+data class DayView (
+    /**
+     * Story time, "Day N HH:MM".
+     */
+    val at: String,
+
+    /**
+     * Story time as people say it: "Sunday · 7:40 am".
+     */
+    @SerialName("at_label")
+    val atLabel: String,
+
+    /**
+     * Who closed the last Scene: the Story, whose closing Reply can be redone, or the player,
+     * with End scene.
+     */
+    @SerialName("closed_by")
+    val closedBy: ClosedBy,
+
+    val countdowns: List<Countdown>,
+
+    /**
+     * Where the Player Character is.
+     */
+    val place: String
+)
+
+/**
+ * Who closed the last Scene: the Story, whose closing Reply can be redone, or the player,
+ * with End scene.
+ */
+@Serializable
+enum class ClosedBy(val value: String) {
+    @SerialName("player") Player("player"),
+    @SerialName("story") Story("story");
+}
+
+@Serializable
+data class Countdown (
+    /**
+     * "3 days to Draconia's flying test", "Tomorrow: the first match", "Today at 6:00 pm: the
+     * feast".
+     */
+    val label: String,
+
+    val landmark: String
 )
 
 @Serializable
@@ -202,6 +287,8 @@ data class Passage (
 
 /**
  * A Scene's title card.
+ *
+ * scene_opened and reply: the Scene's card as it stands.
  */
 @Serializable
 data class SceneCard (
@@ -217,7 +304,13 @@ data class SceneCard (
     val atLabel: String,
 
     val number: Long,
+
+    /**
+     * Who is in the Scene now besides the Player Character, with their Portraits; someone a
+     * Move or the Story brings in is added.
+     */
     val people: List<PersonCard>,
+
     val place: String,
     val title: String
 )
@@ -282,15 +375,38 @@ data class TurnAccepted (
 )
 
 /**
- * One event on a Story's live stream. Entry events (scene_opened, move, reply) are replayed
- * after a reconnect; reply_started, reply_delta and reply_failed describe the turn under
- * way.
+ * One event on a Story's live stream. Entry events (scene_opened, move, reply,
+ * scene_closed, focus_set, linger_set, redo) are replayed after a reconnect; reply_started,
+ * reply_delta and reply_failed describe the turn under way. After scene_opened,
+ * scene_closed and redo the phone reads the Scene again, because they change more than one
+ * part of it.
  */
 @Serializable
 data class StoryEvent (
+    /**
+     * scene_closed: the Day View.
+     */
+    @SerialName("day_view")
+    val dayView: DayView? = null,
+
+    /**
+     * scene_opened and focus_set: who the Scene is focused on, or null.
+     */
+    val focus: String? = null,
+
     val kind: StoryEventKind,
+
+    /**
+     * linger_set: whether Linger is on.
+     */
+    val linger: Boolean? = null,
+
     val passage: Passage? = null,
     val reason: String? = null,
+
+    /**
+     * scene_opened and reply: the Scene's card as it stands.
+     */
     val scene: SceneCard? = null,
 
     /**
@@ -309,10 +425,68 @@ data class StoryEvent (
 
 @Serializable
 enum class StoryEventKind(val value: String) {
+    @SerialName("focus_set") FocusSet("focus_set"),
+    @SerialName("linger_set") LingerSet("linger_set"),
     @SerialName("move") Move("move"),
+    @SerialName("redo") Redo("redo"),
     @SerialName("reply") Reply("reply"),
     @SerialName("reply_delta") ReplyDelta("reply_delta"),
     @SerialName("reply_failed") ReplyFailed("reply_failed"),
     @SerialName("reply_started") ReplyStarted("reply_started"),
+    @SerialName("scene_closed") SceneClosed("scene_closed"),
     @SerialName("scene_opened") SceneOpened("scene_opened");
 }
+
+@Serializable
+data class EndSceneRequest (
+    /**
+     * The head the phone saw; refused as stale if the Story has moved on.
+     */
+    val after: String
+)
+
+@Serializable
+data class FocusRequest (
+    val after: String,
+
+    /**
+     * The person to focus on, by name, or null to clear Focus.
+     */
+    val on: String? = null
+)
+
+@Serializable
+data class LingerRequest (
+    val after: String,
+    val on: Boolean
+)
+
+/**
+ * Write the latest Reply again. The Direction reaches the Writer only, never the Story.
+ */
+@Serializable
+data class RedoRequest (
+    /**
+     * The head the phone saw: the latest Reply, or the end of the Scene that Reply closed.
+     */
+    val after: String,
+
+    val direction: String? = null,
+
+    /**
+     * Keep the Direction as a line of Taste.
+     */
+    val remember: Boolean
+)
+
+/**
+ * A change to the Story that is done when it is answered.
+ */
+@Serializable
+data class Accepted (
+    @SerialName("head_entry_id")
+    val headEntryID: String,
+
+    @SerialName("trace_id")
+    val traceID: String
+)

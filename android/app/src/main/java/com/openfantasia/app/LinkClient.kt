@@ -15,6 +15,7 @@ import kotlin.coroutines.resumeWithException
 
 const val UPDATE_REQUIRED = "This app needs updating to match your Mac"
 val linkJson = Json { ignoreUnknownKeys = true }
+private val commandJson = Json { encodeDefaults = true }
 
 class LinkFailure(val reason: String, val traceID: String? = null, val versionMismatch: Boolean = false) : IOException(reason)
 
@@ -29,6 +30,18 @@ class LinkClient(val address: HttpUrl, fingerprint: String, private val deviceTo
     suspend fun move(storyID: String, move: MoveRequest): TurnAccepted =
         command(listOf("stories", storyID, "moves"), linkJson.encodeToString(move))
     suspend fun retry(storyID: String): TurnAccepted = command(listOf("stories", storyID, "retry"), "{}")
+
+    suspend fun endScene(storyID: String, request: EndSceneRequest): Accepted =
+        command(listOf("stories", storyID, "end-scene"), linkJson.encodeToString(request))
+
+    suspend fun focus(storyID: String, request: FocusRequest): Accepted =
+        command(listOf("stories", storyID, "focus"), commandJson.encodeToString(request))
+
+    suspend fun linger(storyID: String, request: LingerRequest): Accepted =
+        command(listOf("stories", storyID, "linger"), commandJson.encodeToString(request))
+
+    suspend fun redo(storyID: String, request: RedoRequest): TurnAccepted =
+        command(listOf("stories", storyID, "redo"), commandJson.encodeToString(request))
 
     internal fun request(path: List<String>, body: String? = null, paired: Boolean = true): Request {
         val url = address.newBuilder().apply { path.forEach { addPathSegment(it) } }.build()

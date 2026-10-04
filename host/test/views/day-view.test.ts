@@ -14,6 +14,7 @@ describe("the Day View", () => {
       at: "Day 5 19:00",
       at_label: "Sunday · 7:00 pm",
       place: "The Gryffindor common room",
+      closed_by: "player",
       countdowns: [{ landmark: "Draconia's flying test", label: "3 days to Draconia's flying test" }]
     });
   });

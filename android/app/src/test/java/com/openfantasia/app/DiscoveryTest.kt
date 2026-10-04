@@ -23,10 +23,10 @@ class DiscoveryTest {
                 assertEquals("mac", id)
                 listOf(found)
             }, "Phone")
-            mac.server.enqueue(MockResponse().setBody("""{"stories":[],"trace_id":"list"}"""))
+            mac.enqueue(MockResponse().setBody("""{"stories":[],"trace_id":"list"}"""))
             assertEquals("list", connection.stories().traceID)
             assertEquals(found, store.read().lastAddress)
-            mac.server.enqueue(MockResponse().setBody("""{"stories":[],"trace_id":"fallback"}"""))
+            mac.enqueue(MockResponse().setBody("""{"stories":[],"trace_id":"fallback"}"""))
             val fallback = MacConnection(store, MacDiscovery { emptyList() }, "Phone")
             assertEquals("fallback", fallback.stories().traceID)
         }

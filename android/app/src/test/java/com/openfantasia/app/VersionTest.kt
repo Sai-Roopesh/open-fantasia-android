@@ -15,7 +15,7 @@ class VersionTest {
                 426 to "a newer contract cannot be decoded",
                 409 to """{"error":{"code":"version_mismatch","message":"newer","trace_id":"trace-version"}}"""
             )) {
-                mac.server.enqueue(MockResponse().setResponseCode(status).setBody(body))
+                mac.enqueue(MockResponse().setResponseCode(status).setBody(body))
                 val error = runCatching { mac.client.scene("story") }.exceptionOrNull() as LinkFailure
                 assertEquals("This app needs updating to match your Mac", error.reason)
                 assertTrue(error.versionMismatch)
@@ -23,7 +23,7 @@ class VersionTest {
                 val request = mac.server.takeRequest()
                 assertEquals("/stories/story/scene", request.path)
                 assertEquals("Bearer secret", request.getHeader("Authorization"))
-                assertEquals("1", request.getHeader("Fantasia-Contract"))
+                assertEquals("2", request.getHeader("Fantasia-Contract"))
             }
         }
     }

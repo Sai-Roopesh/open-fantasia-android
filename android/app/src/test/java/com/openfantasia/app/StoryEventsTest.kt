@@ -19,15 +19,15 @@ class StoryEventsTest {
         MacServer().use { mac ->
             val opened = sceneFixture().scene.copy(number = 15, title = "By the fire")
             val events = listOf(
-                "2" to StoryEvent(StoryEventKind.SceneOpened, scene = opened, passage = Passage("scene", "The fire crackles."), seq = 2),
-                "3" to StoryEvent(StoryEventKind.Move, passage = Passage("move", "I sit beside her."), seq = 3),
-                null to StoryEvent(StoryEventKind.ReplyStarted, seq = 3, traceID = "turn"),
-                "3.1" to StoryEvent(StoryEventKind.ReplyDelta, seq = 3, text = "She "),
-                "3.1" to StoryEvent(StoryEventKind.ReplyDelta, seq = 3, text = "She "),
-                "3.2" to StoryEvent(StoryEventKind.ReplyDelta, seq = 3, text = "smiles."),
-                "4" to StoryEvent(StoryEventKind.Reply, passage = Passage("reply", "She smiles."), seq = 4)
+                "2" to StoryEvent(kind = StoryEventKind.SceneOpened, scene = opened, passage = Passage(entryID = "scene", text = "The fire crackles."), seq = 2),
+                "3" to StoryEvent(kind = StoryEventKind.Move, passage = Passage(entryID = "move", text = "I sit beside her."), seq = 3),
+                null to StoryEvent(kind = StoryEventKind.ReplyStarted, seq = 3, traceID = "turn"),
+                "3.1" to StoryEvent(kind = StoryEventKind.ReplyDelta, seq = 3, text = "She "),
+                "3.1" to StoryEvent(kind = StoryEventKind.ReplyDelta, seq = 3, text = "She "),
+                "3.2" to StoryEvent(kind = StoryEventKind.ReplyDelta, seq = 3, text = "smiles."),
+                "4" to StoryEvent(kind = StoryEventKind.Reply, passage = Passage(entryID = "reply", text = "She smiles."), seq = 4)
             )
-            mac.server.enqueue(MockResponse().setHeader("Content-Type", "text/event-stream")
+            mac.enqueue(MockResponse().setHeader("Content-Type", "text/event-stream")
                 .setBody(events.joinToString("") { eventData(it.first, it.second) }))
             val projection = SceneProjection(sceneFixture())
             val views = withTimeout(5000) { mac.client.events("story", "1").toList().map { projection.apply(it) } }
@@ -44,7 +44,7 @@ class StoryEventsTest {
             assertEquals("/stories/story/events", request.path)
             assertEquals("1", request.getHeader("Last-Event-ID"))
             assertEquals("Bearer secret", request.getHeader("Authorization"))
-            assertEquals("1", request.getHeader("Fantasia-Contract"))
+            assertEquals("2", request.getHeader("Fantasia-Contract"))
         }
     }
 }

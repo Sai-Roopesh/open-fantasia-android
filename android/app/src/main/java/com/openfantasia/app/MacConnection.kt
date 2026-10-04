@@ -27,7 +27,7 @@ class MacConnection(
             val candidate = MacAddress(address, invite.port.toInt())
             val client = LinkClient(candidate.url(), invite.fingerprint, null)
             try {
-                val response = client.pair(PairRequest(invite.code, deviceName))
+                val response = client.pair(PairRequest(code = invite.code, deviceName = deviceName))
                 if (response.hostID != invite.hostID) throw LinkFailure("The QR code belongs to a different Mac", response.traceID)
                 val mac = PairedMac(response.hostID, response.hostName, invite.fingerprint, response.deviceToken, candidate)
                 store.write(mac)
@@ -80,6 +80,10 @@ class MacConnection(
     }
 
     override suspend fun move(storyID: String, move: MoveRequest): TurnAccepted = command { it.move(storyID, move) }
+    override suspend fun endScene(storyID: String, request: EndSceneRequest): Accepted = command { it.endScene(storyID, request) }
+    override suspend fun focus(storyID: String, request: FocusRequest): Accepted = command { it.focus(storyID, request) }
+    override suspend fun linger(storyID: String, request: LingerRequest): Accepted = command { it.linger(storyID, request) }
+    override suspend fun redo(storyID: String, request: RedoRequest): TurnAccepted = command { it.redo(storyID, request) }
     override suspend fun retry(storyID: String): TurnAccepted = command { it.retry(storyID) }
     override fun watch(initial: SceneView): Flow<SceneView> = StoryStream(
         onConnection = { connected.value = it }, loadScene = { scene(it) }

@@ -12,6 +12,10 @@ interface FantasiaLink {
     suspend fun scene(storyID: String): SceneView
     suspend fun move(storyID: String, move: MoveRequest): TurnAccepted
     suspend fun retry(storyID: String): TurnAccepted
+    suspend fun endScene(storyID: String, request: EndSceneRequest): Accepted
+    suspend fun focus(storyID: String, request: FocusRequest): Accepted
+    suspend fun linger(storyID: String, request: LingerRequest): Accepted
+    suspend fun redo(storyID: String, request: RedoRequest): TurnAccepted
     fun watch(initial: SceneView): Flow<SceneView>
     fun portrait(url: String): PortraitSource? = null
 }

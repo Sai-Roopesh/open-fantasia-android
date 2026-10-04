@@ -20,8 +20,8 @@ import okhttp3.OkHttpClient
 
 data class PortraitSource(val url: String, val http: OkHttpClient)
 
-@Composable fun Portrait(person: PersonCard, source: PortraitSource?) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+@Composable fun Portrait(person: PersonCard, source: PortraitSource?, modifier: Modifier = Modifier) {
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         val description = "${person.name}'s Portrait"
         if (source != null) {
             val context = LocalContext.current

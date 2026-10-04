@@ -14,15 +14,15 @@ class ReplySnapshotTest {
     // This also checks catching up while the Reply is still being written.
     @Test fun `mac-link › A dropped connection loses nothing › Wi-Fi drops mid-Reply`() = runBlocking {
         MacServer().use { mac ->
-            mac.server.enqueue(MockResponse().setHeader("Content-Type", "text/event-stream").setBody(
-                eventData("2", StoryEvent(StoryEventKind.Move, seq = 2, passage = Passage("move", "I smile."))) +
-                eventData(null, StoryEvent(StoryEventKind.ReplyStarted, seq = 2)) +
-                eventData("2.9", StoryEvent(StoryEventKind.ReplyDelta, seq = 2, text = "She "))
+            mac.enqueue(MockResponse().setHeader("Content-Type", "text/event-stream").setBody(
+                eventData("2", StoryEvent(kind = StoryEventKind.Move, seq = 2, passage = Passage(entryID = "move", text = "I smile."))) +
+                eventData(null, StoryEvent(kind = StoryEventKind.ReplyStarted, seq = 2)) +
+                eventData("2.9", StoryEvent(kind = StoryEventKind.ReplyDelta, seq = 2, text = "She "))
             ))
-            mac.server.enqueue(MockResponse().setHeader("Content-Type", "text/event-stream").setBody(
-                eventData("2", StoryEvent(StoryEventKind.ReplyStarted, seq = 2)) +
-                eventData("2.10", StoryEvent(StoryEventKind.ReplyDelta, seq = 2, text = "She smiles")) +
-                eventData("2.11", StoryEvent(StoryEventKind.ReplyDelta, seq = 2, text = " back."))
+            mac.enqueue(MockResponse().setHeader("Content-Type", "text/event-stream").setBody(
+                eventData("2", StoryEvent(kind = StoryEventKind.ReplyStarted, seq = 2)) +
+                eventData("2.10", StoryEvent(kind = StoryEventKind.ReplyDelta, seq = 2, text = "She smiles")) +
+                eventData("2.11", StoryEvent(kind = StoryEventKind.ReplyDelta, seq = 2, text = " back."))
             ))
             val view = withTimeout(5000) {
                 StoryStream { mac.client }.follow(sceneFixture()).first { it.turn.textSoFar == "She smiles back." }

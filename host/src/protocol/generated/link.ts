@@ -231,6 +231,10 @@ export interface DayView {
    * Where the Player Character is.
    */
   place: string;
+  /**
+   * Who closed the last Scene: the Story, whose closing Reply can be redone, or the player, with End scene.
+   */
+  closed_by: "story" | "player";
   countdowns: Countdown[];
 }
 /**
@@ -339,6 +343,10 @@ export interface DayView1 {
    * Where the Player Character is.
    */
   place: string;
+  /**
+   * Who closed the last Scene: the Story, whose closing Reply can be redone, or the player, with End scene.
+   */
+  closed_by: "story" | "player";
   countdowns: Countdown[];
 }
 /**

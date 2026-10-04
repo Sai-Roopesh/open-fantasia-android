@@ -19,7 +19,7 @@ class FailureScreenTest {
     @Scenario("presence › Nothing fails silently › A model is down")
     @Test fun failedReply() {
         val link = FakeFantasiaLink()
-        link.current.value = link.current.value.copy(turn = TurnState(TurnStateKind.Failed,
+        link.current.value = link.current.value.copy(turn = TurnState(kind = TurnStateKind.Failed,
             reason = "The Actor is unavailable", traceID = "trace-failure"))
         val model = FantasiaModel(link)
         compose.setContent { FantasiaApp(model, PairingScanner { error("Already paired") }) }

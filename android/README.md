@@ -15,6 +15,14 @@ The Java 17 toolchain is provisioned through Gradle's toolchain resolver. The wr
 
 The APKs are `app/build/outputs/apk/debug/app-debug.apk` and `app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk`. Device tests are built but are not run by that command.
 
+The Writer's Compose checks run locally with Robolectric through `WriterUiJvmTest` and on a device through
+`WriterScreenTest`. They share the same assertions and fixtures in `app/src/sharedTest/`. The local runner uses
+API 35 with native graphics and keeps its downloaded Android runtime in `.gradle-user/robolectric`. The keyboard
+check dispatches Android IME insets and measures the full Reply's end against the passage area and composer.
+
+Scene changes that touch more than one part of the Scene (a Scene opened or closed, a Redo, Focus, Linger) read the
+Scene view again; the stream resumes from the view's `last_event_id`, so words already shown are never repeated.
+
 ## Link and pairing
 
 Google's code scanner reads a `PairingInvite`. Pairing exchanges its code for the device token, with the invite's certificate fingerprint already pinned. Pairing details are kept in private SharedPreferences, with Android backup disabled.

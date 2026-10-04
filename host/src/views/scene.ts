@@ -48,7 +48,7 @@ function countdown(now: StoryTime, at: StoryTime, name: string, state: State): s
  * next Landmarks (openspec day-view: The Day View says where and when the player is).
  */
 export function dayView(state: State): DayView {
-  if (!state.scene) throw new Error("No Scene has opened");
+  if (!state.scene?.closed) throw new Error("The Day View opens once a Scene has closed");
   const now = parseStoryTime(state.clock);
   const countdowns: Countdown[] = now === null ? [] : state.landmarks
     .flatMap(landmark => {
@@ -58,7 +58,7 @@ export function dayView(state: State): DayView {
     .sort((left, right) => minutesOf(left.at) - minutesOf(right.at))
     .slice(0, COUNTDOWNS)
     .map(({ landmark, at }) => ({ landmark: landmark.name, label: countdown(now, at, landmark.name, state) }));
-  return { at: state.clock, at_label: say(state, state.clock), place: state.scene.place, countdowns };
+  return { at: state.clock, at_label: say(state, state.clock), place: state.scene.place, closed_by: state.scene.closed, countdowns };
 }
 
 /**

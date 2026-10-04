@@ -28,7 +28,7 @@ import androidx.lifecycle.Lifecycle
                 if (!state.paired) PairScreen(state.loading) { model.pair(scanner) }
                 else if (state.scene != null) {
                     TextButton(onClick = model::home, modifier = Modifier.heightIn(min = 48.dp)) { Text("Stories") }
-                    SceneScreen(state.scene!!, portrait, Modifier.weight(1f))
+                    SceneScreen(state.scene!!, portrait, Modifier.weight(1f), controlsEnabled = state.canChangeScene, endScene = model::endScene, focus = model::focus, linger = model::linger, redo = model::redo)
                     if (state.scene!!.turn.kind == com.openfantasia.protocol.TurnStateKind.Failed) {
                         ReplyFailure(state, model::retryReply)
                     }

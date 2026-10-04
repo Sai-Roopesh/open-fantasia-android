@@ -18,7 +18,7 @@ class PairScreenTest {
     @Scenario("mac-link › Pairing happens once, by QR code › First pairing")
     @Test fun firstPairing() {
         val link = FakeFantasiaLink(false)
-        val invite = PairingInvite(listOf("192.168.1.5"), "invite", 1, "ab".repeat(32), "mac", "Mac", 7443)
+        val invite = PairingInvite(addresses = listOf("192.168.1.5"), code = "invite", contract = 2, fingerprint = "ab".repeat(32), hostID = "mac", hostName = "Mac", port = 7443)
         compose.setContent { FantasiaApp(FantasiaModel(link), PairingScanner { linkJson.encodeToString(invite) }) }
         compose.onNodeWithText("Scan Mac QR code").performClick()
         compose.waitUntil(5000) { link.pairedInvite != null }

@@ -57,28 +57,38 @@ private data class EventOrder(val seq: Long, val delta: Long = 0) : Comparable<E
 class SceneProjection(initial: SceneView) {
     var view: SceneView = initial
         private set
-    var lastEventID: String = initial.seq.toString()
+    var lastEventID: String = initial.lastEventID
         private set
 
     fun apply(envelope: StoryEventEnvelope): SceneView {
         val event = envelope.event
-        if (event.seq < view.seq) return view
-        val order = envelope.id?.let(EventOrder::parse)
-        if (order != null && order.seq != event.seq) throw LinkFailure("The Mac sent an out-of-order Story change")
-        val entry = event.kind in setOf(StoryEventKind.Move, StoryEventKind.Reply, StoryEventKind.SceneOpened)
-        if (entry && event.seq <= view.seq) return view
+        val cursor = EventOrder.parse(lastEventID)
+        if (event.seq < cursor.seq) return view
+        val order = if (event.kind == StoryEventKind.ReplyFailed) null else envelope.id?.let(EventOrder::parse)
+        // SSE carries the preceding id into an id-less reply_started event. A view reloaded
+        // mid-turn can already contain its words; that queued start must not erase them.
+        if (event.kind == StoryEventKind.ReplyStarted && view.turn.kind == TurnStateKind.Writing &&
+            EventOrder.parse(lastEventID).let { it.seq == event.seq && it.delta > 0 } &&
+            (order == null || order.seq != event.seq || envelope.id?.endsWith(".0") == true)) return view
+        if (order != null && order.seq != event.seq && event.kind != StoryEventKind.ReplyStarted) throw LinkFailure("The Mac sent an out-of-order Story change")
+        val entry = event.kind in setOf(StoryEventKind.Move, StoryEventKind.Reply, StoryEventKind.SceneOpened, StoryEventKind.SceneClosed, StoryEventKind.FocusSet, StoryEventKind.LingerSet, StoryEventKind.Redo)
+        if (entry && (order ?: EventOrder(event.seq)) <= cursor) return view
         if (event.kind == StoryEventKind.ReplyDelta && order != null && order <= EventOrder.parse(lastEventID)) return view
         view = when (event.kind) {
+            StoryEventKind.SceneClosed -> view.copy(seq = maxOf(view.seq, event.seq), dayView = requireNotNull(event.dayView), focus = null, linger = false)
+            StoryEventKind.FocusSet -> view.copy(seq = maxOf(view.seq, event.seq), focus = event.focus)
+            StoryEventKind.LingerSet -> view.copy(seq = maxOf(view.seq, event.seq), linger = requireNotNull(event.linger))
+            StoryEventKind.Redo -> view.copy(seq = maxOf(view.seq, event.seq))
             StoryEventKind.SceneOpened -> view.copy(
-                scene = requireNotNull(event.scene),
+                scene = requireNotNull(event.scene), focus = event.focus, linger = false, dayView = null,
                 exchanges = event.passage?.let { listOf(Exchange(reply = it)) } ?: emptyList(),
                 headEntryID = event.passage?.entryID ?: view.headEntryID,
-                seq = event.seq, turn = TurnState(TurnStateKind.Idle)
+                seq = maxOf(view.seq, event.seq), turn = TurnState(kind = TurnStateKind.Idle)
             )
             StoryEventKind.Move -> view.copy(
                 exchanges = view.exchanges + Exchange(move = requireNotNull(event.passage)),
-                headEntryID = event.passage.entryID, seq = event.seq,
-                turn = TurnState(TurnStateKind.Idle)
+                headEntryID = event.passage.entryID, seq = maxOf(view.seq, event.seq),
+                turn = TurnState(kind = TurnStateKind.Idle)
             )
             StoryEventKind.Reply -> {
                 val reply = requireNotNull(event.passage)
@@ -86,27 +96,29 @@ class SceneProjection(initial: SceneView) {
                 if (exchanges.lastOrNull()?.let { it.move != null && it.reply == null } == true) {
                     exchanges[exchanges.lastIndex] = exchanges.last().copy(reply = reply)
                 } else exchanges += Exchange(reply = reply)
-                view.copy(exchanges = exchanges, headEntryID = reply.entryID, seq = event.seq,
-                    turn = TurnState(TurnStateKind.Idle))
+                view.copy(scene = event.scene ?: view.scene, exchanges = exchanges, headEntryID = reply.entryID, seq = maxOf(view.seq, event.seq),
+                    turn = TurnState(kind = TurnStateKind.Idle))
             }
-            StoryEventKind.ReplyStarted -> view.copy(turn = TurnState(TurnStateKind.Writing,
+            StoryEventKind.ReplyStarted -> view.copy(seq = maxOf(view.seq, event.seq), turn = TurnState(kind = TurnStateKind.Writing,
                 textSoFar = "", traceID = event.traceID))
-            StoryEventKind.ReplyDelta -> view.copy(turn = TurnState(TurnStateKind.Writing,
+            StoryEventKind.ReplyDelta -> view.copy(seq = maxOf(view.seq, event.seq), turn = TurnState(kind = TurnStateKind.Writing,
                 textSoFar = view.turn.textSoFar.orEmpty() + requireNotNull(event.text),
                 traceID = event.traceID ?: view.turn.traceID))
-            StoryEventKind.ReplyFailed -> view.copy(turn = TurnState(TurnStateKind.Failed,
+            StoryEventKind.ReplyFailed -> view.copy(seq = maxOf(view.seq, event.seq), turn = TurnState(kind = TurnStateKind.Failed,
                 reason = requireNotNull(event.reason), traceID = event.traceID))
         }
         // A resumed turn starts with its complete text so far, then new deltas; Retry can reuse the Move's seq.
-        if (event.kind == StoryEventKind.ReplyStarted) lastEventID = event.seq.toString()
+        if (event.kind == StoryEventKind.ReplyStarted) lastEventID = envelope.id?.takeIf { order?.seq == event.seq } ?: event.seq.toString()
+        else if (event.kind == StoryEventKind.ReplyFailed) lastEventID = event.seq.toString()
         else if (envelope.id != null && (entry || event.kind == StoryEventKind.ReplyDelta)) lastEventID = envelope.id
+        view = view.copy(lastEventID = lastEventID)
         return view
     }
 
     fun replace(snapshot: SceneView) {
-        if (snapshot.seq >= view.seq) {
+        if (snapshot.seq >= view.seq && EventOrder.parse(snapshot.lastEventID) >= EventOrder.parse(lastEventID)) {
             view = snapshot
-            lastEventID = snapshot.seq.toString()
+            lastEventID = snapshot.lastEventID
         }
     }
 }

@@ -15,17 +15,17 @@ class RetryTest {
     @Test fun `presence › Nothing fails silently › A model is down`() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         try {
-            val failed = sceneFixture().copy(exchanges = listOf(Exchange(move = Passage("move", "I wait."))),
-                headEntryID = "move", turn = TurnState(TurnStateKind.Failed, reason = "Actor unavailable", traceID = "failed"))
+            val failed = sceneFixture().copy(exchanges = listOf(Exchange(move = Passage(entryID = "move", text = "I wait."))),
+                headEntryID = "move", turn = TurnState(kind = TurnStateKind.Failed, reason = "Actor unavailable", traceID = "failed"))
             var retries = 0
-            val link = object : FantasiaLink {
+            val link = object : StubFantasiaLink() {
                 override val isPaired = true
                 override val reachable = MutableStateFlow(true)
                 override suspend fun pair(invite: PairingInvite) = Unit
-                override suspend fun stories() = StoryList(emptyList(), "list")
+                override suspend fun stories() = StoryList(stories = emptyList(), traceID = "list")
                 override suspend fun scene(storyID: String) = failed
                 override suspend fun move(storyID: String, move: MoveRequest): TurnAccepted = error("Retry must keep the original Move")
-                override suspend fun retry(storyID: String): TurnAccepted { retries++; return TurnAccepted("move", "retry") }
+                override suspend fun retry(storyID: String): TurnAccepted { retries++; return TurnAccepted(moveEntryID = "move", traceID = "retry") }
                 override fun watch(initial: SceneView) = emptyFlow<SceneView>()
             }
             val model = FantasiaModel(link)

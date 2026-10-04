@@ -12,9 +12,9 @@ class MoveTest {
     // THEN the Mac refuses it with a reason and a trace id, and the app shows the reason
     @Test fun `mac-link › Every request is answered or refused with a reason › A refused Move`() = runBlocking {
         MacServer().use { mac ->
-            mac.server.enqueue(MockResponse().setResponseCode(409).setBody(
+            mac.enqueue(MockResponse().setResponseCode(409).setBody(
                 """{"error":{"code":"busy","message":"A Reply is still being written","trace_id":"busy-trace"}}"""))
-            val error = runCatching { mac.client.move("story", MoveRequest("opening", "I wait.")) }.exceptionOrNull() as LinkFailure
+            val error = runCatching { mac.client.move("story", MoveRequest(after = "opening", text = "I wait.")) }.exceptionOrNull() as LinkFailure
             assertEquals("A Reply is still being written", error.reason)
             assertEquals("busy-trace", error.traceID)
             val request = mac.server.takeRequest()
@@ -22,7 +22,7 @@ class MoveTest {
             assertEquals("POST", request.method)
             assertEquals("""{"after":"opening","text":"I wait."}""", request.body.readUtf8())
             assertEquals("Bearer secret", request.getHeader("Authorization"))
-            assertEquals("1", request.getHeader("Fantasia-Contract"))
+            assertEquals("2", request.getHeader("Fantasia-Contract"))
         }
     }
 }

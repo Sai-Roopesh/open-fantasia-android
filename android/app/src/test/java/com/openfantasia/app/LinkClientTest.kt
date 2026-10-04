@@ -23,7 +23,7 @@ class LinkClientTest {
                 .joinToString("") { "%02x".format(it) }
             val client = LinkClient(server.url("/"), fingerprint, null)
             server.enqueue(MockResponse().setBody("""{"device_token":"secret","host_id":"mac","host_name":"Mac","trace_id":"pair"}"""))
-            val pair = client.pair(PairRequest("invite", "Phone"))
+            val pair = client.pair(PairRequest(code = "invite", deviceName = "Phone"))
             val request = server.takeRequest()
             assertEquals("POST", request.method)
             assertEquals("/pair", request.path)

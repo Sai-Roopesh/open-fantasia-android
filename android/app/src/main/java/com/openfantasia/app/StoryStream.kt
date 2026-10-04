@@ -16,16 +16,21 @@ class StoryStream(
     private val client: suspend () -> LinkClient
 ) {
     fun follow(initial: SceneView): Flow<SceneView> = flow {
-        val projection = SceneProjection(initial)
+        var projection = SceneProjection(initial)
         while (currentCoroutineContext().isActive) {
             try {
                 client().events(initial.storyID, projection.lastEventID, onConnection).collect { envelope ->
                     val before = projection.view
-                    projection.apply(envelope)
-                    if (projection.view != before && envelope.event.kind == StoryEventKind.SceneOpened) {
-                        // The event has the new card; only the Mac can supply summaries of earlier Scenes.
-                        loadScene?.invoke(initial.storyID)?.let(projection::replace)
+                    val next = SceneProjection(before)
+                    next.apply(envelope)
+                    if (next.view != before && envelope.event.kind in setOf(
+                            StoryEventKind.SceneOpened, StoryEventKind.SceneClosed, StoryEventKind.Redo,
+                            StoryEventKind.FocusSet, StoryEventKind.LingerSet)) {
+                        // Keep the old projection and cursor until the entire reload succeeds.
+                        val snapshot = loadScene?.invoke(initial.storyID) ?: client().scene(initial.storyID)
+                        next.replace(snapshot)
                     }
+                    projection = next
                     val view = projection.view
                     if (view != before) emit(view)
                 }

@@ -13,7 +13,7 @@ class SseVersionTest {
     // THEN the app says it needs updating to match the Mac
     @Test fun `mac-link › The phone and the Mac agree on what they speak › An old app`() = runBlocking {
         MacServer().use { mac ->
-            mac.server.enqueue(MockResponse().setResponseCode(426).setBody(
+            mac.enqueue(MockResponse().setResponseCode(426).setBody(
                 """{"error":{"code":"version_mismatch","message":"newer","trace_id":"stream-version"}}"""))
             val error = runCatching {
                 withTimeout(5000) { StoryStream { mac.client }.follow(sceneFixture()).toList() }

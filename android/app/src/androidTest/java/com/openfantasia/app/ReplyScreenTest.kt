@@ -23,11 +23,11 @@ class ReplyScreenTest {
         compose.onNodeWithTag("composer").performTextInput("I wait.")
         compose.onNodeWithText("Send").performClick()
         compose.runOnIdle {
-            link.current.value = link.current.value.copy(turn = TurnState(TurnStateKind.Writing, textSoFar = "The fire "))
+            link.current.value = link.current.value.copy(turn = TurnState(kind = TurnStateKind.Writing, textSoFar = "The fire "))
         }
         compose.onNodeWithText("The fire ").assertIsDisplayed()
         compose.runOnIdle {
-            link.current.value = link.current.value.copy(turn = TurnState(TurnStateKind.Writing, textSoFar = "The fire settles."))
+            link.current.value = link.current.value.copy(turn = TurnState(kind = TurnStateKind.Writing, textSoFar = "The fire settles."))
         }
         compose.onNodeWithText("The fire settles.").assertIsDisplayed()
         assertEquals("I wait.", link.moves.single().text)
@@ -38,14 +38,14 @@ class ReplyScreenTest {
     @Scenario("presence › The player can always write › Typing during a Reply")
     @Test fun typingDuringReply() {
         val link = FakeFantasiaLink()
-        link.current.value = link.current.value.copy(turn = TurnState(TurnStateKind.Writing, textSoFar = "She "))
+        link.current.value = link.current.value.copy(turn = TurnState(kind = TurnStateKind.Writing, textSoFar = "She "))
         val model = FantasiaModel(link)
         compose.setContent { FantasiaApp(model, PairingScanner { error("Already paired") }) }
         compose.onNodeWithText("The Malfoy Problem").performClick()
         compose.onNodeWithTag("composer").performTextInput("I wait beside her.")
         compose.onNodeWithTag("composer").assertTextContains("I wait beside her.")
         compose.onNodeWithText("Send").assertIsNotEnabled()
-        compose.runOnIdle { link.current.value = link.current.value.copy(turn = TurnState(TurnStateKind.Idle)) }
+        compose.runOnIdle { link.current.value = link.current.value.copy(turn = TurnState(kind = TurnStateKind.Idle)) }
         compose.onNodeWithText("Send").assertIsEnabled().performClick()
         compose.runOnIdle { assertEquals("I wait beside her.", link.moves.single().text) }
     }

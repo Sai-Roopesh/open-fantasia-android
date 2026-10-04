@@ -67,7 +67,7 @@ describe("a turn with the Writer", () => {
     await play("I say goodnight.");
     expect(path().slice(-2)).toMatchObject([{ kind: "reply" }, { kind: "scene_closed", by: "story" }]);
     const shown = view();
-    expect(shown.day_view).toMatchObject({ at: "Day 3 21:42", at_label: "Friday · 9:42 pm", place: "The Gryffindor common room" });
+    expect(shown.day_view).toMatchObject({ at: "Day 3 21:42", at_label: "Friday · 9:42 pm", place: "The Gryffindor common room", closed_by: "story" });
     expect(shown.exchanges.at(-1)!.move!.text).toBe("I say goodnight.");
     expect(events.map(event => event.event.kind).slice(-2)).toEqual(["reply", "scene_closed"]);
   });
