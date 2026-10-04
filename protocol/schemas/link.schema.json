@@ -1,0 +1,462 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://open-fantasia.local/link.schema.json",
+  "title": "Link",
+  "description": "Everything the phone and the Mac say to each other (openspec/specs/mac-link). Every request carries the Fantasia-Contract header with the contract version; every response carries a trace id. Unions are flat objects with a kind field, so the Kotlin side stays plain data classes.",
+  "$defs": {
+    "ErrorCode": {
+      "type": "string",
+      "enum": [
+        "unpaired",
+        "version_mismatch",
+        "busy",
+        "stale_head",
+        "not_found",
+        "invalid",
+        "model_failed",
+        "internal"
+      ]
+    },
+    "ErrorBody": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "error"
+      ],
+      "properties": {
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "code",
+            "message",
+            "trace_id"
+          ],
+          "properties": {
+            "code": {
+              "$ref": "#/$defs/ErrorCode"
+            },
+            "message": {
+              "description": "Why, in words the player can read.",
+              "type": "string"
+            },
+            "trace_id": {
+              "type": "string"
+            }
+          },
+          "title": "ErrorDetail"
+        }
+      }
+    },
+    "PairingInvite": {
+      "description": "What the Mac's pairing QR code holds.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "host_id",
+        "host_name",
+        "addresses",
+        "port",
+        "code",
+        "fingerprint",
+        "contract"
+      ],
+      "properties": {
+        "host_id": {
+          "type": "string"
+        },
+        "host_name": {
+          "type": "string"
+        },
+        "addresses": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "port": {
+          "type": "integer"
+        },
+        "code": {
+          "description": "One-time pairing code, valid for ten minutes.",
+          "type": "string"
+        },
+        "fingerprint": {
+          "description": "SHA-256 of the Mac's certificate, which the phone pins.",
+          "type": "string"
+        },
+        "contract": {
+          "type": "integer"
+        }
+      }
+    },
+    "PairRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "device_name"
+      ],
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "device_name": {
+          "type": "string"
+        }
+      }
+    },
+    "PairResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "device_token",
+        "host_id",
+        "host_name",
+        "trace_id"
+      ],
+      "properties": {
+        "device_token": {
+          "type": "string"
+        },
+        "host_id": {
+          "type": "string"
+        },
+        "host_name": {
+          "type": "string"
+        },
+        "trace_id": {
+          "type": "string"
+        }
+      }
+    },
+    "StoryList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stories",
+        "trace_id"
+      ],
+      "properties": {
+        "stories": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StorySummary"
+          }
+        },
+        "trace_id": {
+          "type": "string"
+        }
+      }
+    },
+    "StorySummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "standing",
+        "updated_at"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "standing": {
+          "description": "Where the Story stands on its current Path, as one line: \"Scene 14 · After curfew\".",
+          "type": "string"
+        },
+        "updated_at": {
+          "type": "string"
+        }
+      }
+    },
+    "PersonCard": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "portrait_url"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "portrait_url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "SceneCard": {
+      "description": "A Scene's title card.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "number",
+        "title",
+        "place",
+        "at",
+        "at_label",
+        "people"
+      ],
+      "properties": {
+        "number": {
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        },
+        "place": {
+          "type": "string"
+        },
+        "at": {
+          "description": "Story time, \"Day N HH:MM\".",
+          "type": "string"
+        },
+        "at_label": {
+          "description": "Story time as people say it: \"Friday · 9:40 pm\".",
+          "type": "string"
+        },
+        "people": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PersonCard"
+          }
+        }
+      }
+    },
+    "Passage": {
+      "description": "One Move or Reply, as it stands on the tree.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entry_id",
+        "text"
+      ],
+      "properties": {
+        "entry_id": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      }
+    },
+    "Exchange": {
+      "description": "A Move and the Reply that answered it. The opening Scene's first Reply has no Move.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "move",
+        "reply"
+      ],
+      "properties": {
+        "move": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Passage"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reply": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Passage"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "TurnState": {
+      "description": "Whether a Reply is being written, has failed, or nothing is under way.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "idle",
+            "writing",
+            "failed"
+          ]
+        },
+        "text_so_far": {
+          "description": "While writing: the Reply's words so far.",
+          "type": "string"
+        },
+        "reason": {
+          "description": "When failed: why, in words the player can read.",
+          "type": "string"
+        },
+        "trace_id": {
+          "description": "When writing or failed: the turn's trace id.",
+          "type": "string"
+        }
+      }
+    },
+    "SceneView": {
+      "description": "The Scene screen as the Mac sees it on the Story's current Path.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "story_id",
+        "path_id",
+        "seq",
+        "head_entry_id",
+        "scene",
+        "earlier_scenes",
+        "exchanges",
+        "turn",
+        "trace_id"
+      ],
+      "properties": {
+        "story_id": {
+          "type": "string"
+        },
+        "path_id": {
+          "type": "string"
+        },
+        "seq": {
+          "description": "The newest entry this view reflects; the live stream resumes after it.",
+          "type": "integer"
+        },
+        "head_entry_id": {
+          "description": "The entry a Move must follow.",
+          "type": "string"
+        },
+        "scene": {
+          "$ref": "#/$defs/SceneCard"
+        },
+        "earlier_scenes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SceneSummaryLine"
+          }
+        },
+        "exchanges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Exchange"
+          }
+        },
+        "turn": {
+          "$ref": "#/$defs/TurnState"
+        },
+        "trace_id": {
+          "type": "string"
+        }
+      }
+    },
+    "SceneSummaryLine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "number",
+        "title",
+        "summary"
+      ],
+      "properties": {
+        "number": {
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        }
+      }
+    },
+    "MoveRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text",
+        "after"
+      ],
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "after": {
+          "description": "The entry the phone saw as the head; a Move after any other is refused as stale.",
+          "type": "string"
+        }
+      }
+    },
+    "TurnAccepted": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "move_entry_id",
+        "trace_id"
+      ],
+      "properties": {
+        "move_entry_id": {
+          "type": "string"
+        },
+        "trace_id": {
+          "type": "string"
+        }
+      }
+    },
+    "StoryEvent": {
+      "description": "One event on a Story's live stream. Entry events (scene_opened, move, reply) are replayed after a reconnect; reply_started, reply_delta and reply_failed describe the turn under way.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "seq"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "scene_opened",
+            "move",
+            "reply",
+            "reply_started",
+            "reply_delta",
+            "reply_failed"
+          ]
+        },
+        "seq": {
+          "description": "The newest entry this event follows.",
+          "type": "integer"
+        },
+        "scene": {
+          "$ref": "#/$defs/SceneCard"
+        },
+        "passage": {
+          "$ref": "#/$defs/Passage"
+        },
+        "text": {
+          "description": "reply_delta: the words that just arrived.",
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "trace_id": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

@@ -11,3 +11,6 @@ local.properties
 # Runtime data: the Mac's Story store lives outside the repo
 *.db
 *.db-journal
+
+# Gradle home for sandboxed builds
+android/.gradle-user/
