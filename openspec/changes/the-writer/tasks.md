@@ -50,11 +50,11 @@ Requirements this change builds:
 
 ## 6. The phone
 
-- [ ] 6.1 Test first, then build: End scene on the Scene screen, and the Day View when the Scene has closed, taking the next Move
-- [ ] 6.2 Test first, then build: Focus by tapping a Portrait on the title card, shown on the card, and Linger as a toggle beside End scene
-- [ ] 6.3 Test first, then build: Redo on the latest Reply, with a Direction and "remember this"
-- [ ] 6.4 Keep the end of the latest Reply in view while the keyboard is open, and verify a Compose UI test
-- [ ] 6.5 Ask for the Story list once on opening the app, and verify a test that counts the requests
+- [x] 6.1 Test first, then build: End scene on the Scene screen, and the Day View when the Scene has closed, taking the next Move
+- [x] 6.2 Test first, then build: Focus by tapping a Portrait on the title card, shown on the card, and Linger as a toggle beside End scene
+- [x] 6.3 Test first, then build: Redo on the latest Reply, with a Direction and "remember this"
+- [x] 6.4 Keep the end of the latest Reply in view while the keyboard is open, and verify a Compose UI test
+- [x] 6.5 Ask for the Story list once on opening the app, and verify a test that counts the requests
 
 ## 7. Real models (opt-in)
 
