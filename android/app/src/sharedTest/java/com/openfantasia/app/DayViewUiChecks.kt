@@ -14,11 +14,12 @@ open class DayViewUiChecks : WorldUiChecks() {
         place = "the hospital wing", what = "Draconia is fighting Snape for her bed back.",
         who = listOf("Draconia", "Snape", "Pansy"), expected = false, pick = false)
     private val tomorrow = Skip(label = "Tomorrow", inSentence = "tomorrow", at = "Day 4 07:30", time = "Monday 7:30 am")
+    private val evening = Skip(label = "This evening", inSentence = "this evening", at = "Day 3 18:00", time = "6:00 pm")
     private fun ready(happenings: List<Happening> = listOf(summons, hospital)) {
         link.current.value = link.current.value.copy(headEntryID = "closed", dayView = FakeFantasiaLink.dayView().copy(
             place = "Gryffindor Tower", happenings = happenings,
             meanwhile = listOf(MeanwhileItem(how = How.Seen, text = "A note under the door.")),
-            choices = DayChoices(follow = listOf("Hermione", "Draconia"), places = listOf("The library"), skips = listOf(tomorrow))))
+            choices = DayChoices(follow = listOf("Hermione", "Draconia"), places = listOf("The library"), skips = listOf(evening, tomorrow))))
         openScene()
     }
     private fun tap(text: String) = compose.onNodeWithText(text).performScrollTo().performClick()
@@ -140,9 +141,9 @@ open class DayViewUiChecks : WorldUiChecks() {
         tap("Skip to later")
         compose.onNodeWithText(tomorrow.time).assertIsDisplayed()
         compose.onNodeWithText("Tomorrow").performClick()
-        compose.onNodeWithText("7:40 am – Monday 7:30 am, before Tomorrow").assertIsDisplayed()
+        compose.onNodeWithText("7:40 am – Monday 7:30 am, before tomorrow").assertIsDisplayed()
         compose.onNodeWithText("11:00 am · the hospital wing.").assertIsDisplayed()
-        compose.onNodeWithText("Skip to Tomorrow").performClick()
+        compose.onNodeWithText("Skip to tomorrow").performClick()
         sent(ChooseRequest(after = "closed", kind = ChooseRequestKind.Skip, at = tomorrow.at))
     }
 
@@ -166,5 +167,91 @@ open class DayViewUiChecks : WorldUiChecks() {
         compose.runOnIdle { link.reachable.value = false }
         compose.onNodeWithText("Follow someone").assertIsNotEnabled()
         compose.onNodeWithText("Skip to later").assertIsNotEnabled()
+    }
+
+    private val ride = "I ride on to Shimla, go to the interview at eleven, and come out not sure of anything."
+    private val chosenMove = Exchange(move = Passage(entryID = "move", text = "$ride I let the time pass until this evening: Sunday 6:00 pm."))
+    /** What the Mac sends once it has taken the choice: the Move, under the next Scene's card, and no Day View. */
+    private fun opening(turn: TurnState = TurnState(kind = TurnStateKind.Writing, textSoFar = "", traceID = "choose")) = compose.runOnIdle {
+        val view = link.current.value
+        link.current.value = view.copy(dayView = null, opening = NextScene(at = evening.at, atLabel = "Sunday 6:00 pm"),
+            exchanges = listOf(chosenMove), headEntryID = "move", seq = 5, lastEventID = "5", turn = turn,
+            earlierScenes = view.earlierScenes + SceneSummaryLine(number = 14, title = "After curfew", summary = ""))
+    }
+
+    // GIVEN the Night Train's Day View at 9:05 am
+    // WHEN the player chooses Skip to later, This evening, and writes "I ride on to Shimla, go to the interview at eleven, and come out not sure of anything."
+    // THEN the Scene opens at once with that Move, under a card that says Friday 6:00 pm and that the Scene is being written
+    // AND the card takes the Scene's title, place and Portraits when the Scene has opened
+    fun nextSceneOpensAtOnce() {
+        ready()
+        tap("Skip to later")
+        compose.onNodeWithText("6:00 pm").assertIsDisplayed()
+        compose.onNodeWithText("This evening").performClick()
+        compose.onNodeWithText("7:40 am – 6:00 pm, before this evening").assertIsDisplayed()
+        compose.onNodeWithTag("gap-text").performTextInput(ride)
+        compose.onNodeWithText("Skip to this evening").performClick()
+        sent(ChooseRequest(after = "closed", kind = ChooseRequestKind.Skip, at = evening.at, gap = ride))
+        opening()
+        compose.onNodeWithText("What did you do in the Gap?").assertDoesNotExist()
+        compose.onNodeWithText("WHAT'S ON TODAY").assertDoesNotExist()
+        compose.onNodeWithTag("scene-passages").performScrollToNode(hasText("NEXT SCENE"))
+        compose.onNodeWithText("NEXT SCENE").assertIsDisplayed()
+        compose.onNodeWithText("Sunday 6:00 pm").assertIsDisplayed()
+        compose.onNodeWithText("Scene being written").assertIsDisplayed()
+        compose.onNodeWithText("Reply being written").assertDoesNotExist()
+        compose.onNodeWithTag("scene-passages").performScrollToNode(hasText(chosenMove.move!!.text))
+        compose.onNodeWithText(chosenMove.move!!.text).assertIsDisplayed()
+        compose.onNodeWithContentDescription("Linger").assertIsNotEnabled()
+        compose.onNodeWithText("End scene").assertIsNotEnabled()
+        compose.preview("NextScene")
+        compose.runOnIdle {
+            link.current.value = link.current.value.copy(opening = null, seq = 7, lastEventID = "7", headEntryID = "reply-15",
+                scene = link.current.value.scene.copy(number = 15, title = "Rain clock", at = evening.at, atLabel = "Sunday 6:00 pm",
+                    place = "A tea stall near the bus stand", people = listOf(PersonCard(name = "Meera Kulkarni"))),
+                exchanges = listOf(chosenMove.copy(reply = Passage(entryID = "reply-15", text = "The rain has been coming down since four."))),
+                turn = TurnState(kind = TurnStateKind.Idle))
+        }
+        compose.onNodeWithTag("scene-passages").performScrollToNode(hasText("Rain clock"))
+        compose.onNodeWithText("Rain clock").assertIsDisplayed()
+        compose.onNodeWithText("A tea stall near the bus stand · Sunday 6:00 pm").assertIsDisplayed()
+        compose.onNodeWithText("NEXT SCENE").assertDoesNotExist()
+        compose.onNodeWithText("Scene being written").assertDoesNotExist()
+    }
+
+    fun failedWhileOpeningKeepsTheCard() {
+        ready()
+        opening(TurnState(kind = TurnStateKind.Failed, reason = "The Reply could not be written: Sonnet is overloaded", traceID = "choose"))
+        compose.onNodeWithTag("scene-passages").performScrollToNode(hasText("Retry"))
+        compose.onNodeWithText("The Reply could not be written").assertIsDisplayed()
+        compose.onNodeWithText("Retry").assertIsDisplayed().performClick()
+        compose.runOnIdle { assertEquals(1, link.retries) }
+        compose.onNodeWithTag("scene-passages").performScrollToNode(hasText("NEXT SCENE"))
+        compose.onNodeWithText("NEXT SCENE").assertIsDisplayed()
+        compose.onNodeWithText("Scene being written").assertIsDisplayed()
+    }
+
+    // GIVEN the player has written "I spent the morning in the library reading about life debts" in the Gap
+    // WHEN the Mac cannot take the choice
+    // THEN the Gap stays open with what he wrote, and says why
+    fun failedChoiceKeepsTheGap() {
+        val words = "I spent the morning in the library reading about life debts"
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        link.chooseGate = gate
+        link.chooseFailure = LinkFailure("That is no longer on today.", "trace-refused")
+        ready()
+        go("hospital")
+        compose.onNodeWithTag("gap-text").performTextInput(words)
+        compose.onNodeWithText("Go to the hospital wing").performClick()
+        compose.onNodeWithText("What did you do in the Gap?").assertIsDisplayed()
+        compose.onNodeWithText("Go to the hospital wing").assertIsNotEnabled()
+        compose.runOnIdle { gate.complete(Unit) }
+        compose.onNodeWithText("What did you do in the Gap?").assertIsDisplayed()
+        compose.onNodeWithTag("gap-text").assertTextEquals(words)
+        compose.onNodeWithTag("gap-problem").assertTextEquals("That is no longer on today.")
+        compose.runOnIdle { link.chooseGate = null; link.chooseFailure = null }
+        compose.onNodeWithText("Go to the hospital wing").assertIsEnabled().performClick()
+        compose.onNodeWithText("What did you do in the Gap?").assertDoesNotExist()
+        compose.runOnIdle { assertEquals(2, link.choices.size); assertEquals(words, link.choices.last().gap) }
     }
 }

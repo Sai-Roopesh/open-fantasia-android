@@ -64,12 +64,15 @@ class SceneScrollState(val list: LazyListState) {
     previously: Previously? = scene.previously,
     dismissPreviously: () -> Unit = {},
     choose: (ChooseRequest) -> Unit = {},
+    problem: String? = null,
     worldFailure: @Composable () -> Unit = {},
     failure: @Composable () -> Unit = {}
 ) {
     val day = scene.dayView
     var picker by remember(scene.storyID, scene.headEntryID, day?.world) { mutableStateOf<DayPicker?>(null) }
     var gap by remember(scene.storyID, scene.headEntryID, day?.world) { mutableStateOf<DayChoice?>(null) }
+    // The Gap sheet stays open until the Mac takes the choice; a refusal leaves the player's words in it, with the reason.
+    var gapSent by remember(gap) { mutableStateOf(false) }
     fun destination(happening: Happening, kind: ChooseRequestKind) {
         if (!controlsEnabled || day == null) return
         val request = ChooseRequest(after = scene.headEntryID, kind = kind,
@@ -89,14 +92,16 @@ class SceneScrollState(val list: LazyListState) {
     val latestReply = scene.exchanges.lastOrNull { it.reply != null }?.reply
     var previouslyOffset by remember(previously?.since) { mutableStateOf<Int?>(null) }
     Column(modifier) {
-        SceneHeader(scene, storyTitle, back, scene.dayView == null && (replyComing || scene.turn.kind == TurnStateKind.Failed || imeBottom > 0))
+        SceneHeader(scene, storyTitle, back, scene.dayView == null && scene.opening == null && (replyComing || scene.turn.kind == TurnStateKind.Failed || imeBottom > 0))
         LazyColumn(state = list, modifier = Modifier.weight(1f).onSizeChanged { viewportSize = it }.testTag("scene-passages"),
             verticalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 8.dp)) {
             itemsIndexed(scene.earlierScenes, key = { _, scene -> "earlier-${scene.number}" }) { index, earlier ->
                 Box(Modifier.padding(bottom = if (index == scene.earlierScenes.lastIndex) 8.dp else 0.dp)) { EarlierScene(earlier) { openPastScene(earlier.number) } }
             }
             item(key = "scene-title") {
-                Box(Modifier.padding(bottom = 8.dp)) { SceneTitleCard(scene.scene, portrait, scene.focus, controlsEnabled && scene.dayView == null, focus) }
+                Box(Modifier.padding(bottom = 8.dp)) {
+                    scene.opening?.let { NextSceneCard(it) } ?: SceneTitleCard(scene.scene, portrait, scene.focus, controlsEnabled && scene.dayView == null, focus)
+                }
             }
             items(scene.exchanges, key = { it.move?.entryID ?: it.reply!!.entryID }) { exchange ->
                 Column(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -126,7 +131,7 @@ class SceneScrollState(val list: LazyListState) {
                         story = { day.happenings.firstOrNull { it.pick }?.let { destination(it, ChooseRequestKind.Story) } })
                 }
             } }
-            if (replyComing) item(key = "reply-being-written") {
+            if (replyComing && scene.opening == null) item(key = "reply-being-written") {
                 Column(Modifier.padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Spacer(Modifier.size(6.dp).background(FantasiaLabel, FantasiaShapes.round))
@@ -172,7 +177,7 @@ class SceneScrollState(val list: LazyListState) {
                         DayPicker.Skip -> day.choices.skips.firstOrNull { it.at == option }?.let { skip ->
                             val request = ChooseRequest(after = scene.headEntryID, kind = ChooseRequestKind.Skip, at = skip.at)
                             if (storyMinute(skip.at) > storyMinute(day.at)) {
-                                gap = DayChoice(request, skip.at, skip.time, skip.label, "Skip to ${skip.label}")
+                                gap = DayChoice(request, skip.at, skip.time, skip.inSentence, "Skip to ${skip.inSentence}")
                             } else choose(request)
                         }
                     }
@@ -180,9 +185,10 @@ class SceneScrollState(val list: LazyListState) {
             }
         }
         gap?.let { choice ->
-            GapSheet(day, scene.playerCharacter, choice, controlsEnabled, dismiss = { gap = null }) { text ->
-                if (controlsEnabled) { gap = null; choose(choice.request.copy(gap = text)) }
+            GapSheet(day, scene.playerCharacter, choice, controlsEnabled, problem.takeIf { gapSent }, dismiss = { gap = null }) { text ->
+                if (controlsEnabled) { gapSent = true; choose(choice.request.copy(gap = text)) }
             }
+            LaunchedEffect(awaitingReply) { if (awaitingReply) gap = null }
         }
     }
     var lastHead by remember { mutableStateOf<String?>(null) }
@@ -221,7 +227,7 @@ class SceneScrollState(val list: LazyListState) {
         lastHead = scene.headEntryID
         if (!newHead && !followingEnd) return@LaunchedEffect
         followingEnd = true
-        val endIndex = scene.earlierScenes.size + 1 + scene.exchanges.size + (if (replyComing) 1 else 0) +
+        val endIndex = scene.earlierScenes.size + 1 + scene.exchanges.size + (if (replyComing && scene.opening == null) 1 else 0) +
             (if (scene.dayView != null) 1 else 0) + (if (scene.turn.kind == TurnStateKind.Failed) 1 else 0)
         withFrameNanos { }
         scrollingOurselves = true
@@ -353,6 +359,21 @@ class SceneScrollState(val list: LazyListState) {
             }
             if (focus != null) Text("Focus on ${firstName(focus)} · tap a Portrait to change", color = FantasiaLabel, style = FantasiaType.small, modifier = Modifier.padding(top = 8.dp))
             else if (card.people.isNotEmpty()) Text("Tap a Portrait to focus on someone", color = FantasiaCaption, style = FantasiaType.small, modifier = Modifier.padding(top = 8.dp))
+        }
+    }
+}
+
+/** The next Scene while it is being written, in the Scene card's place: when it is, and that it is coming. */
+@Composable private fun NextSceneCard(next: NextScene) {
+    Surface(Modifier.fillMaxWidth().testTag("next-scene"), color = FantasiaSurface, shape = FantasiaShapes.titleCard, border = BorderStroke(1.dp, FantasiaLine)) {
+        Column(Modifier.padding(17.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("NEXT SCENE", style = FantasiaType.eyebrow, color = FantasiaCaption)
+            next.atLabel?.let { Text(it, style = FantasiaType.metadata, color = FantasiaSecondary, modifier = Modifier.padding(top = 2.dp)) }
+            Row(Modifier.padding(top = 10.dp).semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Spacer(Modifier.size(6.dp).background(FantasiaLabel, FantasiaShapes.round))
+                Text("Scene being written", color = FantasiaCaption, style = FantasiaType.small)
+            }
         }
     }
 }

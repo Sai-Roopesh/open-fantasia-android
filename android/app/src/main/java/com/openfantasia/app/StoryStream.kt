@@ -27,9 +27,11 @@ class StoryStream(
                     // Reload even when applying the signal leaves the projection unchanged.
                     val worldSignal = envelope.event.kind in setOf(StoryEventKind.WorldMoved, StoryEventKind.WorldFailed) &&
                         envelope.event.seq >= before.seq
-                    if (worldSignal || (next.view != before && envelope.event.kind in setOf(
+                    // A Move that opens the next Scene changes more than its exchange: the earlier Scenes, the card.
+                    val opens = envelope.event.kind == StoryEventKind.Move && envelope.event.opening != null
+                    if (worldSignal || (next.view != before && (opens || envelope.event.kind in setOf(
                             StoryEventKind.SceneOpened, StoryEventKind.SceneClosed, StoryEventKind.Redo,
-                            StoryEventKind.FocusSet, StoryEventKind.LingerSet))) {
+                            StoryEventKind.FocusSet, StoryEventKind.LingerSet)))) {
                         // Keep the old projection and cursor until the entire reload succeeds.
                         val snapshot = loadScene?.invoke(initial.storyID) ?: client().scene(initial.storyID)
                         next.replace(snapshot)

@@ -82,13 +82,15 @@ class SceneProjection(initial: SceneView) {
             StoryEventKind.LingerSet -> view.copy(seq = maxOf(view.seq, event.seq), linger = requireNotNull(event.linger))
             StoryEventKind.Redo -> view.copy(seq = maxOf(view.seq, event.seq))
             StoryEventKind.SceneOpened -> view.copy(
-                scene = requireNotNull(event.scene), focus = event.focus, linger = false, dayView = null,
+                scene = requireNotNull(event.scene), focus = event.focus, linger = false, dayView = null, opening = null,
                 exchanges = event.passage?.let { listOf(Exchange(reply = it)) } ?: emptyList(),
                 headEntryID = event.passage?.entryID ?: view.headEntryID,
                 seq = maxOf(view.seq, event.seq), turn = TurnState(kind = TurnStateKind.Idle)
             )
+            // A Move at the Day View opens the next Scene at once, under its card; the stream then reads the Mac's view.
             StoryEventKind.Move -> view.copy(
-                exchanges = view.exchanges + Exchange(move = requireNotNull(event.passage)),
+                exchanges = (if (event.opening != null) emptyList() else view.exchanges) + Exchange(move = requireNotNull(event.passage)),
+                dayView = if (event.opening != null) null else view.dayView, opening = event.opening ?: view.opening,
                 headEntryID = event.passage.entryID, seq = maxOf(view.seq, event.seq),
                 turn = TurnState(kind = TurnStateKind.Idle)
             )

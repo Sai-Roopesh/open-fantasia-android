@@ -242,7 +242,7 @@ describe("mac-link", () => {
   // WHEN the player chooses Skip to later, This evening, and writes "I ride on to Shimla, go to the interview at eleven, and come out not sure of anything."
   // THEN the Scene opens at once with that Move, under a card that says Friday 6:00 pm and that the Scene is being written
   // AND the card takes the Scene's title, place and Portraits when the Scene has opened
-  it("presence › Between Scenes is quiet, and shows progress › The next Scene is being written: a phone that reads the Scene mid-wait sees it", async () => {
+  it("presence › Between Scenes is quiet, and shows progress › The next Scene is being written", async () => {
     const writer = new HeldRunner(new ScriptedRunner([], fakeWriterAnswer));
     const running = await runningMac(new ScriptedRunner([{ answer: "Draconia laughs." }]), writer);
     closers.push(running.close);

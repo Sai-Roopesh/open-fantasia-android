@@ -132,7 +132,7 @@ internal enum class DayPicker(val title: String) { Follow("Follow someone"), Som
     }
 }
 
-@Composable internal fun GapSheet(day: DayView, player: String, choice: DayChoice, enabled: Boolean, dismiss: () -> Unit,
+@Composable internal fun GapSheet(day: DayView, player: String, choice: DayChoice, enabled: Boolean, problem: String?, dismiss: () -> Unit,
     go: (String?) -> Unit) {
     var text by remember { mutableStateOf("") }
     val name = firstName(player)
@@ -159,6 +159,7 @@ internal enum class DayPicker(val title: String) { Follow("Follow someone"), Som
                 modifier = Modifier.fillMaxWidth().testTag("gap-text").semantics { contentDescription = "What $name did" })
         }
         Text("Left blank, $name spends it quietly in ${day.place.replaceFirst(Regex("^The "), "the ")}.", style = FantasiaType.caption, color = FantasiaCaption)
+        problem?.let { Text(it, style = FantasiaType.small, color = FailureAmber, modifier = Modifier.testTag("gap-problem")) }
         Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End)) {
             TextButton(onClick = dismiss, modifier = Modifier.height(48.dp), shape = FantasiaShapes.round,
                 contentPadding = PaddingValues(horizontal = 20.dp)) { Text("Back", style = FantasiaType.plain, color = FantasiaSecondary) }

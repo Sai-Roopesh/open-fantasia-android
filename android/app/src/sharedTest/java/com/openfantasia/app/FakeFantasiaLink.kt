@@ -1,6 +1,7 @@
 package com.openfantasia.app
 
 import com.openfantasia.protocol.*
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.*
 
 class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
@@ -10,6 +11,9 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
     var pairedInvite: PairingInvite? = null
     val moves = mutableListOf<MoveRequest>()
     val choices = mutableListOf<ChooseRequest>()
+    /** While set, a choice waits for it; a choice refused with [chooseFailure] throws it. */
+    var chooseGate: CompletableDeferred<Unit>? = null
+    var chooseFailure: LinkFailure? = null
     var retries = 0
     val worldRetries = mutableListOf<String>()
     var endedDayView = dayView(ClosedBy.Player)
@@ -62,6 +66,8 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
     }
     override suspend fun choose(storyID: String, request: ChooseRequest): TurnAccepted {
         choices += request
+        chooseGate?.await()
+        chooseFailure?.let { throw it }
         return TurnAccepted(moveEntryID = "move", traceID = "choose")
     }
     override suspend fun retryWorld(storyID: String): Accepted {

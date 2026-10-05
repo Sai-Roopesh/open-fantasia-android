@@ -28,6 +28,27 @@ class SceneReloadTest {
         }
     }
 
+    // GIVEN the Night Train's Day View at 9:05 am
+    // WHEN the player chooses Skip to later, This evening, and writes "I ride on to Shimla, go to the interview at eleven, and come out not sure of anything."
+    // THEN the Scene opens at once with that Move, under a card that says Friday 6:00 pm and that the Scene is being written
+    @Test fun `presence › Between Scenes is quiet, and shows progress › The next Scene is being written`() = runBlocking {
+        MacServer().use { mac ->
+            val initial = sceneFixture().copy(dayView = FakeFantasiaLink.dayView(), headEntryID = "closed", seq = 4, lastEventID = "4")
+            val move = Passage(entryID = "move", text = "I ride on to Shimla. I let the time pass until this evening: Friday 6:00 pm.")
+            val opening = NextScene(at = "Day 2 18:00", atLabel = "Friday 6:00 pm")
+            val snapshot = initial.copy(dayView = null, opening = opening, exchanges = listOf(Exchange(move = move)), headEntryID = "move",
+                earlierScenes = listOf(SceneSummaryLine(number = 14, title = "After curfew", summary = "")), seq = 5, lastEventID = "5",
+                turn = TurnState(kind = TurnStateKind.Writing, textSoFar = "", traceID = "choose"))
+            mac.enqueue(MockResponse().setHeader("Content-Type", "text/event-stream").setBody(
+                eventData("5", StoryEvent(kind = StoryEventKind.Move, seq = 5, passage = move, opening = opening))))
+            mac.enqueue(MockResponse().setBody(linkJson.encodeToString(snapshot)))
+            val view = withTimeout(5000) { StoryStream(loadScene = { mac.client.scene(it) }) { mac.client }.follow(initial).first() }
+            assertEquals(snapshot, view)
+            assertEquals("/stories/story/events", mac.server.takeRequest().path)
+            assertEquals("/stories/story/scene", mac.server.takeRequest().path)
+        }
+    }
+
     @Test fun `World moved reloads Meanwhile without changing the Path head`() = runBlocking {
         MacServer().use { mac ->
             val initial = sceneFixture().copy(dayView = FakeFantasiaLink.dayView().copy(world = World.MovingOn),

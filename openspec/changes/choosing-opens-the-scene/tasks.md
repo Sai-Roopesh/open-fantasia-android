@@ -20,13 +20,13 @@ the Gap`.
 
 ## 3. On the phone
 
-- [ ] 3.1 Test first, then build: `presence › Between Scenes is quiet, and shows progress › The next Scene is being written` on the phone: a Move event with `opening` turns the Day View into the Scene at once, with the NEXT SCENE card (time, "Scene being written") in the style of the Scene card in `docs/design/Scene.dc.html`, the Move below it with the Gap first, and the composer, Linger and End scene disabled; `scene_opened` brings the real card; shared check on the JVM and the device
-- [ ] 3.2 A failed turn while opening shows the failure and Retry under the Move as in `docs/design/SceneFailed.dc.html`, with the card kept; verify a shared check
-- [ ] 3.3 Test first, then build: `day-view › The Gap is the player's, and everything in it goes on without them › A choice that fails keeps the Gap`: the sheet stays open while the choice is sent, closes when the Mac takes it, and after a refusal keeps "I spent the morning in the library reading about life debts" with the reason; shared check on the JVM and the device
-- [ ] 3.4 The Gap sheet's span reads from the Mac's words, "9:05 am – 6:00 pm, before this evening", built to `docs/design/Gap.dc.html`; verify the shared Gap check
-- [ ] 3.5 Render with `-PfantasiaPreviews` and compare the opening Scene with `Scene.dc.html` and the Gap sheet with `Gap.dc.html`; fix what differs
+- [x] 3.1 Test first, then build: `presence › Between Scenes is quiet, and shows progress › The next Scene is being written` on the phone: a Move event with `opening` turns the Day View into the Scene at once, with the NEXT SCENE card (time, "Scene being written") in the style of the Scene card in `docs/design/Scene.dc.html`, the Move below it with the Gap first, and the composer, Linger and End scene disabled; `scene_opened` brings the real card; shared check on the JVM and the device
+- [x] 3.2 A failed turn while opening shows the failure and Retry under the Move as in `docs/design/SceneFailed.dc.html`, with the card kept; verify a shared check
+- [x] 3.3 Test first, then build: `day-view › The Gap is the player's, and everything in it goes on without them › A choice that fails keeps the Gap`: the sheet stays open while the choice is sent, closes when the Mac takes it, and after a refusal keeps "I spent the morning in the library reading about life debts" with the reason; shared check on the JVM and the device
+- [x] 3.4 The Gap sheet's span reads from the Mac's words, "9:05 am – 6:00 pm, before this evening", and its button "Skip to this evening", built to `docs/design/Gap.dc.html`; verify the shared Gap check
+- [x] 3.5 Render with `-PfantasiaPreviews` and compare the opening Scene with `Scene.dc.html` and the Gap sheet with `Gap.dc.html`; fix what differs
 
 ## 4. Together
 
-- [ ] 4.1 Run `scripts/scenarios.mjs`, the host suite, the Android JVM and device suites, and `openspec validate --all --strict`, and verify all pass
+- [x] 4.1 Run `scripts/scenarios.mjs`, the host suite, the Android JVM and device suites, and `openspec validate --all --strict`, and verify all pass
 - [ ] 4.2 On the phone, with the Mac and the phone installed together at version 8: at a Night Train Day View, choose with a Gap and see the Scene open at once with the Move and the NEXT SCENE card, then fill in when the Writer has opened it; verify the times from `fantasia trace` and compare with the drawings

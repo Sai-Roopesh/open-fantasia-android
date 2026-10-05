@@ -17,6 +17,13 @@ class DayViewScreenTest : DayViewUiChecks() {
     @Scenario("day-view › The Gap is the player's, and everything in it goes on without them › Filling the Gap")
     @Test fun gap() = fillingTheGap()
 
+    @Scenario("presence › Between Scenes is quiet, and shows progress › The next Scene is being written")
+    @Test fun nextScene() = nextSceneOpensAtOnce()
+
+    @Scenario("day-view › The Gap is the player's, and everything in it goes on without them › A choice that fails keeps the Gap")
+    @Test fun failedChoice() = failedChoiceKeepsTheGap()
+
+    @Test fun failedWhileOpeningKeepsTheCardCheck() = failedWhileOpeningKeepsTheCard()
     @Test fun backDiscardsGapAndBlankSendsNullCheck() = backDiscardsGapAndBlankSendsNull()
     @Test fun somewhereIsNowCheck() = somewhereIsNow()
     @Test fun skipHasGapAcrossDaysCheck() = skipHasGapAcrossDays()
