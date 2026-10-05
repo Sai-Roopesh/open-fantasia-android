@@ -24,8 +24,13 @@ export const STALL_AFTER = 3;
 
 const MIN_BEATS = 3;
 const MAX_BEATS = 5;
-const MAX_NOTE_WORDS = 40;
-const MAX_TASTE_WORDS = 25;
+/**
+ * The Writer is asked for a note of forty words at most and a Taste line of twenty-five, but no model counts words
+ * exactly: on the phone a note of 41 words failed a turn twice. What is refused is a note too long to be one or two
+ * moves, and a Taste line too long to be one lesson.
+ */
+const MAX_NOTE_WORDS = 60;
+const MAX_TASTE_WORDS = 40;
 /** How much of the Scene the Writer reads word for word. */
 const WRITER_EXCHANGES = 12;
 
@@ -229,7 +234,7 @@ export function checkWriterAnswer(ask: WriterAsk, raw: unknown): Checked {
   // The note.
   const note = raw.note.trim();
   const words = wordCount(note);
-  if (words > MAX_NOTE_WORDS) problems.push(`note: it is ${words} words; say it in forty or fewer`);
+  if (words > MAX_NOTE_WORDS) problems.push(`note: it is ${words} words; say one or two moves, in forty words or fewer`);
   decides("note: it", note);
 
   // Linger holds the moment, and a stalled Scene moves on.
@@ -254,7 +259,7 @@ export function checkWriterAnswer(ask: WriterAsk, raw: unknown): Checked {
   const taste = raw.taste?.trim() || null;
   if (ask.direction?.remember && !taste) problems.push("taste: the player asked to remember the Direction; write it as one short line");
   if (taste && !ask.direction?.text) problems.push("taste: only a Direction becomes Taste; leave it null");
-  if (taste && wordCount(taste) > MAX_TASTE_WORDS) problems.push(`taste: it is ${wordCount(taste)} words; keep it to twenty-five`);
+  if (taste && wordCount(taste) > MAX_TASTE_WORDS) problems.push(`taste: it is ${wordCount(taste)} words; say one lesson, in twenty-five words or fewer`);
 
   if (problems.length) return { ok: false, problems };
   return { ok: true, plan: { opens, plans, here, beats, note, call: raw.call, intensity: raw.intensity, arcMoved: raw.arc_moved, clock, taste } };

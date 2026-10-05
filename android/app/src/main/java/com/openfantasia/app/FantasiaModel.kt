@@ -205,9 +205,13 @@ class FantasiaModel(private val link: FantasiaLink) : ViewModel() {
 
     fun portrait(url: String) = link.portrait(url)
 
+    // Only a network failure means the Mac is unreachable; anything else is said as it is, so nothing fails silently.
     private fun showProblem(e: Exception) {
-        val problem = if (e is LinkFailure) AppProblem(e.reason, e.traceID, e.versionMismatch)
-            else AppProblem("The Mac is unreachable. Check that the phone and Mac share a network.")
+        val problem = when (e) {
+            is LinkFailure -> AppProblem(e.reason, e.traceID, e.versionMismatch)
+            is java.io.IOException -> AppProblem("The Mac is unreachable. Check that the phone and Mac share a network.")
+            else -> AppProblem("The phone could not show this: ${e::class.simpleName}: ${e.message}")
+        }
         mutable.update { it.copy(problem = problem) }
     }
 }

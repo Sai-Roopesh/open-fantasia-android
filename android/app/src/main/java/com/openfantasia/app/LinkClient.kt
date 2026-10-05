@@ -58,16 +58,17 @@ class LinkClient(val address: HttpUrl, fingerprint: String, private val deviceTo
     }
 
     private suspend inline fun <reified T> command(path: List<String>, body: String? = null, paired: Boolean = true): T {
-        val response = execute(request(path, body, paired))
-        return response.use {
-            val text = it.body.string()
-            requireContract(it, text)
-            if (!it.isSuccessful || runCatching { linkJson.decodeFromString<ErrorBody>(text) }.isSuccess) throw failure(it.code, text)
-            linkJson.decodeFromString<T>(text)
-        }
+        val (response, text) = execute(request(path, body, paired))
+        requireContract(response, text)
+        if (!response.isSuccessful || runCatching { linkJson.decodeFromString<ErrorBody>(text) }.isSuccess) throw failure(response.code, text)
+        return linkJson.decodeFromString<T>(text)
     }
 
-    internal suspend fun execute(request: Request): Response = suspendCancellableCoroutine { continuation ->
+    /**
+     * Sends [request] and reads its whole answer on OkHttp's own thread. A call starts on the main thread, where
+     * Android forbids reading the network, and a long Scene's answer is still arriving when its headers do.
+     */
+    internal suspend fun execute(request: Request): Pair<Response, String> = suspendCancellableCoroutine { continuation ->
         val call = http.newCall(request)
         continuation.invokeOnCancellation { call.cancel() }
         call.enqueue(object : Callback {
@@ -75,7 +76,11 @@ class LinkClient(val address: HttpUrl, fingerprint: String, private val deviceTo
                 if (continuation.isActive) continuation.resumeWithException(e)
             }
             override fun onResponse(call: Call, response: Response) {
-                continuation.resume(response) { _, value, _ -> value.close() }
+                val text = try { response.use { it.body.string() } } catch (e: IOException) {
+                    if (continuation.isActive) continuation.resumeWithException(e)
+                    return
+                }
+                continuation.resume(response to text) { _, _, _ -> }
             }
         })
     }

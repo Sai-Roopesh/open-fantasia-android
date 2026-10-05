@@ -48,14 +48,15 @@ One structured answer per turn, through the Agent SDK's JSON-schema output:
 | `frame` | the Scene's title, place, purpose (a value that turns) and exit; required when a Scene opens, or when the open Scene has no plan yet (a Story File's opening), whose title and place are kept |
 | `here` | who is in the Scene for the next Reply besides the Player Character, by their names in the Story |
 | `beats` | three to five, each `done`, `in_play`, `pending` or `skipped`; exactly one in play unless all are done or skipped |
-| `note` | the Beat Note: what happens next or what someone else does, at most 40 words |
+| `note` | the Beat Note: what happens next or what someone else does, asked for in at most 40 words |
 | `call` | `continue`, `land` (bring it to its turn) or `end` (this Reply closes it) |
 | `intensity` | 1 routine, 2 something at stake, 3 a value turning, 4 a confrontation or revelation, 5 a change that cannot be undone |
 | `arc_moved` | whether an Arc moved, or the Premise happened, in the exchange just played |
 | `clock` | the Story time the next Reply begins, never earlier than now; a new Scene begins then |
 | `taste` | on a Redo with a Direction: a lasting lesson to keep, when the player asked to remember it or it recurs; otherwise null |
 
-The host checks: the answer against its schema; the note's length; the beats' count and states; that a frame is there
+The host checks: the answer against its schema; the note's length (refused past sixty words, since no model counts
+words exactly and a note of 41 failed a turn on the phone); the beats' count and states; that a frame is there
 when one is needed; that `here` names people in the Story and never the Player Character; that while Focus is on,
 nobody joins `here` unless the Move names them; that while Linger is on, the call is `continue`; that a stalled Scene
 moves (below); that `clock` is a time and not earlier than the clock; that `taste` comes only from a Direction, and

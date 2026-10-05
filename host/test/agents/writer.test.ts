@@ -62,7 +62,7 @@ describe("the Writer's answer", () => {
     const checked = checkWriterAnswer(ask(planned(state), "I offer her the window seat."), answer({
       here: ["Meera Kulkarni", "Ishaan Mehra", "The Conductor"],
       beats: [{ text: "Ishaan tells her the truth about the interview.", status: "in_play" }, { text: "Bhalla sleeps.", status: "in_play" }],
-      note: Array.from({ length: 45 }, () => "word").join(" "),
+      note: Array.from({ length: 65 }, () => "word").join(" "),
       clock: "Day 1 22:00"
     }));
     expect(checked.ok).toBe(false);
@@ -73,9 +73,15 @@ describe("the Writer's answer", () => {
       expect.stringMatching(/^beats: there are 2; a Scene has three to five/),
       expect.stringMatching(/^beats: 2 are in play/),
       expect.stringMatching(/^beats: beat 1 decides for the player's character \("Ishaan tells her/),
-      expect.stringMatching(/^note: it is 45 words/),
+      expect.stringMatching(/^note: it is 65 words/),
       expect.stringMatching(/^clock: Day 1 22:00 is before now \(Day 1 22:40\)/)
     ]));
+  });
+
+  it("takes a note a little over forty words, since no model counts words exactly", () => {
+    const { state } = nightTrain();
+    const note = Array.from({ length: 45 }, () => "word").join(" ");
+    expect(checkWriterAnswer(ask(planned(state), "I offer her the window seat."), answer({ note }))).toMatchObject({ ok: true });
   });
 
   it("is refused when it does not match the schema", () => {
