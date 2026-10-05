@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { actorPrompt } from "../../src/agents/actor.js";
 import { recall } from "../../src/agents/recall.js";
 import { writerPrompt } from "../../src/agents/writer.js";
+import { NO_WORLD } from "../../src/story/world.js";
 import type { Script } from "../../src/models/scripted.js";
 import { sceneEntries } from "../../src/views/scene.js";
 import { playable } from "../support/play.js";
@@ -48,7 +49,7 @@ describe("recall", () => {
     expect(recalled.lastSceneEnd.map(words => words.text)).toEqual(["I go to The pitch. I sit down.", "She looks at you, and waits."]);
 
     const { state, entries } = sceneEntries(mac, head());
-    const writer = writerPrompt({ state, scene: entries, move: "I look up.", direction: null, recall: recalled }).prompt;
+    const writer = writerPrompt({ state, scene: entries, move: "I look up.", direction: null, recall: recalled, world: NO_WORLD }).prompt;
     expect(writer).toContain("one, weight 5");
     expect(writer).toContain("Scene 2 · Breakfast: Scene two happened.");
     expect(writer).toContain("I go to The pitch. I sit down.");

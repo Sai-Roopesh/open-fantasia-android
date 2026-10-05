@@ -64,7 +64,7 @@ class SceneProjection(initial: SceneView) {
         val event = envelope.event
         val cursor = EventOrder.parse(lastEventID)
         if (event.seq < cursor.seq) return view
-        val order = if (event.kind == StoryEventKind.ReplyFailed) null else envelope.id?.let(EventOrder::parse)
+        val order = if (event.kind in setOf(StoryEventKind.ReplyFailed, StoryEventKind.WorldFailed)) null else envelope.id?.let(EventOrder::parse)
         // SSE carries the preceding id into an id-less reply_started event. A view reloaded
         // mid-turn can already contain its words; that queued start must not erase them.
         if (event.kind == StoryEventKind.ReplyStarted && view.turn.kind == TurnStateKind.Writing &&
@@ -75,6 +75,8 @@ class SceneProjection(initial: SceneView) {
         if (entry && (order ?: EventOrder(event.seq)) <= cursor) return view
         if (event.kind == StoryEventKind.ReplyDelta && order != null && order <= EventOrder.parse(lastEventID)) return view
         view = when (event.kind) {
+            // These background records do not move the Path; the stream reads their Scene snapshot.
+            StoryEventKind.WorldMoved, StoryEventKind.WorldFailed -> view
             StoryEventKind.SceneClosed -> view.copy(seq = maxOf(view.seq, event.seq), dayView = requireNotNull(event.dayView), focus = null, linger = false)
             StoryEventKind.FocusSet -> view.copy(seq = maxOf(view.seq, event.seq), focus = event.focus)
             StoryEventKind.LingerSet -> view.copy(seq = maxOf(view.seq, event.seq), linger = requireNotNull(event.linger))

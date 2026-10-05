@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { importStoryFile } from "../../src/storyfile/import.js";
+import { worldOn } from "../../src/story/world.js";
 import { listStories } from "../../src/views/stories.js";
 import { freshHome } from "../support/host.js";
 import { malfoyProblemStoryFile, minimalStoryFile, writeStoryFile } from "../support/story-files.js";
@@ -53,6 +54,18 @@ describe("story-file", () => {
     expect(state.arcs).toEqual([]);
     expect(state.landmarks).toEqual([]);
     expect(state.scene).toMatchObject({ number: 1, title: "The night train", place: "A sleeper compartment", at: "Day 1 23:10", here: ["Mira"] });
+  });
+
+  // GIVEN a Story File with the Thread "the dragon egg in Hagrid's hut", where it stands "Hagrid is keeping it warm in the fire"
+  // WHEN it is imported
+  // THEN the Story's World has that Thread, standing where the Story File put it
+  it("story-file › A Story File sets up every part of a Story › A Story File with a Thread", () => {
+    const mac = freshHome();
+    const story = { ...minimalStoryFile(), threads: [{ name: "the dragon egg in Hagrid's hut", now: "Hagrid is keeping it warm in the fire" }] };
+    const result = importStoryFile(writeStoryFile(story), mac);
+    if (!result.ok) throw new Error(result.problems.map(problem => problem.message).join("; "));
+    const world = worldOn(mac, mac.tree.currentPath(result.storyId)!.headEntryId);
+    expect(world.threads).toEqual([{ name: "the dragon egg in Hagrid's hut", now: "Hagrid is keeping it warm in the fire" }]);
   });
 
   // WHEN a Story File has two people named "Weasley"

@@ -137,7 +137,7 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
     fun sendMove() {
         val state = mutable.value
         val scene = state.scene ?: return
-        if (state.draft.isBlank() || state.sending || state.waiting || state.loading || !state.reachable ||
+        if (!state.worldReady || state.draft.isBlank() || state.sending || state.waiting || state.loading || !state.reachable ||
             scene.turn.kind != TurnStateKind.Idle || scene.replyComing || state.problem?.needsUpdate == true) return
         afterSeq = scene.seq
         mutable.update { it.copy(sending = true, problem = null) }
@@ -157,6 +157,23 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
                     } catch (cancelled: CancellationException) { throw cancelled
                     } catch (_: Exception) { }
                 }
+            } finally { mutable.update { it.copy(sending = false) } }
+        }
+    }
+
+    fun retryWorld() {
+        val state = mutable.value
+        val scene = state.scene ?: return
+        if (scene.dayView?.world != World.Failed || state.loading || state.sending || state.waiting ||
+            !state.reachable || state.problem?.needsUpdate == true) return
+        mutable.update { it.copy(sending = true, problem = null) }
+        viewModelScope.launch {
+            try {
+                link.retryWorld(scene.storyID)
+                val fresh = link.scene(scene.storyID)
+                mutable.update { it.copy(scene = visibleScene(fresh)) }
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) { showProblem(e)
             } finally { mutable.update { it.copy(sending = false) } }
         }
     }
@@ -259,9 +276,12 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
 }
 
 val FantasiaState.canChangeScene: Boolean
-    get() = scene?.turn?.kind == TurnStateKind.Idle && !scene.replyComing && reachable && !loading && !sending && !waiting && problem?.needsUpdate != true
+    get() = scene?.turn?.kind == TurnStateKind.Idle && worldReady && !scene.replyComing && reachable && !loading && !sending && !waiting && problem?.needsUpdate != true
 
 internal val FantasiaState.replyComing: Boolean
     get() = scene?.replyComing == true || (waiting && scene?.turn?.kind != TurnStateKind.Failed)
 internal val FantasiaState.canSendMove: Boolean
     get() = draft.isNotBlank() && canChangeScene && !replyComing
+
+internal val FantasiaState.worldReady: Boolean
+    get() = scene?.dayView?.world?.let { it == World.Ready } ?: true

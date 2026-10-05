@@ -23,6 +23,8 @@
 // val storyEvent       = json.parse(StoryEvent.serializer(), jsonString)
 // val dayView          = json.parse(DayView.serializer(), jsonString)
 // val countdown        = json.parse(Countdown.serializer(), jsonString)
+// val meanwhileItem    = json.parse(MeanwhileItem.serializer(), jsonString)
+// val worldFailure     = json.parse(WorldFailure.serializer(), jsonString)
 // val endSceneRequest  = json.parse(EndSceneRequest.serializer(), jsonString)
 // val focusRequest     = json.parse(FocusRequest.serializer(), jsonString)
 // val lingerRequest    = json.parse(LingerRequest.serializer(), jsonString)
@@ -220,7 +222,8 @@ data class SceneView (
 )
 
 /**
- * Where and when the Player Character is between Scenes (openspec day-view).
+ * Where and when the Player Character is between Scenes, and what he learned meanwhile
+ * (openspec day-view).
  *
  * scene_closed: the Day View.
  */
@@ -252,14 +255,38 @@ data class DayView (
     val day: String,
 
     /**
+     * Why the World could not move on, when world is failed; Retry is POST
+     * /stories/{id}/world/retry.
+     */
+    val failure: WorldFailure? = null,
+
+    /**
+     * What the Player Character learned while elsewhere, once the World has moved on; empty
+     * before.
+     */
+    val meanwhile: List<MeanwhileItem>,
+
+    /**
      * Where the Player Character is.
      */
     val place: String,
 
     /**
+     * When the Scene that ended ran, as people say it: "Friday 9:40 pm – 11:05 pm".
+     */
+    @SerialName("scene_span")
+    val sceneSpan: String,
+
+    /**
      * The time as people say it: "7:40 am".
      */
-    val time: String
+    val time: String,
+
+    /**
+     * Whether the World has moved on to the Day View's time: moving_on while the Weaver works
+     * (the phone says so in one line and takes no Move), ready, or failed (with failure).
+     */
+    val world: World
 )
 
 /**
@@ -288,6 +315,44 @@ data class Countdown (
     @SerialName("when")
     val linkSchemaWhen: String
 )
+
+/**
+ * The Weaver could not move the World on.
+ */
+@Serializable
+data class WorldFailure (
+    val reason: String,
+
+    @SerialName("trace_id")
+    val traceID: String
+)
+
+/**
+ * One line of Meanwhile, marked by how the Player Character learned it.
+ */
+@Serializable
+data class MeanwhileItem (
+    val how: How,
+    val text: String
+)
+
+@Serializable
+enum class How(val value: String) {
+    @SerialName("rumour") Rumour("rumour"),
+    @SerialName("seen") Seen("seen"),
+    @SerialName("told") Told("told");
+}
+
+/**
+ * Whether the World has moved on to the Day View's time: moving_on while the Weaver works
+ * (the phone says so in one line and takes no Move), ready, or failed (with failure).
+ */
+@Serializable
+enum class World(val value: String) {
+    @SerialName("failed") Failed("failed"),
+    @SerialName("moving_on") MovingOn("moving_on"),
+    @SerialName("ready") Ready("ready");
+}
 
 @Serializable
 data class SceneSummaryLine (
@@ -430,9 +495,10 @@ data class TurnAccepted (
 /**
  * One event on a Story's live stream. Entry events (scene_opened, move, reply,
  * scene_closed, focus_set, linger_set, redo) are replayed after a reconnect; reply_started,
- * reply_delta and reply_failed describe the turn under way. After scene_opened,
- * scene_closed and redo the phone reads the Scene again, because they change more than one
- * part of it.
+ * reply_delta and reply_failed describe the turn under way; world_moved and world_failed
+ * say the World has moved on, or could not, after a Scene ended. After scene_opened,
+ * scene_closed, redo, world_moved and world_failed the phone reads the Scene again, because
+ * they change more than one part of it.
  */
 @Serializable
 data class StoryEvent (
@@ -487,7 +553,9 @@ enum class StoryEventKind(val value: String) {
     @SerialName("reply_failed") ReplyFailed("reply_failed"),
     @SerialName("reply_started") ReplyStarted("reply_started"),
     @SerialName("scene_closed") SceneClosed("scene_closed"),
-    @SerialName("scene_opened") SceneOpened("scene_opened");
+    @SerialName("scene_opened") SceneOpened("scene_opened"),
+    @SerialName("world_failed") WorldFailed("world_failed"),
+    @SerialName("world_moved") WorldMoved("world_moved");
 }
 
 @Serializable

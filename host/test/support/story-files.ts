@@ -119,3 +119,25 @@ export function hogwartsStoryFile(opening: Partial<StoryFile["opening"]> = {}): 
     }
   };
 }
+
+/** Hogwarts with a World to move: Crabbe and Goyle as a Group, Quirrell's secret Thread, and the people who spread news. */
+export function hogwartsWorldStoryFile(opening: Partial<StoryFile["opening"]> = {}): StoryFile {
+  const story = hogwartsStoryFile(opening);
+  story.people.push(
+    { name: "Vincent Crabbe", who_they_are: "Draconia's bodyguard, large and slow.", group: "Crabbe and Goyle" },
+    { name: "Gregory Goyle", who_they_are: "Draconia's other bodyguard, larger and slower.", group: "Crabbe and Goyle" },
+    { name: "Quirinus Quirrell", who_they_are: "The nervous Defence teacher, who is not what he seems.", after: "The Stone on the third floor." },
+    { name: "Minerva McGonagall", who_they_are: "Deputy Headmistress, Head of Gryffindor." },
+    { name: "Lavender Brown", who_they_are: "A Gryffindor who hears everything first and tells it louder." },
+    { name: "Cedric Diggory", who_they_are: "Hufflepuff's Seeker and captain.", group: "The Hufflepuff Quidditch team" }
+  );
+  story.groups = [
+    { name: "Crabbe and Goyle", description: "Draconia's errands, and whatever she wants hit." },
+    { name: "The Hufflepuff Quidditch team", description: "Practising for the Hufflepuff v Ravenclaw match." }
+  ];
+  story.threads = [
+    { name: "the dragon egg in Hagrid's hut", now: "Hagrid is keeping it warm in the fire" },
+    { name: "Quirrell and the third-floor door", now: "Quirrell is testing the wards on the third-floor door, at night, alone" }
+  ];
+  return story;
+}

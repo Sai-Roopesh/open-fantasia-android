@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { Command } from "commander";
 import { fantasiaHome } from "../home.js";
 import { openMac } from "../mac.js";
-import { claudeToken, doctor, importCommand, install, models, moments, pair, show, stories, trace } from "./commands.js";
+import { claudeToken, doctor, importCommand, install, models, moments, pair, show, stories, trace, world } from "./commands.js";
 import { serve } from "./serve.js";
 
 /**
@@ -38,6 +38,8 @@ program.command("models").argument("[setting...]", "a job, a provider, a model a
 
 program.command("moments").argument("<story>", "a Story's id").description("List the Moments a Story remembers, with who knows each")
   .action((story: string) => exitWith(moments(mac(), story, out)));
+program.command("world").argument("<story>", "a Story's id").description("Show the World off-screen: Lives, Threads, and what happened with who knows it")
+  .action((story: string) => exitWith(world(mac(), story, out)));
 
 program.command("trace").argument("<id>", "a trace id the app showed").description("Show what a request asked, how it ended, and its model calls")
   .action((id: string) => exitWith(trace(mac(), id, out)));

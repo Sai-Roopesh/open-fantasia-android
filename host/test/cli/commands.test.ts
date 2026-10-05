@@ -3,13 +3,13 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { importCommand, models, moments, pair, show, stories, trace } from "../../src/cli/commands.js";
+import { importCommand, models, moments, pair, show, stories, trace, world } from "../../src/cli/commands.js";
 import { Engine } from "../../src/engine/engine.js";
 import { Models } from "../../src/models/model-call.js";
 import { ScriptedRunner } from "../../src/models/scripted.js";
 import { freshHome } from "../support/host.js";
 import { playable } from "../support/play.js";
-import { minimalStoryFile, writeStoryFile } from "../support/story-files.js";
+import { hogwartsWorldStoryFile, minimalStoryFile, writeStoryFile } from "../support/story-files.js";
 
 function capture() {
   const lines: string[] = [];
@@ -71,17 +71,18 @@ describe("the fantasia command", () => {
     expect((mac.db.prepare("SELECT COUNT(*) AS n FROM pairing_codes").get() as { n: number }).n).toBe(1);
   });
 
+  // A new process compiles the CLI before it runs, which takes seconds when the machine is busy.
   it("runs from its launcher", () => {
     const home = mkdtempSync(join(tmpdir(), "fantasia-cli-"));
     const output = execFileSync(process.execPath, [join(import.meta.dirname, "..", "..", "bin", "fantasia.mjs"), "stories"], { env: { ...process.env, FANTASIA_HOME: home }, encoding: "utf8" });
     expect(output).toContain("No Stories yet.");
-  });
+  }, 30_000);
 
   it("shows the model for each job, and a change reaches the next Writer call", async () => {
     const { mac, play, models: scripted } = playable();
     const shown = capture();
     expect(models(mac, [], shown.out)).toBe(true);
-    expect(shown.text()).toBe("writer  claude  claude-sonnet-5-5  (default)\nchronicler  claude  claude-sonnet-5-5  (default)");
+    expect(shown.text()).toBe("writer  claude  claude-sonnet-5-5  (default)\nchronicler  claude  claude-sonnet-5-5  (default)\nweaver  claude  claude-sonnet-5-5  (default)");
 
     const set = capture();
     expect(models(mac, ["writer", "claude", "claude-opus-5-5", "high"], set.out)).toBe(true);
@@ -90,14 +91,14 @@ describe("the fantasia command", () => {
     expect(scripted.writer.requests[0]!.model).toEqual({ provider: "claude", model: "claude-opus-5-5", effort: "high" });
     const after = capture();
     models(mac, [], after.out);
-    expect(after.text()).toBe("writer  claude  claude-opus-5-5  effort high\nchronicler  claude  claude-sonnet-5-5  (default)");
+    expect(after.text()).toBe("writer  claude  claude-opus-5-5  effort high\nchronicler  claude  claude-sonnet-5-5  (default)\nweaver  claude  claude-sonnet-5-5  (default)");
   });
 
   it("refuses a job or a provider it does not know", () => {
     const mac = freshHome();
     const refused = capture();
     expect(models(mac, ["director", "claude", "claude-opus-5-5"], refused.out)).toBe(false);
-    expect(refused.text()).toMatch(/No job "director"\. The jobs are: writer, chronicler/);
+    expect(refused.text()).toMatch(/No job "director"\. The jobs are: writer, chronicler, weaver/);
     const provider = capture();
     expect(models(mac, ["writer", "openai", "gpt-6.1-sol"], provider.out)).toBe(false);
     expect(provider.text()).toMatch(/No provider "openai"\. The providers are: claude, codex, antigravity/);
@@ -118,5 +119,21 @@ describe("the fantasia command", () => {
     expect(listed.text()).toContain("Roopesh Gantasala: \"I sit down at the other end of the sofa.\"");
     const none = capture();
     expect(moments(mac, "no-such-story", none.out)).toBe(false);
+  });
+
+  it("shows a Story's World: the Lives, the Threads, and what happened with who knows each", async () => {
+    const night = { lives: [{ who: "Crabbe and Goyle", where: "the Slytherin common room", doing: "running Draconia's errands", after: "Draconia's errands" }], threads: [{ name: "Quirrell and the third-floor door", now: "The door is scorched" }],
+      happened: [{ id: "H1", what: "Quirrell scorched the third-floor door.", at: "Day 4 02:00", where: "the third-floor corridor", known_to: ["Quirinus Quirrell"], landmark: null }], meanwhile: [] };
+    const { mac, play, engine, storyId, head } = playable(hogwartsWorldStoryFile({ at: "Day 3 22:40" }), { weaver: [{ answer: JSON.stringify(night) }] });
+    await play("I say goodnight.");
+    engine.endScene(storyId, head(), "end");
+    await engine.woven(storyId);
+    const shown = capture();
+    expect(world(mac, storyId, shown.out)).toBe(true);
+    expect(shown.text()).toContain("The World stands at Day 4 07:30 (Saturday 7:30 am)");
+    expect(shown.text()).toContain("Crabbe and Goyle: the Slytherin common room; running Draconia's errands; after: Draconia's errands");
+    expect(shown.text()).toContain("Quirrell and the third-floor door: The door is scorched");
+    expect(shown.text()).toContain("Day 4 02:00 · the third-floor corridor · Quirrell scorched the third-floor door. · known to: Quirinus Quirrell");
+    expect(world(mac, "no-such-story", capture().out)).toBe(false);
   });
 });

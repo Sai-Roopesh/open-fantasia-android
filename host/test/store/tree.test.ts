@@ -123,12 +123,12 @@ describe("working out the State on a Path", () => {
     const late = chronicle(reply.id, "late");
     const after = tree.append("s", reply.id, { kind: "move", text: "I sit." });
 
-    expect(tree.chroniclesOn(after.id).map(entry => entry.id)).toEqual([early.id, late.id]);
+    expect(tree.recordsOn(after.id, "chronicle").map(entry => entry.id)).toEqual([early.id, late.id]);
     expect(tree.pathTo(after.id).some(entry => entry.payload.kind === "chronicle")).toBe(false);
     // A Path from an earlier entry inherits the Chronicles before it, and not those after.
-    expect(tree.chroniclesOn(move.id).map(entry => entry.id)).toEqual([early.id]);
+    expect(tree.recordsOn(move.id, "chronicle").map(entry => entry.id)).toEqual([early.id]);
     // A Redo's new branch under the Move loses the Chronicle about the old Reply.
     const redo = tree.append("s", move.id, { kind: "redo", direction: null, remember: false });
-    expect(tree.chroniclesOn(redo.id).map(entry => entry.id)).toEqual([early.id]);
+    expect(tree.recordsOn(redo.id, "chronicle").map(entry => entry.id)).toEqual([early.id]);
   });
 });

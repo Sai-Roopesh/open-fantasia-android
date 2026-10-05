@@ -74,10 +74,10 @@ export class Tree {
   }
 
   /**
-   * The Chronicles a Path sees: those whose parent is on the Path from the root to [headId], in Path order (docs/adr/0007).
-   * They hang off the Path, so walking it never meets one.
+   * The records of [kind] a Path sees: those whose parent is on the Path from the root to [headId], in Path order
+   * (docs/adr/0007). They hang off the Path, so walking it never meets one.
    */
-  chroniclesOn(headId: string): Entry[] {
+  recordsOn(headId: string, kind: "chronicle" | "world_moved"): Entry[] {
     const rows = this.db.prepare(`
       WITH RECURSIVE path(id, parent_id, depth) AS (
         SELECT id, parent_id, 0 FROM entries WHERE id = ?
@@ -85,9 +85,9 @@ export class Tree {
         SELECT e.id, e.parent_id, path.depth + 1 FROM entries e JOIN path ON path.parent_id = e.id
       )
       SELECT c.* FROM entries c JOIN path ON c.parent_id = path.id
-      WHERE c.kind = 'chronicle'
+      WHERE c.kind = ?
       ORDER BY path.depth DESC, c.seq
-    `).all(headId) as EntryRow[];
+    `).all(headId, kind) as EntryRow[];
     return rows.map(toEntry);
   }
 

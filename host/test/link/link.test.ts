@@ -195,11 +195,19 @@ describe("mac-link", () => {
 
     await post("end-scene", { after: (await view()).head_entry_id });
     expect((await view()).day_view).toMatchObject({ place: "The Three Broomsticks" });
-    await stream.until(events => events.some(event => event.event.kind === "scene_closed"));
+    // The World moves on after the Scene ends, and that reaches the phone too.
+    await stream.until(events => events.some(event => event.event.kind === "world_moved"));
     const kinds = stream.received.map(event => event.event.kind).filter(kind => kind !== "reply_delta");
-    expect(kinds).toEqual(["move", "reply_started", "reply", "focus_set", "linger_set", "redo", "reply_started", "reply", "scene_closed"]);
+    expect(kinds).toEqual(["move", "reply_started", "reply", "focus_set", "linger_set", "redo", "reply_started", "reply", "scene_closed", "world_moved"]);
     expect(stream.received.find(event => event.event.kind === "focus_set")!.event.focus).toBe("Hermione Granger");
     expect(stream.received.find(event => event.event.kind === "scene_closed")!.event.day_view).toMatchObject({ place: "The Three Broomsticks" });
+  });
+
+  it("answers Retry for the World only when the World could not move on", async () => {
+    const { call, storyId } = await mac();
+    const refused = await call(`/stories/${storyId}/world/retry`, { method: "POST", body: "{}" });
+    expect(refused.status).toBe(400);
+    expect((await refused.json() as { error: { message: string } }).error.message).toMatch(/not waiting on anything/);
   });
 
   it("refuses End scene, Focus, Linger and Redo while a Reply is being written, with the reason", async () => {

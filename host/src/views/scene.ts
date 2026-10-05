@@ -2,7 +2,7 @@ import type { Countdown, DayView, Exchange, PastScene, Previously, SceneCard, Sc
 import type { Engine } from "../engine/engine.js";
 import { LinkError } from "../link/errors.js";
 import type { Mac } from "../mac.js";
-import type { Chronicle, Entry } from "../story/entries.js";
+import type { Chronicle, Entry, WorldMoved } from "../story/entries.js";
 import { sceneSpans } from "../story/spans.js";
 import type { State } from "../story/state.js";
 import { minutesOf, parseStoryTime, sayDay, sayStoryTime, sayTime, type StoryTime } from "../time.js";
@@ -48,7 +48,12 @@ function countdown(now: StoryTime, at: StoryTime, name: string): Countdown {
  * The Day View, once the Scene has closed: the day and time, where the Player Character is, and countdowns to the
  * next Landmarks (openspec day-view: The Day View says where and when the player is).
  */
-export function dayView(state: State): DayView {
+/**
+ * The Day View once a Scene has closed: where and when, the countdowns, and the World: moving on until the Weaver's
+ * record for this Scene's end exists, then ready with what the Player Character learned meanwhile, or failed with why
+ * (openspec presence: Between Scenes is quiet, and shows progress).
+ */
+export function dayView(mac: Mac, state: State, head: string, failure: { reason: string; traceId: string } | null = null): DayView {
   if (!state.scene?.closed) throw new Error("The Day View opens once a Scene has closed");
   const now = parseStoryTime(state.clock);
   const countdowns: Countdown[] = now === null ? [] : state.landmarks
@@ -66,8 +71,26 @@ export function dayView(state: State): DayView {
     time: now ? sayTime(now) : "",
     place: state.scene.place,
     closed_by: state.scene.closed,
-    countdowns
+    countdowns,
+    scene_span: sceneSpan(state, state.scene.at, state.scene.endedAt ?? state.clock),
+    ...worldOfDay(mac, head, state.scene.openedBy, failure)
   };
+}
+
+function worldOfDay(mac: Mac, head: string, scene: string, failure: { reason: string; traceId: string } | null): Pick<DayView, "world" | "meanwhile" | "failure"> {
+  const record = mac.tree.recordsOn(head, "world_moved").map(entry => entry.payload as WorldMoved).find(moved => moved.scene === scene);
+  if (record) return { world: "ready", meanwhile: record.meanwhile.map(item => ({ text: item.text, how: item.how })), failure: null };
+  if (failure) return { world: "failed", meanwhile: [], failure: { reason: failure.reason, trace_id: failure.traceId } };
+  return { world: "moving_on", meanwhile: [], failure: null };
+}
+
+/** When a Scene ran, as people say it: "Friday 9:40 pm – 11:05 pm", naming the day again if it ended on another. */
+function sceneSpan(state: State, began: string, ended: string): string {
+  const start = parseStoryTime(began);
+  const end = parseStoryTime(ended);
+  if (!start || !end) return `${began} – ${ended}`;
+  const close = start.day === end.day ? sayTime(end) : sayStoryTime(end, state.dayOneWeekday);
+  return `${sayStoryTime(start, state.dayOneWeekday)} – ${close}`;
 }
 
 /**
@@ -105,7 +128,7 @@ export function sceneView(mac: Mac, engine: Engine, storyId: string, traceId: st
     player_character: state.playerCharacter,
     focus: scene.focus,
     linger: scene.linger,
-    day_view: scene.closed ? dayView(state) : null,
+    day_view: scene.closed ? dayView(mac, state, path.headEntryId, engine.worldFailure(storyId, scene.openedBy)) : null,
     earlier_scenes: all.flatMap(entry => entry.payload.kind === "scene_opened" && entry.id !== scene.openedBy
       ? [{ number: entry.payload.number, title: entry.payload.title, summary: summaries.get(entry.id) ?? "" }]
       : []),
@@ -134,7 +157,7 @@ function previously(mac: Mac, head: string, scene: string, summaries: Map<string
 /** The Chronicler's summary of each Scene on the Path at [head] that has one, by the Scene's opening entry. */
 function summariesOn(mac: Mac, head: string): Map<string, string> {
   // Chronicles come oldest first, so each Scene keeps its latest: what happened in it once it has ended.
-  return new Map(mac.tree.chroniclesOn(head).flatMap(entry => {
+  return new Map(mac.tree.recordsOn(head, "chronicle").flatMap(entry => {
     const chronicle = entry.payload as Chronicle;
     return chronicle.summary ? [[chronicle.scene, chronicle.summary] as const] : [];
   }));
@@ -188,7 +211,7 @@ export function entryEvent(mac: Mac, storyId: string, entry: Entry): StoryEvent 
     case "reply":
       return { kind: "reply", seq: entry.seq, passage: { entry_id: entry.id, text: payload.text }, scene: sceneCard(storyId, mac.states.at(entry.id)) };
     case "scene_closed":
-      return { kind: "scene_closed", seq: entry.seq, day_view: dayView(mac.states.at(entry.id)) };
+      return { kind: "scene_closed", seq: entry.seq, day_view: dayView(mac, mac.states.at(entry.id), entry.id) };
     case "focus_set":
       return { kind: "focus_set", seq: entry.seq, focus: payload.on };
     case "linger_set":
@@ -197,6 +220,7 @@ export function entryEvent(mac: Mac, storyId: string, entry: Entry): StoryEvent 
       return { kind: "redo", seq: entry.seq };
     case "beat_note":
     case "chronicle":
+    case "world_moved":
     case "story_set_up":
       return null;
   }

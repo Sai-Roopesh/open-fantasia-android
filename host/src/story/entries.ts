@@ -5,7 +5,7 @@ import type { Beat, ModelChoice, SceneCall } from "./state.js";
  * What can be written to a Story's tree (docs/adr/0003). Each kind is something that happened; the State on a
  * Path is what all of them add up to, worked out by the reducer.
  */
-export type Payload = StorySetUp | SceneOpened | MoveWritten | Redo | BeatNote | ReplyWritten | SceneClosed | FocusSet | LingerSet | Chronicle;
+export type Payload = StorySetUp | SceneOpened | MoveWritten | Redo | BeatNote | ReplyWritten | SceneClosed | FocusSet | LingerSet | Chronicle | WorldMoved;
 
 /** A payload as any version may have stored it. */
 export type StoredPayload = Exclude<Payload, BeatNote | Chronicle>
@@ -146,6 +146,60 @@ export interface Chronicle {
   sceneEnded: boolean;
   moments: Moment[];
   told: Told[];
+  callId: string;
+  model: ModelChoice;
+}
+
+/** Where a person or Group is, what they are doing and what they are after: none of it set until the Weaver moves them. */
+export interface Life {
+  who: string;
+  where: string | null;
+  doing: string | null;
+  after: string;
+}
+
+/** A situation developing in the World on its own, and where it stands. */
+export interface ThreadNow {
+  name: string;
+  now: string;
+}
+
+/** Something that happened off-screen, and who knows it (the Player Character, once he does). */
+export interface Happened {
+  id: string;
+  what: string;
+  at: string;
+  where: string;
+  knownTo: string[];
+  /** The Landmark it is, when it is one. */
+  landmark: string | null;
+}
+
+/** What the Player Character learned while elsewhere, and how: one line of the Day View's Meanwhile. */
+export interface MeanwhileItem {
+  text: string;
+  how: "seen" | "told" | "rumour";
+  /** The id of what happened that it tells of. */
+  happened: string;
+  /** Who told him, for what he was told. */
+  toldBy: string | null;
+}
+
+/**
+ * The Weaver's record: the World moved on from [from] to [until] after a Scene ended. It hangs off the Scene's last
+ * entry and never extends the Path (docs/adr/0007); the World is worked out beside the Path (story/world.ts).
+ */
+export interface WorldMoved {
+  kind: "world_moved";
+  /** The opening entry of the Scene whose end it moved the World on from. */
+  scene: string;
+  from: string;
+  until: string;
+  /** Only the Lives and Threads it moved; everything else stays where it was. */
+  lives: Life[];
+  threads: ThreadNow[];
+  happened: Happened[];
+  meanwhile: MeanwhileItem[];
   callId: string;
   model: ModelChoice;
 }

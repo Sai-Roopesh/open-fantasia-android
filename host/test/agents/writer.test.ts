@@ -1,4 +1,5 @@
 import { NOTHING_RECALLED } from "../../src/agents/recall.js";
+import { NO_WORLD } from "../../src/story/world.js";
 import { describe, expect, it } from "vitest";
 import { checkWriterAnswer, writeBeat, writerPrompt, WriterFailed, type WriterAsk } from "../../src/agents/writer.js";
 import { Models } from "../../src/models/model-call.js";
@@ -27,7 +28,7 @@ function planned(state: State, changes: Partial<NonNullable<State["scene"]>> = {
 }
 
 function ask(state: State, move: string, changes: Partial<WriterAsk> = {}): WriterAsk {
-  return { state, scene: [], move, direction: null, recall: NOTHING_RECALLED, ...changes };
+  return { state, scene: [], move, direction: null, recall: NOTHING_RECALLED, world: NO_WORLD, ...changes };
 }
 
 /** An answer that keeps every rule, for the open, planned Scene. */

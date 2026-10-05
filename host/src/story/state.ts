@@ -80,6 +80,8 @@ export interface CurrentScene {
   linger: boolean;
   /** Who closed the Scene, once it has closed. A Scene left by a Move is simply followed by the next. */
   closed: "story" | "player" | null;
+  /** When the Scene ended, once it has closed; the clock has moved on to when the Day View opens. */
+  endedAt: string | null;
 }
 
 /** A Redo waiting for its Reply: what the player asked of the Writer, if anything. */
@@ -107,6 +109,8 @@ export interface State {
   playerCharacter: string;
   arcs: string[];
   landmarks: Landmark[];
+  /** The Threads as the Story File set them; the Weaver moves them on beside the Path (story/world.ts). */
+  threads: { name: string; now: string }[];
   scene: CurrentScene | null;
   scenesPlayed: number;
   /** Lasting lessons from the player's Directions, oldest first, at most ten (openspec long-run: Taste). */

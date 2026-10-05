@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { actorPrompt } from "../../src/agents/actor.js";
+import type { World } from "../../src/story/world.js";
 import { importStoryFile } from "../../src/storyfile/import.js";
 import { freshHome } from "../support/host.js";
 import type { State } from "../../src/story/state.js";
@@ -23,6 +24,25 @@ function sceneWithMoves(...moves: string[]) {
 }
 
 describe("the Actor's prompt", () => {
+  it("tells each person present their own Life, and nobody else's", () => {
+    const { state, mac, head, storyId } = nightTrain();
+    const move = mac.tree.append(storyId, head(), { kind: "move", text: "I ask Meera where she is going." });
+    const scene = mac.tree.pathTo(move.id).slice(1);
+    const world: World = {
+      until: "Day 2 07:00",
+      lives: [
+        { who: "Meera Kulkarni", where: "the platform at Kalka", doing: "looking for the toy train", after: "A month of counting birds in the hills" },
+        { who: "Uncle Bhalla", where: "his daughter's house in Kalka", doing: "drinking tea", after: "A nap" }
+      ],
+      threads: [],
+      happened: [{ id: "h", what: "Bhalla's daughter scolded him for the goat story.", at: "Day 2 06:30", where: "Kalka", knownTo: ["Uncle Bhalla"], landmark: null, record: "r" }]
+    };
+    const { system, prompt } = actorPrompt({ ...state, scene: { ...state.scene!, here: ["Meera Kulkarni"] } }, scene, undefined, world);
+    expect(system).toMatch(/<person name="Meera Kulkarni">[\s\S]*Lately: the platform at Kalka; looking for the toy train\.\nAfter: A month of counting birds in the hills/);
+    expect(`${system}\n${prompt}`).not.toContain("drinking tea");
+    expect(`${system}\n${prompt}`).not.toContain("scolded him for the goat story");
+  });
+
   it("sends the same system prompt for every Reply in a Scene, so the prompt cache hits", () => {
     const [first, second] = sceneWithMoves("I raise my glass to her.", "I ask the barman for another.");
     expect(second!.system).toBe(first!.system);

@@ -28,6 +28,40 @@ class SceneReloadTest {
         }
     }
 
+    @Test fun `World moved reloads Meanwhile without changing the Path head`() = runBlocking {
+        MacServer().use { mac ->
+            val initial = sceneFixture().copy(dayView = FakeFantasiaLink.dayView().copy(world = World.MovingOn),
+                headEntryID = "closed", seq = 4, lastEventID = "4")
+            val snapshot = initial.copy(seq = 6, lastEventID = "6", dayView = initial.dayView!!.copy(world = World.Ready,
+                meanwhile = listOf(MeanwhileItem(how = How.Rumour, text = "Lavender brings a rumour to breakfast."))))
+            mac.enqueue(MockResponse().setHeader("Content-Type", "text/event-stream").setBody(
+                eventData("6", StoryEvent(kind = StoryEventKind.WorldMoved, seq = 6))))
+            mac.enqueue(MockResponse().setBody(linkJson.encodeToString(snapshot)))
+            val view = withTimeout(5000) { StoryStream(loadScene = { mac.client.scene(it) }) { mac.client }.follow(initial).first() }
+            assertEquals(snapshot, view)
+            assertEquals("closed", view.headEntryID)
+            assertEquals("/stories/story/events", mac.server.takeRequest().path)
+            assertEquals("/stories/story/scene", mac.server.takeRequest().path)
+        }
+    }
+
+    @Test fun `World failed reloads the reason and trace even at the same sequence`() = runBlocking {
+        MacServer().use { mac ->
+            val initial = sceneFixture().copy(dayView = FakeFantasiaLink.dayView().copy(world = World.MovingOn),
+                headEntryID = "closed", seq = 4, lastEventID = "4")
+            val snapshot = initial.copy(dayView = initial.dayView!!.copy(world = World.Failed,
+                failure = WorldFailure(reason = "The Weaver is unavailable", traceID = "world-trace")))
+            mac.enqueue(MockResponse().setHeader("Content-Type", "text/event-stream").setBody(
+                eventData("4.world_failed", StoryEvent(kind = StoryEventKind.WorldFailed, seq = 4,
+                    reason = "The Weaver is unavailable", traceID = "world-trace"))))
+            mac.enqueue(MockResponse().setBody(linkJson.encodeToString(snapshot)))
+            val view = withTimeout(5000) { StoryStream(loadScene = { mac.client.scene(it) }) { mac.client }.follow(initial).first() }
+            assertEquals(snapshot, view)
+            assertEquals("/stories/story/events", mac.server.takeRequest().path)
+            assertEquals("/stories/story/scene", mac.server.takeRequest().path)
+        }
+    }
+
     // GIVEN a Scene in the Gryffindor common room
     // WHEN the Move is "I go to my room; Harry, Ron and Neville are playing a board game"
     // THEN a new Scene opens in the dormitory with its title card, and the Reply plays it

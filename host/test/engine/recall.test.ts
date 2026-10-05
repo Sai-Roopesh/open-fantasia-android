@@ -104,7 +104,7 @@ describe("recall", () => {
     const nightTrain = parse(readFileSync(join(NIGHT_TRAIN, "story.yaml"), "utf8")) as StoryFile;
     const told = "I tell her I'm going to Shimla for an interview I don't want.";
     const { play, engine, storyId, head, models } = playable(nightTrain, {
-      writer: [writer(["Meera Kulkarni", "Uncle Bhalla"], "Day 1 22:45"), writer(["Meera Kulkarni"], "Day 2 07:20", { title: "Kalka", place: "Kalka station" })],
+      writer: [writer(["Meera Kulkarni", "Uncle Bhalla"], "Day 1 22:45"), writer(["Meera Kulkarni"], "Day 2 07:40", { title: "Kalka", place: "Kalka station" })],
       chronicler: [chronicle("Ishaan told Meera about the interview.", [{ what: "Ishaan tells Meera he doesn't want the interview.", quotes: [{ entry: "E2", text: told }], there: ["Meera"], weight: 3 }])]
     });
     await play(told);

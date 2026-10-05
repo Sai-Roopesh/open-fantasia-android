@@ -490,7 +490,7 @@
       }
     },
     "StoryEvent": {
-      "description": "One event on a Story's live stream. Entry events (scene_opened, move, reply, scene_closed, focus_set, linger_set, redo) are replayed after a reconnect; reply_started, reply_delta and reply_failed describe the turn under way. After scene_opened, scene_closed and redo the phone reads the Scene again, because they change more than one part of it.",
+      "description": "One event on a Story's live stream. Entry events (scene_opened, move, reply, scene_closed, focus_set, linger_set, redo) are replayed after a reconnect; reply_started, reply_delta and reply_failed describe the turn under way; world_moved and world_failed say the World has moved on, or could not, after a Scene ended. After scene_opened, scene_closed, redo, world_moved and world_failed the phone reads the Scene again, because they change more than one part of it.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -510,7 +510,9 @@
             "redo",
             "reply_started",
             "reply_delta",
-            "reply_failed"
+            "reply_failed",
+            "world_moved",
+            "world_failed"
           ]
         },
         "seq": {
@@ -552,7 +554,7 @@
       }
     },
     "DayView": {
-      "description": "Where and when the Player Character is between Scenes (openspec day-view).",
+      "description": "Where and when the Player Character is between Scenes, and what he learned meanwhile (openspec day-view).",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -562,7 +564,11 @@
         "time",
         "place",
         "closed_by",
-        "countdowns"
+        "countdowns",
+        "world",
+        "scene_span",
+        "meanwhile",
+        "failure"
       ],
       "properties": {
         "at": {
@@ -598,6 +604,37 @@
           "items": {
             "$ref": "#/$defs/Countdown"
           }
+        },
+        "world": {
+          "description": "Whether the World has moved on to the Day View's time: moving_on while the Weaver works (the phone says so in one line and takes no Move), ready, or failed (with failure).",
+          "type": "string",
+          "enum": [
+            "moving_on",
+            "ready",
+            "failed"
+          ]
+        },
+        "scene_span": {
+          "description": "When the Scene that ended ran, as people say it: \"Friday 9:40 pm – 11:05 pm\".",
+          "type": "string"
+        },
+        "meanwhile": {
+          "description": "What the Player Character learned while elsewhere, once the World has moved on; empty before.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MeanwhileItem"
+          }
+        },
+        "failure": {
+          "description": "Why the World could not move on, when world is failed; Retry is POST /stories/{id}/world/retry.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/WorldFailure"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     },
@@ -619,6 +656,45 @@
         },
         "label": {
           "description": "\"3 days to Draconia's flying test\", \"Tomorrow: the first match\", \"Today at 6:00 pm: the feast\".",
+          "type": "string"
+        }
+      }
+    },
+    "MeanwhileItem": {
+      "description": "One line of Meanwhile, marked by how the Player Character learned it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text",
+        "how"
+      ],
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "how": {
+          "type": "string",
+          "enum": [
+            "seen",
+            "told",
+            "rumour"
+          ]
+        }
+      }
+    },
+    "WorldFailure": {
+      "description": "The Weaver could not move the World on.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reason",
+        "trace_id"
+      ],
+      "properties": {
+        "reason": {
+          "type": "string"
+        },
+        "trace_id": {
           "type": "string"
         }
       }

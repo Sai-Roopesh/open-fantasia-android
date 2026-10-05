@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import { hogwartsStoryFile } from "../support/story-files.js";
 import { playable } from "../support/play.js";
 
+const beats = [{ text: "a", status: "in_play" }, { text: "b", status: "pending" }, { text: "c", status: "pending" }];
+/** The Writer's answer to a Move that takes the Scene on to [clock]. */
+const writerAt = (clock: string) => ({ answer: JSON.stringify({ leaves_scene: false, frame: { title: "kept", place: "kept", purpose: "p", exit: "e" }, comes_in: [], goes: [], beats, note: "n", call: "continue", intensity: 2, arc_moved: true, clock, taste: null, in_play: [] }) });
+
 describe("the Day View", () => {
   // GIVEN it is Sunday and Draconia's flying test is a Landmark on Wednesday
   // THEN the Day View shows "3 days to Draconia's flying test"
@@ -17,7 +21,12 @@ describe("the Day View", () => {
       time: "7:00 pm",
       place: "The Gryffindor common room",
       closed_by: "player",
-      countdowns: [{ landmark: "Draconia's flying test", when: "3 days", label: "3 days to Draconia's flying test" }]
+      countdowns: [{ landmark: "Draconia's flying test", when: "3 days", label: "3 days to Draconia's flying test" }],
+      scene_span: "Sunday 7:00 pm – 7:00 pm",
+      // Whether the World has moved on yet, and what he learned meanwhile, are the Weaver's (openspec presence).
+      world: expect.any(String),
+      meanwhile: expect.any(Array),
+      failure: null
     });
   });
 
@@ -33,5 +42,33 @@ describe("the Day View", () => {
     engine.endScene(storyId, head(), "trace-end");
     expect(view().day_view!.countdowns.map(countdown => countdown.label)).toEqual(["Today at 8:30 pm: the feast", "Tomorrow: Draconia's flying test"]);
     expect(view().day_view!.countdowns.map(countdown => countdown.when)).toEqual(["Today at 8:30 pm", "Tomorrow"]);
+  });
+
+  // GIVEN the Scene "Flying lesson" ends at 5:20 pm on Thursday
+  // WHEN the Day View opens
+  // THEN it is Thursday 5:20 pm
+  it("day-view › The Day View opens when the Player Character is next free to choose › A Scene ends in the afternoon", async () => {
+    const lesson = hogwartsStoryFile({ title: "Flying lesson", place: "The Quidditch pitch", at: "Day 2 17:00", who: ["Draconia Malfoy"] });
+    const { play, engine, storyId, head, view } = playable(lesson, { writer: [writerAt("Day 2 17:20")] });
+    await play("I land and hand back the broom.");
+    engine.endScene(storyId, head(), "trace-end");
+    expect(view().day_view).toMatchObject({ at: "Day 2 17:20", day: "Thursday", time: "5:20 pm" });
+  });
+
+  // GIVEN the Scene "After curfew" ends at 11:05 pm on Friday
+  // WHEN the Day View opens
+  // THEN it is Saturday morning
+  // AND Meanwhile can say what the Player Character learned overnight and on waking, and nothing he could not know
+  // (What Meanwhile holds is the Weaver's: day-view › Meanwhile shows only what the Player Character knows.)
+  it("day-view › The Day View opens when the Player Character is next free to choose › A late Scene ends", async () => {
+    const curfew = hogwartsStoryFile({ title: "After curfew", place: "The Gryffindor common room", at: "Day 3 21:40", who: ["Hermione Granger"] });
+    const { play, engine, storyId, head, view, state, models } = playable(curfew, { writer: [writerAt("Day 3 23:05")] });
+    await play("I say goodnight to Hermione and go up.");
+    engine.endScene(storyId, head(), "trace-end");
+    expect(view().day_view).toMatchObject({ at: "Day 4 07:30", day: "Saturday", time: "7:30 am" });
+    expect(state().scene?.endedAt).toBe("Day 3 23:05");
+    // The night has passed: the next Move is planned from Saturday morning, and never before it.
+    await play("I go down to breakfast.");
+    expect(models.writer.requests.at(-1)!.prompt).toContain("<now>\nDay 4 07:30 (Saturday 7:30 am)\n</now>");
   });
 });

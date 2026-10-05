@@ -93,7 +93,7 @@ CREATE TABLE IF NOT EXISTS pairing_codes (
  * The shape of the State that saved States have. When the State gains or changes a field, this goes up, and the
  * saved States are thrown away the next time the store opens: they are a cache, and the entries are the truth.
  */
-export const STATE_SHAPE = 3;
+export const STATE_SHAPE = 5;
 
 export function openDb(file: string): Db {
   const db = new Database(file);

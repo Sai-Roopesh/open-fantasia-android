@@ -10,7 +10,7 @@ const leaving = { answer: JSON.stringify({ leaves_scene: true, frame: { title: "
 
 /** The Chronicles the current Path sees, as their payloads, with the entry each hangs off. */
 function chronicles(mac: ReturnType<typeof playable>["mac"], head: string): (Chronicle & { parent: Entry })[] {
-  return mac.tree.chroniclesOn(head).map(entry => ({ ...(entry.payload as Chronicle), parent: mac.tree.entry(entry.parentId!)! }));
+  return mac.tree.recordsOn(head, "chronicle").map(entry => ({ ...(entry.payload as Chronicle), parent: mac.tree.entry(entry.parentId!)! }));
 }
 
 describe("when the Chronicler runs", () => {

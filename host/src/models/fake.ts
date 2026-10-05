@@ -75,6 +75,29 @@ export function fakeReply(request: ModelRequest): Script {
   return { answer: `(A scripted Reply.) They hear you say: ${move.slice(0, 80)}` };
 }
 
+/** What the Weaver's prompt was written from, as the Weaver agent records it with each call. */
+interface WeaverFacts {
+  from: string;
+  until: string;
+  landmarks: { name: string; at: string }[];
+}
+
+/**
+ * A Weaver's record that keeps every rule: the World stays as it was, every Landmark in the span happens, and the
+ * player's character learns nothing.
+ */
+export function fakeWeaveAnswer(request: ModelRequest): Script {
+  const facts = request.facts as WeaverFacts;
+  return {
+    answer: JSON.stringify({
+      lives: [],
+      threads: [],
+      happened: facts.landmarks.map((landmark, index) => ({ id: `H${index + 1}`, what: `${landmark.name} happened.`, at: landmark.at, where: "where it was held", known_to: [], landmark: landmark.name })),
+      meanwhile: []
+    })
+  };
+}
+
 /**
  * Scripted models for every agent: each job has its own queue of answers, and answers by itself when its queue is
  * empty. Every scenario test runs on this, and `fantasia serve --fake-models` too.
@@ -83,18 +106,20 @@ export class FakeModels implements ModelRunner {
   readonly writer: ScriptedRunner;
   readonly actor: ScriptedRunner;
   readonly chronicler: ScriptedRunner;
+  readonly weaver: ScriptedRunner;
   /** Every request, in the order it was made. */
   readonly requests: ModelRequest[] = [];
 
-  constructor(scripts: { writer?: Script[]; actor?: Script[]; chronicler?: Script[] } = {}, actorFallback: (request: ModelRequest) => Script = () => ({ answer: "She looks at you, and waits." })) {
+  constructor(scripts: { writer?: Script[]; actor?: Script[]; chronicler?: Script[]; weaver?: Script[] } = {}, actorFallback: (request: ModelRequest) => Script = () => ({ answer: "She looks at you, and waits." })) {
     this.writer = new ScriptedRunner(scripts.writer ?? [], fakeWriterAnswer);
     this.actor = new ScriptedRunner(scripts.actor ?? [], actorFallback);
     this.chronicler = new ScriptedRunner(scripts.chronicler ?? [], fakeChronicleAnswer);
+    this.weaver = new ScriptedRunner(scripts.weaver ?? [], fakeWeaveAnswer);
   }
 
   run(request: ModelRequest, onText: (delta: string) => void, signal: AbortSignal): Promise<string> {
     this.requests.push(request);
-    const runner = request.agent === "writer" ? this.writer : request.agent === "chronicler" ? this.chronicler : this.actor;
+    const runner = request.agent === "writer" ? this.writer : request.agent === "chronicler" ? this.chronicler : request.agent === "weaver" ? this.weaver : this.actor;
     return runner.run(request, onText, signal);
   }
 }

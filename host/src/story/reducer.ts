@@ -1,5 +1,5 @@
 import type { StoryFile } from "../protocol/generated/story-file.js";
-import type { Weekday } from "../time.js";
+import { nextFreeAfter, type Weekday } from "../time.js";
 import type { BeatNote, Entry, SceneOpened, StorySetUp } from "./entries.js";
 import type { Beat, CurrentScene, ModelChoice, Person, State } from "./state.js";
 
@@ -31,13 +31,15 @@ export function apply(state: State | null, entry: Entry): State {
     case "redo":
       return { ...state, pendingDirection: { text: payload.direction, remember: payload.remember }, directions: payload.direction ? [...state.directions, payload.direction].slice(-DIRECTIONS_KEPT) : state.directions };
     case "scene_closed":
-      return { ...state, scene: { ...inScene(state), closed: payload.by, focus: null, linger: false } };
+      // The Day View opens when the Player Character is next free to choose: after a late Scene, the next morning.
+      return { ...state, clock: nextFreeAfter(state.clock), scene: { ...inScene(state), closed: payload.by, endedAt: state.clock, focus: null, linger: false } };
     case "focus_set":
       return { ...state, scene: { ...inScene(state), focus: payload.on } };
     case "linger_set":
       return { ...state, scene: { ...inScene(state), linger: payload.on } };
     case "chronicle":
-      // A Chronicle hangs off the Path and is never walked (docs/adr/0007); recall reads it beside the Path.
+    case "world_moved":
+      // Records written beside play hang off the Path and are never walked (docs/adr/0007); they are read beside it.
       return state;
     case "reply":
       // Whoever the Beat Note had go has gone once the Reply is written, and Focus on them clears.
@@ -124,6 +126,7 @@ function setUp({ storyFile, portraits }: StorySetUp): State {
     playerCharacter: file.player_character,
     arcs: file.arcs ?? [],
     landmarks: (file.landmarks ?? []).map(landmark => ({ name: landmark.name, at: landmark.at, what: landmark.what })),
+    threads: (file.threads ?? []).map(thread => ({ name: thread.name, now: thread.now })),
     scene: null,
     scenesPlayed: 0,
     taste: [],
@@ -151,6 +154,7 @@ function openScene(state: State, scene: SceneOpened, entryId: string): State {
       note: null,
       inPlay: [],
       goes: [],
+      endedAt: null,
       call: null,
       intensity: null,
       beatInPlayFor: 0,

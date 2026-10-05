@@ -23,9 +23,13 @@ class StoryStream(
                     val before = projection.view
                     val next = SceneProjection(before)
                     next.apply(envelope)
-                    if (next.view != before && envelope.event.kind in setOf(
+                    // World signals carry no Day View and may share the current sequence (a failure writes no entry).
+                    // Reload even when applying the signal leaves the projection unchanged.
+                    val worldSignal = envelope.event.kind in setOf(StoryEventKind.WorldMoved, StoryEventKind.WorldFailed) &&
+                        envelope.event.seq >= before.seq
+                    if (worldSignal || (next.view != before && envelope.event.kind in setOf(
                             StoryEventKind.SceneOpened, StoryEventKind.SceneClosed, StoryEventKind.Redo,
-                            StoryEventKind.FocusSet, StoryEventKind.LingerSet)) {
+                            StoryEventKind.FocusSet, StoryEventKind.LingerSet))) {
                         // Keep the old projection and cursor until the entire reload succeeds.
                         val snapshot = loadScene?.invoke(initial.storyID) ?: client().scene(initial.storyID)
                         next.replace(snapshot)

@@ -33,7 +33,7 @@ export function dueChronicle(mac: Mac, head: string, now: Date = new Date()): Du
   const path = mac.tree.pathTo(head);
   const steppedAway = now.getTime() - Date.parse(path.at(-1)?.createdAt ?? "") >= STEPPED_AWAY_MS;
   const position = new Map(path.map((entry, index) => [entry.id, index]));
-  const chronicles = mac.tree.chroniclesOn(head);
+  const chronicles = mac.tree.recordsOn(head, "chronicle");
   const spans = sceneSpans(path);
 
   for (const [scene, { opened, start, end }] of spans.entries()) {

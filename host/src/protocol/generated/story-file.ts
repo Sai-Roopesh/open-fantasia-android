@@ -44,6 +44,10 @@ export interface StoryFile {
   player_character: string;
   arcs?: string[];
   landmarks?: LandmarkSetup[];
+  /**
+   * Situations developing in the World on their own, each with where it stands when the Story begins.
+   */
+  threads?: ThreadSetup[];
   opening: OpeningSetup;
 }
 /**
@@ -147,6 +151,17 @@ export interface LandmarkSetup {
   name: string;
   at: StoryTime;
   what: string;
+}
+/**
+ * This interface was referenced by `StoryFile`'s JSON-Schema
+ * via the `definition` "ThreadSetup".
+ */
+export interface ThreadSetup {
+  name: string;
+  /**
+   * Where it stands.
+   */
+  now: string;
 }
 /**
  * This interface was referenced by `StoryFile`'s JSON-Schema

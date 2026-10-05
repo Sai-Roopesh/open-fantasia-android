@@ -34,6 +34,23 @@ class SceneCommandsTest {
         }
     }
 
+    @Test fun `World retry posts no body and reads Accepted`() = runBlocking {
+        MacServer().use { mac ->
+            val link = connection(mac)
+            mac.enqueue(MockResponse().setBody("""{"stories":[],"trace_id":"list"}"""))
+            link.stories()
+            mac.server.takeRequest()
+            mac.enqueue(MockResponse().setResponseCode(202).setBody("""{"head_entry_id":"closed","trace_id":"world-retry"}"""))
+            assertEquals(Accepted(headEntryID = "closed", traceID = "world-retry"), link.retryWorld("story"))
+            val request = mac.server.takeRequest()
+            assertEquals("/stories/story/world/retry", request.path)
+            assertEquals("POST", request.method)
+            assertEquals(0L, request.bodySize)
+            assertEquals(CONTRACT_VERSION.toString(), request.getHeader("Fantasia-Contract"))
+            assertEquals("Bearer secret", request.getHeader("Authorization"))
+        }
+    }
+
     @Test fun `Focus posts a name or explicit null with the current head`() = runBlocking {
         MacServer().use { mac ->
             val link = connection(mac)

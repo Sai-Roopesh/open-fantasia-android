@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { writeReply } from "../agents/actor.js";
 import { writeChronicle } from "../agents/chronicler.js";
+import { writeWeave } from "../agents/weaver.js";
 import { recall } from "../agents/recall.js";
 import { writeBeat, WriterFailed } from "../agents/writer.js";
 import { LinkError } from "../link/errors.js";
@@ -13,6 +14,8 @@ import type { StoryPath } from "../store/tree.js";
 import type { Entry, EntryKind } from "../story/entries.js";
 import { entryEvent, sceneEntries } from "../views/scene.js";
 import { chronicleAsk, dueChronicle, STEPPED_AWAY_MS } from "./chronicling.js";
+import { dueWeave, weaveAsk } from "./weaving.js";
+import { worldOn } from "../story/world.js";
 
 /** A live event and its id on the stream: "<seq>" for an entry, "<seq>.<n>" for what a turn under way says. */
 export interface OutgoingEvent {
@@ -58,6 +61,9 @@ export class Engine {
   private readonly turns = new Map<string, Turn>();
   private readonly failures = new Map<string, Failure>();
   private readonly chronicling = new Map<string, Promise<void>>();
+  private readonly weaving = new Map<string, Promise<void>>();
+  /** Per Story, the Scene end the Weaver could not move the World on from, until Retry (openspec presence). */
+  private readonly worldFailures = new Map<string, { scene: string; reason: string; traceId: string; seq: number }>();
   /** Per Story, the Chronicler's call for when the player steps away, restarted by everything the Path gains. */
   private readonly steppingAway = new Map<string, ReturnType<typeof setTimeout>>();
   private readonly bus = new EventEmitter();
@@ -96,6 +102,7 @@ export class Engine {
     if (this.mac.states.at(path.headEntryId).scene?.closed) throw new LinkError("invalid", "This Scene has already ended.");
     const closed = this.write(storyId, path, { kind: "scene_closed", by: "player" });
     this.chronicle(storyId);
+    this.weave(storyId);
     return { head_entry_id: closed.id, trace_id: traceId };
   }
 
@@ -168,6 +175,69 @@ export class Engine {
   chronicleAll(): void {
     const stories = this.mac.db.prepare("SELECT id FROM stories").all() as { id: string }[];
     for (const story of stories) this.chronicle(story.id);
+  }
+
+  /**
+   * Queues the Weaver for the Scene end the Story's current Path owes it (docs/adr/0004): the World moves on, and the
+   * Day View waits for it. One run at a time per Story; a failure is kept, shown on the Day View, and run again only
+   * when the player asks (retryWorld) or the Mac starts again.
+   */
+  weave(storyId: string): void {
+    const previous = this.weaving.get(storyId) ?? Promise.resolve();
+    this.weaving.set(storyId, previous.then(() => this.weaveDue(storyId)).catch(() => {}));
+  }
+
+  /** Queues the Weaver for every Story, for `fantasia serve` when it starts. */
+  weaveAll(): void {
+    const stories = this.mac.db.prepare("SELECT id FROM stories").all() as { id: string }[];
+    for (const story of stories) this.weave(story.id);
+  }
+
+  /** Resolves when the Story's Weaver queue is empty: for tests and for shutting down cleanly. */
+  async woven(storyId: string): Promise<void> {
+    let waitingOn: Promise<void> | undefined;
+    do {
+      waitingOn = this.weaving.get(storyId);
+      await waitingOn;
+    } while (waitingOn !== this.weaving.get(storyId));
+  }
+
+  /** The player asks the Weaver to try again after it failed (openspec presence: Nothing fails silently). */
+  retryWorld(storyId: string, traceId: string): Accepted {
+    const path = this.path(storyId);
+    if (!this.worldFailures.has(storyId)) throw new LinkError("invalid", "The World is not waiting on anything.");
+    this.worldFailures.delete(storyId);
+    this.weave(storyId);
+    return { head_entry_id: path.headEntryId, trace_id: traceId };
+  }
+
+  /** Why the World could not move on from the end of the Scene [scene] opened, if it could not. */
+  worldFailure(storyId: string, scene: string): { reason: string; traceId: string } | null {
+    const failure = this.worldFailures.get(storyId);
+    return failure?.scene === scene ? { reason: failure.reason, traceId: failure.traceId } : null;
+  }
+
+  private async weaveDue(storyId: string): Promise<void> {
+    const path = this.mac.tree.currentPath(storyId);
+    const due = path ? dueWeave(this.mac, path.headEntryId) : null;
+    if (!due || this.worldFailures.get(storyId)?.scene === due.scene.id) return;
+    const traceId = `weave-${randomUUID().slice(0, 8)}`;
+    const model = jobModels(this.mac.home).weaver;
+    try {
+      const { value, callId } = await writeWeave(this.models, model, weaveAsk(this.mac, due), storyId, traceId, new AbortController().signal);
+      const record = this.mac.tree.append(storyId, due.through.id, { kind: "world_moved", scene: due.scene.id, from: due.from, until: due.until, ...value, callId, model });
+      this.models.attach(callId, record.id);
+      this.emit(storyId, { id: String(record.seq), event: { kind: "world_moved", seq: record.seq } });
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      const seq = this.newestSeq(storyId);
+      this.worldFailures.set(storyId, { scene: due.scene.id, reason, traceId, seq });
+      this.emit(storyId, this.worldFailed(seq, reason, traceId));
+    }
+  }
+
+  private worldFailed(seq: number, reason: string, traceId: string): OutgoingEvent {
+    return { id: `${seq}.world_failed`, event: { kind: "world_failed", seq, reason, trace_id: traceId } };
   }
 
   /** Resolves when the Story's Chronicler queue is empty: for tests and for shutting down cleanly. */
@@ -248,6 +318,11 @@ export class Engine {
         const event = entryEvent(this.mac, storyId, entry);
         return event ? [{ id: String(entry.seq), event }] : [];
       });
+    // The World moving on is a record beside the Path, so it is not among the entries: say it too.
+    const moved = this.mac.tree.recordsOn(path.headEntryId, "world_moved").filter(entry => entry.seq > seenSeq).at(-1);
+    if (moved) missed.push({ id: String(moved.seq), event: { kind: "world_moved", seq: moved.seq } });
+    const stuck = this.worldFailures.get(storyId);
+    if (stuck && stuck.seq >= seenSeq) missed.push(this.worldFailed(stuck.seq, stuck.reason, stuck.traceId));
 
     const turn = this.turns.get(storyId);
     if (turn) {
@@ -336,7 +411,7 @@ export class Engine {
     const model = jobModels(this.mac.home).writer;
     const text = turn.move.payload.kind === "move" ? turn.move.payload.text : "";
     const { plan, callId } = await writeBeat(this.models, model,
-      { state, scene: moveAt >= 0 ? entries.slice(0, moveAt) : entries, move: text, direction: state.pendingDirection, recall: recall(this.mac, head.id, state.scene?.here ?? []) },
+      { state, scene: moveAt >= 0 ? entries.slice(0, moveAt) : entries, move: text, direction: state.pendingDirection, recall: recall(this.mac, head.id, state.scene?.here ?? []), world: worldOn(this.mac, head.id) },
       turn.storyId, turn.traceId, turn.abort.signal);
 
     const written = this.mac.db.transaction(() => {
@@ -363,7 +438,7 @@ export class Engine {
   private async actorStep(turn: Turn, note: Entry): Promise<void> {
     this.emit(turn.storyId, this.started(turn, note));
     const { state, entries } = sceneEntries(this.mac, note.id);
-    const answer = await writeReply(this.models, state, entries, recall(this.mac, note.id, state.scene?.here ?? []), turn.storyId, turn.traceId, text => {
+    const answer = await writeReply(this.models, state, entries, recall(this.mac, note.id, state.scene?.here ?? []), worldOn(this.mac, note.id), turn.storyId, turn.traceId, text => {
       turn.deltas.push(text);
       this.emit(turn.storyId, this.delta(note, turn.deltas.length, text, turn.traceId));
     }, turn.abort.signal);
@@ -378,6 +453,7 @@ export class Engine {
     this.publish(turn.storyId, written.reply);
     if (written.closed) this.publish(turn.storyId, written.closed);
     this.chronicle(turn.storyId);
+    this.weave(turn.storyId);
   }
 
   private started(turn: Turn, anchor: Entry): OutgoingEvent {

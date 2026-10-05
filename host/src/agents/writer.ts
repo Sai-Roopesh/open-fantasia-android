@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import type { Models } from "../models/model-call.js";
+import type { World } from "../story/world.js";
 import { answerWithOneRepair } from "./repair.js";
 import type { Entry } from "../story/entries.js";
 import type { Beat, ModelChoice, PendingDirection, SceneCall, State } from "../story/state.js";
@@ -109,6 +110,8 @@ export interface WriterAsk {
   direction: PendingDirection | null;
   /** What is remembered from before this Scene by the people in it. */
   recall: Recall;
+  /** The World off-screen, hidden things included: the Writer sees everything and passes on only what happens next. */
+  world: World;
 }
 
 /** A new Scene's frame. */
@@ -313,6 +316,27 @@ function sceneSoFar(entries: Entry[], pc: string): string {
   return exchanges.slice(-WRITER_EXCHANGES).map(exchange => exchange.join("\n")).join("\n\n");
 }
 
+/** How far back the Writer is shown what happened off-screen. */
+const LATELY_MINUTES = 24 * 60;
+
+/**
+ * The World as the Writer reads it: every Life and Thread, and what happened off-screen in the last day of Story time
+ * with who knows each thing. Something known to nobody in a Scene reaches it only through the Writer's note.
+ */
+function worldPrompt(state: State, world: World): string {
+  const now = parseStoryTime(state.clock);
+  const lately = world.happened.filter(item => {
+    const at = parseStoryTime(item.at);
+    return at && now && minutesOf(now) - minutesOf(at) <= LATELY_MINUTES;
+  });
+  const moved = world.lives.filter(life => life.where || life.doing);
+  return [
+    moved.length ? `Lives:\n${moved.map(life => `- ${life.who}: ${life.where ?? "somewhere"}; ${life.doing ?? "about their day"}; after: ${life.after}`).join("\n")}` : "",
+    world.threads.length ? `Threads:\n${world.threads.map(thread => `- ${thread.name}: ${thread.now}`).join("\n")}` : "",
+    lately.length ? `Lately, off-screen:\n${lately.map(item => `- ${item.what} (${say(state, item.at)}, ${item.where}; known to: ${item.knownTo.join(", ") || "nobody"})`).join("\n")}` : ""
+  ].filter(Boolean).join("\n\n");
+}
+
 /** What the Writer is sent: the Story in its system prompt, the moment in its task, and the facts both came from. */
 export function writerPrompt(ask: WriterAsk): { system: string; prompt: string; facts: Record<string, unknown> } {
   const { state, move, direction } = ask;
@@ -354,6 +378,7 @@ export function writerPrompt(ask: WriterAsk): { system: string; prompt: string; 
     section("earlier", ask.recall.earlier.join("\n")),
     section("last_scene_end", sayWords(ask.recall.lastSceneEnd)),
     section("remembered", ask.recall.moments.map((moment, position) => section(`moment id="M${position + 1}" scene="${moment.scene}" known_to="${moment.knownTo.join(", ")}"`, `${moment.what}\n${sayWords(moment.words)}`)).join("\n\n")),
+    section("world", worldPrompt(state, ask.world)),
     section(opening === "day_view" ? "last_scene_so_far" : "scene_so_far", sceneSoFar(ask.scene, pc)),
     section(`move by="${pc}"`, move),
     direction?.text ? section("direction", direction.text) : null,

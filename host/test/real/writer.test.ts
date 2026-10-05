@@ -1,4 +1,5 @@
 import { NOTHING_RECALLED } from "../../src/agents/recall.js";
+import { NO_WORLD } from "../../src/story/world.js";
 import { describe, expect, it } from "vitest";
 import { writeBeat, type WriterAsk } from "../../src/agents/writer.js";
 import { Engine } from "../../src/engine/engine.js";
@@ -33,7 +34,7 @@ function onClaude(storyFile: StoryFile) {
 async function writerAnswers(storyFile: StoryFile, move: string) {
   const { mac, runner, models, head } = onClaude(storyFile);
   const state = mac.states.at(head());
-  const ask: WriterAsk = { state, scene: sceneEntries(mac, head()).entries, move, direction: null, recall: NOTHING_RECALLED };
+  const ask: WriterAsk = { state, scene: sceneEntries(mac, head()).entries, move, direction: null, recall: NOTHING_RECALLED, world: NO_WORLD };
   try {
     return await writeBeat(models, DEFAULT_JOB_MODELS.writer, ask, "real", "real-writer", new AbortController().signal);
   } finally {

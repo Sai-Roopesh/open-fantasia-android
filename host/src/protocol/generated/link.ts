@@ -224,7 +224,7 @@ export interface SceneSummaryLine {
   summary: string;
 }
 /**
- * Where and when the Player Character is between Scenes (openspec day-view).
+ * Where and when the Player Character is between Scenes, and what he learned meanwhile (openspec day-view).
  *
  * This interface was referenced by `Link`'s JSON-Schema
  * via the `definition` "DayView".
@@ -255,6 +255,22 @@ export interface DayView {
    */
   closed_by: "story" | "player";
   countdowns: Countdown[];
+  /**
+   * Whether the World has moved on to the Day View's time: moving_on while the Weaver works (the phone says so in one line and takes no Move), ready, or failed (with failure).
+   */
+  world: "moving_on" | "ready" | "failed";
+  /**
+   * When the Scene that ended ran, as people say it: "Friday 9:40 pm – 11:05 pm".
+   */
+  scene_span: string;
+  /**
+   * What the Player Character learned while elsewhere, once the World has moved on; empty before.
+   */
+  meanwhile: MeanwhileItem[];
+  /**
+   * Why the World could not move on, when world is failed; Retry is POST /stories/{id}/world/retry.
+   */
+  failure: WorldFailure | null;
 }
 /**
  * This interface was referenced by `Link`'s JSON-Schema
@@ -270,6 +286,26 @@ export interface Countdown {
    * "3 days to Draconia's flying test", "Tomorrow: the first match", "Today at 6:00 pm: the feast".
    */
   label: string;
+}
+/**
+ * One line of Meanwhile, marked by how the Player Character learned it.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "MeanwhileItem".
+ */
+export interface MeanwhileItem {
+  text: string;
+  how: "seen" | "told" | "rumour";
+}
+/**
+ * The Weaver could not move the World on.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "WorldFailure".
+ */
+export interface WorldFailure {
+  reason: string;
+  trace_id: string;
 }
 /**
  * The Previously card: where the Story stands, from the Chronicler's records, and when the player last played.
@@ -307,7 +343,7 @@ export interface TurnAccepted {
   trace_id: string;
 }
 /**
- * One event on a Story's live stream. Entry events (scene_opened, move, reply, scene_closed, focus_set, linger_set, redo) are replayed after a reconnect; reply_started, reply_delta and reply_failed describe the turn under way. After scene_opened, scene_closed and redo the phone reads the Scene again, because they change more than one part of it.
+ * One event on a Story's live stream. Entry events (scene_opened, move, reply, scene_closed, focus_set, linger_set, redo) are replayed after a reconnect; reply_started, reply_delta and reply_failed describe the turn under way; world_moved and world_failed say the World has moved on, or could not, after a Scene ended. After scene_opened, scene_closed, redo, world_moved and world_failed the phone reads the Scene again, because they change more than one part of it.
  *
  * This interface was referenced by `Link`'s JSON-Schema
  * via the `definition` "StoryEvent".
@@ -323,7 +359,9 @@ export interface StoryEvent {
     | "redo"
     | "reply_started"
     | "reply_delta"
-    | "reply_failed";
+    | "reply_failed"
+    | "world_moved"
+    | "world_failed";
   /**
    * The newest entry this event follows.
    */
@@ -367,7 +405,7 @@ export interface SceneCard1 {
   people: PersonCard[];
 }
 /**
- * Where and when the Player Character is between Scenes (openspec day-view).
+ * Where and when the Player Character is between Scenes, and what he learned meanwhile (openspec day-view).
  */
 export interface DayView1 {
   /**
@@ -395,6 +433,22 @@ export interface DayView1 {
    */
   closed_by: "story" | "player";
   countdowns: Countdown[];
+  /**
+   * Whether the World has moved on to the Day View's time: moving_on while the Weaver works (the phone says so in one line and takes no Move), ready, or failed (with failure).
+   */
+  world: "moving_on" | "ready" | "failed";
+  /**
+   * When the Scene that ended ran, as people say it: "Friday 9:40 pm – 11:05 pm".
+   */
+  scene_span: string;
+  /**
+   * What the Player Character learned while elsewhere, once the World has moved on; empty before.
+   */
+  meanwhile: MeanwhileItem[];
+  /**
+   * Why the World could not move on, when world is failed; Retry is POST /stories/{id}/world/retry.
+   */
+  failure: WorldFailure | null;
 }
 /**
  * This interface was referenced by `Link`'s JSON-Schema

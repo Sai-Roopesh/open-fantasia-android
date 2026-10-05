@@ -63,6 +63,7 @@ class SceneScrollState(val list: LazyListState) {
     scrollState: SceneScrollState = rememberSceneScrollState(),
     previously: Previously? = scene.previously,
     dismissPreviously: () -> Unit = {},
+    worldFailure: @Composable () -> Unit = {},
     failure: @Composable () -> Unit = {}
 ) {
     val list = scrollState.list
@@ -108,7 +109,7 @@ class SceneScrollState(val list: LazyListState) {
                 val height = with(density) { viewportSize.height.toDp() }
                 Column(Modifier.fillMaxWidth().heightIn(min = (height - 22.dp).coerceAtLeast(0.dp)), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     previously?.let { PreviouslyCard(it, dismissPreviously) }
-                    DayViewContent(day, Modifier.fillMaxWidth())
+                    DayViewContent(day, scene.scene, Modifier.fillMaxWidth(), worldFailure)
                 }
             } }
             if (replyComing) item(key = "reply-being-written") {
@@ -273,17 +274,29 @@ class SceneScrollState(val list: LazyListState) {
 
 @Composable fun ReplyFailure(state: FantasiaState, retry: () -> Unit) {
     val turn = state.scene?.turn ?: return
-    Surface(Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Assertive }, shape = FantasiaShapes.card,
+    StoryFailure("The Reply could not be written", turn.reason.orEmpty(), turn.traceID, retry,
+        state.reachable && !state.sending && !state.waiting && state.problem?.needsUpdate != true)
+}
+
+@Composable internal fun WorldFailureContent(state: FantasiaState, retry: () -> Unit) {
+    val failure = state.scene?.dayView?.failure ?: return
+    StoryFailure("The World could not move on", failure.reason, failure.traceID, retry,
+        state.reachable && !state.loading && !state.sending && !state.waiting && state.problem?.needsUpdate != true,
+        Modifier.testTag("world-failure"))
+}
+
+@Composable private fun StoryFailure(title: String, reason: String, traceID: String?, retry: () -> Unit,
+    retryEnabled: Boolean, modifier: Modifier = Modifier) {
+    Surface(modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Assertive }, shape = FantasiaShapes.card,
         color = FantasiaFailureSurface, border = BorderStroke(1.dp, FantasiaFailureLine)) {
         Column(Modifier.padding(17.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("The Reply could not be written", color = FailureAmber, style = FantasiaType.failureTitle)
-            Text(turn.reason.orEmpty(), color = FantasiaProse, style = FantasiaType.detail)
+            Text(title, color = FailureAmber, style = FantasiaType.failureTitle)
+            Text(reason, color = FantasiaProse, style = FantasiaType.detail)
             Button(onClick = retry, modifier = Modifier.padding(top = 2.dp).height(44.dp), shape = FantasiaShapes.round,
-                contentPadding = PaddingValues(horizontal = 20.dp),
-                enabled = state.reachable && !state.sending && !state.waiting && state.problem?.needsUpdate != true) {
+                contentPadding = PaddingValues(horizontal = 20.dp), enabled = retryEnabled) {
                 Text("Retry", style = FantasiaType.retryButton)
             }
-            turn.traceID?.let { Text("Trace $it", color = FantasiaCaption, style = FantasiaType.small) }
+            traceID?.let { Text("Trace $it", color = FantasiaCaption, style = FantasiaType.small) }
         }
     }
 }

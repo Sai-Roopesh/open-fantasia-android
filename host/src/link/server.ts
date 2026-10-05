@@ -115,6 +115,7 @@ export function buildLink(options: LinkOptions): FastifyInstance {
   });
 
   app.post<{ Params: { id: string } }>("/stories/:id/retry", async request => engine.retry(request.params.id, request.traceId));
+  app.post<{ Params: { id: string } }>("/stories/:id/world/retry", async request => engine.retryWorld(request.params.id, request.traceId));
 
   app.post<{ Params: { id: string } }>("/stories/:id/end-scene", async request => {
     if (!validEndScene(request.body)) throw new LinkError("invalid", "End scene needs the entry the phone last saw.");

@@ -28,6 +28,26 @@ export function formatStoryTime(time: StoryTime): string {
   return `Day ${time.day} ${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
 
+/** A Scene that ends from this time of night on ends the Player Character's day (openspec day-view). */
+const BEDTIME = 22 * 60;
+/** Before this time of morning, the night has not ended. */
+const NIGHT_ENDS = 5 * 60;
+/** When the Player Character is next free to choose after a night: woken, through his morning, breakfast done. */
+const WAKING = 7 * 60 + 30;
+
+/**
+ * When the Player Character is next free to choose after a Scene that ended at [ended]: then, or, when it ended late
+ * and he would go to bed, the next morning (openspec day-view: The Day View opens when the Player Character is next
+ * free to choose).
+ */
+export function nextFreeAfter(ended: string): string {
+  const time = parseStoryTime(ended);
+  if (!time) return ended;
+  if (time.minuteOfDay >= BEDTIME) return formatStoryTime({ day: time.day + 1, minuteOfDay: WAKING });
+  if (time.minuteOfDay < NIGHT_ENDS) return formatStoryTime({ day: time.day, minuteOfDay: WAKING });
+  return ended;
+}
+
 /** The weekday a Story day falls on, when the Story says which weekday Day 1 is. */
 export function weekdayOf(day: number, dayOneWeekday: Weekday | null): Weekday | null {
   if (!dayOneWeekday) return null;

@@ -16,7 +16,7 @@ export interface RememberedMoment {
 export function momentsOn(mac: Mac, head: string): RememberedMoment[] {
   const scenes = new Map(mac.tree.pathTo(head).flatMap(entry =>
     entry.payload.kind === "scene_opened" ? [[entry.id, { id: entry.id, number: entry.payload.number, title: entry.payload.title }] as const] : []));
-  const chronicles = mac.tree.chroniclesOn(head).map(entry => entry.payload as Chronicle);
+  const chronicles = mac.tree.recordsOn(head, "chronicle").map(entry => entry.payload as Chronicle);
   const told = new Map<string, Set<string>>();
   for (const chronicle of chronicles) {
     for (const telling of chronicle.told) {

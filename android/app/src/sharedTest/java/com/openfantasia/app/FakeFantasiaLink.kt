@@ -10,6 +10,8 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
     var pairedInvite: PairingInvite? = null
     val moves = mutableListOf<MoveRequest>()
     var retries = 0
+    val worldRetries = mutableListOf<String>()
+    var endedDayView = dayView(ClosedBy.Player)
     val redos = mutableListOf<RedoRequest>()
     val lingers = mutableListOf<LingerRequest>()
     val focuses = mutableListOf<FocusRequest>()
@@ -38,7 +40,7 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
     }
     override suspend fun endScene(storyID: String, request: EndSceneRequest): Accepted {
         endScenes += request
-        current.value = current.value.copy(dayView = dayView(ClosedBy.Player), headEntryID = "closed", seq = 4, lastEventID = "4", focus = null, linger = false)
+        current.value = current.value.copy(dayView = endedDayView, headEntryID = "closed", seq = 4, lastEventID = "4", focus = null, linger = false)
         return Accepted(headEntryID = "closed", traceID = "end")
     }
     override suspend fun focus(storyID: String, request: FocusRequest): Accepted {
@@ -56,6 +58,11 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
     override suspend fun redo(storyID: String, request: RedoRequest): TurnAccepted {
         redos += request
         return TurnAccepted(moveEntryID = "move", traceID = "redo")
+    }
+    override suspend fun retryWorld(storyID: String): Accepted {
+        worldRetries += storyID
+        current.value = current.value.copy(dayView = current.value.dayView!!.copy(world = World.MovingOn, failure = null))
+        return Accepted(headEntryID = current.value.headEntryID, traceID = "world-retry")
     }
     override suspend fun retry(storyID: String): TurnAccepted {
         retries++
@@ -75,6 +82,7 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
         // Named arguments throughout: the generated classes list their fields alphabetically, so positional ones
         // put a summary where a title belongs without a compiler error.
         fun dayView(closedBy: ClosedBy = ClosedBy.Story) = DayView(at = "Day 3 07:40", atLabel = "Sunday 7:40 am", day = "Sunday", time = "7:40 am", place = "Common room", closedBy = closedBy,
+            world = World.Ready, sceneSpan = "Friday 9:40 pm – 11:05 pm", meanwhile = emptyList(), failure = null,
             countdowns = listOf(Countdown(linkSchemaWhen = "3 days", landmark = "Draconia's flying test", label = "3 days to Draconia's flying test"),
                 Countdown(linkSchemaWhen = "9 weeks", landmark = "Slytherin v Gryffindor", label = "9 weeks to Slytherin v Gryffindor")))
         fun sceneView() = SceneView(

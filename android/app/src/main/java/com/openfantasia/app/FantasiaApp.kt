@@ -39,11 +39,14 @@ import androidx.lifecycle.Lifecycle
                             focus = model::focus, redo = model::redo, dismissPreviously = model::dismissPreviously, back = model::home, awaitingReply = state.replyComing,
                             openPastScene = { focusManager.clearFocus(); model.openPastScene(it) }, scrollState = scrollState,
                             storyTitle = state.stories.firstOrNull { it.id == scene.storyID }?.title ?: scene.scene.title,
+                            worldFailure = { WorldFailureContent(state, model::retryWorld) },
                             failure = { ReplyFailure(state, model::retryReply) })
-                        if (scene.dayView == null) HorizontalDivider(color = FantasiaHeaderLine)
-                        Column(Modifier.padding(start = 16.dp, end = 16.dp, top = if (scene.dayView == null) 10.dp else 4.dp, bottom = if (scene.dayView == null) 18.dp else 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            if (scene.dayView == null && scene.turn.kind != com.openfantasia.protocol.TurnStateKind.Failed) SceneControls(scene, state.canChangeScene, model::endScene, model::linger)
-                            MoveComposer(state, model::writeMove, model::sendMove)
+                        if (state.worldReady) {
+                            if (scene.dayView == null) HorizontalDivider(color = FantasiaHeaderLine)
+                            Column(Modifier.padding(start = 16.dp, end = 16.dp, top = if (scene.dayView == null) 10.dp else 4.dp, bottom = if (scene.dayView == null) 18.dp else 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                if (scene.dayView == null && scene.turn.kind != com.openfantasia.protocol.TurnStateKind.Failed) SceneControls(scene, state.canChangeScene, model::endScene, model::linger)
+                                MoveComposer(state, model::writeMove, model::sendMove)
+                            }
                         }
                     }
                 }

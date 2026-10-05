@@ -11,6 +11,8 @@ import { DEFAULT_JOB_MODELS, JOBS, jobModels, setJobModel, type Job } from "../m
 import { CLAUDE_TOKEN, readSecret, storeSecret } from "../secrets.js";
 import type { ModelChoice } from "../story/state.js";
 import type { Payload } from "../story/entries.js";
+import { worldOn } from "../story/world.js";
+import { parseStoryTime, sayStoryTime } from "../time.js";
 import { momentsOn } from "../story/memory.js";
 import { importStoryFile } from "../storyfile/import.js";
 import { Traces } from "../trace.js";
@@ -85,6 +87,7 @@ function describe(payload: Payload): string {
     case "focus_set": return payload.on ? `Focus on ${payload.on}` : "Focus cleared";
     case "linger_set": return payload.on ? "Linger on" : "Linger off";
     case "chronicle": return `${payload.moments.length} Moments${payload.summary ? `: ${payload.summary}` : ""}`;
+    case "world_moved": return `The World moved on to ${payload.until}: ${payload.lives.length} Lives, ${payload.happened.length} happened, ${payload.meanwhile.length} in Meanwhile`;
   }
 }
 
@@ -137,6 +140,28 @@ export function moments(mac: Mac, storyId: string, out: Out): boolean {
       out(`  ${entry?.payload.kind === "move" ? `${pc}: ` : ""}"${quote.text}"`);
     }
   }
+  return true;
+}
+
+/** `fantasia world`: the World off-screen on a Story's current Path, hidden things included, until Backstage arrives. */
+export function world(mac: Mac, storyId: string, out: Out): boolean {
+  const path = mac.tree.currentPath(storyId);
+  if (!path) return (out(`No Story ${storyId}.`), false);
+  const state = mac.states.at(path.headEntryId);
+  const shown = worldOn(mac, path.headEntryId);
+  const when = (at: string) => {
+    const time = parseStoryTime(at);
+    return time ? `${at} (${sayStoryTime(time, state.dayOneWeekday)})` : at;
+  };
+  out(shown.until ? `The World stands at ${when(shown.until)}.` : "The World stands where the Story File set it.");
+  out("Lives:");
+  for (const life of shown.lives) out(`  ${life.who}: ${life.where ?? "where not yet said"}; ${life.doing ?? "doing not yet said"}; after: ${life.after || "nothing said"}`);
+  out("Threads:");
+  if (shown.threads.length === 0) out("  none");
+  for (const thread of shown.threads) out(`  ${thread.name}: ${thread.now}`);
+  out("What happened:");
+  if (shown.happened.length === 0) out("  nothing yet");
+  for (const item of shown.happened) out(`  ${item.at} · ${item.where} · ${item.what} · known to: ${item.knownTo.join(", ") || "nobody"}${item.landmark ? ` · the Landmark ${item.landmark}` : ""}`);
   return true;
 }
 

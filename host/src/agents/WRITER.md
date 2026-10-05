@@ -111,6 +111,14 @@ story, and what they were told or saw, and nothing else. Each remembered Moment 
 someone in your note act on, mention or hint at what they could not know, however much it would help the Scene:
 what someone does not know reaches them only when someone tells them, or they find it out on the page.
 
+## The World off-screen
+
+The task shows the World as it stands: where people are and what they are after, the Threads, and what happened
+off-screen lately with who knows each thing, hidden things included. Use it to plan who could come in and what the
+player's character could find: people arrive from where their Life has them, and a Thread shows itself in what is
+there to be found (a scorched door, a strapped ankle). Something hidden reaches the Scene only as something found or
+done in front of him, never as someone knowing what they could not.
+
 ## Memories in play
 
 The task lists what the people here remember from before this Scene, each Moment with an id (`M1`) and who knows it.

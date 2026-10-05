@@ -3,6 +3,8 @@ import type { Person, State } from "../story/state.js";
 import { parseStoryTime, sayDay, sayTime, type StoryTime, type Weekday } from "../time.js";
 import type { ModelAnswer, Models } from "../models/model-call.js";
 import { NOTHING_RECALLED, sayWords, type Recall } from "./recall.js";
+import { lifeOf, NO_WORLD, type World } from "../story/world.js";
+import type { Life } from "../story/entries.js";
 
 /** What the Actor is sent for one Reply. */
 export interface ActorPrompt {
@@ -24,7 +26,7 @@ const LENGTH = {
  * It is never given the Premise or the Arcs: a Reply told what the player came for performs it at them, and
  * steering the Story belongs to the Writer and the Director.
  */
-export function actorPrompt(state: State, scene: Entry[], recall: Recall = NOTHING_RECALLED): ActorPrompt {
+export function actorPrompt(state: State, scene: Entry[], recall: Recall = NOTHING_RECALLED, world: World = NO_WORLD): ActorPrompt {
   if (!state.scene) throw new Error("The Actor writes inside a Scene, and none is open");
   const pc = state.playerCharacter;
   const here = state.scene.here.map(name => state.people[name]).filter((person): person is Person => person !== undefined);
@@ -45,7 +47,7 @@ export function actorPrompt(state: State, scene: Entry[], recall: Recall = NOTHI
     section("style", state.style),
     section("world", [state.world.summary, state.world.history].filter(Boolean).join("\n\n")),
     section(`player_character name="${pc}"`, describe(state.people[pc], { withVoice: false })),
-    section("people_here", here.map(person => section(`person name="${person.name}"`, describe(person, { withVoice: true }))).join("\n\n") || "Nobody besides " + pc + "."),
+    section("people_here", here.map(person => section(`person name="${person.name}"`, describe(person, { withVoice: true, life: lifeOf(world, person) }))).join("\n\n") || "Nobody besides " + pc + "."),
     section("scene", `${state.scene.title}. ${state.scene.place}, ${at ? sayDayAndTime(at, state.dayOneWeekday) : state.scene.at}.`),
     // Only the Moments someone here knows: the summaries and the end of the last Scene are not sorted by who knows them,
     // so they go to the Writer alone (docs/adr/0004: the Actor sees what the people in the Scene know).
@@ -104,13 +106,16 @@ function scenePrompt(state: State, scene: Entry[], pc: string, recall: Recall): 
   ].filter(part => part !== null).join("\n\n");
 }
 
-function describe(person: Person | undefined, { withVoice }: { withVoice: boolean }): string {
+function describe(person: Person | undefined, { withVoice, life = null }: { withVoice: boolean; life?: Life | null }): string {
   if (!person) return "";
+  // Their own Life is theirs to know: where they have been and what they are after now (openspec living-world).
+  const after = life?.after || person.after;
   return [
     person.aliases.length ? `Also called ${person.aliases.join(", ")}.` : "",
     person.whoTheyAre,
     person.appearance,
-    person.after ? `After: ${person.after}` : "",
+    life?.where || life?.doing ? `Lately: ${[life.where, life.doing].filter(Boolean).join("; ")}.` : "",
+    after ? `After: ${after}` : "",
     person.knows.length ? `Knows: ${person.knows.join(" ")}` : "",
     withVoice && person.voice.length ? `Has said: ${person.voice.map(line => `"${line}"`).join(" ")}` : ""
   ].filter(Boolean).join("\n");
@@ -128,7 +133,7 @@ function section(tag: string, body: string): string | null {
 }
 
 /** Writes the Reply to the Scene's latest Move, streaming its words through [onText]. */
-export function writeReply(models: Models, state: State, scene: Entry[], recall: Recall, storyId: string, traceId: string, onText: (delta: string) => void, signal: AbortSignal): Promise<ModelAnswer> {
-  const { system, prompt } = actorPrompt(state, scene, recall);
+export function writeReply(models: Models, state: State, scene: Entry[], recall: Recall, world: World, storyId: string, traceId: string, onText: (delta: string) => void, signal: AbortSignal): Promise<ModelAnswer> {
+  const { system, prompt } = actorPrompt(state, scene, recall, world);
   return models.call({ agent: "actor", model: state.actor, system, prompt, traceId, storyId }, onText, signal);
 }

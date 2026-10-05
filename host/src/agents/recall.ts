@@ -72,7 +72,7 @@ export function recall(mac: Mac, head: string, present: string[]): Recall {
 
   // The summaries of the Scenes in the last day of Story time before this one.
   const now = parseStoryTime(scene.at);
-  const summaries = new Map(mac.tree.chroniclesOn(head).flatMap(entry => {
+  const summaries = new Map(mac.tree.recordsOn(head, "chronicle").flatMap(entry => {
     const chronicle = entry.payload as Chronicle;
     return chronicle.summary ? [[chronicle.scene, chronicle.summary] as const] : [];
   }));
