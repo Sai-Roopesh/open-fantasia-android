@@ -1,4 +1,7 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { parse } from "yaml";
 import { writeWeave, type WeaveRecord } from "../../src/agents/weaver.js";
 import { Engine } from "../../src/engine/engine.js";
 import { dueWeave, weaveAsk } from "../../src/engine/weaving.js";
@@ -7,9 +10,12 @@ import { DEFAULT_JOB_MODELS } from "../../src/models/jobs.js";
 import { Models } from "../../src/models/model-call.js";
 import type { StoryFile } from "../../src/protocol/generated/story-file.js";
 import { CLAUDE_TOKEN, readSecret } from "../../src/secrets.js";
+import { minutesOf, parseStoryTime } from "../../src/time.js";
 import { importStoryFile } from "../../src/storyfile/import.js";
 import { freshHome } from "../support/host.js";
 import { hogwartsWorldStoryFile, writeStoryFile } from "../support/story-files.js";
+
+const NIGHT_TRAIN = fileURLToPath(new URL("../../../examples/night-train/story.yaml", import.meta.url));
 
 // These call the real Weaver on its default model, and a judge, through the player's Claude subscription. They run
 // only with `npm run test:real`.
@@ -17,7 +23,7 @@ const token = readSecret(CLAUDE_TOKEN);
 const RUNS = 3;
 
 /** A Scene played as written (no models), ended by the player, and the Weaver's real answer for the span after it. */
-async function woven(story: StoryFile, exchanges: [string, string][], until?: string): Promise<WeaveRecord> {
+async function woven(story: StoryFile, exchanges: [string, string][], span: { from?: string; until?: string } = {}): Promise<WeaveRecord> {
   const mac = freshHome();
   const imported = importStoryFile(writeStoryFile(story), mac);
   if (!imported.ok) throw new Error(`import failed: ${JSON.stringify(imported.problems)}`);
@@ -35,7 +41,7 @@ async function woven(story: StoryFile, exchanges: [string, string][], until?: st
   const due = dueWeave(mac, mac.tree.currentPath(imported.storyId)!.headEntryId)!;
   const ask = weaveAsk(mac, due);
   try {
-    const { value } = await writeWeave(models, DEFAULT_JOB_MODELS.weaver, until ? { ...ask, until } : ask, imported.storyId, "real-weave", new AbortController().signal);
+    const { value } = await writeWeave(models, DEFAULT_JOB_MODELS.weaver, { ...ask, ...span }, imported.storyId, "real-weave", new AbortController().signal);
     return value;
   } finally {
     runner.close();
@@ -69,7 +75,7 @@ describe.skipIf(!token)("the Weaver on Claude", () => {
   // THEN Backstage shows the Thread further along at the end of the week
   it("living-world › Threads develop off-screen › The dragon egg moves without the player", async () => {
     for (let run = 0; run < RUNS; run++) {
-      const record = await woven(hogwartsWorldStoryFile({ at: "Day 3 22:40" }), commonRoom, "Day 10 07:00");
+      const record = await woven(hogwartsWorldStoryFile({ at: "Day 3 22:40" }), commonRoom, { until: "Day 10 07:00" });
       const egg = record.threads.find(thread => /egg/i.test(thread.name));
       expect(egg, `run ${run + 1}: ${show(record)}`).toBeDefined();
       const verdict = await judge("A week ago this situation stood like this: \"Hagrid is keeping it warm in the fire\". The passage says where it stands a week later. Is it further along than it was, in any way? Answer YES or NO.", egg!.now);
@@ -82,7 +88,7 @@ describe.skipIf(!token)("the Weaver on Claude", () => {
   // THEN their Life is unchanged
   it("living-world › Off-screen time is resolved only as far as it reaches the player › Nothing written that no one will meet", async () => {
     for (let run = 0; run < RUNS; run++) {
-      const record = await woven(hogwartsWorldStoryFile({ at: "Day 3 22:40" }), commonRoom, "Day 10 07:00");
+      const record = await woven(hogwartsWorldStoryFile({ at: "Day 3 22:40" }), commonRoom, { until: "Day 10 07:00" });
       expect(record.lives.map(life => life.who), `run ${run + 1}: ${show(record)}`).not.toContain("The Hufflepuff Quidditch team");
     }
   });
@@ -124,10 +130,29 @@ describe.skipIf(!token)("the Weaver on Claude", () => {
       ["I nod to Draconia on my way past.", "\"Gantasala.\" She does not nod back. Behind her, Crabbe cracks his knuckles. \"Go and find out where Potter goes after dinner,\" she tells them, without looking round, and they lumber off."]
     ];
     for (let run = 0; run < RUNS; run++) {
-      const record = await woven(story, corridor, "Day 4 17:00");
+      const record = await woven(story, corridor, { until: "Day 4 17:00" });
       const who = record.lives.map(life => life.who);
       expect(who, `run ${run + 1}: ${show(record)}`).toContain("Crabbe and Goyle");
       expect(who.filter(name => name === "Vincent Crabbe" || name === "Gregory Goyle"), `run ${run + 1}`).toEqual([]);
+    }
+  });
+  // GIVEN the World last stood at 7:40 am at Kalka, and a Scene at Barog opens at 9:05 am and ends with Ishaan still on the platform, listening for a bird with Meera
+  // WHEN the World moves on
+  // THEN what happened at Barog happened at 9:05 am, as the Scene says
+  // AND nothing that happened before 9:05 am is known to Ishaan, and nothing has him back on the train
+  it("living-world › Only the player makes facts about the Player Character › The World moves on around him", async () => {
+    const story = parse(readFileSync(NIGHT_TRAIN, "utf8")) as StoryFile;
+    story.opening = { title: "Water at Barog", place: "Barog station platform, hill mist, the toy train's engine taking water", at: "Day 2 09:05", who: ["Meera Kulkarni"],
+      prose: "The toy train stops at Barog to take water. Meera is off the step before it has properly stopped." };
+    const barog: [string, string][] = [
+      ["I get down after her to stretch my legs while the engine takes water.", "The mist has come up out of the valley and swallowed everything past the railings. Somewhere behind her the engine hisses and a man in a khaki cap swings the water spout over.\n\nThen, under it, a call. Three notes, rising, a pause, then a rattle. Meera goes still, walks to the platform's edge, and lifts the binoculars at the mist.\n\nShe knows he is there before she looks. \"Shh,\" she says, though he hasn't said anything, and then, more quietly, \"Listen.\" The bird does not oblige. \"It's here,\" she says. \"It's right here. I just can't see it.\""]
+    ];
+    for (let run = 0; run < RUNS; run++) {
+      const record = await woven(story, barog, { from: "Day 2 07:40" });
+      const earlier = record.happened.filter(item => item.knownTo.includes("Ishaan Mehra") && minutesOf(parseStoryTime(item.at)!) < minutesOf(parseStoryTime("Day 2 09:05")!));
+      expect(earlier, `run ${run + 1}: ${show(record)}`).toEqual([]);
+      const verdict = await judge("Does anything here put the train's stop at Barog, or anything on the platform there, before 9:05 am (Day 2 09:05), or have Ishaan get back on the train or the train leave Barog with him?", show(record));
+      expect(verdict.yes, `run ${run + 1}: ${verdict.said}\n${show(record)}`).toBe(false);
     }
   });
 });

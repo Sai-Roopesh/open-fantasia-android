@@ -38,6 +38,10 @@ In `happened`, write what happened off-screen in the span that the Lives and Thr
 few. Something nobody else saw is known only to whoever did it, and it stays hidden: the player meets it only when
 the story brings it to him.
 
+What happened in the Scene that ended happened when the Scene ran, at the times it gives. The player's character is
+the player's: put him nowhere, have him do nothing and know nothing that his Moves and the Scene do not say. Before
+the Scene opened he was off-screen; the World moves on around him, not with him.
+
 Every Landmark whose time falls in the span happens, wherever the player's character is: write it, with `landmark`
 set to its name. A Landmark does not wait for anyone to be ready.
 

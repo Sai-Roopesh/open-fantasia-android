@@ -57,5 +57,10 @@ Requirements this change builds:
 
 ## 8. Together
 
-- [ ] 8.1 On the phone: play the Night Train to a Scene's end, watch the Day View move on and fill in, and read `fantasia world`; verify how long the player waits (from `fantasia trace`), that Meanwhile holds nothing Ishaan could not know, and compare with the drawings
+- [x] 8.1 On the phone: play the Night Train to a Scene's end, watch the Day View move on and fill in, and read `fantasia world`; verify how long the player waits (from `fantasia trace`), that Meanwhile holds nothing Ishaan could not know, and compare with the drawings
 - [x] 8.2 Run `scripts/scenarios.mjs`, the host suite, the Android JVM and device suites, and `openspec validate --all --strict`, and verify all pass
+
+## 9. Found on the phone
+
+- [x] 9.1 Test first, then build: the Weaver is told when the Scene that ended ran, and that before it opened the player's character was off-screen and only the player says what he did (`WEAVER.md`, `scene_that_ended`)
+- [x] 9.2 `living-world › Only the player makes facts about the Player Character › The World moves on around him`, three runs on Claude: the Barog stop at 9:05 am, nothing earlier known to Ishaan, nothing putting him back on the train

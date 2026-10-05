@@ -296,6 +296,8 @@ export function weaverPrompt(ask: WeaveAsk): { system: string; prompt: string; f
   const life = (item: Life) => `- ${item.who}: ${item.where ?? "where not yet said"}; ${item.doing ?? "doing what they do"}; after: ${item.after || "nothing said"}`;
   const landmarks = landmarksIn(ask);
   const ended = scene?.endedAt ?? ask.from;
+  const opened = scene?.at ?? ask.from;
+  const sayAt = (at: string) => { const time = parseStoryTime(at); return time ? sayStoryTime(time, state.dayOneWeekday) : at; };
   const night = ended !== ask.until
     ? `After the Scene he went to bed. The night passes; he wakes and goes through his morning as he always does, breakfast included, until ${say(state, ask.until)}, when he is free to choose. What he would see or hear in that morning, where he would be, can reach him.`
     : "";
@@ -313,7 +315,10 @@ export function weaverPrompt(ask: WeaveAsk): { system: string; prompt: string; f
         sceneThatEnded(ask.scene, pc),
         ask.gap.missed.length ? `What was on in the Gap goes on without him:\n${ask.gap.missed.map((item, index) => `- G${index + 1} ${sayTime(parseStoryTime(item.at) ?? { day: 0, minuteOfDay: 0 })}, ${item.place}: ${item.what} With ${item.who.join(", ")}${item.expected ? "; he was expected" : ""}.`).join("\n")}` : ""
       ].filter(Boolean).join("\n\n"))
-      : section(`scene_that_ended title="${scene?.title ?? ""}" place="${scene?.place ?? ""}" with="${ask.inScene.join(", ") || "nobody else"}"`, sceneThatEnded(ask.scene, pc)),
+      : section(`scene_that_ended title="${scene?.title ?? ""}" place="${scene?.place ?? ""}" from="${say(state, opened)}" until="${say(state, ended)}" with="${ask.inScene.join(", ") || "nobody else"}"`, [
+        `The Scene ran from ${sayAt(opened)} to ${sayAt(ended)}: what happened in it happened then. Before ${sayAt(opened)}, ${pc} was off-screen, and only the player says where he was and what he did: nothing you write has him anywhere, doing anything or knowing anything before then that the Scene does not say.`,
+        sceneThatEnded(ask.scene, pc)
+      ].join("\n\n")),
     section("still_on", (ask.stillOn ?? []).map(item => `- ${item.at}, ${item.place}: ${item.what}`).join("\n")),
     section("landmarks_in_span", landmarks.map(landmark => `- ${landmark.name}, ${landmark.at}: ${landmark.what}`).join("\n")),
     section("task", [

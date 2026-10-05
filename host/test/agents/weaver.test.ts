@@ -140,6 +140,17 @@ describe("the Weaver's call", () => {
     expect(prompt).toMatch(/<landmarks_in_span>\n- the Halloween feast, Day 3 23:00/);
   });
 
+  // GIVEN the World last stood at 7:40 am at Kalka, and a Scene at Barog opens at 9:05 am and ends with Ishaan still on the platform
+  // WHEN the World moves on
+  // THEN what happened at Barog happened at 9:05 am, as the Scene says
+  // AND nothing that happened before 9:05 am is known to Ishaan, and nothing has him back on the train
+  it("living-world › Only the player makes facts about the Player Character › The World moves on around him", async () => {
+    const { prompt } = weaverPrompt(await ask({ from: "Day 3 20:00" }));
+    expect(prompt).toMatch(/<scene_that_ended title="After curfew" place="The Gryffindor common room" from="Day 3 21:40 \(Friday 9:40 pm\)" until="Day 3 \d\d:\d\d \(Friday \d+:\d\d pm\)"/);
+    expect(prompt).toMatch(/The Scene ran from Friday 9:40 pm to Friday \d+:\d\d pm: what happened in it happened then\./);
+    expect(prompt).toMatch(/Before Friday 9:40 pm, Roopesh Gantasala was off-screen, and only the player says where he was and what he did/);
+  });
+
   it("repairs a refused answer once, and fails with its reasons when the repair is refused too", async () => {
     const played = playable();
     const bad = { answer: JSON.stringify(answer({ lives: [{ who: "Roopesh Gantasala", where: "bed", doing: "sleeping", after: "x" }] })) };
