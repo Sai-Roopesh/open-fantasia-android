@@ -48,5 +48,5 @@ consequences (McGonagall answers the absence); Lead absence is felt, not counted
 
 ## 7. Together
 
-- [ ] 7.1 On the phone: at a Night Train Day View, read What's on today, choose with a Gap, write what he did, and see the next Scene open on it; verify the wait (from `fantasia trace`) and compare with the drawings
+- [x] 7.1 On the phone: at a Night Train Day View, read What's on today, choose with a Gap, write what he did, and see the next Scene open on it; verify the wait (from `fantasia trace`) and compare with the drawings
 - [x] 7.2 Run `scripts/scenarios.mjs`, the host suite, the Android JVM and device suites, and `openspec validate --all --strict`, and verify all pass
