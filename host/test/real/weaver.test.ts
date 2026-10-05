@@ -1,7 +1,4 @@
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { parse } from "yaml";
 import { writeWeave, type WeaveRecord } from "../../src/agents/weaver.js";
 import { Engine } from "../../src/engine/engine.js";
 import { dueWeave, weaveAsk } from "../../src/engine/weaving.js";
@@ -13,9 +10,7 @@ import { CLAUDE_TOKEN, readSecret } from "../../src/secrets.js";
 import { minutesOf, parseStoryTime } from "../../src/time.js";
 import { importStoryFile } from "../../src/storyfile/import.js";
 import { freshHome } from "../support/host.js";
-import { hogwartsWorldStoryFile, writeStoryFile } from "../support/story-files.js";
-
-const NIGHT_TRAIN = fileURLToPath(new URL("../../../examples/night-train/story.yaml", import.meta.url));
+import { hogwartsWorldStoryFile, nightTrainStoryFile, writeStoryFile } from "../support/story-files.js";
 
 // These call the real Weaver on its default model, and a judge, through the player's Claude subscription. They run
 // only with `npm run test:real`.
@@ -141,9 +136,7 @@ describe.skipIf(!token)("the Weaver on Claude", () => {
   // THEN what happened at Barog happened at 9:05 am, as the Scene says
   // AND nothing that happened before 9:05 am is known to Ishaan, and nothing has him back on the train
   it("living-world › Only the player makes facts about the Player Character › The World moves on around him", async () => {
-    const story = parse(readFileSync(NIGHT_TRAIN, "utf8")) as StoryFile;
-    story.opening = { title: "Water at Barog", place: "Barog station platform, hill mist, the toy train's engine taking water", at: "Day 2 09:05", who: ["Meera Kulkarni"],
-      prose: "The toy train stops at Barog to take water. Meera is off the step before it has properly stopped." };
+    const story = nightTrainStoryFile();
     const barog: [string, string][] = [
       ["I get down after her to stretch my legs while the engine takes water.", "The mist has come up out of the valley and swallowed everything past the railings. Somewhere behind her the engine hisses and a man in a khaki cap swings the water spout over.\n\nThen, under it, a call. Three notes, rising, a pause, then a rattle. Meera goes still, walks to the platform's edge, and lifts the binoculars at the mist.\n\nShe knows he is there before she looks. \"Shh,\" she says, though he hasn't said anything, and then, more quietly, \"Listen.\" The bird does not oblige. \"It's here,\" she says. \"It's right here. I just can't see it.\""]
     ];

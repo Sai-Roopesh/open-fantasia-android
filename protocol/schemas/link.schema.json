@@ -334,7 +334,8 @@
         "focus",
         "linger",
         "day_view",
-        "previously"
+        "previously",
+        "opening"
       ],
       "properties": {
         "story_id": {
@@ -411,6 +412,42 @@
             {
               "type": "null"
             }
+          ]
+        },
+        "opening": {
+          "description": "Present while a Move at the Day View is opening the next Scene and the Scene has not opened yet (openspec presence: Between Scenes is quiet, and shows progress). Then there is no Day View, the exchanges are that Move's, the Scene that closed is among the earlier Scenes, and the phone shows this card in place of the Scene's.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/NextScene"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "NextScene": {
+      "description": "The next Scene, being written: when it is, when the choice set a time.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "at",
+        "at_label"
+      ],
+      "properties": {
+        "at": {
+          "description": "Story time, \"Day N HH:MM\", or null when the choice set none.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "at_label": {
+          "description": "As people say it: \"Friday 6:00 pm\", or null.",
+          "type": [
+            "string",
+            "null"
           ]
         }
       }
@@ -550,6 +587,10 @@
         "linger": {
           "description": "linger_set: whether Linger is on.",
           "type": "boolean"
+        },
+        "opening": {
+          "description": "move: present when the Move is written at the Day View, the next Scene it opens. The Scene is then that Move's, under this card, until scene_opened.",
+          "$ref": "#/$defs/NextScene"
         }
       }
     },
@@ -799,6 +840,7 @@
       "additionalProperties": false,
       "required": [
         "label",
+        "in_sentence",
         "at",
         "time"
       ],
@@ -807,11 +849,15 @@
           "description": "\"This evening\", \"Tomorrow\", \"The weekend\", or the Landmark's name.",
           "type": "string"
         },
+        "in_sentence": {
+          "description": "The label as it reads inside a sentence: \"this evening\", \"tomorrow\", \"the weekend\", or the Landmark's name as named.",
+          "type": "string"
+        },
         "at": {
           "type": "string"
         },
         "time": {
-          "description": "As people say it: \"Saturday 6:00 pm\".",
+          "description": "As people say it: \"6:00 pm\" on the Day View's own day, \"Saturday 7:30 am\" on another.",
           "type": "string"
         }
       }

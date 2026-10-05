@@ -4,7 +4,7 @@ import type { ChooseRequest } from "../protocol/generated/link.js";
 import { dayChoicesOf, todayOn } from "../story/day.js";
 import type { Choice, WorldMoved } from "../story/entries.js";
 import type { State } from "../story/state.js";
-import { minutesOf, parseStoryTime } from "../time.js";
+import { minutesOf, parseStoryTime, sayStoryTime } from "../time.js";
 
 /** "The Gryffindor common room" in a sentence: "the Gryffindor common room". */
 const inSentence = (place: string) => place.replace(/^The /, "the ");
@@ -50,8 +50,8 @@ export function chosen(mac: Mac, head: string, request: ChooseRequest): { choice
       const skip = offered.skips.find(item => item.at === request.at);
       if (!skip) throw new LinkError("invalid", "That is not one of the times to skip to.");
       choice = { kind: "skip", place: null, at: skip.at, who: [] };
-      const label = ["This evening", "Tomorrow", "The weekend"].includes(skip.label) ? skip.label.toLowerCase() : skip.label;
-      line = `I let the time pass until ${label}: ${skip.time}.`;
+      const at = parseStoryTime(skip.at);
+      line = `I let the time pass until ${skip.in_sentence}: ${at ? sayStoryTime(at, state.dayOneWeekday) : skip.time}.`;
       break;
     }
   }

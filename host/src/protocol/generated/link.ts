@@ -210,6 +210,10 @@ export interface SceneView {
    * Present when the player last played this Story more than a day ago and the Scene they are in, or the Scene that closed at the Day View, has a summary: the Previously card.
    */
   previously: Previously | null;
+  /**
+   * Present while a Move at the Day View is opening the next Scene and the Scene has not opened yet (openspec presence: Between Scenes is quiet, and shows progress). Then there is no Day View, the exchanges are that Move's, the Scene that closed is among the earlier Scenes, and the phone shows this card in place of the Scene's.
+   */
+  opening: NextScene | null;
 }
 /**
  * This interface was referenced by `Link`'s JSON-Schema
@@ -374,9 +378,13 @@ export interface Skip {
    * "This evening", "Tomorrow", "The weekend", or the Landmark's name.
    */
   label: string;
+  /**
+   * The label as it reads inside a sentence: "this evening", "tomorrow", "the weekend", or the Landmark's name as named.
+   */
+  in_sentence: string;
   at: string;
   /**
-   * As people say it: "Saturday 6:00 pm".
+   * As people say it: "6:00 pm" on the Day View's own day, "Saturday 7:30 am" on another.
    */
   time: string;
 }
@@ -395,6 +403,22 @@ export interface Previously {
    * When the player last played: the time the Path's head entry was written, ISO 8601.
    */
   since: string;
+}
+/**
+ * The next Scene, being written: when it is, when the choice set a time.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "NextScene".
+ */
+export interface NextScene {
+  /**
+   * Story time, "Day N HH:MM", or null when the choice set none.
+   */
+  at: string | null;
+  /**
+   * As people say it: "Friday 6:00 pm", or null.
+   */
+  at_label: string | null;
 }
 /**
  * This interface was referenced by `Link`'s JSON-Schema
@@ -456,6 +480,7 @@ export interface StoryEvent {
    * linger_set: whether Linger is on.
    */
   linger?: boolean;
+  opening?: NextScene1;
 }
 /**
  * A Scene's title card.
@@ -527,6 +552,19 @@ export interface DayView1 {
    */
   happenings: Happening[];
   choices: DayChoices;
+}
+/**
+ * The next Scene, being written: when it is, when the choice set a time.
+ */
+export interface NextScene1 {
+  /**
+   * Story time, "Day N HH:MM", or null when the choice set none.
+   */
+  at: string | null;
+  /**
+   * As people say it: "Friday 6:00 pm", or null.
+   */
+  at_label: string | null;
 }
 /**
  * A choice at the Day View (openspec day-view: The player chooses where to be). The Mac writes it as the player's Move, the Gap first.

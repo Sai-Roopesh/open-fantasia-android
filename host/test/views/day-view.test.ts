@@ -84,9 +84,21 @@ describe("the Day View", () => {
       follow: ["Hermione Granger", "Draconia Malfoy"],
       places: ["The library", "Hagrid's hut"],
       skips: [
-        { label: "Tomorrow", at: "Day 6 07:30", time: "Monday 7:30 am" },
-        { label: "Draconia's flying test", at: "Day 8 10:00", time: "Wednesday 10:00 am" }
+        { label: "Tomorrow", in_sentence: "tomorrow", at: "Day 6 07:30", time: "Monday 7:30 am" },
+        { label: "Draconia's flying test", in_sentence: "Draconia's flying test", at: "Day 8 10:00", time: "Wednesday 10:00 am" }
       ]
     });
+  });
+
+  it("says a Skip on the Day View's own day without the day, and each Skip's label as it reads in a sentence", async () => {
+    const friday = hogwartsStoryFile({ title: "Friday morning", place: "The Gryffindor common room", at: "Day 3 09:00", who: ["Hermione Granger"] });
+    const { play, engine, storyId, head, view } = playable(friday);
+    await play("I say goodbye.");
+    engine.endScene(storyId, head(), "trace-end");
+    expect(view().day_view!.choices.skips.map(skip => [skip.label, skip.in_sentence, skip.time])).toEqual([
+      ["This evening", "this evening", "6:00 pm"],
+      ["Tomorrow", "tomorrow", "Saturday 7:30 am"],
+      ["Draconia's flying test", "Draconia's flying test", "Wednesday 10:00 am"]
+    ]);
   });
 });

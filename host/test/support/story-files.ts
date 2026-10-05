@@ -1,7 +1,8 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { stringify } from "yaml";
+import { fileURLToPath } from "node:url";
+import { parse, stringify } from "yaml";
 import type { StoryFile } from "../../src/protocol/generated/story-file.js";
 
 /** The smallest valid image: a 1x1 PNG, enough to stand in for a Portrait. */
@@ -139,5 +140,13 @@ export function hogwartsWorldStoryFile(opening: Partial<StoryFile["opening"]> = 
     { name: "the dragon egg in Hagrid's hut", now: "Hagrid is keeping it warm in the fire" },
     { name: "Quirrell and the third-floor door", now: "Quirrell is testing the wards on the third-floor door, at night, alone" }
   ];
+  return story;
+}
+
+/** The Night Train example (examples/night-train), opening on the platform at Barog unless told otherwise. */
+export function nightTrainStoryFile(opening: Partial<StoryFile["opening"]> = {}): StoryFile {
+  const story = parse(readFileSync(fileURLToPath(new URL("../../../examples/night-train/story.yaml", import.meta.url)), "utf8")) as StoryFile;
+  story.opening = { title: "Water at Barog", place: "Barog station platform, hill mist, the toy train's engine taking water", at: "Day 2 09:05", who: ["Meera Kulkarni"],
+    prose: "The toy train stops at Barog to take water. Meera is off the step before it has properly stopped.", ...opening };
   return story;
 }

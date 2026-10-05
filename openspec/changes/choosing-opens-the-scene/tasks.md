@@ -9,14 +9,14 @@ the Gap`.
 
 ## 1. The contract
 
-- [ ] 1.1 Extend the contract to version 8: `NextScene` (`at`, `at_label`, both nullable), `SceneView.opening` (required, nullable), `StoryEvent.opening` (on a Move at the Day View), `Skip.in_sentence` (required) and the Skip `time` rule in its description; regenerate both sides; verify the host typecheck, the Android build and the mac-link rule test that every optional request field accepts null
+- [x] 1.1 Extend the contract to version 8: `NextScene` (`at`, `at_label`, both nullable), `SceneView.opening` (required, nullable), `StoryEvent.opening` (on a Move at the Day View), `Skip.in_sentence` (required) and the Skip `time` rule in its description; regenerate both sides; verify the host typecheck, the Android build and the mac-link rule test that every optional request field accepts null
 
 ## 2. On the Mac
 
-- [ ] 2.1 Test first, then build: `presence › Between Scenes is quiet, and shows progress › The next Scene is being written` on the host: after a Skip to This evening with a Gap at the Night Train's 9:05 am Day View, the Scene view has no Day View, `opening` at Day 2 18:00 "Friday 6:00 pm", the Move as its one exchange with the Gap first, and the closed Scene among the earlier Scenes; after `scene_opened`, `opening` is null and the card is the new Scene's; verify views and link tests
-- [ ] 2.2 The Move's live event carries `opening` when it is written at the Day View, for a choice with a time, a choice without one (Follow) and the player's own Move (no time); a Move inside an open Scene carries none; verify engine event tests and the stream test that a reconnect mid-wait reads the same opening
-- [ ] 2.3 A turn that fails while the Scene is opening keeps `opening`, and Retry opens the Scene; verify an engine test with a failing Writer
-- [ ] 2.4 Skips say how they read: `time` without the day on the Day View's own day ("6:00 pm"), with it otherwise ("Saturday 7:30 am"); `in_sentence` "this evening", "tomorrow", "the weekend", a Landmark's name as named; the chosen Move's wording reads `in_sentence` instead of lowercasing on its own; verify day-view and choosing tests
+- [x] 2.1 Test first, then build: `presence › Between Scenes is quiet, and shows progress › The next Scene is being written` on the host: after a Skip to This evening with a Gap at the Night Train's 9:05 am Day View, the Scene view has no Day View, `opening` at Day 2 18:00 "Friday 6:00 pm", the Move as its one exchange with the Gap first, and the closed Scene among the earlier Scenes; after `scene_opened`, `opening` is null and the card is the new Scene's; verify views and link tests
+- [x] 2.2 The Move's live event carries `opening` when it is written at the Day View, for a choice with a time, a choice without one (Follow) and the player's own Move (no time); a Move inside an open Scene carries none; verify engine event tests and the stream test that a reconnect mid-wait reads the same opening
+- [x] 2.3 A turn that fails while the Scene is opening keeps `opening`, and Retry opens the Scene; verify an engine test with a failing Writer
+- [x] 2.4 Skips say how they read: `time` without the day on the Day View's own day ("6:00 pm"), with it otherwise ("Saturday 7:30 am"); `in_sentence` "this evening", "tomorrow", "the weekend", a Landmark's name as named; the chosen Move's wording reads `in_sentence` instead of lowercasing on its own; verify day-view and choosing tests
 
 ## 3. On the phone
 

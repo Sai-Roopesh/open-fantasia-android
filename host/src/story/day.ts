@@ -1,6 +1,6 @@
 import type { DayChoices, Happening as DayHappening, Skip } from "../protocol/generated/link.js";
 import type { Mac } from "../mac.js";
-import { formatStoryTime, laterTimes, minutesOf, parseStoryTime, sayStoryTime, sayTime } from "../time.js";
+import { formatStoryTime, laterTimes, minutesOf, parseStoryTime, sayStoryTime, sayTime, type StoryTime } from "../time.js";
 import type { Happening, WorldMoved } from "./entries.js";
 import type { State } from "./state.js";
 
@@ -58,8 +58,10 @@ export function dayChoicesOf(state: State): DayChoices {
   const now = parseStoryTime(state.clock);
   const skips: Skip[] = [];
   if (now) {
+    // On the Day View's own day a time is said without the day, as a Happening's is.
+    const say = (at: StoryTime) => at.day === now.day ? sayTime(at) : sayStoryTime(at, state.dayOneWeekday);
     for (const later of laterTimes(now, state.dayOneWeekday)) {
-      skips.push({ label: later.label, at: formatStoryTime(later.at), time: sayStoryTime(later.at, state.dayOneWeekday) });
+      skips.push({ label: later.label, in_sentence: later.inSentence, at: formatStoryTime(later.at), time: say(later.at) });
     }
     const landmark = state.landmarks
       .flatMap(item => {
@@ -67,7 +69,7 @@ export function dayChoicesOf(state: State): DayChoices {
         return at && minutesOf(at) > minutesOf(now) ? [{ item, at }] : [];
       })
       .sort((left, right) => minutesOf(left.at) - minutesOf(right.at))[0];
-    if (landmark) skips.push({ label: landmark.item.name, at: landmark.item.at, time: sayStoryTime(landmark.at, state.dayOneWeekday) });
+    if (landmark) skips.push({ label: landmark.item.name, in_sentence: landmark.item.name, at: landmark.item.at, time: say(landmark.at) });
   }
   return { follow, places: state.world.places.map(place => place.name), skips };
 }

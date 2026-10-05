@@ -1,4 +1,4 @@
-import type { Countdown, DayView, Exchange, PastScene, Previously, SceneCard, SceneView, StoryEvent } from "../protocol/generated/link.js";
+import type { Countdown, DayView, Exchange, NextScene, PastScene, Previously, SceneCard, SceneView, StoryEvent } from "../protocol/generated/link.js";
 import { dayChoicesOf, todayOn } from "../story/day.js";
 import type { Engine } from "../engine/engine.js";
 import { LinkError } from "../link/errors.js";
@@ -19,6 +19,24 @@ export function portraitUrl(storyId: string, file: string): string {
 function say(state: State, at: string): string {
   const time = parseStoryTime(at);
   return time ? sayStoryTime(time, state.dayOneWeekday) : at;
+}
+
+/**
+ * The Move at the Day View that is opening the next Scene, while the Scene has not opened yet: the entries on [path]
+ * after the closed Scene's `scene_closed`, from that Move on (openspec presence: Between Scenes is quiet). Null when
+ * the Scene at [state] is open, or closed with nothing after it but the Day View.
+ */
+export function openingEntries(state: State, path: Entry[]): Entry[] | null {
+  if (!state.scene?.closed) return null;
+  const closedAt = path.findLastIndex(entry => entry.payload.kind === "scene_closed");
+  const after = path.slice(closedAt + 1);
+  return closedAt >= 0 && after[0]?.payload.kind === "move" ? after : null;
+}
+
+/** The card for the next Scene while it is being written: when it is, when the Move's choice set a time. */
+export function nextScene(state: State, move: Entry): NextScene {
+  const at = move.payload.kind === "move" ? move.payload.choice?.at ?? null : null;
+  return { at, at_label: at ? say(state, at) : null };
 }
 
 /** A Scene's title card: title, place, when it began as people say it, and who is there now with their Portraits. */
@@ -122,6 +140,8 @@ export function sceneView(mac: Mac, engine: Engine, storyId: string, traceId: st
   const all = mac.tree.pathTo(path.headEntryId);
   // Each earlier Scene's summary is the Chronicler's, once it has written one (openspec scenes: Scrolling back).
   const summaries = summariesOn(mac, path.headEntryId);
+  // A Move at the Day View opens the next Scene at once: its card, the Move, and the closed Scene among the earlier ones.
+  const opening = openingEntries(state, all);
   return {
     story_id: storyId,
     path_id: path.id,
@@ -132,13 +152,14 @@ export function sceneView(mac: Mac, engine: Engine, storyId: string, traceId: st
     player_character: state.playerCharacter,
     focus: scene.focus,
     linger: scene.linger,
-    day_view: scene.closed ? dayView(mac, state, path.headEntryId, engine.worldFailure(storyId, scene.openedBy)) : null,
-    earlier_scenes: all.flatMap(entry => entry.payload.kind === "scene_opened" && entry.id !== scene.openedBy
+    day_view: scene.closed && !opening ? dayView(mac, state, path.headEntryId, engine.worldFailure(storyId, scene.openedBy)) : null,
+    earlier_scenes: all.flatMap(entry => entry.payload.kind === "scene_opened" && (opening || entry.id !== scene.openedBy)
       ? [{ number: entry.payload.number, title: entry.payload.title, summary: summaries.get(entry.id) ?? "" }]
       : []),
-    exchanges: exchanges(entries),
+    exchanges: exchanges(opening ?? entries),
     turn: engine.turnState(storyId),
     previously: previously(mac, path.headEntryId, scene.openedBy, summaries, now),
+    opening: opening?.[0] ? nextScene(state, opening[0]) : null,
     trace_id: traceId
   };
 }
@@ -210,8 +231,12 @@ export function entryEvent(mac: Mac, storyId: string, entry: Entry): StoryEvent 
       const state = mac.states.at(entry.id);
       return { kind: "scene_opened", seq: entry.seq, scene: sceneCard(storyId, state), focus: state.scene?.focus ?? null, ...(payload.prose ? { passage: { entry_id: entry.id, text: payload.prose } } : {}) };
     }
-    case "move":
-      return { kind: "move", seq: entry.seq, passage: { entry_id: entry.id, text: payload.text } };
+    case "move": {
+      // Written at the Day View, the Move opens the next Scene at once, under its card.
+      const state = mac.states.at(entry.id);
+      const passage = { entry_id: entry.id, text: payload.text };
+      return state.scene?.closed ? { kind: "move", seq: entry.seq, passage, opening: nextScene(state, entry) } : { kind: "move", seq: entry.seq, passage };
+    }
     case "reply":
       return { kind: "reply", seq: entry.seq, passage: { entry_id: entry.id, text: payload.text }, scene: sceneCard(storyId, mac.states.at(entry.id)) };
     case "scene_closed":

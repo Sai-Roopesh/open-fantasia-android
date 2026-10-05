@@ -4,7 +4,8 @@ import { ScriptedRunner } from "../../src/models/scripted.js";
 import { CONTRACT_VERSION } from "../../src/protocol/generated/contract.js";
 import type { SceneView } from "../../src/protocol/generated/link.js";
 import { Traces } from "../../src/trace.js";
-import { GatedRunner, openStream, runningMac, type ReceivedEvent } from "../support/link.js";
+import { fakeWriterAnswer } from "../../src/models/fake.js";
+import { GatedRunner, HeldRunner, openStream, runningMac, type ReceivedEvent } from "../support/link.js";
 
 const closers: (() => Promise<unknown>)[] = [];
 afterEach(async () => {
@@ -235,6 +236,42 @@ describe("mac-link", () => {
     const accepted = await call(`/stories/${storyId}/choose`, { method: "POST", body });
     expect(accepted.status).toBe(200);
     await engine.settled(storyId);
+  });
+
+  // GIVEN the Night Train's Day View at 9:05 am
+  // WHEN the player chooses Skip to later, This evening, and writes "I ride on to Shimla, go to the interview at eleven, and come out not sure of anything."
+  // THEN the Scene opens at once with that Move, under a card that says Friday 6:00 pm and that the Scene is being written
+  // AND the card takes the Scene's title, place and Portraits when the Scene has opened
+  it("presence › Between Scenes is quiet, and shows progress › The next Scene is being written: a phone that reads the Scene mid-wait sees it", async () => {
+    const writer = new HeldRunner(new ScriptedRunner([], fakeWriterAnswer));
+    const running = await runningMac(new ScriptedRunner([{ answer: "Draconia laughs." }]), writer);
+    closers.push(running.close);
+    const { call, storyId, engine, base, headers } = running;
+    const view = async () => await (await call(`/stories/${storyId}/scene`)).json() as SceneView;
+    await call(`/stories/${storyId}/moves`, { method: "POST", body: JSON.stringify({ text: "I say goodnight.", after: (await view()).head_entry_id }) });
+    await engine.settled(storyId);
+    await call(`/stories/${storyId}/end-scene`, { method: "POST", body: JSON.stringify({ after: (await view()).head_entry_id }) });
+    await engine.woven(storyId);
+    const day = await view();
+    const skip = day.day_view!.choices.skips[0]!;
+    writer.hold();
+    const stream = openStream(base, storyId, headers, day.last_event_id);
+    closers.push(stream.close);
+    await call(`/stories/${storyId}/choose`, { method: "POST", body: JSON.stringify({ after: day.head_entry_id, kind: "skip", at: skip.at, gap: "I sleep." }) });
+    const opening = await view();
+    expect(opening.day_view).toBeNull();
+    expect(opening.opening).toMatchObject({ at: skip.at, at_label: expect.stringContaining(skip.time) });
+    expect(opening.exchanges.map(exchange => exchange.move?.text)).toEqual([expect.stringMatching(/^I sleep\. I let the time pass until /)]);
+    await stream.until(events => events.some(event => event.event.kind === "move"));
+    expect(stream.received.find(event => event.event.kind === "move")!.event.opening).toEqual(opening.opening);
+    // A phone that reconnects mid-wait is sent the same Move, with the same card.
+    const again = openStream(base, storyId, headers, day.last_event_id);
+    closers.push(again.close);
+    await again.until(events => events.some(event => event.event.kind === "move"));
+    expect(again.received.find(event => event.event.kind === "move")!.event.opening).toEqual(opening.opening);
+    writer.release();
+    await engine.settled(storyId);
+    expect((await view()).opening).toBeNull();
   });
 
   it("lets every field a request may leave out also be null, since the phone writes every field it has", () => {

@@ -43,6 +43,28 @@ export class GatedRunner implements ModelRunner {
   }
 }
 
+/** A model that answers as [inner] does, except that while held, its next call waits until the test lets it go. */
+export class HeldRunner implements ModelRunner {
+  private gate: Promise<void> | null = null;
+  private open: (() => void) | null = null;
+  constructor(private readonly inner: ModelRunner) {}
+
+  hold(): void {
+    this.gate = new Promise(resolve => (this.open = resolve));
+  }
+
+  release(): void {
+    this.open?.();
+    this.gate = null;
+    this.open = null;
+  }
+
+  async run(request: ModelRequest, onText: (delta: string) => void, signal: AbortSignal): Promise<string> {
+    if (this.gate) await this.gate;
+    return this.inner.run(request, onText, signal);
+  }
+}
+
 /** Models where [actor] writes the Replies, and a scripted Writer, Chronicler and Weaver do their jobs, keeping every rule. */
 export function withWriter(actor: ModelRunner, writer: ModelRunner = new ScriptedRunner([], fakeWriterAnswer)): ModelRunner {
   const chronicler = new ScriptedRunner([], fakeChronicleAnswer);

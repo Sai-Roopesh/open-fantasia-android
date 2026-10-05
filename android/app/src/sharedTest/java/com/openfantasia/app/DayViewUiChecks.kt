@@ -13,7 +13,7 @@ open class DayViewUiChecks : WorldUiChecks() {
     private val hospital = Happening(id = "hospital", at = "Day 3 11:00", time = "11:00 am",
         place = "the hospital wing", what = "Draconia is fighting Snape for her bed back.",
         who = listOf("Draconia", "Snape", "Pansy"), expected = false, pick = false)
-    private val tomorrow = Skip(label = "Tomorrow", at = "Day 4 07:30", time = "Monday 7:30 am")
+    private val tomorrow = Skip(label = "Tomorrow", inSentence = "tomorrow", at = "Day 4 07:30", time = "Monday 7:30 am")
     private fun ready(happenings: List<Happening> = listOf(summons, hospital)) {
         link.current.value = link.current.value.copy(headEntryID = "closed", dayView = FakeFantasiaLink.dayView().copy(
             place = "Gryffindor Tower", happenings = happenings,
