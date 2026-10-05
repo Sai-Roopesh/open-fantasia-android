@@ -14,7 +14,7 @@ import androidx.lifecycle.Lifecycle
 @Composable fun FantasiaApp(model: FantasiaModel, scanner: PairingScanner, portrait: (String) -> PortraitSource? = { null }) {
     val state by model.state.collectAsStateWithLifecycle()
     BackHandler(enabled = state.scene != null) {
-        if (state.readingScene != null) model.closePastScene() else model.home()
+        if (state.readingScene != null) model.closePastScene() else if (state.showingPaths) model.closePaths() else model.home()
     }
     LifecycleEventEffect(Lifecycle.Event.ON_START) { model.resume() }
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { model.pause() }
@@ -32,10 +32,15 @@ import androidx.lifecycle.Lifecycle
                     val focusManager = LocalFocusManager.current
                     if (state.readingScene != null) {
                         PastSceneScreen(state.readingScene!!, state.pastScene, scene.playerCharacter,
-                            scene.scene.number, model::closePastScene, Modifier.weight(1f))
+                            scene.scene.number, model::closePastScene, Modifier.weight(1f), pathsEnabled = state.canChangePath,
+                            rewind = model::rewind, tryAnotherWay = model::tryAnotherWay)
                         if (state.pastSceneLoading) CircularProgressIndicator()
+                    } else if (state.showingPaths) {
+                        PathsScreen(state.paths, state.canChangePath, model::closePaths, model::openPath, model::renamePath,
+                            model::deletePath, model::clearPaths, startAgain = { model.tryAnotherWay(null) }, modifier = Modifier.weight(1f))
                     } else {
                         SceneScreen(scene, portrait, Modifier.weight(1f), controlsEnabled = state.canChangeScene,
+                            openPaths = model::openPaths, pathsEnabled = state.canChangePath, rewind = model::rewind, tryAnotherWay = model::tryAnotherWay,
                             focus = model::focus, redo = model::redo, choose = model::choose, problem = state.problem?.reason, dismissPreviously = model::dismissPreviously, back = model::home, awaitingReply = state.replyComing,
                             openPastScene = { focusManager.clearFocus(); model.openPastScene(it) }, scrollState = scrollState,
                             storyTitle = state.stories.firstOrNull { it.id == scene.storyID }?.title ?: scene.scene.title,

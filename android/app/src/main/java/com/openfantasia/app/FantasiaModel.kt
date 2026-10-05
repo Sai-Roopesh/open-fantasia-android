@@ -22,6 +22,9 @@ data class FantasiaState(
     val readingScene: SceneSummaryLine? = null,
     val pastScene: PastScene? = null,
     val pastSceneLoading: Boolean = false,
+    /** The Paths screen, while it is open (openspec paths: The Paths screen). */
+    val showingPaths: Boolean = false,
+    val paths: PathsView? = null,
     val draft: String = "",
     val sending: Boolean = false,
     val waiting: Boolean = false,
@@ -64,6 +67,7 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
     fun home() {
         stream?.cancel()
         closePastScene()
+        closePaths()
         viewModelScope.launch {
             mutable.update { it.copy(scene = null, loading = true, problem = null) }
             try {
@@ -125,6 +129,52 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
             } finally {
                 if (currentCoroutineContext().isActive) mutable.update { it.copy(pastSceneLoading = false) }
             }
+        }
+    }
+
+    fun openPaths() {
+        val scene = mutable.value.scene ?: return
+        mutable.update { it.copy(showingPaths = true, paths = null, problem = null) }
+        viewModelScope.launch {
+            try { val paths = link.paths(scene.storyID); mutable.update { it.copy(paths = paths) }
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) { showProblem(e) }
+        }
+    }
+
+    fun closePaths() { mutable.update { it.copy(showingPaths = false, paths = null) } }
+
+    fun tryAnotherWay(from: String?) = changePath { link.tryAnotherWay(it.storyID, TryAnotherWayRequest(from = from, after = it.headEntryID)) }
+    fun rewind(to: String) = changePath { link.rewind(it.storyID, RewindRequest(to = to, after = it.headEntryID)) }
+    fun openPath(pathID: String) = changePath { link.openPath(it.storyID, pathID) }
+    fun renamePath(pathID: String, name: String) = changePath(staysOnPaths = true) { link.renamePath(it.storyID, pathID, RenamePathRequest(name = name)) }
+    fun deletePath(pathID: String) = changePath(staysOnPaths = true) { link.deletePath(it.storyID, pathID) }
+    fun clearPaths() = changePath(staysOnPaths = true) { link.clearPaths(it.storyID) }
+
+    /**
+     * Sends a Path command, then reads the Scene again from the Mac, which owns where the Story now stands; the
+     * stream says the same to every other phone. A change that moves the player closes the Paths screen and the
+     * earlier Scene being read; renaming, deleting and clearing stay on the Paths screen and read it again.
+     */
+    private fun changePath(staysOnPaths: Boolean = false, command: suspend (SceneView) -> Accepted) {
+        val state = mutable.value
+        val scene = state.scene ?: return
+        if (!state.canChangePath) return
+        mutable.update { it.copy(sending = true, problem = null) }
+        viewModelScope.launch {
+            try {
+                command(scene)
+                val fresh = link.scene(scene.storyID)
+                if (staysOnPaths) {
+                    val paths = link.paths(scene.storyID)
+                    mutable.update { it.copy(scene = visibleScene(fresh), paths = paths) }
+                } else {
+                    closePastScene()
+                    mutable.update { it.copy(scene = visibleScene(fresh), showingPaths = false, paths = null) }
+                }
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) { showProblem(e)
+            } finally { mutable.update { it.copy(sending = false) } }
         }
     }
 
@@ -294,6 +344,9 @@ val FantasiaState.canChangeScene: Boolean
 
 internal val FantasiaState.replyComing: Boolean
     get() = scene?.replyComing == true || (waiting && scene?.turn?.kind != TurnStateKind.Failed)
+/** Paths change only between Replies (openspec paths: A Path changes only between Replies); a failed one does not hold them. */
+internal val FantasiaState.canChangePath: Boolean
+    get() = scene != null && !replyComing && reachable && !loading && !sending && problem?.needsUpdate != true
 internal val FantasiaState.canSendMove: Boolean
     get() = draft.isNotBlank() && canChangeScene && !replyComing
 

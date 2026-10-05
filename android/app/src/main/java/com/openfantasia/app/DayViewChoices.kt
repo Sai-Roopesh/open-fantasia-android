@@ -92,7 +92,7 @@ internal enum class DayPicker(val title: String) { Follow("Follow someone"), Som
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable private fun DaySheet(tag: String, dismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+@Composable internal fun DaySheet(tag: String, dismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
     ModalBottomSheet(onDismissRequest = dismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         shape = FantasiaShapes.sheet, containerColor = FantasiaSurface, contentColor = FantasiaText,
         scrimColor = FantasiaScrim, dragHandle = null) {

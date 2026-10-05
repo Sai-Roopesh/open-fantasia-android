@@ -14,6 +14,14 @@ interface FantasiaLink {
     suspend fun pastScene(storyID: String, number: Long): PastScene
     suspend fun move(storyID: String, move: MoveRequest): TurnAccepted
     suspend fun choose(storyID: String, request: ChooseRequest): TurnAccepted
+    // Paths (openspec paths). A link that does not reach a Mac has none.
+    suspend fun paths(storyID: String): PathsView = throw LinkFailure("Paths are not on this link")
+    suspend fun tryAnotherWay(storyID: String, request: TryAnotherWayRequest): Accepted = throw LinkFailure("Paths are not on this link")
+    suspend fun rewind(storyID: String, request: RewindRequest): Accepted = throw LinkFailure("Paths are not on this link")
+    suspend fun openPath(storyID: String, pathID: String): Accepted = throw LinkFailure("Paths are not on this link")
+    suspend fun renamePath(storyID: String, pathID: String, request: RenamePathRequest): Accepted = throw LinkFailure("Paths are not on this link")
+    suspend fun deletePath(storyID: String, pathID: String): Accepted = throw LinkFailure("Paths are not on this link")
+    suspend fun clearPaths(storyID: String): Accepted = throw LinkFailure("Paths are not on this link")
     suspend fun retryWorld(storyID: String): Accepted
     suspend fun retry(storyID: String): TurnAccepted
     suspend fun endScene(storyID: String, request: EndSceneRequest): Accepted

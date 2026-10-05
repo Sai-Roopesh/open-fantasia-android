@@ -65,6 +65,10 @@ class SceneScrollState(val list: LazyListState) {
     dismissPreviously: () -> Unit = {},
     choose: (ChooseRequest) -> Unit = {},
     problem: String? = null,
+    openPaths: () -> Unit = {},
+    pathsEnabled: Boolean = false,
+    rewind: (String) -> Unit = {},
+    tryAnotherWay: (String) -> Unit = {},
     worldFailure: @Composable () -> Unit = {},
     failure: @Composable () -> Unit = {}
 ) {
@@ -91,8 +95,11 @@ class SceneScrollState(val list: LazyListState) {
     val replyComing = scene.replyComing || awaitingReply
     val latestReply = scene.exchanges.lastOrNull { it.reply != null }?.reply
     var previouslyOffset by remember(previously?.since) { mutableStateOf<Int?>(null) }
+    // The Reply being held, whose menu is open (LongPress.dc.html); everything else steps back.
+    var held by remember(scene.storyID, scene.headEntryID) { mutableStateOf<String?>(null) }
+    val copy = { text: String -> clipboard.setPrimaryClip(ClipData.newPlainText("Reply", text)) }
     Column(modifier) {
-        SceneHeader(scene, storyTitle, back, scene.dayView == null && scene.opening == null && (replyComing || scene.turn.kind == TurnStateKind.Failed || imeBottom > 0))
+        SceneHeader(scene, storyTitle, back, scene.dayView == null && scene.opening == null && (replyComing || scene.turn.kind == TurnStateKind.Failed || imeBottom > 0), openPaths)
         LazyColumn(state = list, modifier = Modifier.weight(1f).onSizeChanged { viewportSize = it }.testTag("scene-passages"),
             verticalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 8.dp)) {
             itemsIndexed(scene.earlierScenes, key = { _, scene -> "earlier-${scene.number}" }) { index, earlier ->
@@ -105,15 +112,18 @@ class SceneScrollState(val list: LazyListState) {
             }
             items(scene.exchanges, key = { it.move?.entryID ?: it.reply!!.entryID }) { exchange ->
                 Column(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    exchange.move?.let { MovePassage(it, scene.playerCharacter) }
+                    exchange.move?.let { MovePassage(it, scene.playerCharacter, dimmed = held != null) }
                     exchange.reply?.let { reply ->
                         if (reply == latestReply && scene.dayView == null && previously != null) {
                             PreviouslyCard(previously, dismissPreviously, Modifier.onGloballyPositioned { previouslyOffset = it.positionInParent().y.toInt() })
                         }
-                        ReplyPassage(reply)
+                        HeldReply(reply, held = held == reply.entryID, dimmed = held != null && held != reply.entryID,
+                            canRewind = reply.entryID != scene.headEntryID, pathsEnabled = pathsEnabled,
+                            hold = { held = reply.entryID }, release = { held = null }, copy = { copy(reply.text) },
+                            rewind = { rewind(reply.entryID) }, tryAnotherWay = { tryAnotherWay(reply.entryID) })
                         if (reply == latestReply && !replyComing && scene.turn.kind != TurnStateKind.Failed) {
                             Row(Modifier.offset(x = (-8).dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                ReplyAction("Copy", onClick = { clipboard.setPrimaryClip(ClipData.newPlainText("Reply", reply.text)) })
+                                ReplyAction("Copy", onClick = { copy(reply.text) })
                                 if (scene.dayView?.closedBy != ClosedBy.Player && scene.exchanges.lastOrNull()?.let { it.move != null && it.reply != null } == true) {
                                     ReplyAction("Redo", enabled = controlsEnabled, onClick = { showRedo = true })
                                 }
@@ -239,7 +249,7 @@ class SceneScrollState(val list: LazyListState) {
     }
 }
 
-@Composable private fun SceneHeader(scene: SceneView, storyTitle: String, back: () -> Unit, compact: Boolean) {
+@Composable private fun SceneHeader(scene: SceneView, storyTitle: String, back: () -> Unit, compact: Boolean, openPaths: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(2.dp)) {
         IconButton(onClick = back, modifier = Modifier.size(44.dp).semantics { contentDescription = "Stories" }) {
@@ -248,6 +258,10 @@ class SceneScrollState(val list: LazyListState) {
         Column(Modifier.weight(1f)) {
             Text(if (compact) scene.scene.title else storyTitle, modifier = Modifier.testTag("scene-header-title"), style = FantasiaType.header, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (compact) Text("Scene ${scene.scene.number} · ${scene.scene.atLabel}", modifier = Modifier.testTag("scene-header-time"), style = FantasiaType.small, color = FantasiaCaption)
+        }
+        // The header gains each screen as it is built (docs/design/README.md); Paths is the first.
+        TextButton(onClick = openPaths, modifier = Modifier.height(44.dp), contentPadding = PaddingValues(horizontal = 12.dp)) {
+            Text("Paths", style = FantasiaType.meta, color = FantasiaSecondary)
         }
     }
     HorizontalDivider(color = FantasiaHeaderLine)
@@ -394,12 +408,12 @@ class SceneScrollState(val list: LazyListState) {
     Text(prose(reply.text), modifier = Modifier.fillMaxWidth(), style = FantasiaType.prose, color = FantasiaProse)
 }
 
-@Composable internal fun MovePassage(move: Passage, playerCharacter: String) {
+@Composable internal fun MovePassage(move: Passage, playerCharacter: String, dimmed: Boolean = false) {
     BoxWithConstraints(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
-        Surface(shape = FantasiaShapes.move, color = FantasiaRaised, modifier = Modifier.widthIn(max = maxWidth * .86f)) {
+        Surface(shape = FantasiaShapes.move, color = if (dimmed) FantasiaDimmedMove else FantasiaRaised, modifier = Modifier.widthIn(max = maxWidth * .86f)) {
             Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(firstName(playerCharacter).uppercase(Locale.ROOT), color = FantasiaLabel, style = FantasiaType.player)
-                Text(prose(move.text), style = FantasiaType.body)
+                Text(firstName(playerCharacter).uppercase(Locale.ROOT), color = if (dimmed) FantasiaDimmed else FantasiaLabel, style = FantasiaType.player)
+                Text(prose(move.text), style = FantasiaType.body, color = if (dimmed) FantasiaDimmed else FantasiaText)
             }
         }
     }

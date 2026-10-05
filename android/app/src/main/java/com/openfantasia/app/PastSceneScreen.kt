@@ -1,5 +1,9 @@
 package com.openfantasia.app
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -21,8 +25,14 @@ import com.openfantasia.protocol.SceneSummaryLine
     playerCharacter: String,
     currentNumber: Long,
     back: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    pathsEnabled: Boolean = false,
+    rewind: (String) -> Unit = {},
+    tryAnotherWay: (String) -> Unit = {}
 ) {
+    // A Reply in an earlier Scene can be held too (openspec paths: Try another way from any Reply).
+    var held by remember(scene?.number) { mutableStateOf<String?>(null) }
+    val clipboard = LocalContext.current.getSystemService(ClipboardManager::class.java)
     Column(modifier) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -43,8 +53,13 @@ import com.openfantasia.protocol.SceneSummaryLine
             }
             items(scene.exchanges) { exchange ->
                 Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    exchange.move?.let { MovePassage(it, playerCharacter) }
-                    exchange.reply?.let { ReplyPassage(it) }
+                    exchange.move?.let { MovePassage(it, playerCharacter, dimmed = held != null) }
+                    exchange.reply?.let { reply ->
+                        HeldReply(reply, held = held == reply.entryID, dimmed = held != null && held != reply.entryID, canRewind = true,
+                            pathsEnabled = pathsEnabled, hold = { held = reply.entryID }, release = { held = null },
+                            copy = { clipboard.setPrimaryClip(ClipData.newPlainText("Reply", reply.text)) },
+                            rewind = { rewind(reply.entryID) }, tryAnotherWay = { tryAnotherWay(reply.entryID) })
+                    }
                 }
             }
         }

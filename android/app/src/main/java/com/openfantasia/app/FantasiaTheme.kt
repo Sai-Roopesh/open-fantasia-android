@@ -93,6 +93,12 @@ object FantasiaType {
     val failureTitle = type(Manrope, 15f, weight = FontWeight.Bold)
     val retryButton = type(Manrope, 14f, weight = FontWeight.SemiBold)
     val button = type(Manrope, 15f, weight = FontWeight.SemiBold)
+    // The Paths screen and a held Reply's menu (Paths.dc.html, LongPress.dc.html).
+    val pathsTitle = type(Literata, 20f, weight = FontWeight.SemiBold)
+    val forkTitle = type(Literata, 16f, weight = FontWeight.SemiBold)
+    val pathTitle = type(Literata, 17f, weight = FontWeight.SemiBold)
+    val pathLabel = type(Manrope, 12f, weight = FontWeight.Bold)
+    val menuItem = type(Manrope, 15f)
 }
 object FantasiaShapes {
     val card = RoundedCornerShape(16.dp)

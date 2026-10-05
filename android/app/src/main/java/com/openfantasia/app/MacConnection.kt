@@ -89,6 +89,13 @@ class MacConnection(
     override suspend fun choose(storyID: String, request: ChooseRequest): TurnAccepted = command { it.choose(storyID, request) }
     override suspend fun retryWorld(storyID: String): Accepted = command { it.retryWorld(storyID) }
     override suspend fun retry(storyID: String): TurnAccepted = command { it.retry(storyID) }
+    override suspend fun paths(storyID: String): PathsView = read { it.paths(storyID) }
+    override suspend fun tryAnotherWay(storyID: String, request: TryAnotherWayRequest): Accepted = command { it.tryAnotherWay(storyID, request) }
+    override suspend fun rewind(storyID: String, request: RewindRequest): Accepted = command { it.rewind(storyID, request) }
+    override suspend fun openPath(storyID: String, pathID: String): Accepted = command { it.openPath(storyID, pathID) }
+    override suspend fun renamePath(storyID: String, pathID: String, request: RenamePathRequest): Accepted = command { it.renamePath(storyID, pathID, request) }
+    override suspend fun deletePath(storyID: String, pathID: String): Accepted = command { it.deletePath(storyID, pathID) }
+    override suspend fun clearPaths(storyID: String): Accepted = command { it.clearPaths(storyID) }
     override fun watch(initial: SceneView): Flow<SceneView> = StoryStream(
         onConnection = { connected.value = it }, loadScene = { scene(it) }
     ) {

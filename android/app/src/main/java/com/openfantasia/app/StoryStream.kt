@@ -19,13 +19,13 @@ class StoryStream(
         var projection = SceneProjection(initial)
         while (currentCoroutineContext().isActive) {
             try {
-                client().events(initial.storyID, projection.lastEventID, onConnection).collect { envelope ->
+                client().events(initial.storyID, projection.lastEventID, projection.view.pathID, onConnection).collect { envelope ->
                     val before = projection.view
                     val next = SceneProjection(before)
                     next.apply(envelope)
                     // World signals carry no Day View and may share the current sequence (a failure writes no entry).
                     // Reload even when applying the signal leaves the projection unchanged.
-                    val worldSignal = envelope.event.kind in setOf(StoryEventKind.WorldMoved, StoryEventKind.WorldFailed) &&
+                    val worldSignal = envelope.event.kind in setOf(StoryEventKind.WorldMoved, StoryEventKind.WorldFailed, StoryEventKind.PathChanged) &&
                         envelope.event.seq >= before.seq
                     // A Move that opens the next Scene changes more than its exchange: the earlier Scenes, the card.
                     val opens = envelope.event.kind == StoryEventKind.Move && envelope.event.opening != null

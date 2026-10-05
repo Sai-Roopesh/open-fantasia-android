@@ -56,4 +56,29 @@ class LinkClientTest {
                 request.body.readUtf8())
         }
     }
+
+    // The Mac takes each Path command as its routes read them (mac-link tests in host/test/link/paths.test.ts).
+    @Test fun `Path commands go to the Mac's Path routes`() = runBlocking {
+        MacServer().use { mac ->
+            val accepted = """{"head_entry_id":"head","trace_id":"t"}"""
+            repeat(6) { mac.enqueue(MockResponse().setBody(accepted)) }
+            mac.enqueue(MockResponse().setBody("""{"story_id":"story","rows":[],"clearable":0,"trace_id":"t"}"""))
+            mac.client.tryAnotherWay("story", TryAnotherWayRequest(from = null, after = "head"))
+            mac.client.rewind("story", RewindRequest(to = "reply", after = "head"))
+            mac.client.openPath("story", "p1")
+            mac.client.renamePath("story", "p1", RenamePathRequest(name = "The long way"))
+            mac.client.deletePath("story", "p1")
+            mac.client.clearPaths("story")
+            assertEquals(0L, mac.client.paths("story").clearable)
+            val sent = List(7) { mac.server.takeRequest() }.map { Triple(it.method, it.path, it.body.readUtf8()) }
+            assertEquals(listOf(
+                Triple("POST", "/stories/story/paths", """{"after":"head","from":null}"""),
+                Triple("POST", "/stories/story/rewind", """{"after":"head","to":"reply"}"""),
+                Triple("POST", "/stories/story/paths/p1/open", "{}"),
+                Triple("POST", "/stories/story/paths/p1/rename", """{"name":"The long way"}"""),
+                Triple("DELETE", "/stories/story/paths/p1", ""),
+                Triple("POST", "/stories/story/paths/clear", "{}"),
+                Triple("GET", "/stories/story/paths", "")), sent)
+        }
+    }
 }

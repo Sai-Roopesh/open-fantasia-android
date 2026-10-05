@@ -23,7 +23,7 @@ class SceneReloadTest {
             val view = withTimeout(5000) { StoryStream(loadScene = { mac.client.scene(it) }) { mac.client }
                 .follow(sceneFixture()).first { it.dayView != null } }
             assertEquals(snapshot, view)
-            assertEquals("/stories/story/events", mac.server.takeRequest().path)
+            assertEquals("/stories/story/events?path=path", mac.server.takeRequest().path)
             assertEquals("/stories/story/scene", mac.server.takeRequest().path)
         }
     }
@@ -44,7 +44,21 @@ class SceneReloadTest {
             mac.enqueue(MockResponse().setBody(linkJson.encodeToString(snapshot)))
             val view = withTimeout(5000) { StoryStream(loadScene = { mac.client.scene(it) }) { mac.client }.follow(initial).first() }
             assertEquals(snapshot, view)
-            assertEquals("/stories/story/events", mac.server.takeRequest().path)
+            assertEquals("/stories/story/events?path=path", mac.server.takeRequest().path)
+            assertEquals("/stories/story/scene", mac.server.takeRequest().path)
+        }
+    }
+
+    @Test fun `A Path change reloads the Scene, and the stream says which Path the phone shows`() = runBlocking {
+        MacServer().use { mac ->
+            val initial = sceneFixture().copy(seq = 4, lastEventID = "4")
+            val snapshot = initial.copy(pathID = "tried", headEntryID = "opening", seq = 4, lastEventID = "4")
+            mac.enqueue(MockResponse().setHeader("Content-Type", "text/event-stream").setBody(
+                eventData("4", StoryEvent(kind = StoryEventKind.PathChanged, seq = 4))))
+            mac.enqueue(MockResponse().setBody(linkJson.encodeToString(snapshot)))
+            val view = withTimeout(5000) { StoryStream(loadScene = { mac.client.scene(it) }) { mac.client }.follow(initial).first() }
+            assertEquals(snapshot, view)
+            assertEquals("/stories/story/events?path=path", mac.server.takeRequest().path)
             assertEquals("/stories/story/scene", mac.server.takeRequest().path)
         }
     }
@@ -61,7 +75,7 @@ class SceneReloadTest {
             val view = withTimeout(5000) { StoryStream(loadScene = { mac.client.scene(it) }) { mac.client }.follow(initial).first() }
             assertEquals(snapshot, view)
             assertEquals("closed", view.headEntryID)
-            assertEquals("/stories/story/events", mac.server.takeRequest().path)
+            assertEquals("/stories/story/events?path=path", mac.server.takeRequest().path)
             assertEquals("/stories/story/scene", mac.server.takeRequest().path)
         }
     }
@@ -78,7 +92,7 @@ class SceneReloadTest {
             mac.enqueue(MockResponse().setBody(linkJson.encodeToString(snapshot)))
             val view = withTimeout(5000) { StoryStream(loadScene = { mac.client.scene(it) }) { mac.client }.follow(initial).first() }
             assertEquals(snapshot, view)
-            assertEquals("/stories/story/events", mac.server.takeRequest().path)
+            assertEquals("/stories/story/events?path=path", mac.server.takeRequest().path)
             assertEquals("/stories/story/scene", mac.server.takeRequest().path)
         }
     }
@@ -116,7 +130,7 @@ class SceneReloadTest {
             assertEquals("Harry and Ron look up.", view.turn.textSoFar)
             assertNull(view.dayView)
             assertEquals("6.3", view.lastEventID)
-            assertEquals("/stories/story/events", mac.server.takeRequest().path)
+            assertEquals("/stories/story/events?path=path", mac.server.takeRequest().path)
             assertEquals("/stories/story/scene", mac.server.takeRequest().path)
         }
     }
@@ -130,7 +144,7 @@ class SceneReloadTest {
             val view = withTimeout(5000) { StoryStream(loadScene = { mac.client.scene(it) }) { mac.client }
                 .follow(sceneFixture()).first() }
             assertEquals(snapshot, view)
-            assertEquals("/stories/story/events", mac.server.takeRequest().path)
+            assertEquals("/stories/story/events?path=path", mac.server.takeRequest().path)
             assertEquals("/stories/story/scene", mac.server.takeRequest().path)
         }
     }
@@ -152,7 +166,7 @@ class SceneReloadTest {
             assertEquals("She looks up.", view.turn.textSoFar)
             assertEquals("writer", view.headEntryID)
             assertEquals("5.2", view.lastEventID)
-            assertEquals("/stories/story/events", mac.server.takeRequest().path)
+            assertEquals("/stories/story/events?path=path", mac.server.takeRequest().path)
             assertEquals("/stories/story/scene", mac.server.takeRequest().path)
         }
     }

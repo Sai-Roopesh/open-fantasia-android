@@ -14,6 +14,13 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
     /** While set, a choice waits for it; a choice refused with [chooseFailure] throws it. */
     var chooseGate: CompletableDeferred<Unit>? = null
     var chooseFailure: LinkFailure? = null
+    var pathsView = pathsFixture()
+    val tries = mutableListOf<TryAnotherWayRequest>()
+    val rewinds = mutableListOf<RewindRequest>()
+    val opened = mutableListOf<String>()
+    val renames = mutableListOf<Pair<String, RenamePathRequest>>()
+    val deleted = mutableListOf<String>()
+    var clears = 0
     var retries = 0
     val worldRetries = mutableListOf<String>()
     var endedDayView = dayView(ClosedBy.Player)
@@ -79,6 +86,46 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
         retries++
         return TurnAccepted(moveEntryID = "move", traceID = "retry")
     }
+    override suspend fun paths(storyID: String): PathsView = pathsView
+    /** The Scene as the Mac would show it with its head at [entryID]: what came after is not on this Path. */
+    private fun backTo(entryID: String, pathID: String) {
+        val view = current.value
+        val at = view.exchanges.indexOfFirst { it.reply?.entryID == entryID || it.move?.entryID == entryID }
+        current.value = view.copy(pathID = pathID, headEntryID = entryID, seq = view.seq + 1, lastEventID = (view.seq + 1).toString(),
+            exchanges = if (at >= 0) view.exchanges.take(at + 1) else view.exchanges)
+    }
+    override suspend fun tryAnotherWay(storyID: String, request: TryAnotherWayRequest): Accepted {
+        tries += request
+        backTo(request.from ?: "opening", "tried")
+        return Accepted(headEntryID = current.value.headEntryID, traceID = "try")
+    }
+    override suspend fun rewind(storyID: String, request: RewindRequest): Accepted {
+        rewinds += request
+        backTo(request.to, current.value.pathID)
+        return Accepted(headEntryID = request.to, traceID = "rewind")
+    }
+    override suspend fun openPath(storyID: String, pathID: String): Accepted {
+        opened += pathID
+        current.value = current.value.copy(pathID = pathID, headEntryID = "$pathID-head", seq = current.value.seq + 1,
+            lastEventID = (current.value.seq + 1).toString(), exchanges = current.value.exchanges.take(1))
+        return Accepted(headEntryID = current.value.headEntryID, traceID = "open")
+    }
+    override suspend fun renamePath(storyID: String, pathID: String, request: RenamePathRequest): Accepted {
+        renames += pathID to request
+        pathsView = pathsView.copy(rows = pathsView.rows.map { row ->
+            if (row.path?.id == pathID) row.copy(path = row.path!!.copy(title = request.name)) else row })
+        return Accepted(headEntryID = current.value.headEntryID, traceID = "rename")
+    }
+    override suspend fun deletePath(storyID: String, pathID: String): Accepted {
+        deleted += pathID
+        pathsView = pathsView.copy(rows = pathsView.rows.filter { it.path?.id != pathID })
+        return Accepted(headEntryID = current.value.headEntryID, traceID = "delete")
+    }
+    override suspend fun clearPaths(storyID: String): Accepted {
+        clears++
+        pathsView = pathsView.copy(clearable = 0)
+        return Accepted(headEntryID = current.value.headEntryID, traceID = "clear")
+    }
     override fun watch(initial: SceneView): Flow<SceneView> = current
 
     companion object {
@@ -97,6 +144,16 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
             world = World.Ready, sceneSpan = "Friday 9:40 pm – 11:05 pm", meanwhile = emptyList(), failure = null,
             countdowns = listOf(Countdown(linkSchemaWhen = "3 days", landmark = "Draconia's flying test", label = "3 days to Draconia's flying test"),
                 Countdown(linkSchemaWhen = "9 weeks", landmark = "Slytherin v Gryffindor", label = "9 weeks to Slytherin v Gryffindor")))
+        // The Paths screen as drawn in Paths.dc.html: Main, and the lantern tried from Scene 13 two days ago.
+        fun pathsFixture() = PathsView(storyID = "story", traceID = "paths", clearable = 1, rows = listOf(
+            PathRow(kind = PathRowKind.Scenes, depth = 0, label = "Scenes 1 – 12 · Friday 6:10 pm", title = null, path = null),
+            PathRow(kind = PathRowKind.Fork, depth = 0, label = "Scene 13 · Friday 8:05 pm", title = "The troll", path = null),
+            PathRow(kind = PathRowKind.Path, depth = 1, label = "MAIN · YOU ARE HERE", title = null, path = PathCard(id = "main",
+                label = "MAIN · YOU ARE HERE", title = "Scene 14 · After curfew", detail = "14 Scenes · Friday 9:52 pm", current = true,
+                playedAt = java.time.Instant.now().toString(), canDelete = false)),
+            PathRow(kind = PathRowKind.Path, depth = 1, label = "FROM SCENE 13 · TRIED ANOTHER WAY", title = null, path = PathCard(id = "lantern",
+                label = "FROM SCENE 13 · TRIED ANOTHER WAY", title = "Following the lantern", detail = "3 Scenes · Saturday 1:15 am", current = false,
+                playedAt = java.time.Instant.now().minusSeconds(2 * 86400).toString(), canDelete = true))))
         fun sceneView() = SceneView(
             earlierScenes = (1L..13L).map { SceneSummaryLine(number = it,
                 title = if (it == 13L) "The troll" else "Earlier Scene $it",

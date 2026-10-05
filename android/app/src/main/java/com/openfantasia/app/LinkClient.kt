@@ -47,13 +47,25 @@ class LinkClient(val address: HttpUrl, fingerprint: String, private val deviceTo
     suspend fun redo(storyID: String, request: RedoRequest): TurnAccepted =
         command(listOf("stories", storyID, "redo"), commandJson.encodeToString(request))
 
-    internal fun request(path: List<String>, body: String? = null, paired: Boolean = true): Request {
+    suspend fun paths(storyID: String): PathsView = command(listOf("stories", storyID, "paths"))
+    suspend fun tryAnotherWay(storyID: String, request: TryAnotherWayRequest): Accepted =
+        command(listOf("stories", storyID, "paths"), commandJson.encodeToString(request))
+    suspend fun rewind(storyID: String, request: RewindRequest): Accepted =
+        command(listOf("stories", storyID, "rewind"), commandJson.encodeToString(request))
+    suspend fun openPath(storyID: String, pathID: String): Accepted = command(listOf("stories", storyID, "paths", pathID, "open"), "{}")
+    suspend fun renamePath(storyID: String, pathID: String, request: RenamePathRequest): Accepted =
+        command(listOf("stories", storyID, "paths", pathID, "rename"), commandJson.encodeToString(request))
+    suspend fun deletePath(storyID: String, pathID: String): Accepted = command(listOf("stories", storyID, "paths", pathID), delete = true)
+    suspend fun clearPaths(storyID: String): Accepted = command(listOf("stories", storyID, "paths", "clear"), "{}")
+
+    internal fun request(path: List<String>, body: String? = null, paired: Boolean = true, delete: Boolean = false): Request {
         val url = address.newBuilder().apply { path.forEach { addPathSegment(it) } }.build()
         return Request.Builder().url(url)
             .header("Fantasia-Contract", CONTRACT_VERSION.toString())
             .apply {
                 if (paired) header("Authorization", "Bearer ${requireNotNull(deviceToken)}")
                 if (body != null) post(body.toRequestBody("application/json".toMediaType()))
+                if (delete) delete()
             }.build()
     }
 
@@ -61,8 +73,8 @@ class LinkClient(val address: HttpUrl, fingerprint: String, private val deviceTo
         return command(listOf(path), body, paired)
     }
 
-    private suspend inline fun <reified T> command(path: List<String>, body: String? = null, paired: Boolean = true): T {
-        val (response, text) = execute(request(path, body, paired))
+    private suspend inline fun <reified T> command(path: List<String>, body: String? = null, paired: Boolean = true, delete: Boolean = false): T {
+        val (response, text) = execute(request(path, body, paired, delete))
         requireContract(response, text)
         if (!response.isSuccessful || runCatching { linkJson.decodeFromString<ErrorBody>(text) }.isSuccess) throw failure(response.code, text)
         return linkJson.decodeFromString<T>(text)
