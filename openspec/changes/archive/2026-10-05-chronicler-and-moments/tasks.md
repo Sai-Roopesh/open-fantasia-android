@@ -49,7 +49,7 @@ Requirements this change builds:
 ## 6. Real models (opt-in)
 
 - [x] 6.1 The Chronicler on Claude, three runs: its quotes are word for word, it records the inkwell and the troll as Moments shared with Hermione, and it never records Hermione's invented "you told me at breakfast you hate flying" as something Roopesh said
-- [ ] 6.2 `scenes › The Reply never writes the Player Character › Hermione asks a question` as a gate: the real Chronicler records an earlier Scene, then the real Writer and Actor answer the kiss; judged, three runs out of three
+- [x] 6.2 `scenes › The Reply never writes the Player Character › Hermione asks a question` as a gate: the real Chronicler records an earlier Scene, then the real Writer and Actor answer the kiss; judged, three runs out of three
 - [x] 6.3 `living-world › Moments are remembered from one record › Draconia remembers the station` and `living-world › Characters know only what they could know › Hermione does not know about the egg`, judged, three runs each
 
 ## 7. Together
