@@ -24,4 +24,5 @@ class PathsScreenTest : PathsUiChecks() {
     @Test fun whileWriting() = rewindingWhileAReplyIsWritten()
 
     @Test fun startingAgainCheck() = startingAgain()
+    @Test fun menuOpensWhereALongReplyIsHeldCheck() = menuOpensWhereALongReplyIsHeld()
 }

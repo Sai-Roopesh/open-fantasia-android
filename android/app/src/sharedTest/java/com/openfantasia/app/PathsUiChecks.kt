@@ -21,6 +21,13 @@ open class PathsUiChecks : WorldUiChecks() {
         menu("Rewind to here").assertIsDisplayed()
         menu("Try another way from here").assertIsDisplayed()
         menu("Edit").assertDoesNotExist()
+        // As drawn in LongPress.dc.html, the menu opens under the Reply it belongs to, at its left edge. The menu is
+        // its own window, so both are measured on the screen.
+        val held = compose.onNodeWithTag("reply-opening").fetchSemanticsNode()
+        val copy = menu("Copy").fetchSemanticsNode().positionOnScreen
+        val reply = held.positionOnScreen
+        assertTrue("The menu opens under the held Reply: $copy below $reply + ${held.size}", copy.y >= reply.y + held.size.height)
+        assertTrue("The menu starts at the held Reply's left: $copy beside $reply", copy.x >= reply.x - 60 && copy.x < reply.x + 120)
         compose.preview("LongPress")
         menu("Try another way from here").performClick()
         compose.runOnIdle { assertEquals(listOf(TryAnotherWayRequest(from = "opening", after = "reply")), link.tries) }
@@ -130,5 +137,19 @@ open class PathsUiChecks : WorldUiChecks() {
         compose.onNodeWithText("Start again from the beginning").assertIsNotEnabled()
         compose.onNodeWithText("Following the lantern").performClick()
         compose.runOnIdle { assertTrue(link.opened.isEmpty() && link.rewinds.isEmpty() && link.tries.isEmpty()) }
+    }
+
+    // A Reply taller than the screen has no room under it or above it on screen: its menu opens where the player
+    // pressed, not pinned to the top corner (found on the phone with Meera's Reply in "Ginger and dry toast").
+    fun menuOpensWhereALongReplyIsHeld() {
+        val long = "She looks at him properly then, at his glasses fogged at the edges. ".repeat(30)
+        link.current.value = link.current.value.copy(exchanges = link.current.value.exchanges +
+            Exchange(move = Passage(entryID = "move-2", text = "I take the toast."), reply = Passage(entryID = "long", text = long)), headEntryID = "long")
+        openScene()
+        val list = compose.onNodeWithTag("scene-passages").fetchSemanticsNode()
+        compose.onNodeWithTag("reply-long").performTouchInput { longClick(center) }
+        val copy = menu("Copy").fetchSemanticsNode().positionOnScreen
+        val top = list.positionOnScreen.y
+        assertTrue("The menu opens inside the Scene, near the press: $copy, the Scene from $top", copy.y > top + 100 && copy.y < top + list.size.height)
     }
 }
