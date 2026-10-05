@@ -365,8 +365,13 @@ export class Engine {
    * (openspec mac-link: A dropped connection loses nothing). Every change to a Path is an entry with a newer seq,
    * so a phone that missed a Redo is sent the Redo, and reads the Scene again.
    */
-  catchUp(storyId: string, lastEventId: string | null): OutgoingEvent[] {
+  catchUp(storyId: string, lastEventId: string | null, seenPath: string | null = null): OutgoingEvent[] {
     const path = this.path(storyId);
+    // A phone showing another Path reads the Scene again before anything else; this Path's entries are not its.
+    if (seenPath !== null && seenPath !== path.id) {
+      const seq = this.newestSeq(storyId);
+      return [{ id: String(seq), event: { kind: "path_changed", seq } }];
+    }
     const [seqPart, deltaPart] = (lastEventId ?? "0").split(".");
     const seenSeq = Number(seqPart) || 0;
     const seenDeltas = deltaPart === undefined ? null : Number(deltaPart);

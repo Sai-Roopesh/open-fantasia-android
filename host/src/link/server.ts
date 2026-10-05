@@ -8,8 +8,9 @@ import linkSchema from "../../../protocol/schemas/link.schema.json" with { type:
 import type { Engine } from "../engine/engine.js";
 import type { Mac } from "../mac.js";
 import { CONTRACT_VERSION } from "../protocol/generated/contract.js";
-import type { ChooseRequest, EndSceneRequest, ErrorBody, FocusRequest, LingerRequest, MoveRequest, PairRequest, RedoRequest } from "../protocol/generated/link.js";
+import type { ChooseRequest, EndSceneRequest, ErrorBody, FocusRequest, LingerRequest, MoveRequest, PairRequest, RedoRequest, RenamePathRequest, RewindRequest, TryAnotherWayRequest } from "../protocol/generated/link.js";
 import { newTraceId, Traces } from "../trace.js";
+import { pathsView } from "../views/paths.js";
 import { pastScene, sceneView } from "../views/scene.js";
 import { listStories } from "../views/stories.js";
 import { LinkError, STATUS } from "./errors.js";
@@ -30,6 +31,9 @@ const validFocus = ajv.compile<FocusRequest>({ $ref: "link#/$defs/FocusRequest" 
 const validLinger = ajv.compile<LingerRequest>({ $ref: "link#/$defs/LingerRequest" });
 const validRedo = ajv.compile<RedoRequest>({ $ref: "link#/$defs/RedoRequest" });
 const validChoose = ajv.compile<ChooseRequest>({ $ref: "link#/$defs/ChooseRequest" });
+const validTry = ajv.compile<TryAnotherWayRequest>({ $ref: "link#/$defs/TryAnotherWayRequest" });
+const validRewind = ajv.compile<RewindRequest>({ $ref: "link#/$defs/RewindRequest" });
+const validRename = ajv.compile<RenamePathRequest>({ $ref: "link#/$defs/RenamePathRequest" });
 
 const IMAGE_TYPES: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp" };
 
@@ -120,6 +124,32 @@ export function buildLink(options: LinkOptions): FastifyInstance {
     return engine.choose(request.params.id, request.body, request.traceId);
   });
 
+  // Paths (openspec paths): every change is refused mid-Reply, and one that moves the Story says so on the stream.
+  app.get<{ Params: { id: string } }>("/stories/:id/paths", async request => pathsView(mac, request.params.id, request.traceId));
+
+  app.post<{ Params: { id: string } }>("/stories/:id/paths", async request => {
+    if (!validTry(request.body)) throw new LinkError("invalid", "Trying another way needs the Reply to start from, or null for the beginning, and the entry the phone last saw.");
+    return engine.tryAnotherWay(request.params.id, request.body.from, request.body.after, request.traceId);
+  });
+
+  app.post<{ Params: { id: string } }>("/stories/:id/rewind", async request => {
+    if (!validRewind(request.body)) throw new LinkError("invalid", "Rewind needs the Reply to go back to and the entry the phone last saw.");
+    return engine.rewind(request.params.id, request.body.to, request.body.after, request.traceId);
+  });
+
+  app.post<{ Params: { id: string } }>("/stories/:id/paths/clear", async request => engine.clearPaths(request.params.id, request.traceId));
+
+  app.post<{ Params: { id: string; path: string } }>("/stories/:id/paths/:path/open", async request =>
+    engine.openPath(request.params.id, request.params.path, request.traceId));
+
+  app.post<{ Params: { id: string; path: string } }>("/stories/:id/paths/:path/rename", async request => {
+    if (!validRename(request.body)) throw new LinkError("invalid", "Renaming a Path needs its new name.");
+    return engine.renamePath(request.params.id, request.params.path, request.body.name, request.traceId);
+  });
+
+  app.delete<{ Params: { id: string; path: string } }>("/stories/:id/paths/:path", async request =>
+    engine.deletePath(request.params.id, request.params.path, request.traceId));
+
   app.post<{ Params: { id: string } }>("/stories/:id/retry", async request => engine.retry(request.params.id, request.traceId));
   app.post<{ Params: { id: string } }>("/stories/:id/world/retry", async request => engine.retryWorld(request.params.id, request.traceId));
 
@@ -149,12 +179,14 @@ export function buildLink(options: LinkOptions): FastifyInstance {
     return reply.type(IMAGE_TYPES[extname(file).toLowerCase()] ?? "application/octet-stream").send(createReadStream(file));
   });
 
-  app.get<{ Params: { id: string } }>("/stories/:id/events", (request, reply) => {
+  app.get<{ Params: { id: string }; Querystring: { path?: string } }>("/stories/:id/events", (request, reply) => {
     const storyId = request.params.id;
     const lastEventId = (request.headers["last-event-id"] as string | undefined) ?? null;
+    // The Path the phone is showing: when the Story has moved to another since, it is told that first.
+    const seenPath = request.query.path ?? null;
     // Everything below runs before this function returns, so no event can be emitted between the catch-up and
     // the subscription: the store is read synchronously, and nothing else runs until we yield.
-    const missed = engine.catchUp(storyId, lastEventId);
+    const missed = engine.catchUp(storyId, lastEventId, seenPath);
     reply.hijack();
     const raw = reply.raw;
     raw.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive", [TRACE_HEADER]: request.traceId, [CONTRACT_HEADER]: String(CONTRACT_VERSION) });

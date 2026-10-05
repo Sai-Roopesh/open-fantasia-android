@@ -19,11 +19,11 @@ set aside); The Paths screen (Returning by the Paths screen; Deleting a Path); S
 - [x] 2.3 Test first, then build: `paths › Everything belongs to the Path › Two clocks` (one Path on Tuesday afternoon, another on Saturday night; switching puts the Scene view's clock and Day View on Saturday night)
 - [x] 2.4 Test first, then build: `paths › Rewind sets aside, never destroys › Going back and carrying on` (Rewind to a Reply with five exchanges after it; the current Path keeps its name at that Reply; the five exchanges are a set-aside Path; a different Move carries on)
 - [x] 2.5 Test first, then build: `paths › Rewind sets aside, never destroys › Clearing what was set aside` (only the never-opened set-aside Path goes; the opened one and the tried one stay)
-- [ ] 2.6 Test first, then build: `paths › The Paths screen › Returning by the Paths screen` on the host (the rows: shared Scenes folded, the fork Scene, a card per Path with its label, title and detail; opening a Path puts the Story at its latest moment)
+- [x] 2.6 Test first, then build: `paths › The Paths screen › Returning by the Paths screen` on the host (the rows: shared Scenes folded, the fork Scene, a card per Path with its label, title and detail; opening a Path puts the Story at its latest moment)
 - [x] 2.7 Test first, then build: `paths › The Paths screen › Deleting a Path` on the host (the other Path deleted, Main unchanged, the current Path refused)
 - [x] 2.8 Test first, then build: `paths › Starting again from the beginning › Re-experiencing the Story` (a new current Path at the opening Scene, the State as the Story File made it, every other Path untouched)
-- [ ] 2.9 Test first, then build: `paths › A Path changes only between Replies › Rewinding while a Reply is written` (every Path command refused `busy` mid-Reply, Paths unchanged); and the refusals for a stale `after`, an entry that is not a Reply on the Path, and Rewind at the latest Reply; verify link tests
-- [ ] 2.10 Every Path change emits `path_changed`, and a stream opened with a Path that is no longer current starts with it; verify engine event and link stream tests
+- [x] 2.9 Test first, then build: `paths › A Path changes only between Replies › Rewinding while a Reply is written` (every Path command refused `busy` mid-Reply, Paths unchanged); and the refusals for a stale `after`, an entry that is not a Reply on the Path, and Rewind at the latest Reply; verify link tests
+- [x] 2.10 Every Path change emits `path_changed`, and a stream opened with a Path that is no longer current starts with it; verify engine event and link stream tests
 
 ## 3. Paths on the phone
 

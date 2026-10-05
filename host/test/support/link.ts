@@ -96,12 +96,12 @@ export interface ReceivedEvent {
   event: StoryEvent;
 }
 
-/** Reads a Story's event stream, collecting events until it is closed. */
-export function openStream(base: string, storyId: string, headers: Record<string, string>, lastEventId: string | null = null) {
+/** Reads a Story's event stream, collecting events until it is closed; [path] is the Path the phone is showing. */
+export function openStream(base: string, storyId: string, headers: Record<string, string>, lastEventId: string | null = null, path: string | null = null) {
   const abort = new AbortController();
   const received: ReceivedEvent[] = [];
   const done = (async () => {
-    const response = await fetch(`${base}/stories/${storyId}/events`, { headers: { ...headers, ...(lastEventId ? { "last-event-id": lastEventId } : {}) }, signal: abort.signal });
+    const response = await fetch(`${base}/stories/${storyId}/events${path ? `?path=${encodeURIComponent(path)}` : ""}`, { headers: { ...headers, ...(lastEventId ? { "last-event-id": lastEventId } : {}) }, signal: abort.signal });
     const reader = response.body!.pipeThrough(new TextDecoderStream()).getReader();
     let buffer = "";
     try {
