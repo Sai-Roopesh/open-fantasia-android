@@ -62,7 +62,8 @@ open class DayViewUiChecks : WorldUiChecks() {
         tap("Let the Story choose")
         sent(ChooseRequest(after = "closed", kind = ChooseRequestKind.Story))
         compose.onNodeWithText("What did you do in the Gap?").assertDoesNotExist()
-        compose.onNodeWithText("Reply being written").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("scene-passages").performScrollToNode(hasText("Reply being written"))
+        compose.onNodeWithText("Reply being written").assertIsDisplayed()
         compose.runOnIdle {
             link.current.value = link.current.value.copy(dayView = null, seq = 5, headEntryID = "next-reply",
                 scene = link.current.value.scene.copy(number = 15, title = "The accounts", at = "Day 3 07:40",
