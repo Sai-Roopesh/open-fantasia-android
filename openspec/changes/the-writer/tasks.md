@@ -63,5 +63,5 @@ Requirements this change builds:
 
 ## 8. Together
 
-- [ ] 8.1 On the phone, play a Scene of the Night Train Story until the Story closes it on its own, Redo one Reply with a Direction, end the next Scene with End scene, and open a third from the Day View; verify the time a Writer step adds before a Reply streams, from `fantasia trace`
-- [ ] 8.2 Run `scripts/scenarios.mjs`, the host suite, the Android JVM and device suites, and `openspec validate --all --strict`, and verify all pass
+- [x] 8.1 On the phone, play a Scene of the Night Train Story until the Story closes it on its own, Redo one Reply with a Direction, end the next Scene with End scene, and open a third from the Day View; verify the time a Writer step adds before a Reply streams, from `fantasia trace`
+- [x] 8.2 Run `scripts/scenarios.mjs`, the host suite, the Android JVM and device suites, and `openspec validate --all --strict`, and verify all pass
