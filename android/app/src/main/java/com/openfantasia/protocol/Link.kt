@@ -2,40 +2,46 @@
 
 // To parse the JSON, install kotlin's serialization plugin and do:
 //
-// val json             = Json { allowStructuredMapKeys = true }
-// val errorCode        = json.parse(ErrorCode.serializer(), jsonString)
-// val errorBody        = json.parse(ErrorBody.serializer(), jsonString)
-// val pairingInvite    = json.parse(PairingInvite.serializer(), jsonString)
-// val pairRequest      = json.parse(PairRequest.serializer(), jsonString)
-// val pairResponse     = json.parse(PairResponse.serializer(), jsonString)
-// val storyList        = json.parse(StoryList.serializer(), jsonString)
-// val storySummary     = json.parse(StorySummary.serializer(), jsonString)
-// val personCard       = json.parse(PersonCard.serializer(), jsonString)
-// val sceneCard        = json.parse(SceneCard.serializer(), jsonString)
-// val passage          = json.parse(Passage.serializer(), jsonString)
-// val exchange         = json.parse(Exchange.serializer(), jsonString)
-// val turnState        = json.parse(TurnState.serializer(), jsonString)
-// val sceneView        = json.parse(SceneView.serializer(), jsonString)
-// val nextScene        = json.parse(NextScene.serializer(), jsonString)
-// val sceneSummaryLine = json.parse(SceneSummaryLine.serializer(), jsonString)
-// val previously       = json.parse(Previously.serializer(), jsonString)
-// val moveRequest      = json.parse(MoveRequest.serializer(), jsonString)
-// val turnAccepted     = json.parse(TurnAccepted.serializer(), jsonString)
-// val storyEvent       = json.parse(StoryEvent.serializer(), jsonString)
-// val dayView          = json.parse(DayView.serializer(), jsonString)
-// val countdown        = json.parse(Countdown.serializer(), jsonString)
-// val meanwhileItem    = json.parse(MeanwhileItem.serializer(), jsonString)
-// val worldFailure     = json.parse(WorldFailure.serializer(), jsonString)
-// val happening        = json.parse(Happening.serializer(), jsonString)
-// val dayChoices       = json.parse(DayChoices.serializer(), jsonString)
-// val skip             = json.parse(Skip.serializer(), jsonString)
-// val chooseRequest    = json.parse(ChooseRequest.serializer(), jsonString)
-// val endSceneRequest  = json.parse(EndSceneRequest.serializer(), jsonString)
-// val focusRequest     = json.parse(FocusRequest.serializer(), jsonString)
-// val lingerRequest    = json.parse(LingerRequest.serializer(), jsonString)
-// val redoRequest      = json.parse(RedoRequest.serializer(), jsonString)
-// val accepted         = json.parse(Accepted.serializer(), jsonString)
-// val pastScene        = json.parse(PastScene.serializer(), jsonString)
+// val json                 = Json { allowStructuredMapKeys = true }
+// val errorCode            = json.parse(ErrorCode.serializer(), jsonString)
+// val errorBody            = json.parse(ErrorBody.serializer(), jsonString)
+// val pairingInvite        = json.parse(PairingInvite.serializer(), jsonString)
+// val pairRequest          = json.parse(PairRequest.serializer(), jsonString)
+// val pairResponse         = json.parse(PairResponse.serializer(), jsonString)
+// val storyList            = json.parse(StoryList.serializer(), jsonString)
+// val storySummary         = json.parse(StorySummary.serializer(), jsonString)
+// val personCard           = json.parse(PersonCard.serializer(), jsonString)
+// val sceneCard            = json.parse(SceneCard.serializer(), jsonString)
+// val passage              = json.parse(Passage.serializer(), jsonString)
+// val exchange             = json.parse(Exchange.serializer(), jsonString)
+// val turnState            = json.parse(TurnState.serializer(), jsonString)
+// val sceneView            = json.parse(SceneView.serializer(), jsonString)
+// val nextScene            = json.parse(NextScene.serializer(), jsonString)
+// val sceneSummaryLine     = json.parse(SceneSummaryLine.serializer(), jsonString)
+// val previously           = json.parse(Previously.serializer(), jsonString)
+// val moveRequest          = json.parse(MoveRequest.serializer(), jsonString)
+// val turnAccepted         = json.parse(TurnAccepted.serializer(), jsonString)
+// val storyEvent           = json.parse(StoryEvent.serializer(), jsonString)
+// val dayView              = json.parse(DayView.serializer(), jsonString)
+// val countdown            = json.parse(Countdown.serializer(), jsonString)
+// val meanwhileItem        = json.parse(MeanwhileItem.serializer(), jsonString)
+// val worldFailure         = json.parse(WorldFailure.serializer(), jsonString)
+// val happening            = json.parse(Happening.serializer(), jsonString)
+// val dayChoices           = json.parse(DayChoices.serializer(), jsonString)
+// val skip                 = json.parse(Skip.serializer(), jsonString)
+// val chooseRequest        = json.parse(ChooseRequest.serializer(), jsonString)
+// val pathsView            = json.parse(PathsView.serializer(), jsonString)
+// val pathRow              = json.parse(PathRow.serializer(), jsonString)
+// val pathCard             = json.parse(PathCard.serializer(), jsonString)
+// val tryAnotherWayRequest = json.parse(TryAnotherWayRequest.serializer(), jsonString)
+// val rewindRequest        = json.parse(RewindRequest.serializer(), jsonString)
+// val renamePathRequest    = json.parse(RenamePathRequest.serializer(), jsonString)
+// val endSceneRequest      = json.parse(EndSceneRequest.serializer(), jsonString)
+// val focusRequest         = json.parse(FocusRequest.serializer(), jsonString)
+// val lingerRequest        = json.parse(LingerRequest.serializer(), jsonString)
+// val redoRequest          = json.parse(RedoRequest.serializer(), jsonString)
+// val accepted             = json.parse(Accepted.serializer(), jsonString)
+// val pastScene            = json.parse(PastScene.serializer(), jsonString)
 
 package com.openfantasia.protocol
 
@@ -623,9 +629,11 @@ data class TurnAccepted (
  * One event on a Story's live stream. Entry events (scene_opened, move, reply,
  * scene_closed, focus_set, linger_set, redo) are replayed after a reconnect; reply_started,
  * reply_delta and reply_failed describe the turn under way; world_moved and world_failed
- * say the World has moved on, or could not, after a Scene ended. After scene_opened,
- * scene_closed, redo, world_moved and world_failed, and after a move that opens the next
- * Scene, the phone reads the Scene again, because they change more than one part of it.
+ * say the World has moved on, or could not, after a Scene ended. path_changed says the
+ * Story is now on another Path, or its Path was moved back. After scene_opened,
+ * scene_closed, redo, world_moved, world_failed and path_changed, and after a move that
+ * opens the next Scene, the phone reads the Scene again, because they change more than one
+ * part of it.
  */
 @Serializable
 data class StoryEvent (
@@ -680,6 +688,7 @@ enum class StoryEventKind(val value: String) {
     @SerialName("focus_set") FocusSet("focus_set"),
     @SerialName("linger_set") LingerSet("linger_set"),
     @SerialName("move") Move("move"),
+    @SerialName("path_changed") PathChanged("path_changed"),
     @SerialName("redo") Redo("redo"),
     @SerialName("reply") Reply("reply"),
     @SerialName("reply_delta") ReplyDelta("reply_delta"),
@@ -739,6 +748,142 @@ enum class ChooseRequestKind(val value: String) {
     @SerialName("somewhere") Somewhere("somewhere"),
     @SerialName("story") Story("story");
 }
+
+/**
+ * The Paths screen (openspec paths: The Paths screen): the Story as a tree, laid out by the
+ * Mac in reading order.
+ */
+@Serializable
+data class PathsView (
+    /**
+     * How many Paths Clear would remove: those Rewind set aside and the player never opened.
+     */
+    val clearable: Long,
+
+    val rows: List<PathRow>,
+
+    @SerialName("story_id")
+    val storyID: String,
+
+    @SerialName("trace_id")
+    val traceID: String
+)
+
+/**
+ * One row of the tree: a run of Scenes the Paths below share, folded; the Scene where they
+ * part; or a Path's card. Depth says how far in it is drawn.
+ */
+@Serializable
+data class PathRow (
+    val depth: Long,
+    val kind: PathRowKind,
+
+    /**
+     * scenes: "Scenes 1 – 12 · Friday 6:10 pm"; fork: "Scene 13 · Friday 8:05 pm"; path: its
+     * card's label.
+     */
+    val label: String,
+
+    /**
+     * path: the card.
+     */
+    val path: PathCard? = null,
+
+    /**
+     * fork: the Scene's title, "The troll"; otherwise null.
+     */
+    val title: String? = null
+)
+
+@Serializable
+enum class PathRowKind(val value: String) {
+    @SerialName("fork") Fork("fork"),
+    @SerialName("path") Path("path"),
+    @SerialName("scenes") Scenes("scenes");
+}
+
+/**
+ * A Path on the Paths screen.
+ */
+@Serializable
+data class PathCard (
+    /**
+     * False for the Path the player is on.
+     */
+    @SerialName("can_delete")
+    val canDelete: Boolean,
+
+    /**
+     * Whether the player is on it.
+     */
+    val current: Boolean,
+
+    /**
+     * "3 Scenes · Saturday 1:15 am".
+     */
+    val detail: String,
+
+    val id: String,
+
+    /**
+     * "MAIN · YOU ARE HERE", "FROM SCENE 13 · TRIED ANOTHER WAY", "SET ASIDE AT SCENE 14",
+     * "FROM THE BEGINNING".
+     */
+    val label: String,
+
+    /**
+     * When it was last played, ISO 8601; the phone says how long ago.
+     */
+    @SerialName("played_at")
+    val playedAt: String,
+
+    /**
+     * The player's name for it, or its newest Scene: "Scene 14 · After curfew".
+     */
+    val title: String
+)
+
+/**
+ * Try another way from a Reply, or, with from null, start again from the beginning
+ * (openspec paths).
+ */
+@Serializable
+data class TryAnotherWayRequest (
+    /**
+     * The head the phone saw; refused as stale if the Story has moved on.
+     */
+    val after: String,
+
+    /**
+     * The Reply's entry, or null for the Story's opening.
+     */
+    val from: String? = null
+)
+
+/**
+ * Rewind the Path the player is on to a Reply; what came after is set aside as a Path of
+ * its own.
+ */
+@Serializable
+data class RewindRequest (
+    /**
+     * The head the phone saw; refused as stale if the Story has moved on.
+     */
+    val after: String,
+
+    /**
+     * The Reply's entry.
+     */
+    val to: String
+)
+
+@Serializable
+data class RenamePathRequest (
+    /**
+     * The Path's new name; empty to go back to its newest Scene.
+     */
+    val name: String
+)
 
 @Serializable
 data class EndSceneRequest (

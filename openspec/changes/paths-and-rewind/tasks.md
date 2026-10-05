@@ -10,18 +10,18 @@ set aside); The Paths screen (Returning by the Paths screen; Deleting a Path); S
 
 ## 1. The contract
 
-- [ ] 1.1 Extend the contract to version 9: `PathsView`, `PathRow` (`scenes`, `fork`, `path`, with depth), `PathCard` (id, label, title, detail, current, `played_at`, `can_delete`), `TryAnotherWayRequest` (`from` nullable, `after`), `RewindRequest`, `RenamePathRequest`, the `path_changed` event kind; regenerate both sides; verify the host typecheck, the Android build and the mac-link rule test that every optional request field accepts null
+- [x] 1.1 Extend the contract to version 9: `PathsView`, `PathRow` (`scenes`, `fork`, `path`, with depth), `PathCard` (id, label, title, detail, current, `played_at`, `can_delete`), `TryAnotherWayRequest` (`from` nullable, `after`), `RewindRequest`, `RenamePathRequest`, the `path_changed` event kind; regenerate both sides; verify the host typecheck, the Android build and the mac-link rule test that every optional request field accepts null
 
 ## 2. Paths on the Mac
 
-- [ ] 2.1 The store gains `origin`, `forked_at`, `opened` and `named` on Paths, in place for an existing store with Main's defaults; verify a store test that opens a version-8 store and finds Main unchanged with the new columns
-- [ ] 2.2 Test first, then build: `paths › Try another way from any Reply › Following the lantern` (a new current Path at the lantern Reply; three Scenes on it; switching back finds Main at 11:47 pm with nothing changed, and the forest Path still there)
-- [ ] 2.3 Test first, then build: `paths › Everything belongs to the Path › Two clocks` (one Path on Tuesday afternoon, another on Saturday night; switching puts the Scene view's clock and Day View on Saturday night)
-- [ ] 2.4 Test first, then build: `paths › Rewind sets aside, never destroys › Going back and carrying on` (Rewind to a Reply with five exchanges after it; the current Path keeps its name at that Reply; the five exchanges are a set-aside Path; a different Move carries on)
-- [ ] 2.5 Test first, then build: `paths › Rewind sets aside, never destroys › Clearing what was set aside` (only the never-opened set-aside Path goes; the opened one and the tried one stay)
+- [x] 2.1 The store gains `origin`, `forked_at`, `opened` and `named` on Paths, in place for an existing store with Main's defaults; verify a store test that opens a version-8 store and finds Main unchanged with the new columns
+- [x] 2.2 Test first, then build: `paths › Try another way from any Reply › Following the lantern` (a new current Path at the lantern Reply; three Scenes on it; switching back finds Main at 11:47 pm with nothing changed, and the forest Path still there)
+- [x] 2.3 Test first, then build: `paths › Everything belongs to the Path › Two clocks` (one Path on Tuesday afternoon, another on Saturday night; switching puts the Scene view's clock and Day View on Saturday night)
+- [x] 2.4 Test first, then build: `paths › Rewind sets aside, never destroys › Going back and carrying on` (Rewind to a Reply with five exchanges after it; the current Path keeps its name at that Reply; the five exchanges are a set-aside Path; a different Move carries on)
+- [x] 2.5 Test first, then build: `paths › Rewind sets aside, never destroys › Clearing what was set aside` (only the never-opened set-aside Path goes; the opened one and the tried one stay)
 - [ ] 2.6 Test first, then build: `paths › The Paths screen › Returning by the Paths screen` on the host (the rows: shared Scenes folded, the fork Scene, a card per Path with its label, title and detail; opening a Path puts the Story at its latest moment)
-- [ ] 2.7 Test first, then build: `paths › The Paths screen › Deleting a Path` on the host (the other Path deleted, Main unchanged, the current Path refused)
-- [ ] 2.8 Test first, then build: `paths › Starting again from the beginning › Re-experiencing the Story` (a new current Path at the opening Scene, the State as the Story File made it, every other Path untouched)
+- [x] 2.7 Test first, then build: `paths › The Paths screen › Deleting a Path` on the host (the other Path deleted, Main unchanged, the current Path refused)
+- [x] 2.8 Test first, then build: `paths › Starting again from the beginning › Re-experiencing the Story` (a new current Path at the opening Scene, the State as the Story File made it, every other Path untouched)
 - [ ] 2.9 Test first, then build: `paths › A Path changes only between Replies › Rewinding while a Reply is written` (every Path command refused `busy` mid-Reply, Paths unchanged); and the refusals for a stale `after`, an entry that is not a Reply on the Path, and Rewind at the latest Reply; verify link tests
 - [ ] 2.10 Every Path change emits `path_changed`, and a stream opened with a Path that is no longer current starts with it; verify engine event and link stream tests
 

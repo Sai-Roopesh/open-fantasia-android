@@ -39,7 +39,11 @@ CREATE TABLE IF NOT EXISTS paths (
   head_entry_id TEXT NOT NULL REFERENCES entries(id),
   is_current INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL
+  updated_at TEXT NOT NULL,
+  origin TEXT NOT NULL DEFAULT 'main',
+  forked_at TEXT,
+  opened INTEGER NOT NULL DEFAULT 1,
+  named INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS paths_story ON paths(story_id);
 
@@ -95,11 +99,28 @@ CREATE TABLE IF NOT EXISTS pairing_codes (
  */
 export const STATE_SHAPE = 5;
 
+/**
+ * What a Path card needs (openspec paths): how the Path began, the entry it branched from, whether the player has
+ * been on it, and whether they named it. A store from before Paths could branch gains them in place, as Main.
+ */
+const PATH_COLUMNS: [string, string][] = [
+  ["origin", "TEXT NOT NULL DEFAULT 'main'"],
+  ["forked_at", "TEXT"],
+  ["opened", "INTEGER NOT NULL DEFAULT 1"],
+  ["named", "INTEGER NOT NULL DEFAULT 0"]
+];
+
+function addPathColumns(db: Db): void {
+  const has = new Set((db.prepare("PRAGMA table_info(paths)").all() as { name: string }[]).map(column => column.name));
+  for (const [name, type] of PATH_COLUMNS) if (!has.has(name)) db.exec(`ALTER TABLE paths ADD COLUMN ${name} ${type}`);
+}
+
 export function openDb(file: string): Db {
   const db = new Database(file);
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
   db.exec(SCHEMA);
+  addPathColumns(db);
   if (db.pragma("user_version", { simple: true }) !== STATE_SHAPE) {
     db.exec("DELETE FROM states");
     db.pragma(`user_version = ${STATE_SHAPE}`);

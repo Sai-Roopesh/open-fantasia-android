@@ -440,7 +440,7 @@ export interface TurnAccepted {
   trace_id: string;
 }
 /**
- * One event on a Story's live stream. Entry events (scene_opened, move, reply, scene_closed, focus_set, linger_set, redo) are replayed after a reconnect; reply_started, reply_delta and reply_failed describe the turn under way; world_moved and world_failed say the World has moved on, or could not, after a Scene ended. After scene_opened, scene_closed, redo, world_moved and world_failed, and after a move that opens the next Scene, the phone reads the Scene again, because they change more than one part of it.
+ * One event on a Story's live stream. Entry events (scene_opened, move, reply, scene_closed, focus_set, linger_set, redo) are replayed after a reconnect; reply_started, reply_delta and reply_failed describe the turn under way; world_moved and world_failed say the World has moved on, or could not, after a Scene ended. path_changed says the Story is now on another Path, or its Path was moved back. After scene_opened, scene_closed, redo, world_moved, world_failed and path_changed, and after a move that opens the next Scene, the phone reads the Scene again, because they change more than one part of it.
  *
  * This interface was referenced by `Link`'s JSON-Schema
  * via the `definition` "StoryEvent".
@@ -458,7 +458,8 @@ export interface StoryEvent {
     | "reply_delta"
     | "reply_failed"
     | "world_moved"
-    | "world_failed";
+    | "world_failed"
+    | "path_changed";
   /**
    * The newest entry this event follows.
    */
@@ -598,6 +599,118 @@ export interface ChooseRequest {
    * What the Player Character did in the Gap, in the player's words, or null: left blank, he spent it quietly where he was.
    */
   gap: string | null;
+}
+/**
+ * The Paths screen (openspec paths: The Paths screen): the Story as a tree, laid out by the Mac in reading order.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "PathsView".
+ */
+export interface PathsView {
+  story_id: string;
+  rows: PathRow[];
+  /**
+   * How many Paths Clear would remove: those Rewind set aside and the player never opened.
+   */
+  clearable: number;
+  trace_id: string;
+}
+/**
+ * One row of the tree: a run of Scenes the Paths below share, folded; the Scene where they part; or a Path's card. Depth says how far in it is drawn.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "PathRow".
+ */
+export interface PathRow {
+  kind: "scenes" | "fork" | "path";
+  depth: number;
+  /**
+   * scenes: "Scenes 1 – 12 · Friday 6:10 pm"; fork: "Scene 13 · Friday 8:05 pm"; path: its card's label.
+   */
+  label: string;
+  /**
+   * fork: the Scene's title, "The troll"; otherwise null.
+   */
+  title: string | null;
+  /**
+   * path: the card.
+   */
+  path: PathCard | null;
+}
+/**
+ * A Path on the Paths screen.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "PathCard".
+ */
+export interface PathCard {
+  id: string;
+  /**
+   * "MAIN · YOU ARE HERE", "FROM SCENE 13 · TRIED ANOTHER WAY", "SET ASIDE AT SCENE 14", "FROM THE BEGINNING".
+   */
+  label: string;
+  /**
+   * The player's name for it, or its newest Scene: "Scene 14 · After curfew".
+   */
+  title: string;
+  /**
+   * "3 Scenes · Saturday 1:15 am".
+   */
+  detail: string;
+  /**
+   * Whether the player is on it.
+   */
+  current: boolean;
+  /**
+   * When it was last played, ISO 8601; the phone says how long ago.
+   */
+  played_at: string;
+  /**
+   * False for the Path the player is on.
+   */
+  can_delete: boolean;
+}
+/**
+ * Try another way from a Reply, or, with from null, start again from the beginning (openspec paths).
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "TryAnotherWayRequest".
+ */
+export interface TryAnotherWayRequest {
+  /**
+   * The Reply's entry, or null for the Story's opening.
+   */
+  from: string | null;
+  /**
+   * The head the phone saw; refused as stale if the Story has moved on.
+   */
+  after: string;
+}
+/**
+ * Rewind the Path the player is on to a Reply; what came after is set aside as a Path of its own.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "RewindRequest".
+ */
+export interface RewindRequest {
+  /**
+   * The Reply's entry.
+   */
+  to: string;
+  /**
+   * The head the phone saw; refused as stale if the Story has moved on.
+   */
+  after: string;
+}
+/**
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "RenamePathRequest".
+ */
+export interface RenamePathRequest {
+  /**
+   * The Path's new name; empty to go back to its newest Scene.
+   */
+  name: string;
 }
 /**
  * This interface was referenced by `Link`'s JSON-Schema

@@ -1,5 +1,10 @@
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import Database from "better-sqlite3";
 import { describe, expect, it } from "vitest";
 import { openDb, STATE_SHAPE } from "../../src/store/db.js";
+import { Tree } from "../../src/store/tree.js";
 import { apply } from "../../src/story/reducer.js";
 import type { Entry } from "../../src/story/entries.js";
 import { freshHome } from "../support/host.js";
@@ -90,6 +95,23 @@ describe("working out the State on a Path", () => {
     const reopened = openDb(file);
     expect(reopened.prepare("SELECT COUNT(*) AS n FROM states").get()).toEqual({ n: 0 });
     expect(reopened.pragma("user_version", { simple: true })).toBe(STATE_SHAPE);
+  });
+
+  it("gives a store from before Paths could branch the new Path columns, with Main as it was", () => {
+    const file = join(mkdtempSync(join(tmpdir(), "fantasia-old-")), "fantasia.db");
+    const old = new Database(file);
+    old.exec(`
+      CREATE TABLE stories (id TEXT PRIMARY KEY, title TEXT NOT NULL, folder TEXT NOT NULL, created_at TEXT NOT NULL);
+      CREATE TABLE entries (seq INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT NOT NULL UNIQUE, story_id TEXT NOT NULL, parent_id TEXT, kind TEXT NOT NULL, payload TEXT NOT NULL, created_at TEXT NOT NULL);
+      CREATE TABLE paths (id TEXT PRIMARY KEY, story_id TEXT NOT NULL, name TEXT NOT NULL, head_entry_id TEXT NOT NULL, is_current INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      INSERT INTO stories VALUES ('s', 'T', '/x', 'then');
+      INSERT INTO entries (id, story_id, parent_id, kind, payload, created_at) VALUES ('root', 's', NULL, 'scene_opened', '{}', 'then');
+      INSERT INTO paths VALUES ('main', 's', 'Main', 'root', 1, 'then', 'later');
+    `);
+    old.close();
+    const tree = new Tree(openDb(file));
+    expect(tree.currentPath("s")).toEqual({ id: "main", storyId: "s", name: "Main", headEntryId: "root", isCurrent: true, createdAt: "then", updatedAt: "later",
+      origin: "main", forkedAt: null, opened: true, named: false });
   });
 
   it("reads a Beat Note written before a field was added as having it empty", () => {

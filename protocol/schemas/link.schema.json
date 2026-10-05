@@ -527,7 +527,7 @@
       }
     },
     "StoryEvent": {
-      "description": "One event on a Story's live stream. Entry events (scene_opened, move, reply, scene_closed, focus_set, linger_set, redo) are replayed after a reconnect; reply_started, reply_delta and reply_failed describe the turn under way; world_moved and world_failed say the World has moved on, or could not, after a Scene ended. After scene_opened, scene_closed, redo, world_moved and world_failed, and after a move that opens the next Scene, the phone reads the Scene again, because they change more than one part of it.",
+      "description": "One event on a Story's live stream. Entry events (scene_opened, move, reply, scene_closed, focus_set, linger_set, redo) are replayed after a reconnect; reply_started, reply_delta and reply_failed describe the turn under way; world_moved and world_failed say the World has moved on, or could not, after a Scene ended. path_changed says the Story is now on another Path, or its Path was moved back. After scene_opened, scene_closed, redo, world_moved, world_failed and path_changed, and after a move that opens the next Scene, the phone reads the Scene again, because they change more than one part of it.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -549,7 +549,8 @@
             "reply_delta",
             "reply_failed",
             "world_moved",
-            "world_failed"
+            "world_failed",
+            "path_changed"
           ]
         },
         "seq": {
@@ -920,6 +921,179 @@
             "string",
             "null"
           ]
+        }
+      }
+    },
+    "PathsView": {
+      "description": "The Paths screen (openspec paths: The Paths screen): the Story as a tree, laid out by the Mac in reading order.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "story_id",
+        "rows",
+        "clearable",
+        "trace_id"
+      ],
+      "properties": {
+        "story_id": {
+          "type": "string"
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PathRow"
+          }
+        },
+        "clearable": {
+          "description": "How many Paths Clear would remove: those Rewind set aside and the player never opened.",
+          "type": "integer"
+        },
+        "trace_id": {
+          "type": "string"
+        }
+      }
+    },
+    "PathRow": {
+      "description": "One row of the tree: a run of Scenes the Paths below share, folded; the Scene where they part; or a Path's card. Depth says how far in it is drawn.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "depth",
+        "label",
+        "title",
+        "path"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "scenes",
+            "fork",
+            "path"
+          ]
+        },
+        "depth": {
+          "type": "integer"
+        },
+        "label": {
+          "description": "scenes: \"Scenes 1 – 12 · Friday 6:10 pm\"; fork: \"Scene 13 · Friday 8:05 pm\"; path: its card's label.",
+          "type": "string"
+        },
+        "title": {
+          "description": "fork: the Scene's title, \"The troll\"; otherwise null.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path": {
+          "description": "path: the card.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/PathCard"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "PathCard": {
+      "description": "A Path on the Paths screen.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "title",
+        "detail",
+        "current",
+        "played_at",
+        "can_delete"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "description": "\"MAIN · YOU ARE HERE\", \"FROM SCENE 13 · TRIED ANOTHER WAY\", \"SET ASIDE AT SCENE 14\", \"FROM THE BEGINNING\".",
+          "type": "string"
+        },
+        "title": {
+          "description": "The player's name for it, or its newest Scene: \"Scene 14 · After curfew\".",
+          "type": "string"
+        },
+        "detail": {
+          "description": "\"3 Scenes · Saturday 1:15 am\".",
+          "type": "string"
+        },
+        "current": {
+          "description": "Whether the player is on it.",
+          "type": "boolean"
+        },
+        "played_at": {
+          "description": "When it was last played, ISO 8601; the phone says how long ago.",
+          "type": "string"
+        },
+        "can_delete": {
+          "description": "False for the Path the player is on.",
+          "type": "boolean"
+        }
+      }
+    },
+    "TryAnotherWayRequest": {
+      "description": "Try another way from a Reply, or, with from null, start again from the beginning (openspec paths).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "from",
+        "after"
+      ],
+      "properties": {
+        "from": {
+          "description": "The Reply's entry, or null for the Story's opening.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "after": {
+          "description": "The head the phone saw; refused as stale if the Story has moved on.",
+          "type": "string"
+        }
+      }
+    },
+    "RewindRequest": {
+      "description": "Rewind the Path the player is on to a Reply; what came after is set aside as a Path of its own.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "to",
+        "after"
+      ],
+      "properties": {
+        "to": {
+          "description": "The Reply's entry.",
+          "type": "string"
+        },
+        "after": {
+          "description": "The head the phone saw; refused as stale if the Story has moved on.",
+          "type": "string"
+        }
+      }
+    },
+    "RenamePathRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "description": "The Path's new name; empty to go back to its newest Scene.",
+          "type": "string"
         }
       }
     },

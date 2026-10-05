@@ -16,6 +16,7 @@ import { entryEvent, sceneEntries } from "../views/scene.js";
 import { chronicleAsk, dueChronicle, STEPPED_AWAY_MS } from "./chronicling.js";
 import { dueWeave, gapAsk, weaveAsk } from "./weaving.js";
 import { chosen } from "./choosing.js";
+import { clearable, rewind, tryAnotherWay } from "./paths.js";
 import { worldOn } from "../story/world.js";
 
 /** A live event and its id on the stream: "<seq>" for an entry, "<seq>.<n>" for what a turn under way says. */
@@ -117,6 +118,49 @@ export class Engine {
     this.chronicle(storyId);
     this.weave(storyId);
     return { head_entry_id: closed.id, trace_id: traceId };
+  }
+
+  /** Try another way from a Reply, or start again from the beginning when [from] is null (openspec paths). */
+  tryAnotherWay(storyId: string, from: string | null, after: string, traceId: string): Accepted {
+    const started = tryAnotherWay(this.mac, this.pathHead(storyId, after), from);
+    return this.pathChanged(storyId, started.headEntryId, traceId);
+  }
+
+  /** Rewind the Path the player is on to a Reply, setting what came after aside as a Path of its own (openspec paths). */
+  rewind(storyId: string, to: string, after: string, traceId: string): Accepted {
+    rewind(this.mac, this.pathHead(storyId, after), to);
+    return this.pathChanged(storyId, to, traceId);
+  }
+
+  /** Puts the player on [pathId] at its latest moment (openspec paths: Returning by the Paths screen). */
+  openPath(storyId: string, pathId: string, traceId: string): Accepted {
+    const path = this.pathOf(storyId, pathId);
+    this.notWriting(storyId);
+    if (!path.isCurrent) this.mac.tree.openPath(storyId, path.id);
+    return this.pathChanged(storyId, path.headEntryId, traceId);
+  }
+
+  /** Names a Path, or with an empty name calls it by its newest Scene again. */
+  renamePath(storyId: string, pathId: string, name: string, traceId: string): Accepted {
+    this.mac.tree.renamePath(this.pathOf(storyId, pathId).id, name.trim());
+    return { head_entry_id: this.path(storyId).headEntryId, trace_id: traceId };
+  }
+
+  /** Deletes a Path the player is not on. */
+  deletePath(storyId: string, pathId: string, traceId: string): Accepted {
+    const path = this.pathOf(storyId, pathId);
+    this.notWriting(storyId);
+    if (path.isCurrent) throw new LinkError("invalid", "You are on this Path, so it cannot be deleted.");
+    this.mac.tree.deletePath(path.id);
+    return { head_entry_id: this.path(storyId).headEntryId, trace_id: traceId };
+  }
+
+  /** Clears the Paths Rewind set aside that the player never opened (openspec paths: Rewind sets aside, never destroys). */
+  clearPaths(storyId: string, traceId: string): Accepted {
+    const current = this.path(storyId);
+    this.notWriting(storyId);
+    for (const path of clearable(this.mac, storyId)) this.mac.tree.deletePath(path.id);
+    return { head_entry_id: current.headEntryId, trace_id: traceId };
   }
 
   /** Focus on someone in the Scene, or clear it with null (openspec scenes: Focus keeps a Scene close to one person). */
@@ -358,6 +402,34 @@ export class Engine {
     const path = this.mac.tree.currentPath(storyId);
     if (!path) throw new LinkError("not_found", "That Story is not on this Mac.");
     return path;
+  }
+
+  /** Refuses with the reason while a Reply is being written (openspec paths: A Path changes only between Replies). */
+  private notWriting(storyId: string): void {
+    if (this.turns.has(storyId)) throw new LinkError("busy", "A Reply is still being written. Wait until it is done.");
+  }
+
+  /** The Path the player is on, for a change of Path: refused mid-Reply or when the phone has not seen the latest. */
+  private pathHead(storyId: string, after: string): StoryPath {
+    const path = this.path(storyId);
+    this.notWriting(storyId);
+    if (path.headEntryId !== after) throw new LinkError("stale_head", "The Story has moved on since you last looked. Nothing was changed.");
+    return path;
+  }
+
+  private pathOf(storyId: string, pathId: string): StoryPath {
+    const path = this.mac.tree.path(pathId);
+    if (!path || path.storyId !== storyId) throw new LinkError("not_found", "That Path is not in this Story.");
+    return path;
+  }
+
+  /** Tells every phone the Story is on another Path, or its Path moved back; anything due on it runs. */
+  private pathChanged(storyId: string, head: string, traceId: string): Accepted {
+    const seq = this.newestSeq(storyId);
+    this.emit(storyId, { id: String(seq), event: { kind: "path_changed", seq } });
+    this.chronicle(storyId);
+    this.weave(storyId);
+    return { head_entry_id: head, trace_id: traceId };
   }
 
   /** The Path and its head, refusing with the reason when the Story cannot take a change now. */

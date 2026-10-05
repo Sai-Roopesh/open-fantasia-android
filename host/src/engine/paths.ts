@@ -1,0 +1,47 @@
+import { LinkError } from "../link/errors.js";
+import type { Mac } from "../mac.js";
+import type { Entry } from "../story/entries.js";
+import type { StoryPath } from "../store/tree.js";
+
+/**
+ * Paths through the Story's tree (openspec paths). Every change here moves or makes a pointer; no entry is written or
+ * removed, so going back, trying something else and starting again never lose anything (docs/adr/0003).
+ */
+
+/** The Reply [entryId] on [path]: a Reply, or a Scene's opening prose, which the player reads as one. */
+export function replyOnPath(mac: Mac, path: StoryPath, entryId: string): Entry {
+  const entry = mac.tree.pathTo(path.headEntryId).find(item => item.id === entryId);
+  const reply = entry && (entry.payload.kind === "reply" || (entry.payload.kind === "scene_opened" && entry.payload.prose !== null));
+  if (!entry || !reply) throw new LinkError("invalid", "That is not a Reply on this Path.");
+  return entry;
+}
+
+/** The Story's opening Scene on [path], where starting again begins. */
+export function openingOf(mac: Mac, path: StoryPath): Entry {
+  const opening = mac.tree.pathTo(path.headEntryId).find(entry => entry.payload.kind === "scene_opened");
+  if (!opening) throw new LinkError("internal", "The Story has no opening Scene.");
+  return opening;
+}
+
+/** Try another way from [from], or start again from the opening when it is null: a new Path the player is now on. */
+export function tryAnotherWay(mac: Mac, path: StoryPath, from: string | null): StoryPath {
+  if (from === null) return mac.tree.startPath(path.storyId, openingOf(mac, path).id, "beginning", null);
+  const reply = replyOnPath(mac, path, from);
+  return mac.tree.startPath(path.storyId, reply.id, "tried", reply.id);
+}
+
+/** Rewind [path] to [to]: what came after is set aside as a Path of its own, and [path] goes back to [to]. */
+export function rewind(mac: Mac, path: StoryPath, to: string): StoryPath {
+  const reply = replyOnPath(mac, path, to);
+  if (reply.id === path.headEntryId) throw new LinkError("invalid", "Nothing comes after the latest Reply to set aside.");
+  return mac.db.transaction(() => {
+    const aside = mac.tree.createPath(path.storyId, "", path.headEntryId, false, "set_aside", reply.id);
+    if (!mac.tree.moveHead(path.id, path.headEntryId, reply.id)) throw new LinkError("stale_head", "The Story has moved on since you last looked. Nothing was changed.");
+    return aside;
+  })();
+}
+
+/** What Clear removes: the Paths Rewind set aside that the player never opened (openspec paths: Rewind sets aside). */
+export function clearable(mac: Mac, storyId: string): StoryPath[] {
+  return mac.tree.paths(storyId).filter(path => path.origin === "set_aside" && !path.opened && !path.isCurrent);
+}
