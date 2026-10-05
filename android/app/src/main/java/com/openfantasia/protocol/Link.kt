@@ -661,7 +661,7 @@ data class ChooseRequest (
     val after: String,
 
     /**
-     * skip: the time skipped to.
+     * skip: the time skipped to; left out or null for the other kinds.
      */
     val at: String? = null,
 
@@ -672,19 +672,19 @@ data class ChooseRequest (
     val gap: String? = null,
 
     /**
-     * go: the Happening's id.
+     * go: the Happening's id; left out or null for the other kinds.
      */
     val happening: String? = null,
 
     val kind: ChooseRequestKind,
 
     /**
-     * somewhere: the place.
+     * somewhere: the place; left out or null for the other kinds.
      */
     val place: String? = null,
 
     /**
-     * follow: who.
+     * follow: who; left out or null for the other kinds.
      */
     val who: String? = null
 )

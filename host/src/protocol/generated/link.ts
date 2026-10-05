@@ -541,21 +541,21 @@ export interface ChooseRequest {
   after: string;
   kind: "go" | "follow" | "somewhere" | "skip" | "story";
   /**
-   * go: the Happening's id.
+   * go: the Happening's id; left out or null for the other kinds.
    */
-  happening?: string;
+  happening?: string | null;
   /**
-   * follow: who.
+   * follow: who; left out or null for the other kinds.
    */
-  who?: string;
+  who?: string | null;
   /**
-   * somewhere: the place.
+   * somewhere: the place; left out or null for the other kinds.
    */
-  place?: string;
+  place?: string | null;
   /**
-   * skip: the time skipped to.
+   * skip: the time skipped to; left out or null for the other kinds.
    */
-  at?: string;
+  at?: string | null;
   /**
    * What the Player Character did in the Gap, in the player's words, or null: left blank, he spent it quietly where he was.
    */

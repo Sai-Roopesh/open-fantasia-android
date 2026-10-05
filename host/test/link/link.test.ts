@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import linkSchema from "../../../protocol/schemas/link.schema.json" with { type: "json" };
 import { ScriptedRunner } from "../../src/models/scripted.js";
 import { CONTRACT_VERSION } from "../../src/protocol/generated/contract.js";
 import type { SceneView } from "../../src/protocol/generated/link.js";
@@ -218,6 +219,32 @@ describe("mac-link", () => {
     expect(accepted.status).toBe(200);
     expect(await accepted.json()).toMatchObject({ move_entry_id: expect.any(String), trace_id: expect.any(String) });
     await engine.settled(storyId);
+  });
+
+  it("takes a choice the way the phone sends it: the Gap in the player's words, the fields its kind does not use as null", async () => {
+    const { call, storyId, engine } = await mac([{ answer: "Draconia laughs." }]);
+    const view = async () => await (await call(`/stories/${storyId}/scene`)).json() as SceneView;
+    await call(`/stories/${storyId}/moves`, { method: "POST", body: JSON.stringify({ text: "I say goodnight.", after: (await view()).head_entry_id }) });
+    await engine.settled(storyId);
+    await call(`/stories/${storyId}/end-scene`, { method: "POST", body: JSON.stringify({ after: (await view()).head_entry_id }) });
+    await engine.woven(storyId);
+    const day = await view();
+    const skip = day.day_view!.choices.skips.at(-1)!;
+    // Byte for byte what the phone's encoder writes for a Skip (LinkClientTest on the phone pins the same body).
+    const body = `{"after":"${day.head_entry_id}","at":"${skip.at}","gap":"I ride on to Shimla.","happening":null,"kind":"skip","place":null,"who":null}`;
+    const accepted = await call(`/stories/${storyId}/choose`, { method: "POST", body });
+    expect(accepted.status).toBe(200);
+    await engine.settled(storyId);
+  });
+
+  it("lets every field a request may leave out also be null, since the phone writes every field it has", () => {
+    const defs = (linkSchema as { $defs: Record<string, { type?: string; required?: string[]; properties?: Record<string, { type?: string | string[] }> }> }).$defs;
+    const strict = Object.entries(defs)
+      .filter(([name, def]) => name.endsWith("Request") && def.type === "object")
+      .flatMap(([name, def]) => Object.entries(def.properties ?? {})
+        .filter(([field, property]) => !(def.required ?? []).includes(field) && ![property.type].flat().includes("null"))
+        .map(([field]) => `${name}.${field}`));
+    expect(strict).toEqual([]);
   });
 
   it("answers Retry for the World only when the World could not move on", async () => {

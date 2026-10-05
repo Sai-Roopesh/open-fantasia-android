@@ -841,20 +841,32 @@
           ]
         },
         "happening": {
-          "description": "go: the Happening's id.",
-          "type": "string"
+          "description": "go: the Happening's id; left out or null for the other kinds.",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "who": {
-          "description": "follow: who.",
-          "type": "string"
+          "description": "follow: who; left out or null for the other kinds.",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "place": {
-          "description": "somewhere: the place.",
-          "type": "string"
+          "description": "somewhere: the place; left out or null for the other kinds.",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "at": {
-          "description": "skip: the time skipped to.",
-          "type": "string"
+          "description": "skip: the time skipped to; left out or null for the other kinds.",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "gap": {
           "description": "What the Player Character did in the Gap, in the player's words, or null: left blank, he spent it quietly where he was.",

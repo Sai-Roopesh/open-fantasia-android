@@ -39,4 +39,21 @@ class LinkClientTest {
             assertTrue("A different certificate must be refused", refused.isFailure)
         } finally { server.shutdown() }
     }
+
+    // WHEN the player goes to the hospital wing at 11:00 and writes "I spent the morning in the library reading about life debts"
+    // THEN that is what he did, and the Story can draw on it later
+    // The Mac takes this body byte for byte (mac-link test "takes a choice the way the phone sends it"): the fields a
+    // Skip does not use go as null, which the contract allows for every field a request may leave out.
+    @Test fun `day-view › The Gap is the player's, and everything in it goes on without them › Filling the Gap`() = runBlocking {
+        MacServer().use { mac ->
+            mac.enqueue(MockResponse().setBody("""{"move_entry_id":"move","trace_id":"choose"}"""))
+            val accepted = mac.client.choose("story", ChooseRequest(after = "head", kind = ChooseRequestKind.Skip,
+                at = "Day 2 18:00", gap = "I ride on to Shimla."))
+            assertEquals(TurnAccepted(moveEntryID = "move", traceID = "choose"), accepted)
+            val request = mac.server.takeRequest()
+            assertEquals("/stories/story/choose", request.path)
+            assertEquals("""{"after":"head","at":"Day 2 18:00","gap":"I ride on to Shimla.","happening":null,"kind":"skip","place":null,"who":null}""",
+                request.body.readUtf8())
+        }
+    }
 }
