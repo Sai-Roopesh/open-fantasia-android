@@ -10,9 +10,9 @@ Screens built here, from docs/design: `Main.dc.html`, `Pair.dc.html`, `Scene.dc.
 
 ## 1. What the Mac sends
 
-- [ ] 1.1 Extend the contract to version 3 (`StorySummary.detail`, `DayView.day` and `time`, `Countdown.when`) and regenerate both sides
-- [ ] 1.2 Test first, then build: `stories › Home shows where every Story stands › Two Stories on the home screen` on the host (a Story mid-Scene reads "Scene 14 · After curfew"; one at its Day View reads "Sunday 7:40 am · choosing where to go"), with each Story's detail line
-- [ ] 1.3 Test first, then build: the Day View's day, time and countdown amounts
+- [x] 1.1 Extend the contract to version 3 (`StorySummary.detail`, `DayView.day` and `time`, `Countdown.when`) and regenerate both sides
+- [x] 1.2 Test first, then build: `stories › Home shows where every Story stands › Two Stories on the home screen` on the host (a Story mid-Scene reads "Scene 14 · After curfew"; one at its Day View reads "Sunday 7:40 am · choosing where to go"), with each Story's detail line
+- [x] 1.3 Test first, then build: the Day View's day, time and countdown amounts
 
 ## 2. The look
 

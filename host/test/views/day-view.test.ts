@@ -13,9 +13,11 @@ describe("the Day View", () => {
     expect(view().day_view).toEqual({
       at: "Day 5 19:00",
       at_label: "Sunday · 7:00 pm",
+      day: "Sunday",
+      time: "7:00 pm",
       place: "The Gryffindor common room",
       closed_by: "player",
-      countdowns: [{ landmark: "Draconia's flying test", label: "3 days to Draconia's flying test" }]
+      countdowns: [{ landmark: "Draconia's flying test", when: "3 days", label: "3 days to Draconia's flying test" }]
     });
   });
 
@@ -30,5 +32,6 @@ describe("the Day View", () => {
     await play("I say goodnight.");
     engine.endScene(storyId, head(), "trace-end");
     expect(view().day_view!.countdowns.map(countdown => countdown.label)).toEqual(["Today at 8:30 pm: the feast", "Tomorrow: Draconia's flying test"]);
+    expect(view().day_view!.countdowns.map(countdown => countdown.when)).toEqual(["Today at 8:30 pm", "Tomorrow"]);
   });
 });

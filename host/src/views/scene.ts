@@ -4,7 +4,7 @@ import { LinkError } from "../link/errors.js";
 import type { Mac } from "../mac.js";
 import type { Entry } from "../story/entries.js";
 import type { State } from "../story/state.js";
-import { minutesOf, parseStoryTime, sayStoryTime, type StoryTime } from "../time.js";
+import { minutesOf, parseStoryTime, sayDay, sayStoryTime, sayTime, type StoryTime } from "../time.js";
 
 /** How many Landmarks ahead the Day View counts down to. */
 const COUNTDOWNS = 3;
@@ -35,12 +35,12 @@ export function sceneCard(storyId: string, state: State): SceneCard {
   };
 }
 
-/** "3 days to Draconia's flying test", "Tomorrow: the first match", "Today at 6:00 pm: the feast". */
-function countdown(now: StoryTime, at: StoryTime, name: string, state: State): string {
+/** How long to go, and the whole line: "3 days" ("3 days to …"), "Tomorrow" ("Tomorrow: …"), "Today at 6:00 pm". */
+function countdown(now: StoryTime, at: StoryTime, name: string): Countdown {
   const days = at.day - now.day;
-  if (days >= 2) return `${days} days to ${name}`;
-  if (days === 1) return `Tomorrow: ${name}`;
-  return `Today at ${sayStoryTime(at, state.dayOneWeekday).split(" · ")[1]}: ${name}`;
+  if (days >= 2) return { landmark: name, when: `${days} days`, label: `${days} days to ${name}` };
+  if (days === 1) return { landmark: name, when: "Tomorrow", label: `Tomorrow: ${name}` };
+  return { landmark: name, when: `Today at ${sayTime(at)}`, label: `Today at ${sayTime(at)}: ${name}` };
 }
 
 /**
@@ -57,8 +57,16 @@ export function dayView(state: State): DayView {
     })
     .sort((left, right) => minutesOf(left.at) - minutesOf(right.at))
     .slice(0, COUNTDOWNS)
-    .map(({ landmark, at }) => ({ landmark: landmark.name, label: countdown(now, at, landmark.name, state) }));
-  return { at: state.clock, at_label: say(state, state.clock), place: state.scene.place, closed_by: state.scene.closed, countdowns };
+    .map(({ landmark, at }) => countdown(now, at, landmark.name));
+  return {
+    at: state.clock,
+    at_label: say(state, state.clock),
+    day: now ? sayDay(now, state.dayOneWeekday) : state.clock,
+    time: now ? sayTime(now) : "",
+    place: state.scene.place,
+    closed_by: state.scene.closed,
+    countdowns
+  };
 }
 
 /**

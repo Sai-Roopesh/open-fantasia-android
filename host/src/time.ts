@@ -34,12 +34,21 @@ export function weekdayOf(day: number, dayOneWeekday: Weekday | null): Weekday |
   return WEEK[(WEEK.indexOf(dayOneWeekday) + day - 1) % 7] ?? null;
 }
 
-/** How people say a Story time: "Friday · 9:40 pm", or "Day 3 · 9:40 pm" when the weekday is unknown. */
-export function sayStoryTime(time: StoryTime, dayOneWeekday: Weekday | null): string {
+/** How people say a Story day: "Friday", or "Day 3" when the weekday is unknown. */
+export function sayDay(time: StoryTime, dayOneWeekday: Weekday | null): string {
   const weekday = weekdayOf(time.day, dayOneWeekday);
-  const day = weekday ? weekday.charAt(0).toUpperCase() + weekday.slice(1) : `Day ${time.day}`;
+  return weekday ? weekday.charAt(0).toUpperCase() + weekday.slice(1) : `Day ${time.day}`;
+}
+
+/** How people say a time of day: "9:40 pm". */
+export function sayTime(time: StoryTime): string {
   const hour = Math.floor(time.minuteOfDay / 60);
   const minute = time.minuteOfDay % 60;
   const twelve = hour % 12 === 0 ? 12 : hour % 12;
-  return `${day} · ${twelve}:${String(minute).padStart(2, "0")} ${hour < 12 ? "am" : "pm"}`;
+  return `${twelve}:${String(minute).padStart(2, "0")} ${hour < 12 ? "am" : "pm"}`;
+}
+
+/** How people say a Story time: "Friday · 9:40 pm", or "Day 3 · 9:40 pm" when the weekday is unknown. */
+export function sayStoryTime(time: StoryTime, dayOneWeekday: Weekday | null): string {
+  return `${sayDay(time, dayOneWeekday)} · ${sayTime(time)}`;
 }

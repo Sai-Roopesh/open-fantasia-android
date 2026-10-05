@@ -83,10 +83,14 @@ export interface StorySummary {
   id: string;
   title: string;
   /**
-   * Where the Story stands on its current Path, as one line: "Scene 14 · After curfew".
+   * Where the Story stands on its current Path, as one line: "Scene 14 · After curfew" mid-Scene, "Sunday 7:40 am · choosing where to go" at the Day View.
    */
   standing: string;
   updated_at: string;
+  /**
+   * The line under the standing: "Friday 9:52 pm · with Hermione" mid-Scene, "3 Scenes played" at the Day View.
+   */
+  detail: string;
 }
 /**
  * This interface was referenced by `Link`'s JSON-Schema
@@ -228,6 +232,14 @@ export interface DayView {
    */
   at_label: string;
   /**
+   * The day as people say it: "Sunday", or "Day 3" when the Story has no weekdays.
+   */
+  day: string;
+  /**
+   * The time as people say it: "7:40 am".
+   */
+  time: string;
+  /**
    * Where the Player Character is.
    */
   place: string;
@@ -243,6 +255,10 @@ export interface DayView {
  */
 export interface Countdown {
   landmark: string;
+  /**
+   * How long to go: "3 days", "Tomorrow", "Today at 8:30 pm".
+   */
+  when: string;
   /**
    * "3 days to Draconia's flying test", "Tomorrow: the first match", "Today at 6:00 pm: the feast".
    */
@@ -339,6 +355,14 @@ export interface DayView1 {
    * Story time as people say it: "Sunday · 7:40 am".
    */
   at_label: string;
+  /**
+   * The day as people say it: "Sunday", or "Day 3" when the Story has no weekdays.
+   */
+  day: string;
+  /**
+   * The time as people say it: "7:40 am".
+   */
+  time: string;
   /**
    * Where the Player Character is.
    */

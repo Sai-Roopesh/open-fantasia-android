@@ -1,3 +1,3 @@
 /* Generated from protocol/schemas by protocol/generate.mjs. Do not edit; change the schema and regenerate. */
 
-export const CONTRACT_VERSION = 2;
+export const CONTRACT_VERSION = 3;

@@ -156,7 +156,8 @@
         "id",
         "title",
         "standing",
-        "updated_at"
+        "updated_at",
+        "detail"
       ],
       "properties": {
         "id": {
@@ -166,10 +167,14 @@
           "type": "string"
         },
         "standing": {
-          "description": "Where the Story stands on its current Path, as one line: \"Scene 14 · After curfew\".",
+          "description": "Where the Story stands on its current Path, as one line: \"Scene 14 · After curfew\" mid-Scene, \"Sunday 7:40 am · choosing where to go\" at the Day View.",
           "type": "string"
         },
         "updated_at": {
+          "type": "string"
+        },
+        "detail": {
+          "description": "The line under the standing: \"Friday 9:52 pm · with Hermione\" mid-Scene, \"3 Scenes played\" at the Day View.",
           "type": "string"
         }
       }
@@ -521,6 +526,8 @@
       "required": [
         "at",
         "at_label",
+        "day",
+        "time",
         "place",
         "closed_by",
         "countdowns"
@@ -532,6 +539,14 @@
         },
         "at_label": {
           "description": "Story time as people say it: \"Sunday · 7:40 am\".",
+          "type": "string"
+        },
+        "day": {
+          "description": "The day as people say it: \"Sunday\", or \"Day 3\" when the Story has no weekdays.",
+          "type": "string"
+        },
+        "time": {
+          "description": "The time as people say it: \"7:40 am\".",
           "type": "string"
         },
         "place": {
@@ -559,10 +574,15 @@
       "additionalProperties": false,
       "required": [
         "landmark",
+        "when",
         "label"
       ],
       "properties": {
         "landmark": {
+          "type": "string"
+        },
+        "when": {
+          "description": "How long to go: \"3 days\", \"Tomorrow\", \"Today at 8:30 pm\".",
           "type": "string"
         },
         "label": {
