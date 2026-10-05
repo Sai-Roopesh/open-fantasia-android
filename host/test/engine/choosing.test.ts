@@ -55,6 +55,20 @@ describe("choosing at the Day View", () => {
     expect(skipping.moved()).toMatchObject({ text: "I sleep most of the day. I let the time pass until this evening: Saturday 6:00 pm.", choice: { kind: "skip", at: "Day 4 18:00" } });
   });
 
+  it("ends the player's Gap as a sentence before the choice, when they left it open, and keeps it as written otherwise", async () => {
+    const open = await saturday();
+    open.engine.choose(open.storyId, { after: open.head(), kind: "skip", at: "Day 4 18:00", gap: "i slept the morning and my stomach is hurting" }, "trace-open");
+    expect(open.moved().text).toBe("i slept the morning and my stomach is hurting. I let the time pass until this evening: Saturday 6:00 pm.");
+
+    const asked = await saturday();
+    asked.engine.choose(asked.storyId, { after: asked.head(), kind: "skip", at: "Day 4 18:00", gap: "Did I sleep? I must have!" }, "trace-asked");
+    expect(asked.moved().text).toBe("Did I sleep? I must have! I let the time pass until this evening: Saturday 6:00 pm.");
+
+    const quoted = await saturday();
+    quoted.engine.choose(quoted.storyId, { after: quoted.head(), kind: "skip", at: "Day 4 18:00", gap: "I tell Hermione, \"Later.\"" }, "trace-quoted");
+    expect(quoted.moved().text).toBe("I tell Hermione, \"Later.\" I let the time pass until this evening: Saturday 6:00 pm.");
+  });
+
   it("refuses a choice the Day View does not offer, with the reason", async () => {
     const { engine, storyId, head } = await saturday();
     const refused = (request: Parameters<typeof engine.choose>[1]) => {

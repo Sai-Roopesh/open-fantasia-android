@@ -55,7 +55,9 @@ export function chosen(mac: Mac, head: string, request: ChooseRequest): { choice
       break;
     }
   }
-  const gap = request.gap?.trim() || null;
+  const written = request.gap?.trim() || null;
+  // The player's words stay theirs; a Gap left without its full stop gets one, so the choice reads as its own sentence.
+  const gap = written && !/[.!?…]["'”’)]*$/.test(written) ? `${written}.` : written;
   const later = choice.at !== null && isLater(choice.at, state);
   const before = gap ?? (later ? `I spend the time until then quietly in ${inSentence(scene.place)}.` : null);
   return { choice, text: before ? `${before} ${line}` : line };
