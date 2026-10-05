@@ -3,7 +3,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { importCommand, models, pair, show, stories, trace } from "../../src/cli/commands.js";
+import { importCommand, models, moments, pair, show, stories, trace } from "../../src/cli/commands.js";
 import { Engine } from "../../src/engine/engine.js";
 import { Models } from "../../src/models/model-call.js";
 import { ScriptedRunner } from "../../src/models/scripted.js";
@@ -81,7 +81,7 @@ describe("the fantasia command", () => {
     const { mac, play, models: scripted } = playable();
     const shown = capture();
     expect(models(mac, [], shown.out)).toBe(true);
-    expect(shown.text()).toBe("writer  claude  claude-sonnet-5-5  (default)");
+    expect(shown.text()).toBe("writer  claude  claude-sonnet-5-5  (default)\nchronicler  claude  claude-sonnet-5-5  (default)");
 
     const set = capture();
     expect(models(mac, ["writer", "claude", "claude-opus-5-5", "high"], set.out)).toBe(true);
@@ -90,19 +90,33 @@ describe("the fantasia command", () => {
     expect(scripted.writer.requests[0]!.model).toEqual({ provider: "claude", model: "claude-opus-5-5", effort: "high" });
     const after = capture();
     models(mac, [], after.out);
-    expect(after.text()).toBe("writer  claude  claude-opus-5-5  effort high");
+    expect(after.text()).toBe("writer  claude  claude-opus-5-5  effort high\nchronicler  claude  claude-sonnet-5-5  (default)");
   });
 
   it("refuses a job or a provider it does not know", () => {
     const mac = freshHome();
     const refused = capture();
     expect(models(mac, ["director", "claude", "claude-opus-5-5"], refused.out)).toBe(false);
-    expect(refused.text()).toMatch(/No job "director"\. The jobs are: writer/);
+    expect(refused.text()).toMatch(/No job "director"\. The jobs are: writer, chronicler/);
     const provider = capture();
     expect(models(mac, ["writer", "openai", "gpt-6.1-sol"], provider.out)).toBe(false);
     expect(provider.text()).toMatch(/No provider "openai"\. The providers are: claude, codex, antigravity/);
     const unreachable = capture();
     expect(models(mac, ["writer", "codex", "gpt-6.1-sol"], unreachable.out)).toBe(false);
     expect(unreachable.text()).toMatch(/codex models cannot be reached from this Mac yet/);
+  });
+
+  it("lists a Story's Moments with who was there, who was told, and their words", async () => {
+    const { mac, play, engine, storyId, head } = playable();
+    await play("I sit down at the other end of the sofa.");
+    engine.endScene(storyId, head(), "end");
+    await engine.chronicled(storyId);
+    const listed = capture();
+    expect(moments(mac, storyId, listed.out)).toBe(true);
+    expect(listed.text()).toContain("Scene 1 · After curfew · weight 2");
+    expect(listed.text()).toContain("What the player's character did.");
+    expect(listed.text()).toContain("Roopesh Gantasala: \"I sit down at the other end of the sofa.\"");
+    const none = capture();
+    expect(moments(mac, "no-such-story", none.out)).toBe(false);
   });
 });

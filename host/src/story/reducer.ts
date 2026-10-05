@@ -36,6 +36,9 @@ export function apply(state: State | null, entry: Entry): State {
       return { ...state, scene: { ...inScene(state), focus: payload.on } };
     case "linger_set":
       return { ...state, scene: { ...inScene(state), linger: payload.on } };
+    case "chronicle":
+      // A Chronicle hangs off the Path and is never walked (docs/adr/0007); recall reads it beside the Path.
+      return state;
     case "move":
     case "reply":
       // A Move and a Reply change the Story through what they say; the agents that record it (the Chronicler, the

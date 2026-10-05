@@ -56,3 +56,20 @@ export function decidesForPlayer(text: string, names: string[]): string | null {
   }
   return null;
 }
+
+/**
+ * What someone in a Reply claims the Player Character said, did or feels: "you told me", "you promised", "you hate
+ * flying", "Ishaan said". A Reply's words about him are prose, never something that happened (openspec living-world:
+ * Only the player makes facts about the Player Character), so a record of the Story never keeps them as his; it quotes
+ * his own Move instead. Narrow on purpose: "doesn't look at you" and "you look tired" are how others see him, and pass.
+ */
+const CLAIMED = "(?:told|said|promised|swore|admitted|confessed|agreed|decided|chose|refused|lied|kissed|wanted|hated|loved|hate|love|never)";
+
+export function claimsAboutPlayer(text: string, names: string[]): string | null {
+  for (const subject of ["you", ...names]) {
+    const escaped = subject.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const found = new RegExp(`\\b${escaped}\\s+${CLAIMED}\\b[^.;"]{0,60}`, "i").exec(text);
+    if (found) return found[0].trim();
+  }
+  return null;
+}

@@ -1,10 +1,13 @@
 import { readFileSync } from "node:fs";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import type { Models } from "../models/model-call.js";
+import { answerWithOneRepair } from "./repair.js";
 import type { Entry } from "../story/entries.js";
-import type { Beat, ModelChoice, PendingDirection, Person, SceneCall, State } from "../story/state.js";
+import type { Beat, ModelChoice, PendingDirection, SceneCall, State } from "../story/state.js";
 import { minutesOf, parseStoryTime, sayStoryTime } from "../time.js";
 import { decidesForPlayer, playerNames } from "./deciding.js";
+import { nameIndex, names } from "./names.js";
+import { sayWords, type Recall } from "./recall.js";
 
 /**
  * The Writer: each Scene's author (docs/adr/0004). It reads every Move before the Actor answers it, and answers one
@@ -98,6 +101,8 @@ export interface WriterAsk {
   scene: Entry[];
   move: string;
   direction: PendingDirection | null;
+  /** What is remembered from before this Scene by the people in it. */
+  recall: Recall;
 }
 
 /** A new Scene's frame. */
@@ -135,33 +140,6 @@ type Opening = "day_view" | "unplanned" | null;
 function openingOf(state: State): Opening {
   if (!state.scene || state.scene.closed) return "day_view";
   return state.scene.purpose === null ? "unplanned" : null;
-}
-
-/**
- * Every name a person answers to, mapped to the name the Story keeps: full names, aliases and first names. A
- * model writing "Meera" means Meera Kulkarni. A full name always wins; a shorter name two people share is nobody's.
- */
-function nameIndex(people: Person[]): Map<string, string> {
-  const key = (name: string) => name.trim().toLocaleLowerCase();
-  const full = new Map(people.map(person => [key(person.name), person.name]));
-  const shorter = new Map<string, string>();
-  const shared = new Set<string>();
-  for (const person of people) {
-    for (const alias of [...person.aliases, person.name.trim().split(/\s+/)[0] ?? ""]) {
-      const id = key(alias);
-      if (!id || full.has(id)) continue;
-      if (shorter.has(id) && shorter.get(id) !== person.name) shared.add(id);
-      else shorter.set(id, person.name);
-    }
-  }
-  for (const alias of shared) shorter.delete(alias);
-  return new Map([...shorter, ...full]);
-}
-
-/** Whether [text] names [person]: by full name, an alias, or any word of their name. */
-function names(text: string, person: Person): boolean {
-  const words = [person.name, ...person.aliases, ...person.name.split(/\s+/).filter(word => word.length >= 3)];
-  return words.some(word => new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(text));
 }
 
 const wordCount = (value: string) => value.trim().split(/\s+/).filter(Boolean).length;
@@ -350,6 +328,9 @@ export function writerPrompt(ask: WriterAsk): { system: string; prompt: string; 
   const prompt = [
     section("now", say(state, state.clock)),
     section(opening === "day_view" ? "last_scene" : "scene", sceneLines),
+    section("earlier", ask.recall.earlier.join("\n")),
+    section("last_scene_end", sayWords(ask.recall.lastSceneEnd)),
+    section("remembered", ask.recall.moments.map(moment => section(`moment scene="${moment.scene}" known_to="${moment.knownTo.join(", ")}"`, `${moment.what}\n${sayWords(moment.words)}`)).join("\n\n")),
     section(opening === "day_view" ? "last_scene_so_far" : "scene_so_far", sceneSoFar(ask.scene, pc)),
     section(`move by="${pc}"`, move),
     direction?.text ? section("direction", direction.text) : null,
@@ -375,41 +356,19 @@ export function writerPrompt(ask: WriterAsk): { system: string; prompt: string; 
   return { system: storyPrompt(state), prompt, facts };
 }
 
-function repairSection(answer: unknown, problems: string[]): string {
-  return [
-    "",
-    "<previous_answer>",
-    JSON.stringify(answer),
-    "</previous_answer>",
-    "That answer could not be used:",
-    ...problems.map(problem => `- ${problem}`),
-    "Return one corrected, complete answer. Keep everything the problems do not touch."
-  ].join("\n");
-}
-
 /**
  * Runs the Writer for one Move: one call, checked, and repaired once with what was wrong. Throws WriterFailed with the
  * reasons when no usable answer comes back.
  */
 export async function writeBeat(models: Models, model: ModelChoice, ask: WriterAsk, storyId: string, traceId: string, signal: AbortSignal): Promise<{ plan: WriterPlan; callId: string }> {
   const { system, prompt, facts } = writerPrompt(ask);
-  let repair: { answer: unknown; problems: string[] } | null = null;
-  let reason = "";
-  for (let attempt = 0; attempt < 2; attempt++) {
-    let answer;
-    try {
-      answer = await models.call({ agent: "writer", model, system, prompt: repair ? prompt + repairSection(repair.answer, repair.problems) : prompt, schema: WRITER_SCHEMA, facts, traceId, storyId }, () => {}, signal);
-    } catch (error) {
-      if (signal.aborted) throw error;
-      reason = error instanceof Error ? error.message : String(error);
-      repair = null;
-      continue;
-    }
-    const checked = checkWriterAnswer(ask, answer.json);
-    if (checked.ok) return { plan: checked.plan, callId: answer.callId };
-    models.refuse(answer.callId, checked.problems.join("; "));
-    repair = { answer: answer.json, problems: checked.problems };
-    reason = checked.problems.join("; ");
-  }
-  throw new WriterFailed(`The Writer's answer could not be used: ${reason}`);
+  const { value, callId } = await answerWithOneRepair(models,
+    { agent: "writer", model, system, prompt, schema: WRITER_SCHEMA, facts, traceId, storyId },
+    answer => {
+      const checked = checkWriterAnswer(ask, answer);
+      return checked.ok ? { ok: true, value: checked.plan } : checked;
+    },
+    reason => new WriterFailed(`The Writer's answer could not be used: ${reason}`),
+    signal);
+  return { plan: value, callId };
 }

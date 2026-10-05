@@ -11,6 +11,7 @@ import { DEFAULT_JOB_MODELS, JOBS, jobModels, setJobModel, type Job } from "../m
 import { CLAUDE_TOKEN, readSecret, storeSecret } from "../secrets.js";
 import type { ModelChoice } from "../story/state.js";
 import type { Payload } from "../story/entries.js";
+import { momentsOn } from "../story/memory.js";
 import { importStoryFile } from "../storyfile/import.js";
 import { Traces } from "../trace.js";
 import { listStories } from "../views/stories.js";
@@ -83,6 +84,7 @@ function describe(payload: Payload): string {
     case "scene_closed": return `closed by the ${payload.by}`;
     case "focus_set": return payload.on ? `Focus on ${payload.on}` : "Focus cleared";
     case "linger_set": return payload.on ? "Linger on" : "Linger off";
+    case "chronicle": return `${payload.moments.length} Moments${payload.summary ? `: ${payload.summary}` : ""}`;
   }
 }
 
@@ -112,6 +114,29 @@ export function models(mac: Mac, args: string[], out: Out): boolean {
   const choice: ModelChoice = effort ? { provider: provider as ModelChoice["provider"], model, effort } : { provider: provider as ModelChoice["provider"], model };
   setJobModel(mac.home, job as Job, choice);
   out(`The ${job.charAt(0).toUpperCase()}${job.slice(1)} now uses ${provider} ${model}${effort ? ` (effort ${effort})` : ""}, from its next call.`);
+  return true;
+}
+
+/**
+ * `fantasia moments`: the Moments a Story's current Path remembers, each with its Scene, weight, what it was, who was
+ * there and who was told, and its words, until Backstage shows them on the phone.
+ */
+export function moments(mac: Mac, storyId: string, out: Out): boolean {
+  const path = mac.tree.currentPath(storyId);
+  if (!path) return (out(`No Story ${storyId}.`), false);
+  const pc = mac.states.at(path.headEntryId).playerCharacter;
+  const remembered = momentsOn(mac, path.headEntryId);
+  if (remembered.length === 0) out("No Moments recorded yet.");
+  for (const { moment, scene, knownTo } of remembered) {
+    out(`Scene ${scene.number} · ${scene.title} · weight ${moment.weight}`);
+    out(`  ${moment.what}`);
+    const told = knownTo.filter(name => !moment.there.includes(name));
+    out(`  There: ${moment.there.join(", ") || "only " + pc}${told.length ? ` · told: ${told.join(", ")}` : ""}`);
+    for (const quote of moment.quotes) {
+      const entry = mac.tree.entry(quote.entry);
+      out(`  ${entry?.payload.kind === "move" ? `${pc}: ` : ""}"${quote.text}"`);
+    }
+  }
   return true;
 }
 

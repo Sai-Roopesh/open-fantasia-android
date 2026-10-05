@@ -1,5 +1,8 @@
+import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { writeReply } from "../agents/actor.js";
+import { writeChronicle } from "../agents/chronicler.js";
+import { recall } from "../agents/recall.js";
 import { writeBeat, WriterFailed } from "../agents/writer.js";
 import { LinkError } from "../link/errors.js";
 import type { Mac } from "../mac.js";
@@ -9,6 +12,7 @@ import type { Accepted, StoryEvent, TurnAccepted, TurnState } from "../protocol/
 import type { StoryPath } from "../store/tree.js";
 import type { Entry, EntryKind } from "../story/entries.js";
 import { entryEvent, sceneEntries } from "../views/scene.js";
+import { chronicleAsk, dueChronicle } from "./chronicling.js";
 
 /** A live event and its id on the stream: "<seq>" for an entry, "<seq>.<n>" for what a turn under way says. */
 export interface OutgoingEvent {
@@ -53,6 +57,7 @@ const WAITING: readonly EntryKind[] = ["move", "redo", "beat_note"];
 export class Engine {
   private readonly turns = new Map<string, Turn>();
   private readonly failures = new Map<string, Failure>();
+  private readonly chronicling = new Map<string, Promise<void>>();
   private readonly bus = new EventEmitter();
 
   /**
@@ -88,6 +93,7 @@ export class Engine {
     const { path } = this.idleHead(storyId, after);
     if (this.mac.states.at(path.headEntryId).scene?.closed) throw new LinkError("invalid", "This Scene has already ended.");
     const closed = this.write(storyId, path, { kind: "scene_closed", by: "player" });
+    this.chronicle(storyId);
     return { head_entry_id: closed.id, trace_id: traceId };
   }
 
@@ -144,6 +150,44 @@ export class Engine {
     while (entry && (entry.payload.kind === "focus_set" || entry.payload.kind === "linger_set") && entry.parentId) entry = this.mac.tree.entry(entry.parentId);
     if (entry?.payload.kind === "scene_closed" && entry.payload.by === "story" && entry.parentId) entry = this.mac.tree.entry(entry.parentId);
     return entry?.payload.kind === "reply" ? entry : null;
+  }
+
+  /**
+   * Queues the Chronicler for whatever the Story's current Path owes it (docs/adr/0004): a Scene that ended, or twelve
+   * exchanges of an open one. It runs in the background, one run at a time per Story, and never holds up a turn; its
+   * records hang off the Path (docs/adr/0007). A run that fails is kept in its call and is due again next time.
+   */
+  chronicle(storyId: string): void {
+    const previous = this.chronicling.get(storyId) ?? Promise.resolve();
+    this.chronicling.set(storyId, previous.then(() => this.chronicleDue(storyId)).catch(() => {}));
+  }
+
+  /** Queues the Chronicler for every Story, for `fantasia serve` when it starts. */
+  chronicleAll(): void {
+    const stories = this.mac.db.prepare("SELECT id FROM stories").all() as { id: string }[];
+    for (const story of stories) this.chronicle(story.id);
+  }
+
+  /** Resolves when the Story's Chronicler queue is empty: for tests and for shutting down cleanly. */
+  async chronicled(storyId: string): Promise<void> {
+    let waitingOn: Promise<void> | undefined;
+    do {
+      waitingOn = this.chronicling.get(storyId);
+      await waitingOn;
+    } while (waitingOn !== this.chronicling.get(storyId));
+  }
+
+  private async chronicleDue(storyId: string): Promise<void> {
+    const traceId = `chronicle-${randomUUID().slice(0, 8)}`;
+    for (;;) {
+      const path = this.mac.tree.currentPath(storyId);
+      const due = path ? dueChronicle(this.mac, path.headEntryId) : null;
+      if (!due) return;
+      const model = jobModels(this.mac.home).chronicler;
+      const { value, callId } = await writeChronicle(this.models, model, chronicleAsk(this.mac, due), storyId, traceId, new AbortController().signal);
+      const record = this.mac.tree.append(storyId, due.through.id, { kind: "chronicle", scene: due.scene.id, summary: value.summary, moments: value.moments, told: value.told, callId, model });
+      this.models.attach(callId, record.id);
+    }
   }
 
   /** What the Story's current Path is doing: writing a Reply, failed to, or nothing. */
@@ -290,7 +334,7 @@ export class Engine {
     const model = jobModels(this.mac.home).writer;
     const text = turn.move.payload.kind === "move" ? turn.move.payload.text : "";
     const { plan, callId } = await writeBeat(this.models, model,
-      { state, scene: moveAt >= 0 ? entries.slice(0, moveAt) : entries, move: text, direction: state.pendingDirection },
+      { state, scene: moveAt >= 0 ? entries.slice(0, moveAt) : entries, move: text, direction: state.pendingDirection, recall: recall(this.mac, head.id, state.scene?.here ?? []) },
       turn.storyId, turn.traceId, turn.abort.signal);
 
     const written = this.mac.db.transaction(() => {
@@ -317,7 +361,7 @@ export class Engine {
   private async actorStep(turn: Turn, note: Entry): Promise<void> {
     this.emit(turn.storyId, this.started(turn, note));
     const { state, entries } = sceneEntries(this.mac, note.id);
-    const answer = await writeReply(this.models, state, entries, turn.storyId, turn.traceId, text => {
+    const answer = await writeReply(this.models, state, entries, recall(this.mac, note.id, state.scene?.here ?? []), turn.storyId, turn.traceId, text => {
       turn.deltas.push(text);
       this.emit(turn.storyId, this.delta(note, turn.deltas.length, text, turn.traceId));
     }, turn.abort.signal);
@@ -331,6 +375,7 @@ export class Engine {
     this.turns.delete(turn.storyId);
     this.publish(turn.storyId, written.reply);
     if (written.closed) this.publish(turn.storyId, written.closed);
+    this.chronicle(turn.storyId);
   }
 
   private started(turn: Turn, anchor: Entry): OutgoingEvent {

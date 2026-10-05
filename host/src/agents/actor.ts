@@ -2,6 +2,7 @@ import type { Entry } from "../story/entries.js";
 import type { Person, State } from "../story/state.js";
 import { parseStoryTime, sayStoryTime } from "../time.js";
 import type { ModelAnswer, Models } from "../models/model-call.js";
+import { NOTHING_RECALLED, sayWords, type Recall } from "./recall.js";
 
 /** What the Actor is sent for one Reply. */
 export interface ActorPrompt {
@@ -23,7 +24,7 @@ const LENGTH = {
  * It is never given the Premise or the Arcs: a Reply told what the player came for performs it at them, and
  * steering the Story belongs to the Writer and the Director.
  */
-export function actorPrompt(state: State, scene: Entry[]): ActorPrompt {
+export function actorPrompt(state: State, scene: Entry[], recall: Recall = NOTHING_RECALLED): ActorPrompt {
   if (!state.scene) throw new Error("The Actor writes inside a Scene, and none is open");
   const pc = state.playerCharacter;
   const here = state.scene.here.map(name => state.people[name]).filter((person): person is Person => person !== undefined);
@@ -36,6 +37,7 @@ export function actorPrompt(state: State, scene: Entry[]): ActorPrompt {
     `Never decide what ${pc} says, chooses, does on purpose, thinks or feels. The people here may see ${pc} and say how ${pc} looks to them. Stop where it is ${pc}'s turn.`,
     `What ${pc} thinks without saying it stays inside ${pc}. The people here hear only what was said aloud and see only what was done where they could see it.`,
     "Each person knows their own past, what they have lived through in this story, and what they have been told or have seen; nothing else.",
+    `What the people here remember from before this scene is under remembered, in the words that were said and done; each moment says who of them knows it, and nobody else here does. What ${pc} said and did in it is only what his own moves say.`,
     "The people here want things and act on them without being asked. They are as kind or as cruel as they are; nobody softens to make things easier.",
     "Write prose only, with no headings, notes or lists.",
     LENGTH[state.replyLength],
@@ -44,7 +46,10 @@ export function actorPrompt(state: State, scene: Entry[]): ActorPrompt {
     section("world", [state.world.summary, state.world.history].filter(Boolean).join("\n\n")),
     section(`player_character name="${pc}"`, describe(state.people[pc], { withVoice: false })),
     section("people_here", here.map(person => section(`person name="${person.name}"`, describe(person, { withVoice: true }))).join("\n\n") || "Nobody besides " + pc + "."),
-    section("scene", `${state.scene.title}. ${state.scene.place}, ${at ? sayStoryTime(at, state.dayOneWeekday).replace(" · ", ", ") : state.scene.at}.`)
+    section("scene", `${state.scene.title}. ${state.scene.place}, ${at ? sayStoryTime(at, state.dayOneWeekday).replace(" · ", ", ") : state.scene.at}.`),
+    // Only the Moments someone here knows: the summaries and the end of the last Scene are not sorted by who knows them,
+    // so they go to the Writer alone (docs/adr/0004: the Actor sees what the people in the Scene know).
+    section("remembered", recall.moments.map(moment => section(`moment scene="${moment.scene}" known_to="${moment.knownTo.join(", ")}"`, sayWords(moment.words))).join("\n\n"))
   ].filter(part => part !== null).join("\n");
 
   return { system, prompt: scenePrompt(state, scene, pc) };
@@ -114,7 +119,7 @@ function section(tag: string, body: string): string | null {
 }
 
 /** Writes the Reply to the Scene's latest Move, streaming its words through [onText]. */
-export function writeReply(models: Models, state: State, scene: Entry[], storyId: string, traceId: string, onText: (delta: string) => void, signal: AbortSignal): Promise<ModelAnswer> {
-  const { system, prompt } = actorPrompt(state, scene);
+export function writeReply(models: Models, state: State, scene: Entry[], recall: Recall, storyId: string, traceId: string, onText: (delta: string) => void, signal: AbortSignal): Promise<ModelAnswer> {
+  const { system, prompt } = actorPrompt(state, scene, recall);
   return models.call({ agent: "actor", model: state.actor, system, prompt, traceId, storyId }, onText, signal);
 }

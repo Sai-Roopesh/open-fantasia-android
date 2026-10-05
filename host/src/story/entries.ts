@@ -5,7 +5,7 @@ import type { Beat, ModelChoice, SceneCall } from "./state.js";
  * What can be written to a Story's tree (docs/adr/0003). Each kind is something that happened; the State on a
  * Path is what all of them add up to, worked out by the reducer.
  */
-export type Payload = StorySetUp | SceneOpened | MoveWritten | Redo | BeatNote | ReplyWritten | SceneClosed | FocusSet | LingerSet;
+export type Payload = StorySetUp | SceneOpened | MoveWritten | Redo | BeatNote | ReplyWritten | SceneClosed | FocusSet | LingerSet | Chronicle;
 
 /** The Story as its Story File set it up. Portraits map each person's name to the stored image's file name. */
 export interface StorySetUp {
@@ -84,6 +84,45 @@ export interface FocusSet {
 export interface LingerSet {
   kind: "linger_set";
   on: boolean;
+}
+
+/** Words taken exactly from one entry, the way a Moment keeps what was said and done. */
+export interface Quote {
+  entry: string;
+  text: string;
+}
+
+/**
+ * A part of the Story that matters, recorded once in its original words, with who was there besides the Player
+ * Character and how much it mattered (docs/adr/0006).
+ */
+export interface Moment {
+  id: string;
+  what: string;
+  quotes: Quote[];
+  there: string[];
+  weight: number;
+}
+
+/** Someone told someone else about a Moment, in this entry. */
+export interface Told {
+  moment: string;
+  to: string[];
+  entry: string;
+}
+
+/**
+ * What the Chronicler recorded about a Scene, up to the entry this hangs off (docs/adr/0007): never on a Path, seen by
+ * every Path its parent is on. [summary] is there once the Scene has ended.
+ */
+export interface Chronicle {
+  kind: "chronicle";
+  scene: string;
+  summary: string | null;
+  moments: Moment[];
+  told: Told[];
+  callId: string;
+  model: ModelChoice;
 }
 
 /** A Reply, word for word, and the model call that wrote it. */

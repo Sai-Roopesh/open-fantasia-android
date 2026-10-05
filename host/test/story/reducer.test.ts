@@ -1,3 +1,4 @@
+import { NOTHING_RECALLED } from "../../src/agents/recall.js";
 import { describe, expect, it } from "vitest";
 import { writerPrompt } from "../../src/agents/writer.js";
 import type { BeatNote, Entry, Payload } from "../../src/story/entries.js";
@@ -104,7 +105,7 @@ describe("what code counts, not the Writer", () => {
   it("leaves the counts out of the Writer's task while Linger is on", () => {
     const { state } = nightTrain();
     const stalled = play(state, ...Array.from({ length: 5 }, () => note({ plan: { purpose: "p", exit: "e" }, arcMoved: false })));
-    const ask = (current: State) => writerPrompt({ state: current, scene: [], move: "I say nothing.", direction: null }).prompt;
+    const ask = (current: State) => writerPrompt({ state: current, scene: [], move: "I say nothing.", direction: null, recall: NOTHING_RECALLED }).prompt;
     expect(ask(stalled)).toMatch(/in play for 5 exchanges/);
     expect(ask(stalled)).toMatch(/No Arc has moved for 5 exchanges/);
     const lingering = play(stalled, { kind: "linger_set", on: true });

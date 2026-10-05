@@ -45,6 +45,28 @@ export function fakeWriterAnswer(request: ModelRequest): Script {
   };
 }
 
+/** What the Chronicler's prompt was written from, as the Chronicler agent records it with each call. */
+interface ChroniclerFacts {
+  sceneEnded: boolean;
+  labels: { label: string; kind: string; text: string }[];
+}
+
+/**
+ * A Chronicler's record that keeps every rule: the summary when the Scene has ended, and the latest new Move as a
+ * Moment in its own words, since only the player's words can be relied on to say what he did.
+ */
+export function fakeChronicleAnswer(request: ModelRequest): Script {
+  const facts = request.facts as ChroniclerFacts;
+  const move = facts.labels.filter(item => item.kind === "move").at(-1);
+  return {
+    answer: JSON.stringify({
+      summary: facts.sceneEnded ? "The Scene was played to its end." : null,
+      moments: move ? [{ what: "What the player's character did.", quotes: [{ entry: move.label, text: move.text }], there: [], weight: 2 }] : [],
+      told: []
+    })
+  };
+}
+
 /** A Reply that quotes the Move it answers, so the phone's end-to-end tests can see which Move a Reply answers. */
 export function fakeReply(request: ModelRequest): Script {
   const move = /<move by="[^"]*">\n([\s\S]*?)\n<\/move>\n\n<this_reply>/.exec(request.prompt)?.[1] ?? "";
@@ -58,16 +80,19 @@ export function fakeReply(request: ModelRequest): Script {
 export class FakeModels implements ModelRunner {
   readonly writer: ScriptedRunner;
   readonly actor: ScriptedRunner;
+  readonly chronicler: ScriptedRunner;
   /** Every request, in the order it was made. */
   readonly requests: ModelRequest[] = [];
 
-  constructor(scripts: { writer?: Script[]; actor?: Script[] } = {}, actorFallback: (request: ModelRequest) => Script = () => ({ answer: "She looks at you, and waits." })) {
+  constructor(scripts: { writer?: Script[]; actor?: Script[]; chronicler?: Script[] } = {}, actorFallback: (request: ModelRequest) => Script = () => ({ answer: "She looks at you, and waits." })) {
     this.writer = new ScriptedRunner(scripts.writer ?? [], fakeWriterAnswer);
     this.actor = new ScriptedRunner(scripts.actor ?? [], actorFallback);
+    this.chronicler = new ScriptedRunner(scripts.chronicler ?? [], fakeChronicleAnswer);
   }
 
   run(request: ModelRequest, onText: (delta: string) => void, signal: AbortSignal): Promise<string> {
     this.requests.push(request);
-    return (request.agent === "writer" ? this.writer : this.actor).run(request, onText, signal);
+    const runner = request.agent === "writer" ? this.writer : request.agent === "chronicler" ? this.chronicler : this.actor;
+    return runner.run(request, onText, signal);
   }
 }

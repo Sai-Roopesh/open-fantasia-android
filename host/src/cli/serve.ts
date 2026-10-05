@@ -32,6 +32,8 @@ export async function serve(mac: Mac, options: { port?: number; fakeModels: bool
   const engine = new Engine(mac, new Models(mac.db, runners), keepAwake());
   const app = buildLink({ mac, engine, pairing: new Pairing(mac.db), hostId: me.hostId, hostName: me.hostName, https: certificate });
   await app.listen({ port: me.port, host: "0.0.0.0" });
+  // Whatever the Chronicler owes from before the host last stopped is recorded now, in the background.
+  engine.chronicleAll();
   const stopAdvertising = advertise(me.hostId, me.hostName, me.port);
   console.log(`Open Fantasia is serving on port ${me.port} as ${me.hostName}${options.fakeModels ? ", with scripted models" : ""}.`);
 

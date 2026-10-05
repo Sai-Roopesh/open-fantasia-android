@@ -18,9 +18,10 @@ were there for or were told, and nothing else.
 - Code checks every Moment against the entries it quotes: a quote that is not word for word in its entry is refused,
   and so is a Reply's line that decides something for the **Player Character**, because only the player's Moves make
   facts about him (docs/adr/0004).
-- The Actor's prompt gains what ADR-0006 lists: the end of the last Scene when a new one begins, the summaries of the
-  last day's Scenes, and at most five Moments that matter most to the people present, each only if someone present
-  was there or was told. The Writer reads the same, so its beats can draw on the past.
+- The Actor's prompt gains at most five Moments that matter most to the people present, each only if someone present
+  was there or was told, in their original words. The Writer reads those too, with the end of the last Scene and the
+  summaries of the last day's Scenes, so its beats can draw on the past (the Actor sees only what the people present
+  know, docs/adr/0004).
 - Earlier Scenes on the Scene screen show their summaries, and a tap opens one in full (scenes: Scrolling back).
 - `fantasia moments` lists a Story's Moments with who knows each, until Backstage arrives.
 - "Hermione asks a question" becomes a real-model gate, run against Moments the real Chronicler recorded.

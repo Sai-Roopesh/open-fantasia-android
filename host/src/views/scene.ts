@@ -149,6 +149,7 @@ export function entryEvent(mac: Mac, storyId: string, entry: Entry): StoryEvent 
     case "redo":
       return { kind: "redo", seq: entry.seq };
     case "beat_note":
+    case "chronicle":
     case "story_set_up":
       return null;
   }

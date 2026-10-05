@@ -91,4 +91,23 @@ describe("working out the State on a Path", () => {
     expect(reopened.prepare("SELECT COUNT(*) AS n FROM states").get()).toEqual({ n: 0 });
     expect(reopened.pragma("user_version", { simple: true })).toBe(STATE_SHAPE);
   });
+
+  it("keeps Chronicles beside the Path: a Path sees those whose parent is on it, and never walks one", () => {
+    const { tree, opened } = storyWithScene();
+    const model = { provider: "claude", model: "claude-sonnet-5-5" } as const;
+    const chronicle = (parent: string, summary: string) => tree.append("s", parent, { kind: "chronicle", scene: opened.id, summary, moments: [], told: [], callId: "c", model });
+    const move = tree.append("s", opened.id, { kind: "move", text: "I wave." });
+    const reply = tree.append("s", move.id, { kind: "reply", text: "She waves back.", callId: "c", model });
+    const early = chronicle(move.id, "early");
+    const late = chronicle(reply.id, "late");
+    const after = tree.append("s", reply.id, { kind: "move", text: "I sit." });
+
+    expect(tree.chroniclesOn(after.id).map(entry => entry.id)).toEqual([early.id, late.id]);
+    expect(tree.pathTo(after.id).some(entry => entry.payload.kind === "chronicle")).toBe(false);
+    // A Path from an earlier entry inherits the Chronicles before it, and not those after.
+    expect(tree.chroniclesOn(move.id).map(entry => entry.id)).toEqual([early.id]);
+    // A Redo's new branch under the Move loses the Chronicle about the old Reply.
+    const redo = tree.append("s", move.id, { kind: "redo", direction: null, remember: false });
+    expect(tree.chroniclesOn(redo.id).map(entry => entry.id)).toEqual([early.id]);
+  });
 });

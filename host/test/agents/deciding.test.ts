@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decidesForPlayer, playerNames } from "../../src/agents/deciding.js";
+import { claimsAboutPlayer, decidesForPlayer, playerNames } from "../../src/agents/deciding.js";
 
 describe("deciding for the Player Character", () => {
   const names = playerNames({ name: "Ishaan Mehra", aliases: ["Ishu"] });
@@ -35,6 +35,25 @@ describe("deciding for the Player Character", () => {
       "Will Ishaan tell her before Nagpur?"
     ]) {
       expect(decidesForPlayer(circumstance, names), circumstance).toBeNull();
+    }
+  });
+
+  it("catches a Reply's claim about what he said, did or feels, when only his Moves may say so", () => {
+    for (const claim of [
+      "\"You told me at breakfast you hate flying,\" Hermione says.",
+      "\"You promised,\" she says.",
+      "\"You never said a word about Shimla.\"",
+      "Ishaan said he would stay."
+    ]) {
+      expect(claimsAboutPlayer(claim, names), claim).not.toBeNull();
+    }
+    for (const fine of [
+      "\"I'd have managed,\" Draconia says, and doesn't look at you.",
+      "She holds the biscuits out to you.",
+      "\"You look like you haven't slept,\" Hermione says.",
+      "\"Did you?\" she asks."
+    ]) {
+      expect(claimsAboutPlayer(fine, names), fine).toBeNull();
     }
   });
 });

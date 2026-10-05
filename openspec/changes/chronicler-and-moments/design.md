@@ -74,17 +74,20 @@ time it is due. `fantasia serve` queues what is due for every Story when it star
 
 ### Recall (host)
 
-ADR-0006's prompt, minus what later agents add:
+ADR-0006's prompt, minus what later agents add, split by what each agent may see (docs/adr/0004):
 - the current Scene word for word, as now;
-- the end of the last Scene (its last Move and Reply) when the current one has just begun from a Move;
-- the summaries of the Scenes on the Path in the last day of Story time before this Scene;
+- the end of the last Scene (its last Move and Reply), and the summaries of the Scenes on the Path in the last day
+  of Story time before this one: for the Writer only;
 - at most five Moments, from Scenes before this one, that someone present was there for or was told of. They are
   ranked by weight, by how many of the people present know them, and by how recent they are (each Scene back counts
   for less), and shown oldest first, each with its Scene and who of the people present knows it.
 
-The Actor reads Moments only as their original words, never the Chronicler's `what`, so nothing the Chronicler
-paraphrased can become what someone says happened; the Writer reads both. All of it changes only when the Scene, its
-people or the Chronicles do, so it goes in the system prompt and the prompt cache still hits.
+The Actor reads only the Moments, and only as their original words, never the Chronicler's `what`. The summaries and
+the end of the last Scene are not sorted by who knows them: given to the Actor, they let Hermione know what was said
+in Hagrid's hut, and bring back a Reply's invented line about the Player Character (both caught by the recall
+scenario tests while building). The Writer, which sees everything and passes on only what happens next, reads all of
+it. The Actor's recall changes only when the Scene's people or the Chronicles do, so it goes in its system prompt and
+the prompt cache still hits.
 
 ### The phone (protocol, android)
 

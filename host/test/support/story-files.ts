@@ -102,7 +102,8 @@ export function hogwartsStoryFile(opening: Partial<StoryFile["opening"]> = {}): 
       { name: "Ron Weasley", who_they_are: "Harry's best friend, Gryffindor, sixth of seven children." },
       { name: "Neville Longbottom", who_they_are: "A Gryffindor who is better with plants than wands." },
       { name: "Draconia Malfoy", who_they_are: "Pure-blood heir, Slytherin, sharp-tongued and proud." },
-      { name: "Severus Snape", who_they_are: "Potions master, Head of Slytherin." }
+      { name: "Severus Snape", who_they_are: "Potions master, Head of Slytherin." },
+      { name: "Rubeus Hagrid", who_they_are: "Keeper of Keys and Grounds, with a soft spot for dangerous creatures." }
     ] as StoryFile["people"],
     leads: ["Draconia Malfoy", "Hermione Granger"],
     player_character: "Roopesh Gantasala",
