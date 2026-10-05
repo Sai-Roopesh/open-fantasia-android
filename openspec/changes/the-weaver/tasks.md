@@ -58,4 +58,4 @@ Requirements this change builds:
 ## 8. Together
 
 - [ ] 8.1 On the phone: play the Night Train to a Scene's end, watch the Day View move on and fill in, and read `fantasia world`; verify how long the player waits (from `fantasia trace`), that Meanwhile holds nothing Ishaan could not know, and compare with the drawings
-- [ ] 8.2 Run `scripts/scenarios.mjs`, the host suite, the Android JVM and device suites, and `openspec validate --all --strict`, and verify all pass
+- [x] 8.2 Run `scripts/scenarios.mjs`, the host suite, the Android JVM and device suites, and `openspec validate --all --strict`, and verify all pass

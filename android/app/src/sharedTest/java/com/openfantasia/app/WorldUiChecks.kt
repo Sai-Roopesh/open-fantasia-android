@@ -150,7 +150,8 @@ open class WorldUiChecks {
                 world = World.Ready, meanwhile = listOf(MeanwhileItem(how = How.Seen, text = "A note waits under the door."))))
         }
         assertEquals(position, compose.onNodeWithTag("earlier-13").assertIsDisplayed().getUnclippedBoundsInRoot())
-        compose.onNodeWithTag("scene-passages").performScrollToNode(hasText("MEANWHILE"))
+        compose.onNodeWithTag("scene-passages").performScrollToNode(hasText("A note waits under the door."))
+        compose.onNodeWithText("MEANWHILE").assertExists()
         compose.onNodeWithText("A note waits under the door.").assertIsDisplayed()
     }
 }
