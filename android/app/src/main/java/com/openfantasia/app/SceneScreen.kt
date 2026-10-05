@@ -28,6 +28,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
+import kotlinx.coroutines.flow.first
 import com.openfantasia.protocol.*
 import java.util.Locale
 
@@ -58,6 +61,8 @@ class SceneScrollState(val list: LazyListState) {
     awaitingReply: Boolean = false,
     openPastScene: (Long) -> Unit = {},
     scrollState: SceneScrollState = rememberSceneScrollState(),
+    previously: Previously? = scene.previously,
+    dismissPreviously: () -> Unit = {},
     failure: @Composable () -> Unit = {}
 ) {
     val list = scrollState.list
@@ -69,6 +74,7 @@ class SceneScrollState(val list: LazyListState) {
     val imeBottom = WindowInsets.ime.getBottom(density)
     val replyComing = scene.replyComing || awaitingReply
     val latestReply = scene.exchanges.lastOrNull { it.reply != null }?.reply
+    var previouslyOffset by remember(previously?.since) { mutableStateOf<Int?>(null) }
     Column(modifier) {
         SceneHeader(scene, storyTitle, back, scene.dayView == null && (replyComing || scene.turn.kind == TurnStateKind.Failed || imeBottom > 0))
         LazyColumn(state = list, modifier = Modifier.weight(1f).onSizeChanged { viewportSize = it }.testTag("scene-passages"),
@@ -83,6 +89,9 @@ class SceneScrollState(val list: LazyListState) {
                 Column(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     exchange.move?.let { MovePassage(it, scene.playerCharacter) }
                     exchange.reply?.let { reply ->
+                        if (reply == latestReply && scene.dayView == null && previously != null) {
+                            PreviouslyCard(previously, dismissPreviously, Modifier.onGloballyPositioned { previouslyOffset = it.positionInParent().y.toInt() })
+                        }
                         ReplyPassage(reply)
                         if (reply == latestReply && !replyComing && scene.turn.kind != TurnStateKind.Failed) {
                             Row(Modifier.offset(x = (-8).dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -97,7 +106,10 @@ class SceneScrollState(val list: LazyListState) {
             }
             scene.dayView?.let { day -> item(key = "day-view") {
                 val height = with(density) { viewportSize.height.toDp() }
-                DayViewContent(day, Modifier.fillMaxWidth().heightIn(min = (height - 22.dp).coerceAtLeast(0.dp)))
+                Column(Modifier.fillMaxWidth().heightIn(min = (height - 22.dp).coerceAtLeast(0.dp)), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    previously?.let { PreviouslyCard(it, dismissPreviously) }
+                    DayViewContent(day, Modifier.fillMaxWidth())
+                }
             } }
             if (replyComing) item(key = "reply-being-written") {
                 Column(Modifier.padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -144,8 +156,27 @@ class SceneScrollState(val list: LazyListState) {
             entering = false
             val returning = scrollState.hasBeenShown
             scrollState.hasBeenShown = true
-            // A fresh Scene opens at its latest Reply; returning from an earlier one resumes where it was.
+            // Returning from an earlier Scene resumes the player's place, as before.
+            lastHead = scene.headEntryID
             if (returning) return@LaunchedEffect
+            if (previously != null && scene.dayView == null && latestReply != null) {
+                // As drawn, a fresh Scene with a card opens at its end, the card and the latest Reply above the composer.
+                // A Reply too long for both to fit opens with the card at the top instead, so it is never out of sight.
+                val index = scene.earlierScenes.size + 1 + scene.exchanges.indexOfLast { it.reply != null }
+                scrollingOurselves = true
+                try {
+                    list.scrollToItem(scene.earlierScenes.size + 1 + scene.exchanges.size)
+                    val offset = snapshotFlow { previouslyOffset }.first { it != null }!!
+                    withFrameNanos { }
+                    val card = list.layoutInfo.visibleItemsInfo.firstOrNull { it.index == index }
+                    if (card == null || card.offset + offset < list.layoutInfo.viewportStartOffset) {
+                        followingEnd = false
+                        list.scrollToItem(index, offset)
+                        withFrameNanos { }
+                    }
+                } finally { scrollingOurselves = false }
+                return@LaunchedEffect
+            }
         }
         val newHead = lastHead != scene.headEntryID
         lastHead = scene.headEntryID

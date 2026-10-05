@@ -30,7 +30,7 @@ data class FantasiaState(
     val problem: AppProblem? = null
 )
 
-class FantasiaModel(private val link: FantasiaLink) : ViewModel() {
+class FantasiaModel(private val link: FantasiaLink, private val previouslyStore: PreviouslyStore = MemoryPreviouslyStore()) : ViewModel() {
     private val mutable = MutableStateFlow(FantasiaState(paired = link.isPaired, hostName = link.hostName))
     val state = mutable.asStateFlow()
     private var stream: Job? = null
@@ -82,17 +82,28 @@ class FantasiaModel(private val link: FantasiaLink) : ViewModel() {
             try {
                 val scene = link.scene(storyID)
                 pendingMoveID = null
-                mutable.update { it.copy(scene = scene, loading = false, waiting = false) }
+                mutable.update { it.copy(scene = visibleScene(scene), loading = false, waiting = false) }
                 link.watch(scene).collect { updated ->
                     val finished = updated.turn.kind == TurnStateKind.Failed ||
                         (updated.seq > afterSeq && updated.headEntryID != pendingMoveID && updated.turn.kind == TurnStateKind.Idle)
                     if (finished) pendingMoveID = null
-                    mutable.update { it.copy(scene = updated, waiting = if (finished) false else it.waiting) }
+                    mutable.update { it.copy(scene = visibleScene(updated), waiting = if (finished) false else it.waiting) }
                 }
             } catch (e: CancellationException) { throw e
             } catch (e: Exception) { showProblem(e)
             } finally { mutable.update { it.copy(loading = false) } }
         }
+    }
+
+    private fun visibleScene(scene: SceneView): SceneView = scene.copy(previously = scene.previously?.takeUnless {
+        previouslyStore.read(scene.storyID) == it.since
+    })
+
+    fun dismissPreviously() {
+        val scene = mutable.value.scene ?: return
+        val previously = scene.previously ?: return
+        previouslyStore.write(scene.storyID, previously.since)
+        mutable.update { it.copy(scene = it.scene?.let(::visibleScene)) }
     }
 
     fun pause() { stream?.cancel() }
@@ -142,7 +153,7 @@ class FantasiaModel(private val link: FantasiaLink) : ViewModel() {
                 showProblem(e)
                 // Re-read the Mac's head before another Send; a refused or interrupted Move can leave the view behind.
                 if (e !is LinkFailure || !e.versionMismatch) {
-                    try { val fresh = link.scene(scene.storyID); mutable.update { it.copy(scene = fresh) }
+                    try { val fresh = link.scene(scene.storyID); mutable.update { it.copy(scene = visibleScene(fresh)) }
                     } catch (cancelled: CancellationException) { throw cancelled
                     } catch (_: Exception) { }
                 }
@@ -198,7 +209,7 @@ class FantasiaModel(private val link: FantasiaLink) : ViewModel() {
             } catch (e: Exception) {
                 showProblem(e)
                 if (e !is LinkFailure || !e.versionMismatch) {
-                    try { val fresh = link.scene(scene.storyID); mutable.update { it.copy(scene = fresh) } }
+                    try { val fresh = link.scene(scene.storyID); mutable.update { it.copy(scene = visibleScene(fresh)) } }
                     catch (cancelled: CancellationException) { throw cancelled }
                     catch (_: Exception) { }
                 }
@@ -226,7 +237,7 @@ class FantasiaModel(private val link: FantasiaLink) : ViewModel() {
                 showProblem(e)
                 if (e !is LinkFailure || !e.versionMismatch) {
                     // Reload before another command, preserving the reason for the refusal.
-                    try { val fresh = link.scene(scene.storyID); mutable.update { it.copy(scene = fresh) } }
+                    try { val fresh = link.scene(scene.storyID); mutable.update { it.copy(scene = visibleScene(fresh)) } }
                     catch (cancelled: CancellationException) { throw cancelled }
                     catch (_: Exception) { }
                 }

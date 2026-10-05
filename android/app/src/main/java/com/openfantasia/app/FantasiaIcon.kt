@@ -9,7 +9,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.material3.LocalContentColor
 
-internal enum class FantasiaIconKind { Back, Send, Scan, Linger }
+internal enum class FantasiaIconKind { Back, Send, Scan, Linger, Dismiss }
 
 // The strokes and viewboxes of the approved HTML icons, without a platform icon font.
 @Composable internal fun FantasiaIcon(kind: FantasiaIconKind, modifier: Modifier, color: Color = LocalContentColor.current) {
@@ -19,6 +19,7 @@ internal enum class FantasiaIconKind { Back, Send, Scan, Linger }
         fun line(x1: Float, y1: Float, x2: Float, y2: Float, width: Float = 1.8f) =
             drawLine(color, Offset(x1 * sx, y1 * sy), Offset(x2 * sx, y2 * sy), width * sx, StrokeCap.Round)
         when (kind) {
+            FantasiaIconKind.Dismiss -> { line(6f, 6f, 18f, 18f, 2f); line(18f, 6f, 6f, 18f, 2f) }
             FantasiaIconKind.Back -> { line(15f, 18f, 9f, 12f); line(9f, 12f, 15f, 6f) }
             FantasiaIconKind.Send -> { line(5f, 12f, 19f, 12f, 2f); line(13f, 6f, 19f, 12f, 2f); line(19f, 12f, 13f, 18f, 2f) }
             FantasiaIconKind.Scan -> {

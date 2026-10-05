@@ -9,14 +9,11 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class OpenStoryTest {
-    // GIVEN the player stopped mid-Scene with Hermione and returns 30 hours later
-    // WHEN they open the Story
-    // THEN they are in that Scene at its latest Reply, with a "Previously" card above it
-    // The Previously card needs Scene records and is outside this change's scope.
-    @Test fun `stories › Opening a Story returns exactly where the player left › Back after a night away`() = runTest {
+    // Loading preserves the Mac's Scene and Previously data; the shared UI check proves the full scenario.
+    @Test fun openingPreservesTheSceneAndPreviously() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         try {
-            val view = sceneFixture()
+            val view = sceneFixture().copy(previously = Previously(summary = "Hermione waited up.", since = "2026-10-03T18:00:00Z"))
             val link = object : StubFantasiaLink() {
                 override val isPaired = true
                 override val reachable = MutableStateFlow(true)
@@ -31,6 +28,7 @@ class OpenStoryTest {
             model.openStory("story")
             advanceUntilIdle()
             assertEquals(view, model.state.value.scene)
+            assertEquals(view.previously, model.state.value.scene?.previously)
             assertEquals("Hermione looks up.", model.state.value.scene?.exchanges?.last()?.reply?.text)
         } finally { Dispatchers.resetMain() }
     }

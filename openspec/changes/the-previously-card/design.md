@@ -69,13 +69,14 @@ Built as drawn in `SceneReturn.dc.html`: a surface card (#1E1B24, line #2E2A36, 
 "PREVIOUSLY · 30 HOURS AGO" (hours under two days, then days), a Dismiss button (44 point target, the cross drawn
 16), and the summary in Literata 15/1.55 in the prose colour.
 
-Mid-Scene it sits just above the latest Reply, after the latest Move, and the Scene opens with the card at the top of
-the screen and the Reply under it, instead of at the Reply's last line: a long Reply would otherwise push the card out
-of sight. At a Day View it sits at the top of the Day View, above the day. Opening at the latest Reply as now
-otherwise; the player's place is kept as before once they scroll.
+Mid-Scene it sits just above the latest Reply, after the latest Move. The Scene opens at its end as now, as drawn:
+the card and the Reply above the composer. A Reply too long for both to fit opens with the card at the top of the
+screen and the Reply under it instead, so the card is never out of sight; nothing is padded to make a short Reply
+reach the top. At a Day View it sits at the top of the Day View, above the day. The player's place is kept as before
+once they scroll.
 
 Dismissing hides it and remembers, on the phone, the `since` it dismissed for that Story (in the app's preferences,
-beside the pairing): the card shows again only for a different `since`, that is after the player has played and been
+in a file of its own): the card shows again only for a different `since`, that is after the player has played and been
 away a day again. The Mac never hears of it: it changes nothing in the Story.
 
 ## Risks / Trade-offs

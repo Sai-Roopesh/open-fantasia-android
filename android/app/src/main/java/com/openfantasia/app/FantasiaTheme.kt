@@ -55,6 +55,7 @@ private fun type(family: FontFamily, size: Float, height: Float = size * 1.4f, w
 )
 object FantasiaType {
     val prose = type(Literata, 16f, 25.6f)
+    val previously = type(Literata, 15f, 23.25f)
     val homeTitle = type(Literata, 24f, weight = FontWeight.SemiBold, tracking = -.24f)
     val pairTitle = type(Literata, 30f, weight = FontWeight.SemiBold, tracking = -.3f)
     val storyTitle = type(Literata, 19f, weight = FontWeight.SemiBold)

@@ -85,7 +85,7 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
                 Exchange(reply = Passage(entryID = "opening", text = "Hermione looks up.")),
                 Exchange(move = Passage(entryID = "move", text = "I sit beside her."), reply = Passage(entryID = "reply", text = "She smiles."))
             ),
-            lastEventID = "3", focus = null, linger = false, dayView = null,
+            lastEventID = "3", focus = null, linger = false, dayView = null, previously = null,
             headEntryID = "reply", pathID = "path", playerCharacter = "Roopesh Gantasala",
             scene = SceneCard(at = "Day 1 21:40", atLabel = "Friday 9:40 pm", number = 14,
                 people = listOf(PersonCard(name = "Hermione", portraitURL = null)), place = "Common room", title = "After curfew"),

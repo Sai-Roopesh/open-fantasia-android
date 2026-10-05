@@ -25,7 +25,7 @@ class MainActivity : ComponentActivity() {
             initializer {
                 FantasiaModel(MacConnection(PrivatePairingStore(applicationContext),
                     NsdMacDiscovery(applicationContext.getSystemService(NsdManager::class.java)),
-                    "${Build.MANUFACTURER} ${Build.MODEL}"))
+                    "${Build.MANUFACTURER} ${Build.MODEL}"), PrivatePreviouslyStore(applicationContext))
             }
         }
         model = ViewModelProvider(this, factory)[FantasiaModel::class.java]

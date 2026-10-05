@@ -27,11 +27,11 @@ away, which until now proved only the latest Reply; Back the same evening; Back 
 
 ## 4. The card on the phone
 
-- [ ] 4.1 Test first, then build: `stories › Opening a Story returns exactly where the player left › Back after a night away` on the phone, built to `docs/design/SceneReturn.dc.html` (the card just above the latest Reply, "PREVIOUSLY · 30 HOURS AGO", the summary, Dismiss; the Scene opens with the card at the top), as a shared check on the JVM and the device, replacing the note that left the card out
-- [ ] 4.2 Test first, then build: `stories › Opening a Story returns exactly where the player left › Back to a Day View` on the phone (the card at the top of the Day View), shared check on the JVM and the device
-- [ ] 4.3 Test first, then build: `stories › Opening a Story returns exactly where the player left › Dismissing the card` on the phone (dismissed, it stays gone on reopening and after the app restarts; a later time away shows it again), shared check on the JVM and the device
-- [ ] 4.4 How long ago, as the card says it: hours under two days, then days; verify a unit test
-- [ ] 4.5 Render the card with `-PfantasiaPreviews` and compare it with `SceneReturn.dc.html`; fix what differs
+- [x] 4.1 Test first, then build: `stories › Opening a Story returns exactly where the player left › Back after a night away` on the phone, built to `docs/design/SceneReturn.dc.html` (the card just above the latest Reply, "PREVIOUSLY · 30 HOURS AGO", the summary, Dismiss; the Scene opens with the card at the top), as a shared check on the JVM and the device, replacing the note that left the card out
+- [x] 4.2 Test first, then build: `stories › Opening a Story returns exactly where the player left › Back to a Day View` on the phone (the card at the top of the Day View), shared check on the JVM and the device
+- [x] 4.3 Test first, then build: `stories › Opening a Story returns exactly where the player left › Dismissing the card` on the phone (dismissed, it stays gone on reopening and after the app restarts; a later time away shows it again), shared check on the JVM and the device
+- [x] 4.4 How long ago, as the card says it: hours under two days, then days; verify a unit test
+- [x] 4.5 Render the card with `-PfantasiaPreviews` and compare it with `SceneReturn.dc.html`; fix what differs
 
 ## 5. Together
 
