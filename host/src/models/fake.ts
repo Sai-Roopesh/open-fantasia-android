@@ -54,7 +54,7 @@ interface ChroniclerFacts {
 }
 
 /**
- * A Chronicler's record that keeps every rule: the summary when the Scene has ended, and the latest new Move as a
+ * A Chronicler's record that keeps every rule: the summary, of the Scene or of it so far, and the latest new Move as a
  * Moment in its own words, since only the player's words can be relied on to say what he did.
  */
 export function fakeChronicleAnswer(request: ModelRequest): Script {
@@ -62,7 +62,7 @@ export function fakeChronicleAnswer(request: ModelRequest): Script {
   const move = facts.labels.filter(item => item.kind === "move").at(-1);
   return {
     answer: JSON.stringify({
-      summary: facts.sceneEnded ? "The Scene was played to its end." : null,
+      summary: facts.sceneEnded ? "The Scene was played to its end." : "The Scene so far.",
       moments: move ? [{ what: "What the player's character did.", quotes: [{ entry: move.label, text: move.text }], there: [], weight: 2 }] : [],
       told: []
     })

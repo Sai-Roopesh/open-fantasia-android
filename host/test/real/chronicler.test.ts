@@ -95,6 +95,24 @@ describe.skipIf(!token)("the Chronicler on Claude", () => {
     }
   });
 
+  it("writes where an open Scene stands so far once the player steps away, inventing nothing", async () => {
+    const shown = sharedWithHermione.map(([move, reply]) => `Roopesh's move: ${move}\nThe reply: ${reply}`).join("\n\n");
+    for (let run = 0; run < RUNS; run++) {
+      const opening = hogwartsStoryFile({ title: "First week", place: "Hogwarts", at: "Day 2 09:00", who: ["Hermione Granger", "Neville Longbottom"], prose: "The first week is mostly stairs." });
+      const { mac, runner, models, storyId, head, played } = onClaude(opening);
+      played(sharedWithHermione);
+      // The player stepped away mid-Scene: two hours on, the open Scene is due.
+      const due = dueChronicle(mac, head(), new Date(Date.now() + 2 * 3600_000))!;
+      expect(due.sceneEnded).toBe(false);
+      const record = await writeChronicle(models, DEFAULT_JOB_MODELS.chronicler, chronicleAsk(mac, due), storyId, "real-so-far", new AbortController().signal);
+      runner.close();
+      const summary = record.value.summary ?? "";
+      expect(summary, `run ${run + 1}`).not.toBe("");
+      const invents = await judge(`This Scene so far was played as follows:\n\n${shown}\n\nThe passage is a summary of the Scene so far, for a player coming back to it. Does it say anything the Scene did not show, or treat Hermione's claim that Roopesh hates flying as something true or something he said? Answer YES or NO.`, summary);
+      expect(invents.yes, `run ${run + 1}: ${invents.said}\n---\n${summary}`).toBe(false);
+    }
+  });
+
   // GIVEN the Reply has Hermione ask the Player Character why he kissed her
   // THEN the Reply ends with her question unanswered, and decides nothing he says, chooses, does on purpose, thinks or feels
   it("scenes › The Reply never writes the Player Character › Hermione asks a question", async () => {

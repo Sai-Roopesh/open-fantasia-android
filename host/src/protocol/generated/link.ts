@@ -206,6 +206,10 @@ export interface SceneView {
    * Present once the Scene has closed, by the Story or by End scene: the Day View, whose composer takes the next Move.
    */
   day_view: DayView | null;
+  /**
+   * Present when the player last played this Story more than a day ago and the Scene they are in, or the Scene that closed at the Day View, has a summary: the Previously card.
+   */
+  previously: Previously | null;
 }
 /**
  * This interface was referenced by `Link`'s JSON-Schema
@@ -266,6 +270,22 @@ export interface Countdown {
    * "3 days to Draconia's flying test", "Tomorrow: the first match", "Today at 6:00 pm: the feast".
    */
   label: string;
+}
+/**
+ * The Previously card: where the Story stands, from the Chronicler's records, and when the player last played.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "Previously".
+ */
+export interface Previously {
+  /**
+   * The latest summary of the Scene the player is in (so far), or of the Scene that closed.
+   */
+  summary: string;
+  /**
+   * When the player last played: the time the Path's head entry was written, ISO 8601.
+   */
+  since: string;
 }
 /**
  * This interface was referenced by `Link`'s JSON-Schema

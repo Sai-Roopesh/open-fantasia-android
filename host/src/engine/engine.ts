@@ -12,7 +12,7 @@ import type { Accepted, StoryEvent, TurnAccepted, TurnState } from "../protocol/
 import type { StoryPath } from "../store/tree.js";
 import type { Entry, EntryKind } from "../story/entries.js";
 import { entryEvent, sceneEntries } from "../views/scene.js";
-import { chronicleAsk, dueChronicle } from "./chronicling.js";
+import { chronicleAsk, dueChronicle, STEPPED_AWAY_MS } from "./chronicling.js";
 
 /** A live event and its id on the stream: "<seq>" for an entry, "<seq>.<n>" for what a turn under way says. */
 export interface OutgoingEvent {
@@ -58,6 +58,8 @@ export class Engine {
   private readonly turns = new Map<string, Turn>();
   private readonly failures = new Map<string, Failure>();
   private readonly chronicling = new Map<string, Promise<void>>();
+  /** Per Story, the Chronicler's call for when the player steps away, restarted by everything the Path gains. */
+  private readonly steppingAway = new Map<string, ReturnType<typeof setTimeout>>();
   private readonly bus = new EventEmitter();
 
   /**
@@ -185,7 +187,7 @@ export class Engine {
       if (!due) return;
       const model = jobModels(this.mac.home).chronicler;
       const { value, callId } = await writeChronicle(this.models, model, chronicleAsk(this.mac, due), storyId, traceId, new AbortController().signal);
-      const record = this.mac.tree.append(storyId, due.through.id, { kind: "chronicle", scene: due.scene.id, summary: value.summary, moments: value.moments, told: value.told, callId, model });
+      const record = this.mac.tree.append(storyId, due.through.id, { kind: "chronicle", scene: due.scene.id, summary: value.summary, sceneEnded: due.sceneEnded, moments: value.moments, told: value.told, callId, model });
       this.models.attach(callId, record.id);
     }
   }
@@ -393,6 +395,18 @@ export class Engine {
   private publish(storyId: string, entry: Entry): void {
     const event = entryEvent(this.mac, storyId, entry);
     if (event) this.emit(storyId, { id: String(entry.seq), event });
+    this.untilSteppedAway(storyId);
+  }
+
+  /**
+   * Queues the Chronicler for a little after the player could have stepped away: by then it records the open Scene,
+   * if nothing has been played since (dueChronicle). It never keeps the Mac's process running.
+   */
+  private untilSteppedAway(storyId: string): void {
+    clearTimeout(this.steppingAway.get(storyId));
+    const timer = setTimeout(() => this.chronicle(storyId), STEPPED_AWAY_MS + 60_000);
+    timer.unref?.();
+    this.steppingAway.set(storyId, timer);
   }
 
   private emit(storyId: string, event: OutgoingEvent): void {

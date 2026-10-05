@@ -6,6 +6,11 @@ import { sceneSpans } from "../story/spans.js";
 
 /** An open Scene is chronicled once this many exchanges have passed since its last Chronicle (docs/adr/0004). */
 export const CHRONICLE_EVERY = 12;
+/**
+ * An open Scene is chronicled once the player has stepped away from it this long, so the Previously card has where
+ * it stands long before a day passes (openspec stories: Back after a night away); a short break costs nothing.
+ */
+export const STEPPED_AWAY_MS = 60 * 60 * 1000;
 /** How many already-recorded Moments the Chronicler is shown, so it can see one being told. */
 const KNOWN_SHOWN = 20;
 
@@ -19,12 +24,14 @@ export interface DueChronicle {
 }
 
 /**
- * The earliest thing on the Path to [head] the Chronicler owes: a Scene that has ended (closed, or left by the Move
- * that opened the next) with no summary yet, or an open Scene with twelve exchanges since its last Chronicle. A Scene's
- * entries run from where it starts (the Move that opened it, or its opening) to the entry before the next Scene starts.
+ * The earliest thing on the Path to [head] the Chronicler owes at [now]: a Scene that has ended (closed, or left by the
+ * Move that opened the next) and is not yet summarised, or an open Scene with twelve exchanges since its last
+ * Chronicle, or with any once the player has stepped away from it. A Scene's entries run from where it starts (the
+ * Move that opened it, or its opening) to the entry before the next Scene starts.
  */
-export function dueChronicle(mac: Mac, head: string): DueChronicle | null {
+export function dueChronicle(mac: Mac, head: string, now: Date = new Date()): DueChronicle | null {
   const path = mac.tree.pathTo(head);
+  const steppedAway = now.getTime() - Date.parse(path.at(-1)?.createdAt ?? "") >= STEPPED_AWAY_MS;
   const position = new Map(path.map((entry, index) => [entry.id, index]));
   const chronicles = mac.tree.chroniclesOn(head);
   const spans = sceneSpans(path);
@@ -42,12 +49,12 @@ export function dueChronicle(mac: Mac, head: string): DueChronicle | null {
     const mine = chronicles.filter(entry => entry.payload.kind === "chronicle" && entry.payload.scene === opened.id);
     const coveredUpTo = Math.max(-1, ...mine.map(entry => position.get(entry.parentId ?? "") ?? -1));
     const recordFrom = Math.max(0, coveredUpTo + 1 - start);
-    const summarised = mine.some(entry => entry.payload.kind === "chronicle" && entry.payload.summary !== null);
+    const summarised = mine.some(entry => entry.payload.kind === "chronicle" && entry.payload.sceneEnded);
     const through = entries.at(-1) as Entry;
 
     if (ended && !summarised) return { scene: opened, entries, recordFrom, through, sceneEnded: true };
     const exchangesSince = entries.slice(recordFrom).filter(entry => entry.payload.kind === "reply").length;
-    if (!ended && exchangesSince >= CHRONICLE_EVERY) return { scene: opened, entries, recordFrom, through, sceneEnded: false };
+    if (!ended && (exchangesSince >= CHRONICLE_EVERY || (steppedAway && exchangesSince > 0))) return { scene: opened, entries, recordFrom, through, sceneEnded: false };
   }
   return null;
 }

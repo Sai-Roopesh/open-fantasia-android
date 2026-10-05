@@ -86,12 +86,14 @@ describe("the Chronicler's answer", () => {
     ]));
   });
 
-  it("writes no summary for a Scene still being played, and records nothing from entries already recorded", () => {
-    const checked = checkChronicle(ask({ sceneEnded: false, recordFrom: 3 }), answer());
+  it("writes where a Scene still being played stands so far, and records nothing from entries already recorded", () => {
+    const checked = checkChronicle(ask({ sceneEnded: false, recordFrom: 3 }), answer({ summary: null }));
     expect(checked.ok ? [] : checked.problems).toEqual(expect.arrayContaining([
-      expect.stringMatching(/^summary: the Scene has not ended/),
+      expect.stringMatching(/^summary: the Scene goes on; write where it stands so far/),
       expect.stringMatching(/^moments: moment 1, quote 1 is from E2, which was recorded already/)
     ]));
+    const soFar = "Ishaan gave up the window seat and told Meera about the interview; she answered with biscuits.";
+    expect(checkChronicle(ask({ sceneEnded: false }), answer({ summary: soFar }))).toMatchObject({ ok: true, value: { summary: soFar } });
   });
 
   it("records who was told an earlier Moment", () => {
@@ -114,6 +116,7 @@ describe("the Chronicler's call", () => {
     expect(prompt).toMatch(/<entry label="E4" kind="move" by="Ishaan Mehra">/);
     expect(prompt).toMatch(/<moment id="M1">/);
     expect(prompt).toMatch(/The Scene has ended: write its summary\./);
+    expect(chroniclerPrompt(ask({ sceneEnded: false })).prompt).toMatch(/The Scene goes on: write where it stands so far\./);
   });
 
   it("repairs a refused answer once, and fails with its reasons when the repair is refused too", async () => {

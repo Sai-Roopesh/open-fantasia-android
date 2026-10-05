@@ -8,15 +8,19 @@ import type { Beat, ModelChoice, SceneCall } from "./state.js";
 export type Payload = StorySetUp | SceneOpened | MoveWritten | Redo | BeatNote | ReplyWritten | SceneClosed | FocusSet | LingerSet | Chronicle;
 
 /** A payload as any version may have stored it. */
-export type StoredPayload = Exclude<Payload, BeatNote> | (Omit<BeatNote, "inPlay" | "goes"> & Partial<Pick<BeatNote, "inPlay" | "goes">>);
+export type StoredPayload = Exclude<Payload, BeatNote | Chronicle>
+  | (Omit<BeatNote, "inPlay" | "goes"> & Partial<Pick<BeatNote, "inPlay" | "goes">>)
+  | (Omit<Chronicle, "sceneEnded"> & Partial<Pick<Chronicle, "sceneEnded">>);
 
 /**
  * An entry as it reads now, however long ago it was written. Entries never change (docs/adr/0003), so a field added
- * later is filled here, the one place entries are read, as having been empty: a Beat Note from before Moments were
- * put in play has none in play, and one from before people could go has nobody going.
+ * later is filled here, the one place entries are read, as it would have been: a Beat Note from before Moments were
+ * put in play has none in play, and one from before people could go has nobody going; a Chronicle from before open
+ * Scenes had summaries recorded an ended Scene exactly when it had one.
  */
 export function readPayload(stored: StoredPayload): Payload {
   if (stored.kind === "beat_note") return { ...stored, inPlay: stored.inPlay ?? [], goes: stored.goes ?? [] };
+  if (stored.kind === "chronicle") return { ...stored, sceneEnded: stored.sceneEnded ?? stored.summary !== null };
   return stored;
 }
 
@@ -136,7 +140,10 @@ export interface Told {
 export interface Chronicle {
   kind: "chronicle";
   scene: string;
+  /** What happened in the Scene, when it had ended; where it stood so far, when it had not. */
   summary: string | null;
+  /** Whether the Scene had ended: a Scene is summarised by the Chronicle that records its end. */
+  sceneEnded: boolean;
   moments: Moment[];
   told: Told[];
   callId: string;

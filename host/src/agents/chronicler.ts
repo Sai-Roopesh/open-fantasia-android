@@ -12,9 +12,9 @@ import { answerWithOneRepair, type Checked } from "./repair.js";
 /**
  * The Chronicler: records what happened in a Scene, inventing nothing (docs/adr/0004, 0006). It marks the Moments that
  * matter as quotes taken word for word from the Moves and Replies, says who was there and how much each mattered,
- * notes who was told an earlier Moment, and writes the Scene's summary once it has ended. Code checks every quote
- * against the entry it names, and refuses a Reply's line that decides for the Player Character: only the player's
- * Moves make facts about him (openspec living-world).
+ * notes who was told an earlier Moment, and writes the Scene's summary: what happened in it, or where it stands so
+ * far. Code checks every quote against the entry it names, and refuses a Reply's line that decides for the Player
+ * Character: only the player's Moves make facts about him (openspec living-world).
  */
 
 const PROMPT = readFileSync(new URL("./CHRONICLER.md", import.meta.url), "utf8");
@@ -31,7 +31,7 @@ export const CHRONICLER_SCHEMA = {
   additionalProperties: false,
   required: ["summary", "moments", "told"],
   properties: {
-    summary: { type: ["string", "null"], description: "When the Scene has ended: one line of what happened in it. Otherwise null." },
+    summary: { type: ["string", "null"], description: "When the Scene has ended, one line of what happened in it; when it goes on, one or two lines of where it stands so far." },
     moments: {
       type: "array",
       items: {
@@ -183,8 +183,9 @@ export function checkChronicle(ask: ChronicleAsk, raw: unknown): Checked<Chronic
 
   // The summary.
   const summary = raw.summary?.trim() || null;
-  if (ask.sceneEnded && !summary) problems.push("summary: the Scene has ended; write one line of what happened in it");
-  if (!ask.sceneEnded && summary) problems.push("summary: the Scene has not ended; leave it null");
+  if (!summary) problems.push(ask.sceneEnded
+    ? "summary: the Scene has ended; write one line of what happened in it"
+    : "summary: the Scene goes on; write where it stands so far, in one or two lines");
   if (summary && wordCount(summary) > MAX_SUMMARY_WORDS) problems.push(`summary: it is ${wordCount(summary)} words; say it in thirty or fewer`);
 
   // The Moments.
@@ -255,7 +256,7 @@ export function chroniclerPrompt(ask: ChronicleAsk): { system: string; prompt: s
   const known = ask.known.map((moment, position) =>
     `<moment id="M${position + 1}">\n${moment.what}\n${moment.quotes.map(quote => `"${quote.text}"`).join("\n")}\n</moment>`);
   const task = [
-    ask.sceneEnded ? "The Scene has ended: write its summary." : "The Scene goes on: summary is null.",
+    ask.sceneEnded ? "The Scene has ended: write its summary." : "The Scene goes on: write where it stands so far.",
     ask.recordFrom > 0 ? "Entries marked recorded were recorded already: record Moments only from the entries after them." : "",
     "Return only the JSON object."
   ].filter(Boolean).join("\n");

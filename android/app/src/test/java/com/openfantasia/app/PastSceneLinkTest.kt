@@ -18,7 +18,7 @@ class PastSceneLinkTest {
         return MacConnection(store, MacDiscovery { error("The saved address works") }, "Phone")
     }
 
-    @Test fun `reading a past Scene uses an authenticated contract 4 GET and decodes every field`() = runBlocking {
+    @Test fun `reading a past Scene uses an authenticated GET on the current contract and decodes every field`() = runBlocking {
         MacServer().use { mac ->
             val expected = FakeFantasiaLink.pastSceneFixture()
             mac.enqueue(MockResponse().setBody(linkJson.encodeToString(expected)))
@@ -27,7 +27,7 @@ class PastSceneLinkTest {
             assertEquals("GET", request.method)
             assertEquals("/stories/story%2Fother/scenes/13", request.path)
             assertEquals("Bearer secret", request.getHeader("Authorization"))
-            assertEquals("4", request.getHeader("Fantasia-Contract"))
+            assertEquals(com.openfantasia.protocol.CONTRACT_VERSION.toString(), request.getHeader("Fantasia-Contract"))
             assertEquals(0L, request.bodySize)
             assertEquals(1, mac.server.requestCount)
         }

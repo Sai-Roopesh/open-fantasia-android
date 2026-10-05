@@ -333,7 +333,8 @@
         "last_event_id",
         "focus",
         "linger",
-        "day_view"
+        "day_view",
+        "previously"
       ],
       "properties": {
         "story_id": {
@@ -400,6 +401,17 @@
               "type": "null"
             }
           ]
+        },
+        "previously": {
+          "description": "Present when the player last played this Story more than a day ago and the Scene they are in, or the Scene that closed at the Day View, has a summary: the Previously card.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Previously"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     },
@@ -421,6 +433,25 @@
         "summary": {
           "type": "string",
           "description": "The Chronicler's one line for the Scene, or empty until it has written one."
+        }
+      }
+    },
+    "Previously": {
+      "description": "The Previously card: where the Story stands, from the Chronicler's records, and when the player last played.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "summary",
+        "since"
+      ],
+      "properties": {
+        "summary": {
+          "description": "The latest summary of the Scene the player is in (so far), or of the Scene that closed.",
+          "type": "string"
+        },
+        "since": {
+          "description": "When the player last played: the time the Path's head entry was written, ISO 8601.",
+          "type": "string"
         }
       }
     },

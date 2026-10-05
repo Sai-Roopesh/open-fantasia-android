@@ -102,10 +102,21 @@ describe("working out the State on a Path", () => {
     expect(tree.pathTo("old-note").at(-1)?.payload).toMatchObject({ inPlay: [], goes: [] });
   });
 
+  it("reads a Chronicle written before sceneEnded as ended exactly when it had a summary", () => {
+    const { db, tree, opened } = storyWithScene();
+    const move = tree.append("s", opened.id, { kind: "move", text: "I raise my glass." });
+    const stored = (id: string, summary: string | null) => db.prepare("INSERT INTO entries (id, story_id, parent_id, kind, payload, created_at) VALUES (?, 's', ?, 'chronicle', ?, 'now')")
+      .run(id, move.id, JSON.stringify({ kind: "chronicle", scene: opened.id, summary, moments: [], told: [], callId: "c", model: { provider: "claude", model: "claude-sonnet-5-5" } }));
+    stored("old-open", null);
+    stored("old-ended", "She drank to him.");
+    expect(tree.entry("old-open")?.payload).toMatchObject({ sceneEnded: false });
+    expect(tree.entry("old-ended")?.payload).toMatchObject({ sceneEnded: true });
+  });
+
   it("keeps Chronicles beside the Path: a Path sees those whose parent is on it, and never walks one", () => {
     const { tree, opened } = storyWithScene();
     const model = { provider: "claude", model: "claude-sonnet-5-5" } as const;
-    const chronicle = (parent: string, summary: string) => tree.append("s", parent, { kind: "chronicle", scene: opened.id, summary, moments: [], told: [], callId: "c", model });
+    const chronicle = (parent: string, summary: string) => tree.append("s", parent, { kind: "chronicle", scene: opened.id, summary, sceneEnded: false, moments: [], told: [], callId: "c", model });
     const move = tree.append("s", opened.id, { kind: "move", text: "I wave." });
     const reply = tree.append("s", move.id, { kind: "reply", text: "She waves back.", callId: "c", model });
     const early = chronicle(move.id, "early");

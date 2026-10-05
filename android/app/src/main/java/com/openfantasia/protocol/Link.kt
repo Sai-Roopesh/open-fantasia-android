@@ -17,6 +17,7 @@
 // val turnState        = json.parse(TurnState.serializer(), jsonString)
 // val sceneView        = json.parse(SceneView.serializer(), jsonString)
 // val sceneSummaryLine = json.parse(SceneSummaryLine.serializer(), jsonString)
+// val previously       = json.parse(Previously.serializer(), jsonString)
 // val moveRequest      = json.parse(MoveRequest.serializer(), jsonString)
 // val turnAccepted     = json.parse(TurnAccepted.serializer(), jsonString)
 // val storyEvent       = json.parse(StoryEvent.serializer(), jsonString)
@@ -196,6 +197,12 @@ data class SceneView (
     @SerialName("player_character")
     val playerCharacter: String,
 
+    /**
+     * Present when the player last played this Story more than a day ago and the Scene they are
+     * in, or the Scene that closed at the Day View, has a summary: the Previously card.
+     */
+    val previously: Previously? = null,
+
     val scene: SceneCard,
 
     /**
@@ -312,6 +319,23 @@ data class Passage (
     val entryID: String,
 
     val text: String
+)
+
+/**
+ * The Previously card: where the Story stands, from the Chronicler's records, and when the
+ * player last played.
+ */
+@Serializable
+data class Previously (
+    /**
+     * When the player last played: the time the Path's head entry was written, ISO 8601.
+     */
+    val since: String,
+
+    /**
+     * The latest summary of the Scene the player is in (so far), or of the Scene that closed.
+     */
+    val summary: String
 )
 
 /**

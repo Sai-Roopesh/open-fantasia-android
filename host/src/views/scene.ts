@@ -1,4 +1,4 @@
-import type { Countdown, DayView, Exchange, PastScene, SceneCard, SceneView, StoryEvent } from "../protocol/generated/link.js";
+import type { Countdown, DayView, Exchange, PastScene, Previously, SceneCard, SceneView, StoryEvent } from "../protocol/generated/link.js";
 import type { Engine } from "../engine/engine.js";
 import { LinkError } from "../link/errors.js";
 import type { Mac } from "../mac.js";
@@ -86,7 +86,7 @@ export function sceneEntries(mac: Mac, head: string): { state: State; entries: E
  * The Scene screen as the Mac sees it on the Story's current Path. The phone shows this and applies the live
  * events after [last_event_id]; it never works the State out itself (docs/adr/0001).
  */
-export function sceneView(mac: Mac, engine: Engine, storyId: string, traceId: string): SceneView {
+export function sceneView(mac: Mac, engine: Engine, storyId: string, traceId: string, now: Date = new Date()): SceneView {
   const path = mac.tree.currentPath(storyId);
   if (!path) throw new LinkError("not_found", "That Story is not on this Mac.");
   const { state, entries } = sceneEntries(mac, path.headEntryId);
@@ -111,12 +111,29 @@ export function sceneView(mac: Mac, engine: Engine, storyId: string, traceId: st
       : []),
     exchanges: exchanges(entries),
     turn: engine.turnState(storyId),
+    previously: previously(mac, path.headEntryId, scene.openedBy, summaries, now),
     trace_id: traceId
   };
 }
 
+/** How long the player has been away before the Previously card shows (openspec stories: Back after a night away). */
+const AWAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * The Previously card, when the player last played more than a day before [now]: the latest summary of the Scene they
+ * are in, or of the Scene that closed when they are at the Day View. A Scene with no summary yet has no card, rather
+ * than an earlier Scene's words passed off as its own; the Mac writes one an hour after the player steps away.
+ */
+function previously(mac: Mac, head: string, scene: string, summaries: Map<string, string>, now: Date): Previously | null {
+  const since = mac.tree.entry(head)?.createdAt;
+  if (!since || now.getTime() - Date.parse(since) <= AWAY_MS) return null;
+  const summary = summaries.get(scene);
+  return summary ? { summary, since } : null;
+}
+
 /** The Chronicler's summary of each Scene on the Path at [head] that has one, by the Scene's opening entry. */
 function summariesOn(mac: Mac, head: string): Map<string, string> {
+  // Chronicles come oldest first, so each Scene keeps its latest: what happened in it once it has ended.
   return new Map(mac.tree.chroniclesOn(head).flatMap(entry => {
     const chronicle = entry.payload as Chronicle;
     return chronicle.summary ? [[chronicle.scene, chronicle.summary] as const] : [];

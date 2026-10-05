@@ -44,10 +44,14 @@ the entry where it happened. Only telling: knowing about it already, or hinting,
 
 ## The summary
 
-When the Scene has ended, write `summary`: one line, at most thirty words, of what happened in it, in the past
-tense, the way a chapter in a table of contents is described. It is read by the player. Say what happened, not what
-it meant, and nothing about the player's character that his Moves did not say. When the Scene has not ended,
-`summary` is null.
+Always write `summary`, at most thirty words, in the past tense. It is read by the player. Say what happened, not
+what it meant, and nothing about the player's character that his Moves did not say.
+
+- When the Scene has ended: one line of what happened in it, the way a chapter in a table of contents is described.
+- When the Scene goes on: one or two lines of where it stands so far, from its start to its latest entry, for a
+  player coming back to it after a day away: "After the troll, Hermione waited up in the common room. She brought up
+  the inkwell in Charms, and wasn't having 'maybe it likes you'." Recorded entries count here too: the summary is of
+  the whole Scene so far, not only of what you record now.
 
 ## What you are given
 

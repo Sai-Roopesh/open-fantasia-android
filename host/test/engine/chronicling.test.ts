@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { Engine } from "../../src/engine/engine.js";
 import { fakeChronicleAnswer, FakeModels } from "../../src/models/fake.js";
 import { Models, type ModelRequest, type ModelRunner } from "../../src/models/model-call.js";
@@ -21,7 +21,7 @@ describe("when the Chronicler runs", () => {
     engine.endScene(storyId, head(), "trace-end");
     await engine.chronicled(storyId);
     const [chronicle] = chronicles(mac, head());
-    expect(chronicle).toMatchObject({ summary: "The Scene was played to its end.", parent: { payload: { kind: "scene_closed" } } });
+    expect(chronicle).toMatchObject({ summary: "The Scene was played to its end.", sceneEnded: true, parent: { payload: { kind: "scene_closed" } } });
     expect(chronicle!.moments[0]!.quotes[0]!.text).toBe("I say goodnight.");
     expect(mac.tree.pathTo(head()).some(entry => entry.payload.kind === "chronicle")).toBe(false);
   });
@@ -61,18 +61,25 @@ describe("when the Chronicler runs", () => {
     expect(chronicles(mac, head())).toHaveLength(1);
   });
 
-  it("chronicles an open Scene every twelve exchanges, with no summary", async () => {
-    const { play, engine, storyId, head, mac } = playable();
+  it("chronicles an open Scene every twelve exchanges, with where it stands so far, and again at its end", async () => {
+    const { play, engine, storyId, head, mac, view } = playable();
     for (let exchange = 1; exchange <= 11; exchange++) await play(`I stay by the fire (${exchange}).`);
     await engine.chronicled(storyId);
     expect(chronicles(mac, head())).toHaveLength(0);
     await play("I stay by the fire (12).");
     await engine.chronicled(storyId);
     const [chronicle] = chronicles(mac, head());
-    expect(chronicle).toMatchObject({ summary: null, parent: { id: head() } });
+    expect(chronicle).toMatchObject({ summary: "The Scene so far.", sceneEnded: false, parent: { id: head() } });
     await play("I stay by the fire (13).");
     await engine.chronicled(storyId);
     expect(chronicles(mac, head())).toHaveLength(1);
+    // A summary of the Scene so far is not its summary: the Scene is chronicled again when it ends.
+    engine.endScene(storyId, head(), "trace-end");
+    await engine.chronicled(storyId);
+    expect(chronicles(mac, head()).at(-1)).toMatchObject({ summary: "The Scene was played to its end.", sceneEnded: true });
+    // Where the Scene is shown as an earlier one, its ended summary is the one shown.
+    await play("In the morning I go down to breakfast.");
+    expect(view().earlier_scenes).toEqual([expect.objectContaining({ number: 1, summary: "The Scene was played to its end." })]);
   });
 
   it("keeps a failed run with its reason, and runs it again the next time it is due", async () => {
@@ -89,6 +96,48 @@ describe("when the Chronicler runs", () => {
     restarted.chronicleAll();
     await restarted.chronicled(storyId);
     expect(chronicles(mac, head())).toHaveLength(1);
+  });
+
+  it("chronicles an open Scene once the player has stepped away for an hour, and not before", async () => {
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
+    try {
+      const { play, engine, storyId, head, mac } = playable();
+      await play("I sit down.");
+      await play("I ask what she is reading.");
+      await vi.advanceTimersByTimeAsync(59 * 60_000);
+      await engine.chronicled(storyId);
+      expect(chronicles(mac, head())).toHaveLength(0);
+      // Anything the player does starts the hour again.
+      engine.setLinger(storyId, head(), true, "t-linger");
+      await vi.advanceTimersByTimeAsync(30 * 60_000);
+      await engine.chronicled(storyId);
+      expect(chronicles(mac, head())).toHaveLength(0);
+      await vi.advanceTimersByTimeAsync(35 * 60_000);
+      await engine.chronicled(storyId);
+      expect(chronicles(mac, head())).toEqual([expect.objectContaining({ summary: "The Scene so far.", sceneEnded: false })]);
+      // What is recorded is not recorded again.
+      await vi.advanceTimersByTimeAsync(3 * 3600_000);
+      engine.chronicle(storyId);
+      await engine.chronicled(storyId);
+      expect(chronicles(mac, head())).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("catches up when the Mac starts on a Scene the player stepped away from while it was stopped", async () => {
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
+    try {
+      const { play, storyId, head, mac } = playable();
+      await play("I sit down.");
+      vi.setSystemTime(Date.now() + 2 * 3600_000);
+      const restarted = new Engine(mac, new Models(mac.db, { claude: new FakeModels() }));
+      restarted.chronicleAll();
+      await restarted.chronicled(storyId);
+      expect(chronicles(mac, head())).toEqual([expect.objectContaining({ sceneEnded: false })]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("chronicles again what a Redo took off the Path, from the last Chronicle still on it", async () => {
