@@ -29,4 +29,4 @@ the Gap`.
 ## 4. Together
 
 - [x] 4.1 Run `scripts/scenarios.mjs`, the host suite, the Android JVM and device suites, and `openspec validate --all --strict`, and verify all pass
-- [ ] 4.2 On the phone, with the Mac and the phone installed together at version 8: at a Night Train Day View, choose with a Gap and see the Scene open at once with the Move and the NEXT SCENE card, then fill in when the Writer has opened it; verify the times from `fantasia trace` and compare with the drawings
+- [x] 4.2 On the phone, with the Mac and the phone installed together at version 8: at a Night Train Day View, choose with a Gap and see the Scene open at once with the Move and the NEXT SCENE card, then fill in when the Writer has opened it; verify the times from `fantasia trace` and compare with the drawings
