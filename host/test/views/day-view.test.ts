@@ -12,7 +12,7 @@ describe("the Day View", () => {
     engine.endScene(storyId, head(), "trace-end");
     expect(view().day_view).toEqual({
       at: "Day 5 19:00",
-      at_label: "Sunday · 7:00 pm",
+      at_label: "Sunday 7:00 pm",
       day: "Sunday",
       time: "7:00 pm",
       place: "The Gryffindor common room",

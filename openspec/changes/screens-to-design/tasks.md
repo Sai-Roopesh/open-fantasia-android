@@ -30,5 +30,5 @@ Screens built here, from docs/design: `Main.dc.html`, `Pair.dc.html`, `Scene.dc.
 
 ## 4. Together
 
-- [ ] 4.1 Install on the phone, play a Scene of the Night Train to its Day View, and compare a screenshot of each built screen with its drawn one; fix what differs
-- [ ] 4.2 Run `scripts/scenarios.mjs`, the host suite, the Android JVM and device suites, and `openspec validate --all --strict`, and verify all pass
+- [x] 4.1 Install on the phone, play a Scene of the Night Train to its Day View, and compare a screenshot of each built screen with its drawn one; fix what differs
+- [x] 4.2 Run `scripts/scenarios.mjs`, the host suite, the Android JVM and device suites, and `openspec validate --all --strict`, and verify all pass

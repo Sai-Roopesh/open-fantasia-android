@@ -21,4 +21,6 @@ class DesignUiJvmTest : DesignUiChecks() {
     @Test fun earlierSceneSummariesAndOpeningRemainReachable() = earlierScenes()
     @Scenario("presence › Nothing fails silently › A model is down")
     @Test fun failedReplyHasReasonAndRetry() = failedReply()
+    @Test fun italicsReadAsItalics() = italicReply()
+    @Test fun withoutFocusTheCardSaysHow() = noFocus()
 }

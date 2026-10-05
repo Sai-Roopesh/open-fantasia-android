@@ -57,7 +57,7 @@ open class DesignUiChecks {
     }
 
     // GIVEN the player opens a Story in the Scene "After curfew" in the Common room on Friday at 9:40 pm, with Hermione there
-    // THEN the title card shows "After curfew", "Common room", "Friday · 9:40 pm" and Hermione's Portrait
+    // THEN the title card shows "After curfew", "Common room", "Friday 9:40 pm" and Hermione's Portrait
     fun titleCard() {
         link.current.value = link.current.value.copy(scene = link.current.value.scene.copy(
             people = listOf(PersonCard(name = "Hermione Granger", portraitURL = null))), focus = "Hermione Granger")
@@ -67,7 +67,7 @@ open class DesignUiChecks {
         compose.preview("Scene")
         compose.onNodeWithText("SCENE 14").assertIsDisplayed()
         compose.onNodeWithText("After curfew").assertIsDisplayed()
-        compose.onNodeWithText("Common room · Friday · 9:40 pm").assertIsDisplayed()
+        compose.onNodeWithText("Common room · Friday 9:40 pm").assertIsDisplayed()
         compose.onNodeWithContentDescription("Hermione Granger's Portrait").assertIsDisplayed().assertIsSelected()
         compose.onNodeWithText("Hermione").assertIsDisplayed()
         compose.onNodeWithText("Focus on Hermione · tap a Portrait to change").assertIsDisplayed()
@@ -94,6 +94,26 @@ open class DesignUiChecks {
         compose.onNodeWithText("Hermione looks up.").assertIsDisplayed()
         compose.onNodeWithTag("scene-passages").performScrollToNode(hasText("ROOPESH"))
         compose.onNodeWithText("ROOPESH").assertIsDisplayed()
+    }
+
+    // A Reply reads as prose: the words the Actor marks with asterisks are in italics, and no asterisk shows.
+    fun italicReply() {
+        link.current.value = link.current.value.copy(headEntryID = "opening", exchanges = listOf(
+            Exchange(reply = Passage(entryID = "opening", text = "A chai seller comes down the aisle, *chai, chai garam*, and she says *fine*."))))
+        openScene()
+        val reply = compose.onNodeWithText("A chai seller comes down the aisle, chai, chai garam, and she says fine.").assertIsDisplayed()
+        val text = reply.fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsProperties.Text].single()
+        val italic = text.spanStyles.filter { it.item.fontStyle == androidx.compose.ui.text.font.FontStyle.Italic }
+            .map { text.text.substring(it.start, it.end) }
+        assertEquals(listOf("chai, chai garam", "fine"), italic)
+    }
+
+    // A Scene without Focus says how to put someone in it: Focus is set with words, not by guessing at a Portrait.
+    fun noFocus() {
+        openScene()
+        compose.onNodeWithTag("scene-passages").performScrollToNode(hasTestTag("scene-title"))
+        compose.onNodeWithContentDescription("Hermione's Portrait").assertIsNotSelected()
+        compose.onNodeWithText("Tap a Portrait to focus on someone").assertIsDisplayed()
     }
 
     // WHEN the player taps Copy on the latest Reply

@@ -48,7 +48,7 @@ export function sayTime(time: StoryTime): string {
   return `${twelve}:${String(minute).padStart(2, "0")} ${hour < 12 ? "am" : "pm"}`;
 }
 
-/** How people say a Story time: "Friday · 9:40 pm", or "Day 3 · 9:40 pm" when the weekday is unknown. */
+/** How people say a Story time: "Friday 9:40 pm", or "Day 3 9:40 pm" when the weekday is unknown. */
 export function sayStoryTime(time: StoryTime, dayOneWeekday: Weekday | null): string {
-  return `${sayDay(time, dayOneWeekday)} · ${sayTime(time)}`;
+  return `${sayDay(time, dayOneWeekday)} ${sayTime(time)}`;
 }

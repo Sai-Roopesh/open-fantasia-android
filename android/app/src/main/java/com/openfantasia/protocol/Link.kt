@@ -225,7 +225,7 @@ data class DayView (
     val at: String,
 
     /**
-     * Story time as people say it: "Sunday · 7:40 am".
+     * Story time as people say it: "Sunday 7:40 am".
      */
     @SerialName("at_label")
     val atLabel: String,
@@ -327,7 +327,7 @@ data class SceneCard (
     val at: String,
 
     /**
-     * Story time as people say it: "Friday · 9:40 pm".
+     * Story time as people say it: "Friday 9:40 pm".
      */
     @SerialName("at_label")
     val atLabel: String,

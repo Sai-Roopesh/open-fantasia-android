@@ -351,7 +351,7 @@ open class WriterUiChecks {
         compose.onNodeWithText("She ").assertIsDisplayed()
         compose.onNodeWithTag("reply-caret", useUnmergedTree = true).assertExists()
         compose.onNodeWithTag("scene-header-title").assertTextEquals("After curfew")
-        compose.onNodeWithTag("scene-header-time").assertTextEquals("Scene 14 · Friday · 9:40 pm")
+        compose.onNodeWithTag("scene-header-time").assertTextEquals("Scene 14 · Friday 9:40 pm")
         compose.preview("SceneWriting")
         compose.onNodeWithTag("composer").performTextInput(" I stay.")
         compose.runOnIdle {

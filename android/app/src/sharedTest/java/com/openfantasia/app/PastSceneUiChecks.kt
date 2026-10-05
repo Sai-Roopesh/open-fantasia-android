@@ -28,11 +28,14 @@ open class PastSceneUiChecks {
         // A draft in the composer survives reading back. It is typed once the player has scrolled up, as a player
         // does: scrolling within the keyboard's opening animation is not something a person can do.
         compose.onNodeWithTag("composer").performTextInput("I wait by the fire.")
+        // The keyboard is down when the place is taken, as it is on coming back: a place is the same place only in a
+        // viewport of the same size, and near the end a taller one settles the list lower.
+        androidx.test.espresso.Espresso.closeSoftKeyboard()
         compose.onNodeWithTag("scene-passages").performScrollToNode(hasTestTag("earlier-13"))
         val position = compose.onNodeWithTag("earlier-13").fetchSemanticsNode().boundsInRoot
         compose.onNodeWithTag("earlier-13").performClick()
         compose.onNodeWithText("Scene 13 · The troll").assertIsDisplayed()
-        compose.onNodeWithText("The girls' bathroom · Friday · 8:10 pm").assertIsDisplayed()
+        compose.onNodeWithText("The girls' bathroom · Friday 8:10 pm").assertIsDisplayed()
         compose.onNodeWithText("He got Hermione out before the club came down.").assertIsDisplayed()
         compose.onNodeWithText("The troll raises its club.").assertIsDisplayed()
         compose.onNodeWithText("ROOPESH").assertIsDisplayed()

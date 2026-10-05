@@ -65,7 +65,7 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
 
     companion object {
         fun pastSceneFixture() = PastScene(number = 13, title = "The troll", place = "The girls' bathroom",
-            atLabel = "Friday · 8:10 pm", summary = "He got Hermione out before the club came down.", traceID = "past-scene",
+            atLabel = "Friday 8:10 pm", summary = "He got Hermione out before the club came down.", traceID = "past-scene",
             exchanges = listOf(
                 Exchange(move = null, reply = Passage(entryID = "past-opening", text = "The troll raises its club.")),
                 Exchange(move = Passage(entryID = "past-move", text = "I pull Hermione through the door."),
@@ -74,7 +74,7 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
                 Exchange(move = null, reply = Passage(entryID = "past-last-reply", text = "They reach the corridor."))))
         // Named arguments throughout: the generated classes list their fields alphabetically, so positional ones
         // put a summary where a title belongs without a compiler error.
-        fun dayView(closedBy: ClosedBy = ClosedBy.Story) = DayView(at = "Day 3 07:40", atLabel = "Sunday · 7:40 am", day = "Sunday", time = "7:40 am", place = "Common room", closedBy = closedBy,
+        fun dayView(closedBy: ClosedBy = ClosedBy.Story) = DayView(at = "Day 3 07:40", atLabel = "Sunday 7:40 am", day = "Sunday", time = "7:40 am", place = "Common room", closedBy = closedBy,
             countdowns = listOf(Countdown(linkSchemaWhen = "3 days", landmark = "Draconia's flying test", label = "3 days to Draconia's flying test"),
                 Countdown(linkSchemaWhen = "9 weeks", landmark = "Slytherin v Gryffindor", label = "9 weeks to Slytherin v Gryffindor")))
         fun sceneView() = SceneView(
@@ -87,7 +87,7 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
             ),
             lastEventID = "3", focus = null, linger = false, dayView = null,
             headEntryID = "reply", pathID = "path", playerCharacter = "Roopesh Gantasala",
-            scene = SceneCard(at = "Day 1 21:40", atLabel = "Friday · 9:40 pm", number = 14,
+            scene = SceneCard(at = "Day 1 21:40", atLabel = "Friday 9:40 pm", number = 14,
                 people = listOf(PersonCard(name = "Hermione", portraitURL = null)), place = "Common room", title = "After curfew"),
             seq = 3, storyID = "story", traceID = "view", turn = TurnState(kind = TurnStateKind.Idle)
         )

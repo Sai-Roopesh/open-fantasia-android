@@ -9,4 +9,6 @@ class SceneScreenTest : DesignUiChecks() {
     @Test fun sceneCard() = titleCard()
     @Scenario("scenes › Every Scene opens with a title card › Scrolling back")
     @Test fun earlierSceneSummariesAndOpeningRemainReachable() = earlierScenes()
+    @Test fun italicsReadAsItalics() = italicReply()
+    @Test fun withoutFocusTheCardSaysHow() = noFocus()
 }

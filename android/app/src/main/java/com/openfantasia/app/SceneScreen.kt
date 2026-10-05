@@ -227,12 +227,13 @@ class SceneScrollState(val list: LazyListState) {
 }
 
 @Composable private fun ArrivingReply(text: String) {
+    val shown = remember(text) { prose(text, arriving = true) }
     var layout by remember(text) { mutableStateOf<TextLayoutResult?>(null) }
-    Text(text, style = FantasiaType.prose, color = FantasiaProse, onTextLayout = { layout = it },
+    Text(shown, style = FantasiaType.prose, color = FantasiaProse, onTextLayout = { layout = it },
         modifier = Modifier.fillMaxWidth().testTag("reply-caret").drawWithContent {
             drawContent()
             layout?.let {
-                val cursor = it.getCursorRect(text.length)
+                val cursor = it.getCursorRect(shown.length)
                 val baseline = it.getLineBaseline(it.lineCount - 1)
                 drawRect(FantasiaLabel, Offset((cursor.left + 2.dp.toPx()).coerceAtMost(size.width - 2.dp.toPx()), baseline - 15.dp.toPx()), Size(2.dp.toPx(), 18.dp.toPx()))
             }
@@ -268,7 +269,8 @@ class SceneScrollState(val list: LazyListState) {
                         enabled = enabled, role = Role.Button, onClick = { setFocus(person.name) }), focused = person.name == focus)
                 }
             }
-            focus?.let { Text("Focus on ${firstName(it)} · tap a Portrait to change", color = FantasiaLabel, style = FantasiaType.small, modifier = Modifier.padding(top = 8.dp)) }
+            if (focus != null) Text("Focus on ${firstName(focus)} · tap a Portrait to change", color = FantasiaLabel, style = FantasiaType.small, modifier = Modifier.padding(top = 8.dp))
+            else if (card.people.isNotEmpty()) Text("Tap a Portrait to focus on someone", color = FantasiaCaption, style = FantasiaType.small, modifier = Modifier.padding(top = 8.dp))
         }
     }
 }
@@ -286,7 +288,7 @@ class SceneScrollState(val list: LazyListState) {
 }
 
 @Composable internal fun ReplyPassage(reply: Passage) {
-    Text(reply.text, modifier = Modifier.fillMaxWidth(), style = FantasiaType.prose, color = FantasiaProse)
+    Text(prose(reply.text), modifier = Modifier.fillMaxWidth(), style = FantasiaType.prose, color = FantasiaProse)
 }
 
 @Composable internal fun MovePassage(move: Passage, playerCharacter: String) {
@@ -294,7 +296,7 @@ class SceneScrollState(val list: LazyListState) {
         Surface(shape = FantasiaShapes.move, color = FantasiaRaised, modifier = Modifier.widthIn(max = maxWidth * .86f)) {
             Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(firstName(playerCharacter).uppercase(Locale.ROOT), color = FantasiaLabel, style = FantasiaType.player)
-                Text(move.text, style = FantasiaType.body)
+                Text(prose(move.text), style = FantasiaType.body)
             }
         }
     }

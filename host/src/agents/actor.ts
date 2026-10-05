@@ -1,6 +1,6 @@
 import type { Entry } from "../story/entries.js";
 import type { Person, State } from "../story/state.js";
-import { parseStoryTime, sayStoryTime } from "../time.js";
+import { parseStoryTime, sayDay, sayTime, type StoryTime, type Weekday } from "../time.js";
 import type { ModelAnswer, Models } from "../models/model-call.js";
 import { NOTHING_RECALLED, sayWords, type Recall } from "./recall.js";
 
@@ -46,7 +46,7 @@ export function actorPrompt(state: State, scene: Entry[], recall: Recall = NOTHI
     section("world", [state.world.summary, state.world.history].filter(Boolean).join("\n\n")),
     section(`player_character name="${pc}"`, describe(state.people[pc], { withVoice: false })),
     section("people_here", here.map(person => section(`person name="${person.name}"`, describe(person, { withVoice: true }))).join("\n\n") || "Nobody besides " + pc + "."),
-    section("scene", `${state.scene.title}. ${state.scene.place}, ${at ? sayStoryTime(at, state.dayOneWeekday).replace(" · ", ", ") : state.scene.at}.`),
+    section("scene", `${state.scene.title}. ${state.scene.place}, ${at ? sayDayAndTime(at, state.dayOneWeekday) : state.scene.at}.`),
     // Only the Moments someone here knows: the summaries and the end of the last Scene are not sorted by who knows them,
     // so they go to the Writer alone (docs/adr/0004: the Actor sees what the people in the Scene know).
     section("remembered", recall.moments.map(moment => section(`moment scene="${moment.scene}" known_to="${moment.knownTo.join(", ")}"`, sayWords(moment.words))).join("\n\n"))
@@ -83,7 +83,7 @@ function scenePrompt(state: State, scene: Entry[], pc: string, recall: Recall): 
   const now = parseStoryTime(state.clock);
   const call = current?.call ? CALL[current.call] : null;
   const thisReply = [
-    `It is ${now ? sayStoryTime(now, state.dayOneWeekday).replace(" · ", ", ") : state.clock}.`,
+    `It is ${now ? sayDayAndTime(now, state.dayOneWeekday) : state.clock}.`,
     current?.note ? `What happens next: ${current.note}` : "",
     call ? (current?.call === "end" ? `${call}${pc}'s.` : call) : "",
     current?.focus ? `Stay close beside ${current.focus}: mostly their words, actions and thoughts. Nobody new comes in unless the Move brings them.` : "",
@@ -114,6 +114,11 @@ function describe(person: Person | undefined, { withVoice }: { withVoice: boolea
     person.knows.length ? `Knows: ${person.knows.join(" ")}` : "",
     withVoice && person.voice.length ? `Has said: ${person.voice.map(line => `"${line}"`).join(" ")}` : ""
   ].filter(Boolean).join("\n");
+}
+
+/** A Story time in the Actor's words: "Friday, 9:40 pm". */
+function sayDayAndTime(time: StoryTime, dayOneWeekday: Weekday | null): string {
+  return `${sayDay(time, dayOneWeekday)}, ${sayTime(time)}`;
 }
 
 function section(tag: string, body: string): string | null {

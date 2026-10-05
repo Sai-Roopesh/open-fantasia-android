@@ -64,10 +64,12 @@ dependencies {
     testImplementation(libs.coroutines.test)
     testImplementation(libs.mockwebserver)
     testImplementation(libs.okhttp.tls)
+    testImplementation(libs.espresso)
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.compose.test)
     androidTestImplementation(libs.android.junit)
     androidTestImplementation(libs.runner)
+    androidTestImplementation(libs.espresso)
     debugImplementation(libs.compose.tooling)
     debugImplementation(libs.compose.test.manifest)
 }

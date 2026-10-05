@@ -22,6 +22,6 @@ class OpenStoryScreenTest {
         compose.onNodeWithText("She smiles.").assertIsDisplayed()
         compose.onNodeWithTag("scene-passages").performScrollToNode(hasTestTag("scene-title"))
         compose.onNodeWithText("After curfew").assertIsDisplayed()
-        compose.onNodeWithText("Common room · Friday · 9:40 pm").assertIsDisplayed()
+        compose.onNodeWithText("Common room · Friday 9:40 pm").assertIsDisplayed()
     }
 }

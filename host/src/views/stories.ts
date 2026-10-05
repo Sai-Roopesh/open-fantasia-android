@@ -1,7 +1,7 @@
 import type { StorySummary } from "../protocol/generated/link.js";
 import type { Mac } from "../mac.js";
 import type { State } from "../story/state.js";
-import { parseStoryTime, sayDay, sayTime } from "../time.js";
+import { parseStoryTime, sayStoryTime } from "../time.js";
 
 /**
  * The home screen: every Story, with where it stands on its current Path, most recently played first
@@ -27,7 +27,7 @@ function whereItStands(state: State): { standing: string; detail: string } {
   const scene = state.scene;
   if (!scene) return { standing: "Not begun", detail: "" };
   const now = parseStoryTime(state.clock);
-  const when = now ? `${sayDay(now, state.dayOneWeekday)} ${sayTime(now)}` : state.clock;
+  const when = now ? sayStoryTime(now, state.dayOneWeekday) : state.clock;
   if (scene.closed) return { standing: `${when} · choosing where to go`, detail: `${scene.number} ${scene.number === 1 ? "Scene" : "Scenes"} played` };
   const firstNames = scene.here.map(name => name.split(/\s+/)[0]);
   const company = firstNames.length === 0 ? "alone"

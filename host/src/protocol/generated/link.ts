@@ -115,7 +115,7 @@ export interface SceneCard {
    */
   at: string;
   /**
-   * Story time as people say it: "Friday · 9:40 pm".
+   * Story time as people say it: "Friday 9:40 pm".
    */
   at_label: string;
   /**
@@ -231,7 +231,7 @@ export interface DayView {
    */
   at: string;
   /**
-   * Story time as people say it: "Sunday · 7:40 am".
+   * Story time as people say it: "Sunday 7:40 am".
    */
   at_label: string;
   /**
@@ -338,7 +338,7 @@ export interface SceneCard1 {
    */
   at: string;
   /**
-   * Story time as people say it: "Friday · 9:40 pm".
+   * Story time as people say it: "Friday 9:40 pm".
    */
   at_label: string;
   /**
@@ -355,7 +355,7 @@ export interface DayView1 {
    */
   at: string;
   /**
-   * Story time as people say it: "Sunday · 7:40 am".
+   * Story time as people say it: "Sunday 7:40 am".
    */
   at_label: string;
   /**

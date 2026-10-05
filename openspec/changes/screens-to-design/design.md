@@ -61,3 +61,14 @@ that changes the screen, and says what it proves as before; no check is dropped.
 
 - [Fonts fetched at first run] → the system fallback is readable; the provider caches after the first fetch.
 - [Drawn screens show controls not built yet] → left out until their change, as the README's table says.
+
+## Found on the phone
+
+Comparing each built screen with its drawn one on the phone (task 4.1) found three differences, now fixed:
+- The Actor marks italics with asterisks (`*chai, chai garam*`, in six of the first nine Replies), and the Scene
+  showed them. Replies and Moves now read as prose: words between asterisks in italics, no asterisk shown, and while
+  a Reply arrives an italic already opened runs to the end of what has come.
+- Story time read "Friday · 7:30 am"; the drawings say "Friday 7:30 am", as Home already did. The Mac now says it one
+  way everywhere the phone shows it (the contract's descriptions follow); the Actor keeps its own "Friday, 7:30 am".
+- A Scene without Focus showed no caption, so nothing said a Portrait could be tapped. It now says "Tap a Portrait to
+  focus on someone" (the drawings' decision: things that change the Story are words, not icons alone).
