@@ -64,6 +64,8 @@ export interface BeatNote {
   arcMoved: boolean;
   clock: string;
   taste: string | null;
+  /** The remembered Moments the Reply draws on, by id. */
+  inPlay: string[];
   callId: string;
   model: ModelChoice;
 }

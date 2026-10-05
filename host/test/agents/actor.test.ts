@@ -68,7 +68,7 @@ describe("the Actor's prompt for one Reply", () => {
         ...changes
       }
     };
-    return actorPrompt(current, [...scene, { ...move, seq: move.seq + 1, id: "note", payload: { kind: "beat_note", plan: null, here: [], beats: [], note: "", call: "continue", intensity: 2, arcMoved: true, clock: "Day 1 22:52", taste: null, callId: "c", model: state.actor } }]);
+    return actorPrompt(current, [...scene, { ...move, seq: move.seq + 1, id: "note", payload: { kind: "beat_note", plan: null, here: [], beats: [], note: "", call: "continue", intensity: 2, arcMoved: true, clock: "Day 1 22:52", taste: null, inPlay: [], callId: "c", model: state.actor } }]);
   };
 
   it("adds the time, the Beat Note, Focus, Linger and Taste after the Move, and never the beats, purpose or exit", () => {
@@ -83,6 +83,17 @@ describe("the Actor's prompt for one Reply", () => {
     for (const secret of ["Meera decides whether this stranger", "climbs to the upper berth", "The lights go out", "Meera asks about Shimla."]) {
       expect(system + prompt).not.toContain(secret);
     }
+  });
+
+  it("puts the words of the memories in play after the Move, right before its last line", () => {
+    const { state, mac, head, storyId } = nightTrain();
+    const move = mac.tree.append(storyId, head(), { kind: "move", text: "I ask about the window seat." });
+    const recalled = { earlier: [], lastSceneEnd: [], moments: [{ id: "moment-seat", scene: "Scene 1 · The wrong berth", what: "w", words: [{ by: "Ishaan Mehra", text: "I offer her the window seat." }], knownTo: ["Meera Kulkarni"] }] };
+    const current: State = { ...state, scene: { ...state.scene!, inPlay: ["moment-seat"] } };
+    const { prompt } = actorPrompt(current, mac.tree.pathTo(move.id).slice(1), recalled);
+    expect(prompt).toMatch(/<in_play>\n<moment scene="Scene 1 · The wrong berth" known_to="Meera Kulkarni">\n<move by="Ishaan Mehra">\nI offer her the window seat\.\n<\/move>\n<\/moment>\n<\/in_play>\n\nWrite what happens next/);
+    const none = actorPrompt({ ...current, scene: { ...current.scene!, inPlay: [] } }, mac.tree.pathTo(move.id).slice(1), recalled).prompt;
+    expect(none).not.toContain("<in_play>");
   });
 
   it("says what the call means for this Reply", () => {

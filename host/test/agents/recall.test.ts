@@ -8,7 +8,7 @@ import { playable } from "../support/play.js";
 import { hogwartsStoryFile } from "../support/story-files.js";
 
 const beats = [{ text: "a", status: "in_play" }, { text: "b", status: "pending" }, { text: "c", status: "pending" }];
-const opens = (here: string[], clock: string, title: string): Script => ({ answer: JSON.stringify({ leaves_scene: false, frame: { title, place: title, purpose: "p", exit: "e" }, here, beats, note: "n", call: "continue", intensity: 2, arc_moved: true, clock, taste: null }) });
+const opens = (here: string[], clock: string, title: string): Script => ({ answer: JSON.stringify({ leaves_scene: false, frame: { title, place: title, purpose: "p", exit: "e" }, here, beats, note: "n", call: "continue", intensity: 2, arc_moved: true, clock, taste: null, in_play: [] }) });
 // The first Scene opens with the Story File's prose, so its Move is E2; a Scene a Move opened starts with that Move.
 const moment = (what: string, weight: number, there: string[], entry = "E1"): unknown => ({ what, quotes: [{ entry, text: "I sit down." }], there, weight });
 const chronicle = (summary: string, moments: unknown[]): Script => ({ answer: JSON.stringify({ summary, moments, told: [] }) });

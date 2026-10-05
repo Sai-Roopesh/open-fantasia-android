@@ -13,7 +13,7 @@ const beats = [{ text: "a", status: "in_play" }, { text: "b", status: "pending" 
 /** A Writer's answer: the first one in a Story frames its opening; [opens] frames a new Scene from the Day View. */
 function writer(here: string[], clock: string, opens?: { title: string; place: string }): Script {
   const frame = opens ? { ...opens, purpose: "p", exit: "e" } : { title: "kept", place: "kept", purpose: "p", exit: "e" };
-  return { answer: JSON.stringify({ leaves_scene: false, frame, here, beats, note: "n", call: "continue", intensity: 2, arc_moved: true, clock, taste: null }) };
+  return { answer: JSON.stringify({ leaves_scene: false, frame, here, beats, note: "n", call: "continue", intensity: 2, arc_moved: true, clock, taste: null, in_play: [] }) };
 }
 
 function chronicle(summary: string, moments: unknown[], told: unknown[] = []): Script {

@@ -52,7 +52,7 @@ export function actorPrompt(state: State, scene: Entry[], recall: Recall = NOTHI
     section("remembered", recall.moments.map(moment => section(`moment scene="${moment.scene}" known_to="${moment.knownTo.join(", ")}"`, sayWords(moment.words))).join("\n\n"))
   ].filter(part => part !== null).join("\n");
 
-  return { system, prompt: scenePrompt(state, scene, pc) };
+  return { system, prompt: scenePrompt(state, scene, pc, recall) };
 }
 
 /** What the Writer's call means for the Reply the Actor is writing. */
@@ -67,7 +67,7 @@ const CALL = {
  * means, Focus, Linger and Taste. They come after the Move so the system prompt stays the same through a Scene. The
  * Writer's beats, purpose and exit never reach the Actor: a Reply told where the Scene is going performs it.
  */
-function scenePrompt(state: State, scene: Entry[], pc: string): string {
+function scenePrompt(state: State, scene: Entry[], pc: string, recall: Recall): string {
   const moveAt = scene.findLastIndex(entry => entry.payload.kind === "move");
   const latest = scene[moveAt];
   if (latest?.payload.kind !== "move") throw new Error("The Actor answers a Move, and the Scene has none to answer");
@@ -96,6 +96,10 @@ function scenePrompt(state: State, scene: Entry[], pc: string): string {
     section(`move by="${pc}"`, latest.payload.text),
     section("this_reply", thisReply),
     section("taste", state.taste.map(line => `- ${line}`).join("\n")),
+    // The memories the Writer put in play, again in their own words and last, where they weigh most: a Reply drawing on
+    // the past keeps to what happened instead of filling the gaps itself.
+    section("in_play", recall.moments.filter(moment => current?.inPlay.includes(moment.id))
+      .map(moment => section(`moment scene="${moment.scene}" known_to="${moment.knownTo.join(", ")}"`, sayWords(moment.words))).join("\n\n")),
     `Write what happens next. What ${pc} says, chooses, thinks and feels belongs to the player, now and in anything the story has not shown; what he did before is only what the scene and remembered show, as they show it. Leave the rest out.`
   ].filter(part => part !== null).join("\n\n");
 }

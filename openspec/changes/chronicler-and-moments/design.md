@@ -82,6 +82,12 @@ ADR-0006's prompt, minus what later agents add, split by what each agent may see
   ranked by weight, by how many of the people present know them, and by how recent they are (each Scene back counts
   for less), and shown oldest first, each with its Scene and who of the people present knows it.
 
+The Writer names, in each answer, at most two of the remembered Moments the Reply should draw on (`in_play`), and the
+Beat Note keeps their ids; the Actor reads those Moments' words again at the end of its prompt, just before its last
+line. The real-model gates showed why: with the Moments in its system prompt only, the Actor recalled the past
+correctly two runs in three, and in the third filled a gap with a detail nobody wrote ("you were by the door") or
+barely used the memory. The player chose this over a second model checking every Reply.
+
 The Actor reads only the Moments, and only as their original words, never the Chronicler's `what`. The summaries and
 the end of the last Scene are not sorted by who knows them: given to the Actor, they let Hermione know what was said
 in Hagrid's hut, and bring back a Reply's invented line about the Player Character (both caught by the recall

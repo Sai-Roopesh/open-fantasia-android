@@ -16,7 +16,7 @@ function entry(payload: Payload): Entry {
 const beats = (inPlay: number): Beat[] => [0, 1, 2].map(index => ({ text: `beat ${index + 1}`, status: index < inPlay ? "done" : index === inPlay ? "in_play" : "pending" }));
 
 function note(changes: Partial<BeatNote> = {}): Payload {
-  return { kind: "beat_note", plan: null, here: ["Meera Kulkarni", "Uncle Bhalla"], beats: beats(0), note: "Meera sits.", call: "continue", intensity: 2, arcMoved: true, clock: "Day 1 22:45", taste: null, callId: "c", model: { provider: "claude", model: "claude-sonnet-5-5" }, ...changes };
+  return { kind: "beat_note", plan: null, here: ["Meera Kulkarni", "Uncle Bhalla"], beats: beats(0), note: "Meera sits.", call: "continue", intensity: 2, arcMoved: true, clock: "Day 1 22:45", taste: null, inPlay: [], callId: "c", model: { provider: "claude", model: "claude-sonnet-5-5" }, ...changes };
 }
 
 const play = (state: State, ...payloads: Payload[]) => payloads.reduce((current, payload) => apply(current, entry(payload)), state);
@@ -40,6 +40,12 @@ describe("the reducer", () => {
     const after = play(state, { kind: "move", text: "I offer her the window." }, note({ plan: { purpose: "Meera decides.", exit: "She sits, or not." }, here: ["Meera Kulkarni"], call: "land", note: "Bhalla leaves for tea.", intensity: 3 }));
     expect(after.scene).toMatchObject({ purpose: "Meera decides.", exit: "She sits, or not.", here: ["Meera Kulkarni"], beats: beats(0), note: "Bhalla leaves for tea.", call: "land", intensity: 3 });
     expect(after.clock).toBe("Day 1 22:45");
+  });
+
+  it("keeps the memories the Writer put in play until its next Beat Note", () => {
+    const { state } = nightTrain();
+    expect(play(state, note({ inPlay: ["moment-seat"] })).scene!.inPlay).toEqual(["moment-seat"]);
+    expect(play(state, note({ inPlay: ["moment-seat"] }), note({ inPlay: [] })).scene!.inPlay).toEqual([]);
   });
 
   it("keeps Taste to ten lines, dropping the oldest", () => {

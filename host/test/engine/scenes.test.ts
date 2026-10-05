@@ -10,7 +10,7 @@ const PLAN = { title: "After curfew", place: "The Gryffindor common room", purpo
 
 /** A Writer's answer for the common room with Hermione, changed as a scenario needs. */
 function writer(changes: Record<string, unknown> = {}): Script {
-  return { answer: JSON.stringify({ leaves_scene: false, frame: null, here: ["Hermione Granger"], beats: beats(0), note: "Hermione closes her book.", call: "continue", intensity: 2, arc_moved: true, clock: "Day 3 21:42", taste: null, ...changes }) };
+  return { answer: JSON.stringify({ leaves_scene: false, frame: null, here: ["Hermione Granger"], beats: beats(0), note: "Hermione closes her book.", call: "continue", intensity: 2, arc_moved: true, clock: "Day 3 21:42", taste: null, in_play: [], ...changes }) };
 }
 
 describe("a turn with the Writer", () => {

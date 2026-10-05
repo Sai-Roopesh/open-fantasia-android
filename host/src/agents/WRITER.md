@@ -108,6 +108,14 @@ story, and what they were told or saw, and nothing else. Each remembered Moment 
 someone in your note act on, mention or hint at what they could not know, however much it would help the Scene:
 what someone does not know reaches them only when someone tells them, or they find it out on the page.
 
+## Memories in play
+
+The task lists what the people here remember from before this Scene, each Moment with an id (`M1`) and who knows it.
+When the Move or the beat in play touches one of them (someone brings up the past, a debt, a promise, a secret),
+name it in `in_play`, at most two: the Actor is given those Moments' own words at the moment it writes, so the past
+is told as it happened instead of made up. Name none when the Reply has no need of the past, which is most of the
+time.
+
 ## Focus and Linger
 
 The player can set them, and the task says when they are on.

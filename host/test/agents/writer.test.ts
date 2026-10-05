@@ -47,6 +47,7 @@ function answer(changes: Record<string, unknown> = {}) {
     arc_moved: true,
     clock: "Day 1 22:43",
     taste: null,
+    in_play: [],
     ...changes
   };
 }
@@ -146,6 +147,37 @@ describe("the Writer's answer", () => {
     const remembered = ask(planned(state), "I offer her the window seat.", { direction: { text: "less Bhalla", remember: true } });
     expect(checkWriterAnswer(remembered, answer())).toMatchObject({ ok: false, problems: [expect.stringMatching(/^taste: the player asked to remember/)] });
     expect(checkWriterAnswer(remembered, answer({ taste: "Keep Uncle Bhalla to the edges." }))).toMatchObject({ ok: true, plan: { taste: "Keep Uncle Bhalla to the edges." } });
+  });
+});
+
+describe("the memories in play", () => {
+  const remembered = {
+    earlier: [],
+    lastSceneEnd: [],
+    moments: [
+      { id: "moment-station", scene: "Scene 1 · The wrong berth", what: "Ishaan gives up the window seat.", words: [{ by: "Ishaan Mehra", text: "I offer her the window seat." }], knownTo: ["Meera Kulkarni"] },
+      { id: "moment-biscuits", scene: "Scene 1 · The wrong berth", what: "Meera offers biscuits.", words: [{ by: null, text: "For the tea." }], knownTo: ["Meera Kulkarni"] }
+    ]
+  };
+
+  it("names up to two of the remembered Moments the Writer was shown, as the Story keeps them", () => {
+    const { state } = nightTrain();
+    const checked = checkWriterAnswer(ask(planned(state), "I ask about the seat.", { recall: remembered }), answer({ in_play: ["M2"] }));
+    expect(checked).toMatchObject({ ok: true, plan: { inPlay: ["moment-biscuits"] } });
+  });
+
+  it("refuses a memory it was not shown, and more than two", () => {
+    const { state } = nightTrain();
+    const unknown = checkWriterAnswer(ask(planned(state), "I ask about the seat.", { recall: remembered }), answer({ in_play: ["M3"] }));
+    expect(unknown).toMatchObject({ ok: false, problems: [expect.stringMatching(/^in_play: M3 is not a remembered Moment you were shown/)] });
+    const many = checkWriterAnswer(ask(planned(state), "I ask about the seat.", { recall: { ...remembered, moments: [...remembered.moments, { ...remembered.moments[0]!, id: "third" }] } }), answer({ in_play: ["M1", "M2", "M3"] }));
+    expect(many).toMatchObject({ ok: false, problems: [expect.stringMatching(/^in_play: there are 3/)] });
+  });
+
+  it("labels the remembered Moments in its task so it can name them", () => {
+    const { state } = nightTrain();
+    const { prompt } = writerPrompt(ask(planned(state), "I ask about the seat.", { recall: remembered }));
+    expect(prompt).toMatch(/<moment id="M1" scene="Scene 1 · The wrong berth" known_to="Meera Kulkarni">/);
   });
 });
 

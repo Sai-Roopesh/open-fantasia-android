@@ -34,6 +34,8 @@ const MAX_BEATS = 5;
  */
 const MAX_NOTE_WORDS = 60;
 const MAX_TASTE_WORDS = 40;
+/** The Writer names at most this many remembered Moments for a Reply to draw on. */
+const MAX_IN_PLAY = 2;
 /** How much of the Scene the Writer reads word for word. */
 const WRITER_EXCHANGES = 12;
 
@@ -43,7 +45,7 @@ const text = { type: "string", minLength: 1 } as const;
 export const WRITER_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["leaves_scene", "frame", "here", "beats", "note", "call", "intensity", "arc_moved", "clock", "taste"],
+  required: ["leaves_scene", "frame", "here", "beats", "note", "call", "intensity", "arc_moved", "clock", "taste", "in_play"],
   properties: {
     leaves_scene: { type: "boolean", description: "The Move leaves this Scene or skips well ahead, so the next Scene begins with it." },
     frame: {
@@ -73,7 +75,8 @@ export const WRITER_SCHEMA = {
     intensity: { type: "integer", minimum: 1, maximum: 5 },
     arc_moved: { type: "boolean" },
     clock: { type: "string", description: "The story time the Reply begins, \"Day N HH:MM\"." },
-    taste: { type: ["string", "null"] }
+    taste: { type: ["string", "null"] },
+    in_play: { type: "array", items: { type: "string" }, description: "Up to two remembered Moments the Reply should draw on, by their ids (M1 …); usually none." }
   }
 } as const;
 
@@ -88,6 +91,7 @@ interface RawAnswer {
   arc_moved: boolean;
   clock: string;
   taste: string | null;
+  in_play: string[];
 }
 
 const ajv = new Ajv2020({ strict: false, allErrors: true });
@@ -127,6 +131,8 @@ export interface WriterPlan {
   arcMoved: boolean;
   clock: string;
   taste: string | null;
+  /** The ids of the remembered Moments the Reply draws on. */
+  inPlay: string[];
 }
 
 export type Checked = { ok: true; plan: WriterPlan } | { ok: false; problems: string[] };
@@ -239,8 +245,17 @@ export function checkWriterAnswer(ask: WriterAsk, raw: unknown): Checked {
   if (taste && !ask.direction?.text) problems.push("taste: only a Direction becomes Taste; leave it null");
   if (taste && wordCount(taste) > MAX_TASTE_WORDS) problems.push(`taste: it is ${wordCount(taste)} words; say one lesson, in twenty-five words or fewer`);
 
+  // The memories in play, by the labels the task gave them.
+  if (raw.in_play.length > MAX_IN_PLAY) problems.push(`in_play: there are ${raw.in_play.length}; name at most two, the ones this Reply draws on`);
+  const memoriesInPlay = raw.in_play.flatMap(label => {
+    const shown = /^M(\d+)$/.exec(label.trim());
+    const moment = shown ? ask.recall.moments[Number(shown[1]) - 1] : undefined;
+    if (!moment) return (problems.push(`in_play: ${label} is not a remembered Moment you were shown`), []);
+    return [moment.id];
+  });
+
   if (problems.length) return { ok: false, problems };
-  return { ok: true, plan: { opens, plans, here, beats, note, call: raw.call, intensity: raw.intensity, arcMoved: raw.arc_moved, clock, taste } };
+  return { ok: true, plan: { opens, plans, here, beats, note, call: raw.call, intensity: raw.intensity, arcMoved: raw.arc_moved, clock, taste, inPlay: memoriesInPlay } };
 }
 
 function section(tag: string, body: string): string | null {
@@ -330,7 +345,7 @@ export function writerPrompt(ask: WriterAsk): { system: string; prompt: string; 
     section(opening === "day_view" ? "last_scene" : "scene", sceneLines),
     section("earlier", ask.recall.earlier.join("\n")),
     section("last_scene_end", sayWords(ask.recall.lastSceneEnd)),
-    section("remembered", ask.recall.moments.map(moment => section(`moment scene="${moment.scene}" known_to="${moment.knownTo.join(", ")}"`, `${moment.what}\n${sayWords(moment.words)}`)).join("\n\n")),
+    section("remembered", ask.recall.moments.map((moment, position) => section(`moment id="M${position + 1}" scene="${moment.scene}" known_to="${moment.knownTo.join(", ")}"`, `${moment.what}\n${sayWords(moment.words)}`)).join("\n\n")),
     section(opening === "day_view" ? "last_scene_so_far" : "scene_so_far", sceneSoFar(ask.scene, pc)),
     section(`move by="${pc}"`, move),
     direction?.text ? section("direction", direction.text) : null,

@@ -68,6 +68,8 @@ export interface CurrentScene {
   note: string | null;
   call: SceneCall | null;
   intensity: number | null;
+  /** The remembered Moments the latest Beat Note put in play, by id. */
+  inPlay: string[];
   /** How many Beat Notes in a row have had the same beat in play. */
   beatInPlayFor: number;
   /** How many Beat Notes in a row have judged that no Arc moved. */

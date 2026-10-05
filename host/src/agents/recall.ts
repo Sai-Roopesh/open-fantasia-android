@@ -17,6 +17,8 @@ export interface RecalledWords {
 }
 
 export interface RecalledMoment {
+  /** The Moment's id, which the Writer's Beat Note names when it puts the Moment in play. */
+  id: string;
   /** "Scene 3 · The station". */
   scene: string;
   /** The Chronicler's line for it: for the Writer only, never the Actor, which reads the words themselves. */
@@ -61,6 +63,7 @@ export function recall(mac: Mac, head: string, present: string[]): Recall {
     .slice(0, RECALLED_MOMENTS)
     .sort((left, right) => left.order - right.order);
   const moments = ranked.map(({ remembered, knowers }) => ({
+    id: remembered.moment.id,
     scene: `Scene ${remembered.scene.number} · ${remembered.scene.title}`,
     what: remembered.moment.what,
     words: remembered.moment.quotes.map((quote: Quote) => words(mac.tree.entry(quote.entry), quote.text, pc)),

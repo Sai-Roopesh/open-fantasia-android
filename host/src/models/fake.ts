@@ -40,7 +40,8 @@ export function fakeWriterAnswer(request: ModelRequest): Script {
       intensity: 2,
       arc_moved: true,
       clock: facts.now,
-      taste: facts.direction?.remember && facts.direction.text ? `Remember: ${facts.direction.text}` : null
+      taste: facts.direction?.remember && facts.direction.text ? `Remember: ${facts.direction.text}` : null,
+      in_play: []
     })
   };
 }

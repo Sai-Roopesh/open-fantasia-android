@@ -35,6 +35,8 @@ Requirements this change builds:
 - [x] 4.4 Test first, then build: `living-world › Only the player makes facts about the Player Character › What the player wrote is remembered` (the Move's words reach Meera's later Scene)
 - [x] 4.5 Recall caps and ranks: at most five Moments, from earlier Scenes, ranked by weight, the people present who know them and recency, shown oldest first; the end of the last Scene and the summaries of the last day's Scenes for the Writer only; the Writer reads `what` and the quotes, the Actor only the quotes; verify unit tests
 
+- [x] 4.6 The Writer names up to two remembered Moments in play for a Reply; the Beat Note keeps them, and the Actor reads their words again just before its last line; verify unit tests that a label it was not shown and more than two are refused, and that the words reach the Actor's prompt
+
 ## 5. The link, the phone and the Mac
 
 - [ ] 5.1 Extend the contract to version 4: earlier Scenes' summaries, and an earlier Scene in full; regenerate both sides
