@@ -14,6 +14,7 @@ import kotlinx.serialization.SerializationException
 data class AppProblem(val reason: String, val traceID: String? = null, val needsUpdate: Boolean = false)
 data class FantasiaState(
     val paired: Boolean,
+    val hostName: String = "Mac",
     val stories: List<StorySummary> = emptyList(),
     val scene: SceneView? = null,
     val draft: String = "",
@@ -25,7 +26,7 @@ data class FantasiaState(
 )
 
 class FantasiaModel(private val link: FantasiaLink) : ViewModel() {
-    private val mutable = MutableStateFlow(FantasiaState(link.isPaired))
+    private val mutable = MutableStateFlow(FantasiaState(paired = link.isPaired, hostName = link.hostName))
     val state = mutable.asStateFlow()
     private var stream: Job? = null
     private var pendingMoveID: String? = null
@@ -45,7 +46,7 @@ class FantasiaModel(private val link: FantasiaLink) : ViewModel() {
                 if (invite.contract != CONTRACT_VERSION.toLong()) throw LinkFailure(UPDATE_REQUIRED, versionMismatch = true)
                 link.pair(invite)
                 val stories = link.stories().stories
-                mutable.update { it.copy(paired = true, stories = stories) }
+                mutable.update { it.copy(paired = true, stories = stories, hostName = link.hostName) }
             } catch (e: CancellationException) { throw e
             } catch (e: Exception) {
                 showProblem(if (e is SerializationException || e is IllegalArgumentException)
@@ -96,7 +97,7 @@ class FantasiaModel(private val link: FantasiaLink) : ViewModel() {
         val state = mutable.value
         val scene = state.scene ?: return
         if (state.draft.isBlank() || state.sending || state.waiting || state.loading || !state.reachable ||
-            scene.turn.kind != TurnStateKind.Idle || state.problem?.needsUpdate == true) return
+            scene.turn.kind != TurnStateKind.Idle || scene.replyComing || state.problem?.needsUpdate == true) return
         afterSeq = scene.seq
         mutable.update { it.copy(sending = true, problem = null) }
         viewModelScope.launch {
@@ -217,4 +218,9 @@ class FantasiaModel(private val link: FantasiaLink) : ViewModel() {
 }
 
 val FantasiaState.canChangeScene: Boolean
-    get() = scene?.turn?.kind == TurnStateKind.Idle && reachable && !loading && !sending && !waiting && problem?.needsUpdate != true
+    get() = scene?.turn?.kind == TurnStateKind.Idle && !scene.replyComing && reachable && !loading && !sending && !waiting && problem?.needsUpdate != true
+
+internal val FantasiaState.replyComing: Boolean
+    get() = scene?.replyComing == true || (waiting && scene?.turn?.kind != TurnStateKind.Failed)
+internal val FantasiaState.canSendMove: Boolean
+    get() = draft.isNotBlank() && canChangeScene && !replyComing

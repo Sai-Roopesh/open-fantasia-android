@@ -16,7 +16,7 @@ class SceneCommandsTest {
         return MacConnection(store, MacDiscovery { emptyList() }, "Phone")
     }
 
-    @Test fun `End scene posts the head and reads Accepted over contract 2`() = runBlocking {
+    @Test fun `End scene posts the head and reads Accepted over the current contract`() = runBlocking {
         MacServer().use { mac ->
             val link = connection(mac)
             mac.enqueue(MockResponse().setBody("""{"stories":[],"trace_id":"list"}"""))
@@ -29,7 +29,7 @@ class SceneCommandsTest {
             assertEquals("POST", request.method)
             assertEquals("application/json; charset=utf-8", request.getHeader("Content-Type"))
             assertEquals("""{"after":"reply"}""", request.body.readUtf8())
-            assertEquals("2", request.getHeader("Fantasia-Contract"))
+            assertEquals(com.openfantasia.protocol.CONTRACT_VERSION.toString(), request.getHeader("Fantasia-Contract"))
             assertEquals("Bearer secret", request.getHeader("Authorization"))
         }
     }
@@ -48,7 +48,7 @@ class SceneCommandsTest {
                 assertEquals("POST", request.method)
                 val expected = if (on == null) """{"after":"reply","on":null}""" else """{"after":"reply","on":"Hermione"}"""
                 assertEquals(expected, request.body.readUtf8())
-                assertEquals("2", request.getHeader("Fantasia-Contract"))
+                assertEquals(com.openfantasia.protocol.CONTRACT_VERSION.toString(), request.getHeader("Fantasia-Contract"))
             }
         }
     }
@@ -66,7 +66,7 @@ class SceneCommandsTest {
                 assertEquals("/stories/story/linger", request.path)
                 assertEquals("POST", request.method)
                 assertEquals("""{"after":"reply","on":$on}""", request.body.readUtf8())
-                assertEquals("2", request.getHeader("Fantasia-Contract"))
+                assertEquals(com.openfantasia.protocol.CONTRACT_VERSION.toString(), request.getHeader("Fantasia-Contract"))
             }
         }
     }
@@ -87,7 +87,7 @@ class SceneCommandsTest {
                 val expected = if (direction == null) """{"after":"reply","direction":null,"remember":false}"""
                     else """{"after":"reply","direction":"move on","remember":false}"""
                 assertEquals(expected, request.body.readUtf8())
-                assertEquals("2", request.getHeader("Fantasia-Contract"))
+                assertEquals(com.openfantasia.protocol.CONTRACT_VERSION.toString(), request.getHeader("Fantasia-Contract"))
             }
         }
     }

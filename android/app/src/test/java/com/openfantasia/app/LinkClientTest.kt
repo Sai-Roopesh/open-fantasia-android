@@ -30,7 +30,7 @@ class LinkClientTest {
             assertEquals(CONTRACT_VERSION.toString(), request.getHeader("Fantasia-Contract"))
             assertNull(request.getHeader("Authorization"))
             assertEquals("""{"code":"invite","device_name":"Phone"}""", request.body.readUtf8())
-            server.enqueue(MockResponse().setBody("""{"stories":[{"id":"story","title":"The Malfoy Problem","standing":"Scene 14 · After curfew","updated_at":"now"}],"trace_id":"list"}"""))
+            server.enqueue(MockResponse().setBody("""{"stories":[{"id":"story","title":"The Malfoy Problem","standing":"Scene 14 · After curfew","detail":"Friday 9:40 pm · with Hermione","updated_at":"now"}],"trace_id":"list"}"""))
             val paired = LinkClient(server.url("/"), fingerprint, pair.deviceToken)
             assertEquals("The Malfoy Problem", paired.stories().stories.single().title)
             assertEquals("Bearer secret", server.takeRequest().getHeader("Authorization"))

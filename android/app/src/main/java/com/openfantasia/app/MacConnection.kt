@@ -15,6 +15,7 @@ class MacConnection(
     private val finder = MacFinder(discovery)
     private val connected = MutableStateFlow(false)
     override val reachable = connected.asStateFlow()
+    override val hostName get() = store.read()?.hostName ?: "Mac"
     override val isPaired get() = store.read() != null
     @Volatile private var current: LinkClient? = null
     private var portraits: Pair<LinkClient, okhttp3.OkHttpClient>? = null

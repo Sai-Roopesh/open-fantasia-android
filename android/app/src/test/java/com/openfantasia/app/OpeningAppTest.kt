@@ -30,7 +30,7 @@ class OpeningAppTest {
                     }
                 }
                 // A second answer lets the bug finish instead of hanging: the count must still be one.
-                repeat(2) { mac.enqueue(MockResponse().setBody("""{"stories":[{"id":"story","title":"The Malfoy Problem","standing":"Scene 14","updated_at":"now"}],"trace_id":"list"}""")) }
+                repeat(2) { mac.enqueue(MockResponse().setBody("""{"stories":[{"id":"story","title":"The Malfoy Problem","standing":"Scene 14","detail":"Friday 9:40 pm · with Hermione","updated_at":"now"}],"trace_id":"list"}""")) }
                 val model = FantasiaModel(link)
                 withContext(Dispatchers.Default) { withTimeout(5000) { model.state.first { !it.loading && it.stories.isNotEmpty() } } }
                 assertTrue(model.state.value.reachable)

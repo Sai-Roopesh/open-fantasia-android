@@ -17,7 +17,7 @@ class StoredPairingTest {
                 override fun read() = value
                 override fun write(mac: PairedMac) { value = mac }
             }
-            val invite = PairingInvite(addresses = listOf("127.0.0.1"), code = "code", contract = 2, fingerprint = mac.fingerprint, hostID = "mac", hostName = "Mac", port = mac.server.port.toLong())
+            val invite = PairingInvite(addresses = listOf("127.0.0.1"), code = "code", contract = CONTRACT_VERSION.toLong(), fingerprint = mac.fingerprint, hostID = "mac", hostName = "Mac", port = mac.server.port.toLong())
             val link = MacConnection(store, MacDiscovery { emptyList() }, "Phone")
             mac.enqueue(MockResponse().setBody("""{"host_id":"mac","host_name":"Mac","device_token":"token","trace_id":"pair"}"""))
             link.pair(invite)
@@ -30,6 +30,7 @@ class StoredPairingTest {
             mac.server.takeRequest()
             val reopened = MacConnection(store, MacDiscovery { emptyList() }, "Phone")
             assertTrue(reopened.isPaired)
+            assertEquals("Mac", reopened.hostName)
             mac.enqueue(MockResponse().setBody("""{"stories":[],"trace_id":"list"}"""))
             assertEquals("list", reopened.stories().traceID)
             mac.server.takeRequest()
@@ -39,7 +40,7 @@ class StoredPairingTest {
             val request = mac.server.takeRequest()
             assertEquals("/portraits/hermione.jpg", request.path)
             assertEquals("Bearer token", request.getHeader("Authorization"))
-            assertEquals("2", request.getHeader("Fantasia-Contract"))
+            assertEquals(com.openfantasia.protocol.CONTRACT_VERSION.toString(), request.getHeader("Fantasia-Contract"))
             assertNull(reopened.portrait("http://127.0.0.1/portrait.jpg"))
         }
     }

@@ -11,7 +11,7 @@ class ResponseVersionTest {
     // THEN the app says it needs updating to match the Mac
     @Test fun `mac-link › The phone and the Mac agree on what they speak › An old app`() = runBlocking {
         MacServer().use { mac ->
-            mac.enqueue(MockResponse().setHeader("Fantasia-Contract", "3")
+            mac.enqueue(MockResponse().setHeader("Fantasia-Contract", (com.openfantasia.protocol.CONTRACT_VERSION + 1).toString())
                 .setBody("""{"stories":[],"trace_id":"version"}"""))
             val error = runCatching { mac.client.stories() }.exceptionOrNull() as LinkFailure
             assertEquals(UPDATE_REQUIRED, error.reason)

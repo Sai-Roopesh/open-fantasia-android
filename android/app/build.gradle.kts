@@ -45,6 +45,7 @@ tasks.matching { it.name == "validateSigningDebug" || it.name == "validateSignin
 dependencies {
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
+    implementation(libs.compose.google.fonts)
     implementation(libs.compose.material3)
     implementation(libs.activity.compose)
     implementation(libs.lifecycle.compose)
@@ -74,6 +75,9 @@ dependencies {
 // Keep downloaded Android runtime jars inside the Android workspace.
 tasks.withType<Test>().configureEach {
     systemProperty("robolectric.dependency.dir", rootProject.file(".gradle-user/robolectric").absolutePath)
+    if (providers.gradleProperty("fantasiaPreviews").isPresent) {
+        systemProperty("fantasia.previews", rootProject.file(".local/previews").absolutePath)
+    }
 }
 
 val robolectricRuntime by configurations.creating

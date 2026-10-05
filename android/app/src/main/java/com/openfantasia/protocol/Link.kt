@@ -126,10 +126,17 @@ data class StoryList (
 
 @Serializable
 data class StorySummary (
+    /**
+     * The line under the standing: "Friday 9:52 pm · with Hermione" mid-Scene, "3 Scenes
+     * played" at the Day View.
+     */
+    val detail: String,
+
     val id: String,
 
     /**
-     * Where the Story stands on its current Path, as one line: "Scene 14 · After curfew".
+     * Where the Story stands on its current Path, as one line: "Scene 14 · After curfew"
+     * mid-Scene, "Sunday 7:40 am · choosing where to go" at the Day View.
      */
     val standing: String,
 
@@ -232,9 +239,19 @@ data class DayView (
     val countdowns: List<Countdown>,
 
     /**
+     * The day as people say it: "Sunday", or "Day 3" when the Story has no weekdays.
+     */
+    val day: String,
+
+    /**
      * Where the Player Character is.
      */
-    val place: String
+    val place: String,
+
+    /**
+     * The time as people say it: "7:40 am".
+     */
+    val time: String
 )
 
 /**
@@ -255,7 +272,13 @@ data class Countdown (
      */
     val label: String,
 
-    val landmark: String
+    val landmark: String,
+
+    /**
+     * How long to go: "3 days", "Tomorrow", "Today at 8:30 pm".
+     */
+    @SerialName("when")
+    val linkSchemaWhen: String
 )
 
 @Serializable

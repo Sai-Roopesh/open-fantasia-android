@@ -26,4 +26,7 @@ class WriterScreenTest : WriterUiChecks() {
     @Test fun aMoveShowsItsReplyIsComingBeforeTheFirstWord() = moveShowsItsReplyIsComing()
     @Test fun rememberThisNeedsADirection() = rememberThisWaitsForADirection()
     @Test fun redoIsOfferedOnlyWhereTheStoryClosedTheScene() = redoOnlyWhereTheStoryClosedTheScene()
+    @Scenario("presence › The player can always write › Typing during a Reply")
+    @Test fun typingWhileReplyArrives() = typingDuringReply()
+    @Test fun redoDirectionIsOptionalAndCancelKeepsTheReply() = redoWithoutDirectionAndCancelling()
 }

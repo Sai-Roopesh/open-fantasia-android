@@ -16,17 +16,17 @@ Screens built here, from docs/design: `Main.dc.html`, `Pair.dc.html`, `Scene.dc.
 
 ## 2. The look
 
-- [ ] 2.1 One theme with the palette, Literata and Manrope through the Compose Google Fonts provider, and the shapes from docs/design/README.md; every screen takes its colours and type from it
+- [x] 2.1 One theme with the palette, Literata and Manrope through the Compose Google Fonts provider, and the shapes from docs/design/README.md; every screen takes its colours and type from it
 
 ## 3. The screens
 
-- [ ] 3.1 Home as `Main.dc.html`: the Mac's name and status, each Story's title, standing, detail and how long ago; verify a Compose check
-- [ ] 3.2 Pairing as `Pair.dc.html`; verify the pairing checks still pass
-- [ ] 3.3 The Scene as `Scene.dc.html`: the header, earlier Scenes folded, the title card with Portraits and Focus, Replies as prose, Moves as bubbles with the Player Character's first name, Copy and Redo under the latest Reply, the Linger and End scene chips, the composer; verify Compose checks
-- [ ] 3.4 Test first, then build: `presence › The player can always write › Typing during a Reply`, as `SceneWriting.dc.html` (the composer keeps text while a Reply arrives; Send waits and says so)
-- [ ] 3.5 A failed Reply as `SceneFailed.dc.html` (the reason, Retry, the trace); verify the failure checks
-- [ ] 3.6 Redo as the sheet in `Redo.dc.html` (Direction; Remember this waits for one); verify the Redo checks
-- [ ] 3.7 The Day View's first form as `DayView.dc.html` (the day, the time and place, countdown tiles, the composer); verify the countdown check
+- [x] 3.1 Home as `Main.dc.html`: the Mac's name and status, each Story's title, standing, detail and how long ago; verify a Compose check
+- [x] 3.2 Pairing as `Pair.dc.html`; verify the pairing checks still pass
+- [x] 3.3 The Scene as `Scene.dc.html`: the header, earlier Scenes folded, the title card with Portraits and Focus, Replies as prose, Moves as bubbles with the Player Character's first name, Copy and Redo under the latest Reply, the Linger and End scene chips, the composer; verify Compose checks
+- [x] 3.4 Test first, then build: `presence › The player can always write › Typing during a Reply`, as `SceneWriting.dc.html` (the composer keeps text while a Reply arrives; Send waits and says so)
+- [x] 3.5 A failed Reply as `SceneFailed.dc.html` (the reason, Retry, the trace); verify the failure checks
+- [x] 3.6 Redo as the sheet in `Redo.dc.html` (Direction; Remember this waits for one); verify the Redo checks
+- [x] 3.7 The Day View's first form as `DayView.dc.html` (the day, the time and place, countdown tiles, the composer); verify the countdown check
 
 ## 4. Together
 

@@ -23,7 +23,7 @@ class VersionTest {
                 val request = mac.server.takeRequest()
                 assertEquals("/stories/story/scene", request.path)
                 assertEquals("Bearer secret", request.getHeader("Authorization"))
-                assertEquals("2", request.getHeader("Fantasia-Contract"))
+                assertEquals(com.openfantasia.protocol.CONTRACT_VERSION.toString(), request.getHeader("Fantasia-Contract"))
             }
         }
     }

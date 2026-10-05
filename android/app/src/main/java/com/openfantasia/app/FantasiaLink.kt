@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.StateFlow
 
 interface FantasiaLink {
     val isPaired: Boolean
+    val hostName: String get() = "Mac"
     val reachable: StateFlow<Boolean>
     suspend fun pair(invite: PairingInvite)
     suspend fun stories(): StoryList

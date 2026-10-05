@@ -24,6 +24,6 @@ class VersionScreenTest {
         compose.setContent { FantasiaApp(model, PairingScanner { error("Already paired") }) }
         compose.onNodeWithText("This app needs updating to match your Mac").assertIsDisplayed()
         compose.onNodeWithText("Trace id: trace-version").assertIsDisplayed()
-        compose.onNodeWithText("Reply failed").assertDoesNotExist()
+        compose.onNodeWithText("The Reply could not be written").assertDoesNotExist()
     }
 }

@@ -19,8 +19,9 @@ class OpenStoryScreenTest {
         val model = FantasiaModel(FakeFantasiaLink())
         compose.setContent { FantasiaApp(model, PairingScanner { error("Already paired") }) }
         compose.onNodeWithText("The Malfoy Problem").performClick()
-        compose.onNodeWithText("After curfew").assertIsDisplayed()
         compose.onNodeWithText("She smiles.").assertIsDisplayed()
-        compose.onNodeWithText("Friday · 9:40 pm").assertIsDisplayed()
+        compose.onNodeWithTag("scene-passages").performScrollToNode(hasTestTag("scene-title"))
+        compose.onNodeWithText("After curfew").assertIsDisplayed()
+        compose.onNodeWithText("Common room · Friday · 9:40 pm").assertIsDisplayed()
     }
 }

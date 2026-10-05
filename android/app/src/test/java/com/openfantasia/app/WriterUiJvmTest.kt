@@ -7,7 +7,7 @@ import org.robolectric.annotation.GraphicsMode
 
 @RunWith(RobolectricScenarioRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-@Config(sdk = [35], qualifiers = "w411dp-h891dp")
+@Config(sdk = [35], qualifiers = "w390dp-h844dp")
 class WriterUiJvmTest : WriterUiChecks() {
     @Scenario("scenes › A Scene ends in one of three ways › The player ends a Scene")
     @Test fun endScene() = playerEndsScene()
@@ -30,4 +30,7 @@ class WriterUiJvmTest : WriterUiChecks() {
     @Test fun aMoveShowsItsReplyIsComingBeforeTheFirstWord() = moveShowsItsReplyIsComing()
     @Test fun rememberThisNeedsADirection() = rememberThisWaitsForADirection()
     @Test fun redoIsOfferedOnlyWhereTheStoryClosedTheScene() = redoOnlyWhereTheStoryClosedTheScene()
+    @Scenario("presence › The player can always write › Typing during a Reply")
+    @Test fun typingWhileReplyArrives() = typingDuringReply()
+    @Test fun redoDirectionIsOptionalAndCancelKeepsTheReply() = redoWithoutDirectionAndCancelling()
 }

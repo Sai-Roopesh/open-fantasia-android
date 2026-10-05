@@ -22,7 +22,7 @@ class MoveTest {
             assertEquals("POST", request.method)
             assertEquals("""{"after":"opening","text":"I wait."}""", request.body.readUtf8())
             assertEquals("Bearer secret", request.getHeader("Authorization"))
-            assertEquals("2", request.getHeader("Fantasia-Contract"))
+            assertEquals(com.openfantasia.protocol.CONTRACT_VERSION.toString(), request.getHeader("Fantasia-Contract"))
         }
     }
 }

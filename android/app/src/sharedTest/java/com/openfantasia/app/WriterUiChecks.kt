@@ -28,13 +28,14 @@ open class WriterUiChecks {
     fun playerEndsScene() {
         openScene()
         compose.onNodeWithText("End scene").assertIsEnabled().performClick()
-        compose.onNodeWithText("Day View").assertIsDisplayed()
-        compose.onNodeWithText("Sunday · 7:40 am").assertIsDisplayed()
+        compose.onNodeWithText("Sunday").assertIsDisplayed()
+        compose.onNodeWithText("7:40 am · you're in Common room").assertIsDisplayed()
         compose.runOnIdle { assertEquals(EndSceneRequest(after = "reply"), link.endScenes.single()) }
-        compose.onNodeWithText("She smiles.").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("End scene").assertIsNotEnabled()
+        compose.onNodeWithTag("scene-passages").performScrollToNode(hasText("She smiles."))
+        compose.onNodeWithText("She smiles.").assertIsDisplayed()
+        compose.onNodeWithText("End scene").assertDoesNotExist()
         compose.onNodeWithTag("composer").performTextInput("I go to my room.")
-        compose.onNodeWithText("Send").performClick()
+        compose.onNodeWithTag("send-move").performClick()
         compose.runOnIdle { assertEquals(MoveRequest(after = "closed", text = "I go to my room."), link.moves.single()) }
     }
 
@@ -47,8 +48,8 @@ open class WriterUiChecks {
             link.current.value = projection.apply(StoryEventEnvelope("4", StoryEvent(kind = StoryEventKind.SceneClosed,
                 seq = 4, dayView = FakeFantasiaLink.dayView())))
         }
-        compose.onNodeWithText("Day View").assertIsDisplayed()
-        compose.onNodeWithText("Sunday · 7:40 am").assertIsDisplayed()
+        compose.onNodeWithText("Sunday").assertIsDisplayed()
+        compose.onNodeWithText("7:40 am · you're in Common room").assertIsDisplayed()
     }
 
     // GIVEN it is Sunday and Draconia's flying test is a Landmark on Wednesday
@@ -56,17 +57,29 @@ open class WriterUiChecks {
     fun countdown() {
         link.current.value = link.current.value.copy(dayView = FakeFantasiaLink.dayView(), headEntryID = "closed")
         openScene()
-        compose.onNodeWithText("3 days to Draconia's flying test").assertIsDisplayed()
-        compose.onNodeWithText("Sunday · 7:40 am").assertIsDisplayed()
-        compose.onNode(hasText("Common room") and hasAnySibling(hasText("Day View"))).assertIsDisplayed()
+        compose.onNode(hasTestTag("countdown-Draconia's flying test") and hasAnyDescendant(hasText("3 days")) and
+            hasAnyDescendant(hasText("to Draconia's flying test"))).assertIsDisplayed()
+        compose.onNodeWithText("9 weeks").assertIsDisplayed()
+        compose.onNodeWithText("to Slytherin v Gryffindor").assertIsDisplayed()
+        compose.preview("DayView")
+        val first = compose.onNodeWithTag("countdown-Draconia's flying test").getUnclippedBoundsInRoot()
+        val second = compose.onNodeWithTag("countdown-Slytherin v Gryffindor").getUnclippedBoundsInRoot()
+        assertEquals(first.top, second.top)
+        assertEquals(first.right - first.left, second.right - second.left)
+        assertEquals(androidx.compose.ui.unit.Dp(10f), second.left - first.right)
+        compose.onNodeWithText("Or write your own Move").assertIsDisplayed()
+        compose.onNodeWithText("She smiles.").assertIsNotDisplayed()
+        compose.onNodeWithText("7:40 am · you're in Common room").assertIsDisplayed()
     }
 
     fun portraitSetsAndClearsFocus() {
         openScene()
+        compose.onNodeWithTag("scene-passages").performScrollToNode(hasTestTag("scene-title"))
         compose.onNodeWithContentDescription("Hermione's Portrait").performClick()
-        compose.onNodeWithText("Focus: Hermione").assertIsDisplayed()
+        compose.onNodeWithTag("scene-passages").performScrollToNode(hasTestTag("scene-title"))
+        compose.onNodeWithText("Focus on Hermione · tap a Portrait to change").assertIsDisplayed()
         compose.onNodeWithContentDescription("Hermione's Portrait").assertIsSelected().performClick()
-        compose.onNodeWithText("Focus: Hermione").assertDoesNotExist()
+        compose.onNodeWithText("Focus on Hermione · tap a Portrait to change").assertDoesNotExist()
         compose.runOnIdle {
             assertEquals(listOf(FocusRequest(after = "reply", on = "Hermione"), FocusRequest(after = "focus-1", on = null)), link.focuses)
         }
@@ -83,7 +96,8 @@ open class WriterUiChecks {
             link.current.value = SceneProjection(link.current.value).apply(StoryEventEnvelope("4",
                 StoryEvent(kind = StoryEventKind.SceneOpened, seq = 4, scene = card, focus = "Draconia")))
         }
-        compose.onNodeWithText("Focus: Draconia").assertIsDisplayed()
+        compose.onNodeWithTag("scene-passages").performScrollToNode(hasTestTag("scene-title"))
+        compose.onNodeWithText("Focus on Draconia · tap a Portrait to change").assertIsDisplayed()
         compose.onNodeWithContentDescription("Draconia's Portrait").assertIsSelected()
         compose.runOnIdle {
             val card = link.current.value.scene.copy(number = 16, title = "At breakfast",
@@ -91,8 +105,9 @@ open class WriterUiChecks {
             link.current.value = SceneProjection(link.current.value).apply(StoryEventEnvelope("5",
                 StoryEvent(kind = StoryEventKind.SceneOpened, seq = 5, scene = card, focus = null)))
         }
+        compose.onNodeWithTag("scene-passages").performScrollToNode(hasTestTag("scene-title"))
         compose.onNodeWithText("At breakfast").assertIsDisplayed()
-        compose.onNodeWithText("Focus: Draconia").assertDoesNotExist()
+        compose.onNodeWithText("Focus on Draconia · tap a Portrait to change").assertDoesNotExist()
         compose.onNodeWithContentDescription("Draconia's Portrait").assertIsNotSelected()
     }
 
@@ -102,13 +117,14 @@ open class WriterUiChecks {
             link.current.value = SceneProjection(link.current.value).apply(StoryEventEnvelope("4",
                 StoryEvent(kind = StoryEventKind.FocusSet, seq = 4, focus = "Hermione")))
         }
-        compose.onNodeWithText("Focus: Hermione").assertIsDisplayed()
+        compose.onNodeWithTag("scene-passages").performScrollToNode(hasTestTag("scene-title"))
+        compose.onNodeWithText("Focus on Hermione · tap a Portrait to change").assertIsDisplayed()
         compose.onNodeWithContentDescription("Hermione's Portrait").assertIsSelected()
         compose.runOnIdle {
             link.current.value = SceneProjection(link.current.value).apply(StoryEventEnvelope("5",
                 StoryEvent(kind = StoryEventKind.FocusSet, seq = 5, focus = null)))
         }
-        compose.onNodeWithText("Focus: Hermione").assertDoesNotExist()
+        compose.onNodeWithText("Focus on Hermione · tap a Portrait to change").assertDoesNotExist()
         compose.onNodeWithContentDescription("Hermione's Portrait").assertIsNotSelected()
     }
 
@@ -123,13 +139,13 @@ open class WriterUiChecks {
                 StoryEvent(kind = StoryEventKind.LingerSet, seq = 6, linger = true)))
         }
         compose.onNodeWithContentDescription("Linger").assertIsOn()
-        compose.onNodeWithText("Linger on").assertIsDisplayed()
+        compose.onNodeWithText("Linger").assertIsDisplayed()
         compose.runOnIdle {
             link.current.value = SceneProjection(link.current.value).apply(StoryEventEnvelope("7",
                 StoryEvent(kind = StoryEventKind.LingerSet, seq = 7, linger = false)))
         }
         compose.onNodeWithContentDescription("Linger").assertIsOff()
-        compose.onNodeWithText("Linger off").assertIsDisplayed()
+        compose.onNodeWithText("Linger").assertIsDisplayed()
     }
 
     // WHEN the player Redoes with the Direction "you're leaning too much into Ron, move on"
@@ -138,6 +154,11 @@ open class WriterUiChecks {
     fun directionIsNotRemembered() {
         openScene()
         compose.onNodeWithText("Redo").assertIsEnabled().performClick()
+        compose.onNodeWithText("Redo this Reply").assertIsDisplayed()
+        compose.onNodeWithText("A Direction steers the new Reply. It never appears in the Story.").assertIsDisplayed()
+        compose.onNodeWithText("Keep it as a line of Taste for every Scene after.").assertIsDisplayed()
+        compose.onNodeWithTag("redo-sheet").assertIsDisplayed()
+        compose.preview("Redo")
         val direction = "you're leaning too much into Ron, move on"
         compose.onNodeWithTag("redo-direction").performTextInput(direction)
         compose.onNodeWithText("Remember this").assertIsOff()
@@ -223,7 +244,9 @@ open class WriterUiChecks {
                 StoryEvent(kind = StoryEventKind.Reply, seq = 4, scene = card,
                     passage = Passage(entryID = "next-reply", text = "Ron joins them."))))
         }
+        compose.onNodeWithTag("scene-passages").performScrollToNode(hasTestTag("scene-title"))
         compose.onNodeWithContentDescription("Ron's Portrait").assertIsDisplayed()
+        compose.onNodeWithTag("scene-passages").performScrollToNode(hasText("Ron joins them."))
         compose.onNodeWithText("Ron joins them.").assertIsDisplayed()
     }
 
@@ -254,14 +277,64 @@ open class WriterUiChecks {
         compose.onNodeWithText("Redo").performClick()
         compose.onNodeWithText("Remember this").assertIsNotEnabled()
         compose.onNodeWithTag("redo-direction").performTextInput("less Ron")
-        compose.onNodeWithText("Remember this").assertIsEnabled()
+        compose.onNodeWithText("Remember this").assertIsEnabled().performClick().assertIsOn()
+        compose.onNodeWithTag("redo-direction").performTextClearance()
+        compose.onNodeWithText("Remember this").assertIsNotEnabled().assertIsOff()
+    }
+
+    fun redoWithoutDirectionAndCancelling() {
+        openScene()
+        compose.onNodeWithText("Redo").performClick()
+        compose.onNodeWithText("Cancel").performClick()
+        compose.onNodeWithText("She smiles.").assertIsDisplayed()
+        compose.runOnIdle { assertTrue(link.redos.isEmpty()) }
+        compose.onNodeWithText("Redo").performClick()
+        compose.onNodeWithTag("confirm-redo").assertIsEnabled().performClick()
+        compose.runOnIdle { assertEquals(RedoRequest(after = "reply", direction = null, remember = false), link.redos.single()) }
     }
 
     fun redoOnlyWhereTheStoryClosedTheScene() {
         link.current.value = link.current.value.copy(dayView = FakeFantasiaLink.dayView(ClosedBy.Story), headEntryID = "closed")
         openScene()
+        compose.onNodeWithTag("scene-passages").performScrollToNode(hasText("Redo"))
         compose.onNodeWithText("Redo").assertIsDisplayed()
         compose.runOnIdle { link.current.value = link.current.value.copy(dayView = FakeFantasiaLink.dayView(ClosedBy.Player)) }
+        compose.onNodeWithTag("scene-passages").performScrollToNode(hasText("She smiles."))
+        compose.onNodeWithText("She smiles.").assertIsDisplayed()
         compose.onNodeWithText("Redo").assertDoesNotExist()
+    }
+
+    // GIVEN a Reply is still streaming in
+    // THEN the player can type in the composer, and sends once the Reply is complete
+    fun typingDuringReply() {
+        // A Move waiting for its first word is already a Reply in progress.
+        link.current.value = link.current.value.copy(exchanges = link.current.value.exchanges +
+            Exchange(move = Passage(entryID = "pending", text = "I ask her.")), headEntryID = "pending", seq = 4, lastEventID = "4")
+        openScene()
+        compose.onNodeWithTag("composer").assertIsEnabled().performTextInput("I wait beside her.")
+        compose.onNodeWithTag("composer").assertTextContains("I wait beside her.")
+        compose.onNodeWithTag("send-move").assertIsNotEnabled()
+        compose.onNodeWithText("Your Move sends once the Reply is done.").assertIsDisplayed()
+        compose.onNodeWithText("Reply being written").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Linger").assertIsNotEnabled()
+        compose.onNodeWithText("End scene").assertIsNotEnabled()
+        compose.runOnIdle { assertTrue(link.moves.isEmpty()); link.current.value = link.current.value.copy(turn = TurnState(kind = TurnStateKind.Writing, textSoFar = "She ")) }
+        compose.onNodeWithText("She ").assertIsDisplayed()
+        compose.onNodeWithTag("reply-caret", useUnmergedTree = true).assertExists()
+        compose.onNodeWithTag("scene-header-title").assertTextEquals("After curfew")
+        compose.onNodeWithTag("scene-header-time").assertTextEquals("Scene 14 · Friday · 9:40 pm")
+        compose.preview("SceneWriting")
+        compose.onNodeWithTag("composer").performTextInput(" I stay.")
+        compose.runOnIdle {
+            link.current.value = SceneProjection(link.current.value).apply(StoryEventEnvelope("5", StoryEvent(kind = StoryEventKind.Reply,
+                seq = 5, passage = Passage(entryID = "finished", text = "She finishes."))))
+        }
+        compose.onNodeWithTag("composer").assertTextContains("I wait beside her. I stay.")
+        compose.onNodeWithTag("send-move").assertIsEnabled()
+        compose.onNodeWithText("Your Move sends once the Reply is done.").assertDoesNotExist()
+        compose.onNodeWithTag("reply-caret", useUnmergedTree = true).assertDoesNotExist()
+        compose.runOnIdle { assertTrue("Completion must not send the draft", link.moves.isEmpty()) }
+        compose.onNodeWithTag("send-move").performClick()
+        compose.runOnIdle { assertEquals(MoveRequest(after = "finished", text = "I wait beside her. I stay."), link.moves.single()) }
     }
 }

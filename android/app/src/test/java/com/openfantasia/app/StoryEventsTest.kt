@@ -44,7 +44,7 @@ class StoryEventsTest {
             assertEquals("/stories/story/events", request.path)
             assertEquals("1", request.getHeader("Last-Event-ID"))
             assertEquals("Bearer secret", request.getHeader("Authorization"))
-            assertEquals("2", request.getHeader("Fantasia-Contract"))
+            assertEquals(com.openfantasia.protocol.CONTRACT_VERSION.toString(), request.getHeader("Fantasia-Contract"))
         }
     }
 }
