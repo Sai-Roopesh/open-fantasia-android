@@ -1,6 +1,7 @@
 import type { Mac } from "../mac.js";
 import type { Chronicle, Entry, Quote } from "../story/entries.js";
 import { momentsOn } from "../story/memory.js";
+import { worldOn } from "../story/world.js";
 import { minutesOf, parseStoryTime } from "../time.js";
 
 /** At most this many Moments are recalled into a prompt (docs/adr/0006). */
@@ -30,17 +31,19 @@ export interface RecalledMoment {
 
 /**
  * What a prompt carries from before the current Scene (docs/adr/0006): the summaries of the last day's Scenes, the
- * end of the last Scene word for word, and at most five Moments someone present was there for or was told of. Only
- * the Moments are sorted by who knows them, so the Actor reads only those; the Writer reads all of it
- * (docs/adr/0004).
+ * end of the last Scene word for word, at most five Moments someone present was there for or was told of, and what
+ * happened off-screen in the last day that someone present knows. The Moments and what happened are sorted by who
+ * knows them, so the Actor reads only those; the Writer reads all of it (docs/adr/0004).
  */
 export interface Recall {
   earlier: string[];
   lastSceneEnd: RecalledWords[];
   moments: RecalledMoment[];
+  /** What happened off-screen in the last day that someone present knows, with who of them knows it. */
+  lately: { what: string; at: string; knownTo: string[] }[];
 }
 
-export const NOTHING_RECALLED: Recall = { earlier: [], lastSceneEnd: [], moments: [] };
+export const NOTHING_RECALLED: Recall = { earlier: [], lastSceneEnd: [], moments: [], lately: [] };
 
 function words(entry: Entry | null, text: string, pc: string): RecalledWords {
   return { by: entry?.payload.kind === "move" ? pc : null, text };
@@ -95,7 +98,17 @@ export function recall(mac: Mac, head: string, present: string[]): Recall {
     return payload.kind === "move" || payload.kind === "reply" ? [words(entry, payload.text, pc)] : [];
   });
 
-  return { earlier, lastSceneEnd, moments };
+  // What the people here lived through or were told off-screen in the last day (openspec day-view: Missing something
+  // has consequences): the Weaver's record, sorted by who knows it, as Moments are.
+  const clock = parseStoryTime(state.clock);
+  const lately = worldOn(mac, head).happened.flatMap(item => {
+    const at = parseStoryTime(item.at);
+    const knowers = item.knownTo.filter(name => present.includes(name));
+    if (!at || !clock || minutesOf(clock) - minutesOf(at) > DAY || knowers.length === 0) return [];
+    return [{ what: item.what, at: item.at, knownTo: knowers }];
+  });
+
+  return { earlier, lastSceneEnd, moments, lately };
 }
 
 /** Recalled words as a prompt shows them: the player's in a Move tag, as the Scene shows his Moves. */

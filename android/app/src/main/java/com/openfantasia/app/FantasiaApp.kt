@@ -36,7 +36,7 @@ import androidx.lifecycle.Lifecycle
                         if (state.pastSceneLoading) CircularProgressIndicator()
                     } else {
                         SceneScreen(scene, portrait, Modifier.weight(1f), controlsEnabled = state.canChangeScene,
-                            focus = model::focus, redo = model::redo, dismissPreviously = model::dismissPreviously, back = model::home, awaitingReply = state.replyComing,
+                            focus = model::focus, redo = model::redo, choose = model::choose, dismissPreviously = model::dismissPreviously, back = model::home, awaitingReply = state.replyComing,
                             openPastScene = { focusManager.clearFocus(); model.openPastScene(it) }, scrollState = scrollState,
                             storyTitle = state.stories.firstOrNull { it.id == scene.storyID }?.title ?: scene.scene.title,
                             worldFailure = { WorldFailureContent(state, model::retryWorld) },

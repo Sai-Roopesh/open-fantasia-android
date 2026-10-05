@@ -568,7 +568,9 @@
         "world",
         "scene_span",
         "meanwhile",
-        "failure"
+        "failure",
+        "happenings",
+        "choices"
       ],
       "properties": {
         "at": {
@@ -635,6 +637,16 @@
               "type": "null"
             }
           ]
+        },
+        "happenings": {
+          "description": "What is on today that the Player Character could go to: at most four, the Story's pick first, once the World has moved on; empty before.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Happening"
+          }
+        },
+        "choices": {
+          "$ref": "#/$defs/DayChoices"
         }
       }
     },
@@ -696,6 +708,160 @@
         },
         "trace_id": {
           "type": "string"
+        }
+      }
+    },
+    "Happening": {
+      "description": "Something going on in the World at a time and place the Player Character could be at (openspec day-view: Up to four Happenings).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "at",
+        "time",
+        "place",
+        "what",
+        "who",
+        "expected",
+        "pick"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "at": {
+          "description": "Story time, \"Day N HH:MM\".",
+          "type": "string"
+        },
+        "time": {
+          "description": "When, as people say it: \"9:00 am\", or \"Tomorrow 9:00 am\".",
+          "type": "string"
+        },
+        "place": {
+          "type": "string"
+        },
+        "what": {
+          "description": "What is going on, and why it matters now.",
+          "type": "string"
+        },
+        "who": {
+          "description": "Who will be there, by name.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "expected": {
+          "description": "The Player Character is expected there: shown \"You're expected\".",
+          "type": "boolean"
+        },
+        "pick": {
+          "description": "The Story's own pick, which Let the Story choose goes to.",
+          "type": "boolean"
+        }
+      }
+    },
+    "DayChoices": {
+      "description": "What the Day View's other choices offer: people to follow, places to go, and times to skip to.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "follow",
+        "places",
+        "skips"
+      ],
+      "properties": {
+        "follow": {
+          "description": "People the Player Character could follow: the Leads and whoever was in the Scene that ended.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "places": {
+          "description": "The Story's places to go to.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "skips": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Skip"
+          }
+        }
+      }
+    },
+    "Skip": {
+      "description": "A later time to skip to: this evening, tomorrow, the weekend, the next Landmark.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "label",
+        "at",
+        "time"
+      ],
+      "properties": {
+        "label": {
+          "description": "\"This evening\", \"Tomorrow\", \"The weekend\", or the Landmark's name.",
+          "type": "string"
+        },
+        "at": {
+          "type": "string"
+        },
+        "time": {
+          "description": "As people say it: \"Saturday 6:00 pm\".",
+          "type": "string"
+        }
+      }
+    },
+    "ChooseRequest": {
+      "description": "A choice at the Day View (openspec day-view: The player chooses where to be). The Mac writes it as the player's Move, the Gap first.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after",
+        "kind",
+        "gap"
+      ],
+      "properties": {
+        "after": {
+          "description": "The entry the choice follows: the Day View's head.",
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "go",
+            "follow",
+            "somewhere",
+            "skip",
+            "story"
+          ]
+        },
+        "happening": {
+          "description": "go: the Happening's id.",
+          "type": "string"
+        },
+        "who": {
+          "description": "follow: who.",
+          "type": "string"
+        },
+        "place": {
+          "description": "somewhere: the place.",
+          "type": "string"
+        },
+        "at": {
+          "description": "skip: the time skipped to.",
+          "type": "string"
+        },
+        "gap": {
+          "description": "What the Player Character did in the Gap, in the player's words, or null: left blank, he spent it quietly where he was.",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       }
     },

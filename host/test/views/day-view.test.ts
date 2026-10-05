@@ -26,7 +26,9 @@ describe("the Day View", () => {
       // Whether the World has moved on yet, and what he learned meanwhile, are the Weaver's (openspec presence).
       world: expect.any(String),
       meanwhile: expect.any(Array),
-      failure: null
+      failure: null,
+      happenings: expect.any(Array),
+      choices: expect.any(Object)
     });
   });
 
@@ -70,5 +72,21 @@ describe("the Day View", () => {
     // The night has passed: the next Move is planned from Saturday morning, and never before it.
     await play("I go down to breakfast.");
     expect(models.writer.requests.at(-1)!.prompt).toContain("<now>\nDay 4 07:30 (Saturday 7:30 am)\n</now>");
+  });
+
+  it("offers the Leads and the Scene's people to follow, the Story's places, and later times to skip to", async () => {
+    const sunday = hogwartsStoryFile({ title: "Sunday evening", place: "The Gryffindor common room", at: "Day 5 19:00", who: ["Hermione Granger"] });
+    sunday.world = { places: [{ name: "The library" }, { name: "Hagrid's hut" }] };
+    const { play, engine, storyId, head, view } = playable(sunday);
+    await play("I say goodnight.");
+    engine.endScene(storyId, head(), "trace-end");
+    expect(view().day_view!.choices).toEqual({
+      follow: ["Hermione Granger", "Draconia Malfoy"],
+      places: ["The library", "Hagrid's hut"],
+      skips: [
+        { label: "Tomorrow", at: "Day 6 07:30", time: "Monday 7:30 am" },
+        { label: "Draconia's flying test", at: "Day 8 10:00", time: "Wednesday 10:00 am" }
+      ]
+    });
   });
 });

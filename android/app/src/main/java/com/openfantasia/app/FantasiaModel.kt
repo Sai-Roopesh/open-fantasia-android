@@ -137,21 +137,35 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
     fun sendMove() {
         val state = mutable.value
         val scene = state.scene ?: return
-        if (!state.worldReady || state.draft.isBlank() || state.sending || state.waiting || state.loading || !state.reachable ||
-            scene.turn.kind != TurnStateKind.Idle || scene.replyComing || state.problem?.needsUpdate == true) return
+        if (!state.canSendMove) return
+        sendTurn(scene, clearDraft = state.draft) {
+            link.move(scene.storyID, MoveRequest(after = scene.headEntryID, text = state.draft))
+        }
+    }
+
+    fun choose(request: ChooseRequest) {
+        val state = mutable.value
+        val scene = state.scene ?: return
+        if (scene.dayView?.world != World.Ready || !state.canChangeScene || request.after != scene.headEntryID) return
+        sendTurn(scene) { link.choose(scene.storyID, request) }
+    }
+
+    // Moves and Day View choices are the same turn on the Mac, including acceptance before the stream catches up.
+    private fun sendTurn(scene: SceneView, clearDraft: String? = null, command: suspend () -> TurnAccepted) {
         afterSeq = scene.seq
         mutable.update { it.copy(sending = true, problem = null) }
         viewModelScope.launch {
             try {
-                val accepted = link.move(scene.storyID, MoveRequest(after = scene.headEntryID, text = state.draft))
+                val accepted = command()
                 pendingMoveID = accepted.moveEntryID
                 val current = mutable.value.scene
-                val finished = current != null && current.seq > scene.seq && current.headEntryID != accepted.moveEntryID && current.turn.kind == TurnStateKind.Idle
-                mutable.update { it.copy(draft = if (it.draft == state.draft) "" else it.draft, waiting = !finished) }
+                val finished = current != null && (current.turn.kind == TurnStateKind.Failed ||
+                    (current.seq > scene.seq && current.headEntryID != accepted.moveEntryID && current.turn.kind == TurnStateKind.Idle))
+                mutable.update { it.copy(draft = if (clearDraft != null && it.draft == clearDraft) "" else it.draft, waiting = !finished) }
             } catch (e: CancellationException) { throw e
             } catch (e: Exception) {
                 showProblem(e)
-                // Re-read the Mac's head before another Send; a refused or interrupted Move can leave the view behind.
+                // Re-read the Mac's head before another command; a refused or interrupted turn can leave the view behind.
                 if (e !is LinkFailure || !e.versionMismatch) {
                     try { val fresh = link.scene(scene.storyID); mutable.update { it.copy(scene = visibleScene(fresh)) }
                     } catch (cancelled: CancellationException) { throw cancelled

@@ -8,19 +8,21 @@ import type { Beat, ModelChoice, SceneCall } from "./state.js";
 export type Payload = StorySetUp | SceneOpened | MoveWritten | Redo | BeatNote | ReplyWritten | SceneClosed | FocusSet | LingerSet | Chronicle | WorldMoved;
 
 /** A payload as any version may have stored it. */
-export type StoredPayload = Exclude<Payload, BeatNote | Chronicle>
+export type StoredPayload = Exclude<Payload, BeatNote | Chronicle | WorldMoved>
   | (Omit<BeatNote, "inPlay" | "goes"> & Partial<Pick<BeatNote, "inPlay" | "goes">>)
-  | (Omit<Chronicle, "sceneEnded"> & Partial<Pick<Chronicle, "sceneEnded">>);
+  | (Omit<Chronicle, "sceneEnded"> & Partial<Pick<Chronicle, "sceneEnded">>)
+  | (Omit<WorldMoved, "happenings"> & Partial<Pick<WorldMoved, "happenings">>);
 
 /**
  * An entry as it reads now, however long ago it was written. Entries never change (docs/adr/0003), so a field added
  * later is filled here, the one place entries are read, as it would have been: a Beat Note from before Moments were
  * put in play has none in play, and one from before people could go has nobody going; a Chronicle from before open
- * Scenes had summaries recorded an ended Scene exactly when it had one.
+ * Scenes had summaries recorded an ended Scene exactly when it had one; a World moved before Happenings offers none.
  */
 export function readPayload(stored: StoredPayload): Payload {
   if (stored.kind === "beat_note") return { ...stored, inPlay: stored.inPlay ?? [], goes: stored.goes ?? [] };
   if (stored.kind === "chronicle") return { ...stored, sceneEnded: stored.sceneEnded ?? stored.summary !== null };
+  if (stored.kind === "world_moved") return { ...stored, happenings: stored.happenings ?? [] };
   return stored;
 }
 
@@ -53,6 +55,19 @@ export interface SceneOpened {
 export interface MoveWritten {
   kind: "move";
   text: string;
+  /** What the player chose at the Day View, when the Move is a choice: the Writer opens the Scene on it. */
+  choice?: Choice;
+}
+
+/** A choice at the Day View, resolved against what it offered (openspec day-view: The player chooses where to be). */
+export interface Choice {
+  kind: "go" | "follow" | "somewhere" | "skip" | "story";
+  /** Where the next Scene opens, when the choice says. */
+  place: string | null;
+  /** When the next Scene opens, when the choice says. */
+  at: string | null;
+  /** Who will be in it: the Happening's people, or the person followed. */
+  who: string[];
 }
 
 /**
@@ -185,6 +200,19 @@ export interface MeanwhileItem {
   toldBy: string | null;
 }
 
+/** Something going on that the Player Character could go to (openspec day-view: Up to four Happenings). */
+export interface Happening {
+  id: string;
+  at: string;
+  place: string;
+  what: string;
+  who: string[];
+  /** He is expected there, and knows it. */
+  expected: boolean;
+  /** The Story's own pick. */
+  pick: boolean;
+}
+
 /**
  * The Weaver's record: the World moved on from [from] to [until] after a Scene ended. It hangs off the Scene's last
  * entry and never extends the Path (docs/adr/0007); the World is worked out beside the Path (story/world.ts).
@@ -200,6 +228,8 @@ export interface WorldMoved {
   threads: ThreadNow[];
   happened: Happened[];
   meanwhile: MeanwhileItem[];
+  /** What is on from [until] on, the Story's pick first. */
+  happenings: Happening[];
   callId: string;
   model: ModelChoice;
 }

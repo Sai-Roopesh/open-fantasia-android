@@ -60,6 +60,29 @@ if nobody who knows it could have told him, and he could not have seen it, he do
 in the story's voice, the way someone would tell it, with the names he knows them by. A quiet span may have nothing
 for Meanwhile.
 
+## What's on today
+
+`happenings` is what is going on that the player's character could go to, from the end of the span on: at most
+four, each `{ id, at, place, what, who, expected, pick }`. `id` is `P1`, `P2` and on; `at` a story time at or after
+the end of the span, today, or tomorrow morning when the day is nearly done; `what` one line of what is going on and
+why it matters to him now; `who` everyone who will be there, by their names in the story, never his.
+
+Offer what grows out of the World: where the people who matter to him will be (the Leads first), a Thread coming to
+a head, a Landmark, a summons. Mark `expected` when he is expected there and knows it (a summons, a lesson, a
+promise he made); it is never a surprise to him. Put your own pick first, with `pick` true: the one that matters most
+now. When the task says the last two Scenes had no Lead in them, your pick has a Lead in it.
+
+Something he does not know of is not on his list: what is hidden stays hidden. Offer fewer when fewer things are
+going on; a quiet Sunday may have two.
+
+## The Gap
+
+When the task gives you a Gap, the player's character chose to be somewhere later, and spent the time until then as
+his Move says: that is what he did, and nothing else. Everything else in the span goes on without him. What was on
+in the Gap (G1, G2) happens as it would have: write each, and set `missed` to its id. Where he was expected, the
+people there notice he did not come, and that is known to them: McGonagall takes the accounts without him and asks
+Hermione where he is. Leave `happenings` empty in a Gap.
+
 ## The story's way
 
 Keep to the story's Style, its world and its people as they are. Write what happens plainly, in the past tense; no

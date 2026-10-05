@@ -108,7 +108,7 @@ describe("the Actor's prompt for one Reply", () => {
   it("puts the words of the memories in play after the Move, right before its last line", () => {
     const { state, mac, head, storyId } = nightTrain();
     const move = mac.tree.append(storyId, head(), { kind: "move", text: "I ask about the window seat." });
-    const recalled = { earlier: [], lastSceneEnd: [], moments: [{ id: "moment-seat", scene: "Scene 1 · The wrong berth", what: "w", words: [{ by: "Ishaan Mehra", text: "I offer her the window seat." }], knownTo: ["Meera Kulkarni"] }] };
+    const recalled = { earlier: [], lastSceneEnd: [], lately: [], moments: [{ id: "moment-seat", scene: "Scene 1 · The wrong berth", what: "w", words: [{ by: "Ishaan Mehra", text: "I offer her the window seat." }], knownTo: ["Meera Kulkarni"] }] };
     const current: State = { ...state, scene: { ...state.scene!, inPlay: ["moment-seat"] } };
     const { prompt } = actorPrompt(current, mac.tree.pathTo(move.id).slice(1), recalled);
     expect(prompt).toMatch(/<in_play>\n<moment scene="Scene 1 · The wrong berth" known_to="Meera Kulkarni">\n<move by="Ishaan Mehra">\nI offer her the window seat\.\n<\/move>\n<\/moment>\n<\/in_play>\n\nWrite what happens next/);

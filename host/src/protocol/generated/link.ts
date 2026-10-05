@@ -271,6 +271,11 @@ export interface DayView {
    * Why the World could not move on, when world is failed; Retry is POST /stories/{id}/world/retry.
    */
   failure: WorldFailure | null;
+  /**
+   * What is on today that the Player Character could go to: at most four, the Story's pick first, once the World has moved on; empty before.
+   */
+  happenings: Happening[];
+  choices: DayChoices;
 }
 /**
  * This interface was referenced by `Link`'s JSON-Schema
@@ -306,6 +311,74 @@ export interface MeanwhileItem {
 export interface WorldFailure {
   reason: string;
   trace_id: string;
+}
+/**
+ * Something going on in the World at a time and place the Player Character could be at (openspec day-view: Up to four Happenings).
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "Happening".
+ */
+export interface Happening {
+  id: string;
+  /**
+   * Story time, "Day N HH:MM".
+   */
+  at: string;
+  /**
+   * When, as people say it: "9:00 am", or "Tomorrow 9:00 am".
+   */
+  time: string;
+  place: string;
+  /**
+   * What is going on, and why it matters now.
+   */
+  what: string;
+  /**
+   * Who will be there, by name.
+   */
+  who: string[];
+  /**
+   * The Player Character is expected there: shown "You're expected".
+   */
+  expected: boolean;
+  /**
+   * The Story's own pick, which Let the Story choose goes to.
+   */
+  pick: boolean;
+}
+/**
+ * What the Day View's other choices offer: people to follow, places to go, and times to skip to.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "DayChoices".
+ */
+export interface DayChoices {
+  /**
+   * People the Player Character could follow: the Leads and whoever was in the Scene that ended.
+   */
+  follow: string[];
+  /**
+   * The Story's places to go to.
+   */
+  places: string[];
+  skips: Skip[];
+}
+/**
+ * A later time to skip to: this evening, tomorrow, the weekend, the next Landmark.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "Skip".
+ */
+export interface Skip {
+  /**
+   * "This evening", "Tomorrow", "The weekend", or the Landmark's name.
+   */
+  label: string;
+  at: string;
+  /**
+   * As people say it: "Saturday 6:00 pm".
+   */
+  time: string;
 }
 /**
  * The Previously card: where the Story stands, from the Chronicler's records, and when the player last played.
@@ -449,6 +522,44 @@ export interface DayView1 {
    * Why the World could not move on, when world is failed; Retry is POST /stories/{id}/world/retry.
    */
   failure: WorldFailure | null;
+  /**
+   * What is on today that the Player Character could go to: at most four, the Story's pick first, once the World has moved on; empty before.
+   */
+  happenings: Happening[];
+  choices: DayChoices;
+}
+/**
+ * A choice at the Day View (openspec day-view: The player chooses where to be). The Mac writes it as the player's Move, the Gap first.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "ChooseRequest".
+ */
+export interface ChooseRequest {
+  /**
+   * The entry the choice follows: the Day View's head.
+   */
+  after: string;
+  kind: "go" | "follow" | "somewhere" | "skip" | "story";
+  /**
+   * go: the Happening's id.
+   */
+  happening?: string;
+  /**
+   * follow: who.
+   */
+  who?: string;
+  /**
+   * somewhere: the place.
+   */
+  place?: string;
+  /**
+   * skip: the time skipped to.
+   */
+  at?: string;
+  /**
+   * What the Player Character did in the Gap, in the player's words, or null: left blank, he spent it quietly where he was.
+   */
+  gap: string | null;
 }
 /**
  * This interface was referenced by `Link`'s JSON-Schema

@@ -1,4 +1,5 @@
 import type { Countdown, DayView, Exchange, PastScene, Previously, SceneCard, SceneView, StoryEvent } from "../protocol/generated/link.js";
+import { dayChoicesOf, todayOn } from "../story/day.js";
 import type { Engine } from "../engine/engine.js";
 import { LinkError } from "../link/errors.js";
 import type { Mac } from "../mac.js";
@@ -73,9 +74,12 @@ export function dayView(mac: Mac, state: State, head: string, failure: { reason:
     closed_by: state.scene.closed,
     countdowns,
     scene_span: sceneSpan(state, state.scene.at, state.scene.endedAt ?? state.clock),
-    ...worldOfDay(mac, head, state.scene.openedBy, failure)
+    ...worldOfDay(mac, head, state.scene.openedBy, failure),
+    happenings: todayOn(mac, head, state),
+    choices: dayChoicesOf(state)
   };
 }
+
 
 function worldOfDay(mac: Mac, head: string, scene: string, failure: { reason: string; traceId: string } | null): Pick<DayView, "world" | "meanwhile" | "failure"> {
   const record = mac.tree.recordsOn(head, "world_moved").map(entry => entry.payload as WorldMoved).find(moved => moved.scene === scene);

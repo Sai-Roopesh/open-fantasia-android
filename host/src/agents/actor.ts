@@ -51,7 +51,9 @@ export function actorPrompt(state: State, scene: Entry[], recall: Recall = NOTHI
     section("scene", `${state.scene.title}. ${state.scene.place}, ${at ? sayDayAndTime(at, state.dayOneWeekday) : state.scene.at}.`),
     // Only the Moments someone here knows: the summaries and the end of the last Scene are not sorted by who knows them,
     // so they go to the Writer alone (docs/adr/0004: the Actor sees what the people in the Scene know).
-    section("remembered", recall.moments.map(moment => section(`moment scene="${moment.scene}" known_to="${moment.knownTo.join(", ")}"`, sayWords(moment.words))).join("\n\n"))
+    section("remembered", recall.moments.map(moment => section(`moment scene="${moment.scene}" known_to="${moment.knownTo.join(", ")}"`, sayWords(moment.words))).join("\n\n")),
+    // What happened elsewhere lately that someone here lived through or was told; nobody else here knows it.
+    section("lately", recall.lately.map(item => section(`happened known_to="${item.knownTo.join(", ")}"`, item.what)).join("\n\n"))
   ].filter(part => part !== null).join("\n");
 
   return { system, prompt: scenePrompt(state, scene, pc, recall) };

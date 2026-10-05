@@ -10,6 +10,7 @@ interface WriterFacts {
   here: string[];
   beats: { text: string; status: string }[];
   direction: { text: string | null; remember: boolean } | null;
+  choice: { place: string | null; at: string | null; who: string[] } | null;
 }
 
 /**
@@ -25,7 +26,7 @@ export function fakeWriterAnswer(request: ModelRequest): Script {
     { text: "The answer changes what is between them.", status: "pending" }
   ];
   const frame = facts.opening === "day_view"
-    ? { title: "The next Scene", place: facts.place ?? "Somewhere new", purpose: "Something between two people turns.", exit: "It turns, or it does not." }
+    ? { title: "The next Scene", place: facts.choice?.place ?? facts.place ?? "Somewhere new", purpose: "Something between two people turns.", exit: "It turns, or it does not." }
     : facts.opening === "unplanned"
       ? { title: facts.title ?? "", place: facts.place ?? "", purpose: "Something between two people turns.", exit: "It turns, or it does not." }
       : null;
@@ -33,14 +34,15 @@ export function fakeWriterAnswer(request: ModelRequest): Script {
     answer: JSON.stringify({
       leaves_scene: false,
       frame,
-      comes_in: [],
+      // A choice at the Day View opens there, then, with them.
+      comes_in: facts.choice?.who ?? [],
       goes: [],
       beats,
       note: "Someone answers the Move, and wants something back.",
       call: "continue",
       intensity: 2,
       arc_moved: true,
-      clock: facts.now,
+      clock: facts.choice?.at ?? facts.now,
       taste: facts.direction?.remember && facts.direction.text ? `Remember: ${facts.direction.text}` : null,
       in_play: []
     })
@@ -80,11 +82,15 @@ interface WeaverFacts {
   from: string;
   until: string;
   landmarks: { name: string; at: string }[];
+  leadless: boolean;
+  leads: string[];
+  missed: { label: string; at: string; place: string; who: string[]; expected: boolean }[];
 }
 
 /**
- * A Weaver's record that keeps every rule: the World stays as it was, every Landmark in the span happens, and the
- * player's character learns nothing.
+ * A Weaver's record that keeps every rule: the World stays as it was, every Landmark in the span happens, the
+ * player's character learns nothing, and nothing is on, unless the Story's pick must have a Lead in it. In a Gap, what
+ * he was expected at goes on without him, noticed.
  */
 export function fakeWeaveAnswer(request: ModelRequest): Script {
   const facts = request.facts as WeaverFacts;
@@ -92,8 +98,14 @@ export function fakeWeaveAnswer(request: ModelRequest): Script {
     answer: JSON.stringify({
       lives: [],
       threads: [],
-      happened: facts.landmarks.map((landmark, index) => ({ id: `H${index + 1}`, what: `${landmark.name} happened.`, at: landmark.at, where: "where it was held", known_to: [], landmark: landmark.name })),
-      meanwhile: []
+      happened: [
+        ...facts.landmarks.map((landmark, index) => ({ id: `H${index + 1}`, what: `${landmark.name} happened.`, at: landmark.at, where: "where it was held", known_to: [], landmark: landmark.name })),
+        ...facts.missed.filter(item => item.expected).map((item, index) => ({ id: `M${index + 1}`, what: `${item.place} went on without him, and they noticed.`, at: item.at, where: item.place, known_to: item.who, landmark: null, missed: item.label }))
+      ],
+      meanwhile: [],
+      happenings: facts.leadless && facts.leads[0]
+        ? [{ id: "P1", at: facts.until, place: "where they are", what: `${facts.leads[0]} is about.`, who: [facts.leads[0]], expected: false, pick: true }]
+        : []
     })
   };
 }

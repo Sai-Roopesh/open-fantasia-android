@@ -17,7 +17,8 @@ const noteUnderTheDoor = {
   lives: [{ who: "Minerva McGonagall", where: "her office", doing: "waiting for accounts of the troll", after: "The truth about the troll" }],
   threads: [],
   happened: [{ id: "H1", what: "McGonagall slid a note under Roopesh's door.", at: "Day 4 06:45", where: "the boys' dormitory", known_to: ["Minerva McGonagall", "Roopesh Gantasala"], landmark: null }],
-  meanwhile: [{ text: "A note under the door: \"My office, nine o'clock.\" M. McGonagall.", how: "seen", happened: "H1", told_by: null }]
+  meanwhile: [{ text: "A note under the door: \"My office, nine o'clock.\" M. McGonagall.", how: "seen", happened: "H1", told_by: null }],
+  happenings: []
 };
 
 /** The common room after curfew, on models where the Chronicler is held until the test lets it go. */
@@ -119,7 +120,7 @@ async function nightWoven(weaver: object[], landmarks: { name: string; at: strin
   return { ...played, world: worldOn(played.mac, played.head()), repairPrompt: weaverCalls[1]?.prompt ?? "" };
 }
 
-const quiet = { lives: [], threads: [], happened: [], meanwhile: [] };
+const quiet = { lives: [], threads: [], happened: [], meanwhile: [], happenings: [] };
 
 describe("what the Weaver may write", () => {
   // GIVEN the Triwizard Tournament is a Landmark in Year 3 and Draconia still hates the Player Character

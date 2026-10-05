@@ -2,10 +2,10 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import type { Models } from "../models/model-call.js";
-import type { Entry, Happened, Life, MeanwhileItem, ThreadNow } from "../story/entries.js";
+import type { Entry, Happened, Happening, Life, MeanwhileItem, ThreadNow } from "../story/entries.js";
 import type { ModelChoice, State } from "../story/state.js";
 import type { World } from "../story/world.js";
-import { minutesOf, parseStoryTime, sayStoryTime } from "../time.js";
+import { minutesOf, parseStoryTime, sayStoryTime, sayTime } from "../time.js";
 import { nameIndex } from "./names.js";
 import { answerWithOneRepair, type Checked } from "./repair.js";
 
@@ -19,6 +19,7 @@ import { answerWithOneRepair, type Checked } from "./repair.js";
 const PROMPT = readFileSync(new URL("./WEAVER.md", import.meta.url), "utf8");
 
 const MAX_MEANWHILE = 6;
+const MAX_HAPPENINGS = 4;
 /** How far back what happened is shown to the Weaver, so it can go on from it. */
 const LATELY_MINUTES = 24 * 60;
 const WEAVER_EXCHANGES = 12;
@@ -30,7 +31,7 @@ const names = { type: "array", items: { type: "string" } } as const;
 export const WEAVER_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["lives", "threads", "happened", "meanwhile"],
+  required: ["lives", "threads", "happened", "meanwhile", "happenings"],
   properties: {
     lives: {
       type: "array",
@@ -48,7 +49,10 @@ export const WEAVER_SCHEMA = {
         type: "object",
         additionalProperties: false,
         required: ["id", "what", "at", "where", "known_to", "landmark"],
-        properties: { id: text, what: text, at: { ...text, description: "A story time in the span, \"Day N HH:MM\"." }, where: text, known_to: names, landmark: { type: ["string", "null"] } }
+        properties: {
+          id: text, what: text, at: { ...text, description: "A story time in the span, \"Day N HH:MM\"." }, where: text, known_to: names, landmark: { type: ["string", "null"] },
+          missed: { type: ["string", "null"], description: "In a Gap: the id (G1) of what was on that this is, going on without him." }
+        }
       }
     },
     meanwhile: {
@@ -60,6 +64,16 @@ export const WEAVER_SCHEMA = {
         required: ["text", "how", "happened", "told_by"],
         properties: { text, how: { type: "string", enum: ["seen", "told", "rumour"] }, happened: text, told_by: { type: ["string", "null"] } }
       }
+    },
+    happenings: {
+      type: "array",
+      description: "What is on from the end of the span on, at most four, the pick first.",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["id", "at", "place", "what", "who", "expected", "pick"],
+        properties: { id: text, at: text, place: text, what: text, who: names, expected: { type: "boolean" }, pick: { type: "boolean" } }
+      }
     }
   }
 } as const;
@@ -67,8 +81,9 @@ export const WEAVER_SCHEMA = {
 interface RawWeave {
   lives: { who: string; where: string; doing: string; after: string }[];
   threads: { name: string; now: string }[];
-  happened: { id: string; what: string; at: string; where: string; known_to: string[]; landmark: string | null }[];
+  happened: { id: string; what: string; at: string; where: string; known_to: string[]; landmark: string | null; missed?: string | null }[];
   meanwhile: { text: string; how: "seen" | "told" | "rumour"; happened: string; told_by: string | null }[];
+  happenings: { id: string; at: string; place: string; what: string; who: string[]; expected: boolean; pick: boolean }[];
 }
 
 const ajv = new Ajv2020({ strict: false, allErrors: true });
@@ -87,6 +102,12 @@ export interface WeaveAsk {
   until: string;
   /** Everyone who was in the Scene, besides the Player Character. */
   inScene: string[];
+  /** The last two Scenes had no Lead in them, so the Story's pick has one (openspec day-view: Lead absence). */
+  leadless?: boolean;
+  /** When the span is a Gap the player chose to skip: what was on in it, which goes on without him. */
+  gap?: { missed: Happening[] };
+  /** What was on already and is still ahead: the Day View keeps it, so it is not offered again. */
+  stillOn?: Happening[];
 }
 
 /** What the Weaver wrote, checked, with every name as the Story keeps it and what happened given ids of its own. */
@@ -95,6 +116,7 @@ export interface WeaveRecord {
   threads: ThreadNow[];
   happened: Happened[];
   meanwhile: MeanwhileItem[];
+  happenings: Happening[];
 }
 
 /** The Weaver could not give a record the Story can use. */
@@ -156,6 +178,13 @@ export function checkWeave(ask: WeaveAsk, raw: unknown): Checked<WeaveRecord> {
     ids.set(item.id.trim(), checked);
     return checked;
   });
+  // In a Gap, what was on goes on without him; where he was expected, the people there notice (openspec day-view).
+  for (const [index, missed] of (ask.gap?.missed ?? []).entries()) {
+    const label = `G${index + 1}`;
+    if (!missed.expected) continue;
+    const answered = raw.happened.some(item => item.missed?.trim() === label && item.known_to.some(name => missed.who.includes(named(name) ?? "")));
+    if (!answered) problems.push(`happened: ${missed.place} at ${sayTime(parseStoryTime(missed.at) ?? { day: 0, minuteOfDay: 0 })} went on without him, and he was expected; write it going on, with the people there noticing he did not come (missed: ${label})`);
+  }
   for (const landmark of landmarksIn(ask)) {
     if (!happened.some(item => item.landmark === landmark.name)) {
       problems.push(`happened: the Landmark ${landmark.name} falls in the span (${landmark.at}) and has not happened; write it, with landmark set to its name`);
@@ -182,8 +211,32 @@ export function checkWeave(ask: WeaveAsk, raw: unknown): Checked<WeaveRecord> {
     return [{ text: item.text.trim(), how: item.how, happened: about.id, toldBy }];
   });
 
+  // What is on: at most four, from the Day View on, the Story's names, one pick and it first.
+  if (raw.happenings.length > MAX_HAPPENINGS) problems.push(`happenings: there are ${raw.happenings.length}; offer at most four, the ones that matter most`);
+  const happenings: Happening[] = raw.happenings.map(item => {
+    const at = parseStoryTime(item.at);
+    if (!at) problems.push(`happenings: ${item.id} is at "${item.at}", which is not a time like "Day 4 09:00"`);
+    else if (until && minutesOf(at) < minutesOf(until)) problems.push(`happenings: ${item.id} is at ${item.at.trim()}, before the Day View (${ask.until}); offer only what is still to come`);
+    const who = item.who.flatMap(name => {
+      const known = named(name);
+      if (!known) return (problems.push(`happenings: ${item.id}, who: ${name.trim()} is not in the story`), []);
+      if (known === pc) return (problems.push(`happenings: ${item.id}, who: ${pc} is the player's character; say who else will be there`), []);
+      return [known];
+    });
+    return { id: `p-${randomUUID().slice(0, 8)}`, at: item.at.trim(), place: item.place.trim(), what: item.what.trim(), who: [...new Set(who)], expected: item.expected, pick: item.pick };
+  });
+  const picks = happenings.filter(item => item.pick).length;
+  if (picks > 1) problems.push(`happenings: ${picks} are the pick; pick one, and put it first`);
+  else if (picks === 1 && !happenings[0]?.pick) problems.push("happenings: your pick is not first; put it first");
+  if (ask.leadless) {
+    const pick = happenings.find(item => item.pick);
+    const lead = (item: Happening | undefined) => item?.who.some(name => state.leads.includes(name)) ?? false;
+    if (!lead(pick)) problems.push(`happenings: the last two Scenes had no Lead in them; make your pick something with a Lead in it (${state.leads.join(", ")})`);
+  }
+
   if (problems.length) return { ok: false, problems };
-  return { ok: true, value: { lives, threads: raw.threads.map(thread => ({ name: thread.name.trim(), now: thread.now.trim() })), happened, meanwhile } };
+  // A Gap's span ends where the next Scene begins; what is on after it is for the Day View after that Scene.
+  return { ok: true, value: { lives, threads: raw.threads.map(thread => ({ name: thread.name.trim(), now: thread.now.trim() })), happened, meanwhile, happenings: ask.gap ? [] : happenings } };
 }
 
 function section(tag: string, body: string): string | null {
@@ -254,15 +307,25 @@ export function weaverPrompt(ask: WeaveAsk): { system: string; prompt: string; f
     section("lives", world.lives.map(life).join("\n")),
     section("threads", world.threads.map(thread => `- ${thread.name}: ${thread.now}`).join("\n")),
     section("lately", lately.map(item => `- ${item.what} (${say(state, item.at)}, ${item.where}; known to: ${item.knownTo.join(", ") || "nobody"})`).join("\n")),
-    section(`scene_that_ended title="${scene?.title ?? ""}" place="${scene?.place ?? ""}" with="${ask.inScene.join(", ") || "nobody else"}"`, sceneThatEnded(ask.scene, pc)),
+    ask.gap
+      ? section("the_gap", [
+        `${pc} chose to be elsewhere later, and spent the time until then as his Move says:`,
+        sceneThatEnded(ask.scene, pc),
+        ask.gap.missed.length ? `What was on in the Gap goes on without him:\n${ask.gap.missed.map((item, index) => `- G${index + 1} ${sayTime(parseStoryTime(item.at) ?? { day: 0, minuteOfDay: 0 })}, ${item.place}: ${item.what} With ${item.who.join(", ")}${item.expected ? "; he was expected" : ""}.`).join("\n")}` : ""
+      ].filter(Boolean).join("\n\n"))
+      : section(`scene_that_ended title="${scene?.title ?? ""}" place="${scene?.place ?? ""}" with="${ask.inScene.join(", ") || "nobody else"}"`, sceneThatEnded(ask.scene, pc)),
+    section("still_on", (ask.stillOn ?? []).map(item => `- ${item.at}, ${item.place}: ${item.what}`).join("\n")),
     section("landmarks_in_span", landmarks.map(landmark => `- ${landmark.name}, ${landmark.at}: ${landmark.what}`).join("\n")),
     section("task", [
       "Move the World on over the span: the Lives and Threads that moved, what happened and who knows it, and what the player's character learned.",
       landmarks.length ? "Every Landmark in the span happens." : "",
+      ask.gap ? "Leave happenings empty: the next Scene begins where the Gap ends." : `Then say what is on from ${say(state, ask.until)} on; what is still on stays, so do not offer it again.`,
+      ask.leadless ? `The last two Scenes had no Lead in them (${state.leads.join(", ")}): your pick has one in it.` : "",
       "Return only the JSON object."
     ].filter(Boolean).join("\n"))
   ].filter(part => part !== null).join("\n\n");
-  const facts = { from: ask.from, until: ask.until, landmarks: landmarks.map(landmark => ({ name: landmark.name, at: landmark.at })) };
+  const facts = { from: ask.from, until: ask.until, landmarks: landmarks.map(landmark => ({ name: landmark.name, at: landmark.at })), leadless: ask.leadless ?? false, leads: state.leads,
+    missed: (ask.gap?.missed ?? []).map((item, index) => ({ label: `G${index + 1}`, at: item.at, place: item.place, who: item.who, expected: item.expected })) };
   return { system: storyPrompt(state), prompt, facts };
 }
 

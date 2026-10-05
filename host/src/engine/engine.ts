@@ -9,12 +9,13 @@ import { LinkError } from "../link/errors.js";
 import type { Mac } from "../mac.js";
 import { jobModels } from "../models/jobs.js";
 import type { Models } from "../models/model-call.js";
-import type { Accepted, StoryEvent, TurnAccepted, TurnState } from "../protocol/generated/link.js";
+import type { Accepted, ChooseRequest, StoryEvent, TurnAccepted, TurnState } from "../protocol/generated/link.js";
 import type { StoryPath } from "../store/tree.js";
 import type { Entry, EntryKind } from "../story/entries.js";
 import { entryEvent, sceneEntries } from "../views/scene.js";
 import { chronicleAsk, dueChronicle, STEPPED_AWAY_MS } from "./chronicling.js";
-import { dueWeave, weaveAsk } from "./weaving.js";
+import { dueWeave, gapAsk, weaveAsk } from "./weaving.js";
+import { chosen } from "./choosing.js";
 import { worldOn } from "../story/world.js";
 
 /** A live event and its id on the stream: "<seq>" for an entry, "<seq>.<n>" for what a turn under way says. */
@@ -92,6 +93,18 @@ export class Engine {
     if (!head || !WAITING.includes(head.payload.kind)) throw new LinkError("invalid", "There is no Move waiting for a Reply.");
     this.failures.delete(storyId);
     const move = this.lastMove(head.id);
+    this.startTurn(storyId, path.id, move, traceId);
+    return { move_entry_id: move.id, trace_id: traceId };
+  }
+
+  /**
+   * A choice at the Day View (openspec day-view: The player chooses where to be): written as the player's Move, the
+   * Gap first, with the choice beside it for the Writer, and the turn runs as for any Move.
+   */
+  choose(storyId: string, request: ChooseRequest, traceId: string): TurnAccepted {
+    const { path } = this.idleHead(storyId, request.after);
+    const { choice, text } = chosen(this.mac, path.headEntryId, request);
+    const move = this.write(storyId, path, { kind: "move", text, choice });
     this.startTurn(storyId, path.id, move, traceId);
     return { move_entry_id: move.id, trace_id: traceId };
   }
@@ -389,6 +402,7 @@ export class Engine {
     let head = path ? this.mac.tree.entry(path.headEntryId) : null;
     try {
       if (!head) throw new Error("The Path is gone");
+      if (head.payload.kind === "move") await this.gapStep(turn, head);
       if (head.payload.kind !== "beat_note") head = await this.writerStep(turn, head);
       turn.anchor = head;
       await this.actorStep(turn, head);
@@ -403,6 +417,22 @@ export class Engine {
     }
   }
 
+  /**
+   * A choice later than now leaves a Gap: the World moves on over it before the Writer plans the Scene, so what he
+   * missed has happened and the people involved know (openspec day-view: Missing something has consequences). Its
+   * record hangs off the Move; a Retry after a failure weaves it again only if it is not there.
+   */
+  private async gapStep(turn: Turn, move: Entry): Promise<void> {
+    if (this.mac.tree.recordsOn(move.id, "world_moved").some(record => record.parentId === move.id)) return;
+    const ask = gapAsk(this.mac, move);
+    const scene = ask?.state.scene;
+    if (!ask || !scene) return;
+    const model = jobModels(this.mac.home).weaver;
+    const { value, callId } = await writeWeave(this.models, model, ask, turn.storyId, turn.traceId, new AbortController().signal);
+    const record = this.mac.tree.append(turn.storyId, move.id, { kind: "world_moved", scene: scene.openedBy, from: ask.from, until: ask.until, ...value, callId, model });
+    this.models.attach(callId, record.id);
+  }
+
   /** The Writer reads the Move and plans the Reply; its Beat Note, and any Scene it opens, are written together. */
   private async writerStep(turn: Turn, head: Entry): Promise<Entry> {
     const state = this.mac.states.at(head.id);
@@ -411,7 +441,7 @@ export class Engine {
     const model = jobModels(this.mac.home).writer;
     const text = turn.move.payload.kind === "move" ? turn.move.payload.text : "";
     const { plan, callId } = await writeBeat(this.models, model,
-      { state, scene: moveAt >= 0 ? entries.slice(0, moveAt) : entries, move: text, direction: state.pendingDirection, recall: recall(this.mac, head.id, state.scene?.here ?? []), world: worldOn(this.mac, head.id) },
+      { state, scene: moveAt >= 0 ? entries.slice(0, moveAt) : entries, move: text, direction: state.pendingDirection, recall: recall(this.mac, head.id, state.scene?.here ?? []), world: worldOn(this.mac, head.id), choice: turn.move.payload.kind === "move" ? turn.move.payload.choice ?? null : null },
       turn.storyId, turn.traceId, turn.abort.signal);
 
     const written = this.mac.db.transaction(() => {

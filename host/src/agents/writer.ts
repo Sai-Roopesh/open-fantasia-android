@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import type { Models } from "../models/model-call.js";
 import type { World } from "../story/world.js";
+import type { Choice } from "../story/entries.js";
 import { answerWithOneRepair } from "./repair.js";
 import type { Entry } from "../story/entries.js";
 import type { Beat, ModelChoice, PendingDirection, SceneCall, State } from "../story/state.js";
@@ -112,6 +113,8 @@ export interface WriterAsk {
   recall: Recall;
   /** The World off-screen, hidden things included: the Writer sees everything and passes on only what happens next. */
   world: World;
+  /** What the player chose at the Day View, when the Move is a choice: the Scene opens on it. */
+  choice?: Choice | null;
 }
 
 /** A new Scene's frame. */
@@ -243,6 +246,18 @@ export function checkWriterAnswer(ask: WriterAsk, raw: unknown): Checked {
     if (!advanced) problems.push(`beats: no Arc has moved for ${scene.withoutArc} exchanges; move to the next beat, or call land or end`);
   }
 
+  // A choice at the Day View opens the Scene it asked for: there, then, with them (openspec day-view).
+  const choice = ask.choice ?? null;
+  if (choice && opens) {
+    if (choice.place && opens.place.toLocaleLowerCase() !== choice.place.toLocaleLowerCase()) {
+      problems.push(`frame: the player chose ${choice.place}; the Scene opens there, so its place is "${choice.place}"`);
+    }
+    if (choice.at && raw.clock.trim() !== choice.at) problems.push(`clock: the Scene opens when the player chose, ${choice.at}`);
+    for (const name of choice.who) {
+      if (!here.includes(name)) problems.push(`comes_in: ${name} will be there (the player chose this); bring them in`);
+    }
+  }
+
   // The clock never goes back.
   const clock = raw.clock.trim();
   const at = parseStoryTime(clock);
@@ -316,6 +331,21 @@ function sceneSoFar(entries: Entry[], pc: string): string {
   return exchanges.slice(-WRITER_EXCHANGES).map(exchange => exchange.join("\n")).join("\n\n");
 }
 
+/** What the player chose at the Day View, as the Writer's task says it. */
+function choiceTask(choice: Choice): string {
+  switch (choice.kind) {
+    case "go":
+    case "story":
+      return `The player chose ${choice.kind === "story" ? "the Story's own pick" : "to go"}: ${choice.place}, at ${choice.at}, with ${choice.who.join(", ")}. Open the Scene there and then, with them in it.`;
+    case "follow":
+      return `The player follows ${choice.who.join(", ")}: open the Scene wherever their Life has them going next, with them in it.`;
+    case "somewhere":
+      return `The player goes to ${choice.place}: open the Scene there.`;
+    case "skip":
+      return `The player lets the time pass until ${choice.at}: open the Scene then.`;
+  }
+}
+
 /** How far back the Writer is shown what happened off-screen. */
 const LATELY_MINUTES = 24 * 60;
 
@@ -364,6 +394,7 @@ export function writerPrompt(ask: WriterAsk): { system: string; prompt: string; 
       if (scene.withoutArc >= STALL_AFTER) task.push(`No Arc has moved for ${scene.withoutArc} exchanges. Unless this Move moved one, move the Scene to its next beat, or call land or end.`);
     }
   }
+  if (ask.choice) task.push(choiceTask(ask.choice));
   if (direction) {
     task.push(direction.text
       ? "The player asked for the last Reply again, with the Direction above. Follow it in the beats and the note, and never quote it."
@@ -399,7 +430,8 @@ export function writerPrompt(ask: WriterAsk): { system: string; prompt: string; 
     beatInPlayFor: scene?.beatInPlayFor ?? 0,
     withoutArc: scene?.withoutArc ?? 0,
     move,
-    direction
+    direction,
+    choice: ask.choice ?? null
   };
   return { system: storyPrompt(state), prompt, facts };
 }

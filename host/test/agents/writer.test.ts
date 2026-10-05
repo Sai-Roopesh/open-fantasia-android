@@ -174,6 +174,7 @@ describe("the memories in play", () => {
   const remembered = {
     earlier: [],
     lastSceneEnd: [],
+    lately: [],
     moments: [
       { id: "moment-station", scene: "Scene 1 · The wrong berth", what: "Ishaan gives up the window seat.", words: [{ by: "Ishaan Mehra", text: "I offer her the window seat." }], knownTo: ["Meera Kulkarni"] },
       { id: "moment-biscuits", scene: "Scene 1 · The wrong berth", what: "Meera offers biscuits.", words: [{ by: null, text: "For the tea." }], knownTo: ["Meera Kulkarni"] }

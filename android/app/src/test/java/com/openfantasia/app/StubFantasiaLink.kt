@@ -4,6 +4,7 @@ import com.openfantasia.protocol.*
 
 // Old tests exercise Moves and Retry; an unexpected Scene command should fail their fixture.
 abstract class StubFantasiaLink : FantasiaLink {
+    override suspend fun choose(storyID: String, request: ChooseRequest): TurnAccepted = error("Unexpected choice")
     override suspend fun retryWorld(storyID: String): Accepted = error("Unexpected World retry")
     override suspend fun pastScene(storyID: String, number: Long): PastScene = error("Unexpected past Scene")
     override suspend fun endScene(storyID: String, request: EndSceneRequest): Accepted = error("Unexpected End scene")

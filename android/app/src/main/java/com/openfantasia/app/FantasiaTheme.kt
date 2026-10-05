@@ -54,6 +54,10 @@ private fun type(family: FontFamily, size: Float, height: Float = size * 1.4f, w
     lineHeightStyle = LineHeightStyle(alignment = LineHeightStyle.Alignment.Center, trim = LineHeightStyle.Trim.None)
 )
 object FantasiaType {
+    val happening = type(Literata, 16f, 24f)
+    val pickLabel = type(Manrope, 12f, weight = FontWeight.Bold)
+    val gapLabel = type(Manrope, 12f, weight = FontWeight.Bold, tracking = .96f)
+    val gapHappening = type(Manrope, 14f, 20.3f)
     val prose = type(Literata, 16f, 25.6f)
     val previously = type(Literata, 15f, 23.25f)
     val homeTitle = type(Literata, 24f, weight = FontWeight.SemiBold, tracking = -.24f)

@@ -25,6 +25,10 @@
 // val countdown        = json.parse(Countdown.serializer(), jsonString)
 // val meanwhileItem    = json.parse(MeanwhileItem.serializer(), jsonString)
 // val worldFailure     = json.parse(WorldFailure.serializer(), jsonString)
+// val happening        = json.parse(Happening.serializer(), jsonString)
+// val dayChoices       = json.parse(DayChoices.serializer(), jsonString)
+// val skip             = json.parse(Skip.serializer(), jsonString)
+// val chooseRequest    = json.parse(ChooseRequest.serializer(), jsonString)
 // val endSceneRequest  = json.parse(EndSceneRequest.serializer(), jsonString)
 // val focusRequest     = json.parse(FocusRequest.serializer(), jsonString)
 // val lingerRequest    = json.parse(LingerRequest.serializer(), jsonString)
@@ -240,6 +244,8 @@ data class DayView (
     @SerialName("at_label")
     val atLabel: String,
 
+    val choices: DayChoices,
+
     /**
      * Who closed the last Scene: the Story, whose closing Reply can be redone, or the player,
      * with End scene.
@@ -259,6 +265,12 @@ data class DayView (
      * /stories/{id}/world/retry.
      */
     val failure: WorldFailure? = null,
+
+    /**
+     * What is on today that the Player Character could go to: at most four, the Story's pick
+     * first, once the World has moved on; empty before.
+     */
+    val happenings: List<Happening>,
 
     /**
      * What the Player Character learned while elsewhere, once the World has moved on; empty
@@ -287,6 +299,44 @@ data class DayView (
      * (the phone says so in one line and takes no Move), ready, or failed (with failure).
      */
     val world: World
+)
+
+/**
+ * What the Day View's other choices offer: people to follow, places to go, and times to
+ * skip to.
+ */
+@Serializable
+data class DayChoices (
+    /**
+     * People the Player Character could follow: the Leads and whoever was in the Scene that
+     * ended.
+     */
+    val follow: List<String>,
+
+    /**
+     * The Story's places to go to.
+     */
+    val places: List<String>,
+
+    val skips: List<Skip>
+)
+
+/**
+ * A later time to skip to: this evening, tomorrow, the weekend, the next Landmark.
+ */
+@Serializable
+data class Skip (
+    val at: String,
+
+    /**
+     * "This evening", "Tomorrow", "The weekend", or the Landmark's name.
+     */
+    val label: String,
+
+    /**
+     * As people say it: "Saturday 6:00 pm".
+     */
+    val time: String
 )
 
 /**
@@ -325,6 +375,47 @@ data class WorldFailure (
 
     @SerialName("trace_id")
     val traceID: String
+)
+
+/**
+ * Something going on in the World at a time and place the Player Character could be at
+ * (openspec day-view: Up to four Happenings).
+ */
+@Serializable
+data class Happening (
+    /**
+     * Story time, "Day N HH:MM".
+     */
+    val at: String,
+
+    /**
+     * The Player Character is expected there: shown "You're expected".
+     */
+    val expected: Boolean,
+
+    val id: String,
+
+    /**
+     * The Story's own pick, which Let the Story choose goes to.
+     */
+    val pick: Boolean,
+
+    val place: String,
+
+    /**
+     * When, as people say it: "9:00 am", or "Tomorrow 9:00 am".
+     */
+    val time: String,
+
+    /**
+     * What is going on, and why it matters now.
+     */
+    val what: String,
+
+    /**
+     * Who will be there, by name.
+     */
+    val who: List<String>
 )
 
 /**
@@ -556,6 +647,55 @@ enum class StoryEventKind(val value: String) {
     @SerialName("scene_opened") SceneOpened("scene_opened"),
     @SerialName("world_failed") WorldFailed("world_failed"),
     @SerialName("world_moved") WorldMoved("world_moved");
+}
+
+/**
+ * A choice at the Day View (openspec day-view: The player chooses where to be). The Mac
+ * writes it as the player's Move, the Gap first.
+ */
+@Serializable
+data class ChooseRequest (
+    /**
+     * The entry the choice follows: the Day View's head.
+     */
+    val after: String,
+
+    /**
+     * skip: the time skipped to.
+     */
+    val at: String? = null,
+
+    /**
+     * What the Player Character did in the Gap, in the player's words, or null: left blank, he
+     * spent it quietly where he was.
+     */
+    val gap: String? = null,
+
+    /**
+     * go: the Happening's id.
+     */
+    val happening: String? = null,
+
+    val kind: ChooseRequestKind,
+
+    /**
+     * somewhere: the place.
+     */
+    val place: String? = null,
+
+    /**
+     * follow: who.
+     */
+    val who: String? = null
+)
+
+@Serializable
+enum class ChooseRequestKind(val value: String) {
+    @SerialName("follow") Follow("follow"),
+    @SerialName("go") Go("go"),
+    @SerialName("skip") Skip("skip"),
+    @SerialName("somewhere") Somewhere("somewhere"),
+    @SerialName("story") Story("story");
 }
 
 @Serializable

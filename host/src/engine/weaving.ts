@@ -3,6 +3,8 @@ import type { Mac } from "../mac.js";
 import type { Entry, SceneOpened, WorldMoved } from "../story/entries.js";
 import { sceneSpans } from "../story/spans.js";
 import { worldOn } from "../story/world.js";
+import { onAhead } from "../story/day.js";
+import { minutesOf, parseStoryTime } from "../time.js";
 
 /** A Scene's end the Weaver owes: the Scene, the entry its record hangs off, and the span to move the World over. */
 export interface DueWeave {
@@ -37,18 +39,58 @@ export function dueWeave(mac: Mac, head: string): DueWeave | null {
   return null;
 }
 
+/** Everyone who was in a Scene at some point, besides the Player Character. */
+function peopleIn(opened: Entry<SceneOpened>, entries: Entry[]): string[] {
+  return [...new Set([
+    ...opened.payload.who,
+    ...entries.flatMap(entry => (entry.payload.kind === "beat_note" ? entry.payload.here : []))
+  ])];
+}
+
 /** What the Weaver reads for a due Scene's end: the Story, the World before, the Scene and who was in it. */
 export function weaveAsk(mac: Mac, due: DueWeave): WeaveAsk {
-  const inScene = [...new Set([
-    ...due.scene.payload.who,
-    ...due.entries.flatMap(entry => (entry.payload.kind === "beat_note" ? entry.payload.here : []))
-  ])];
+  const state = mac.states.at(due.through.id);
+  const path = mac.tree.pathTo(due.through.id);
+  // The Scene that ended and the one before it: with no Lead in either, the Story's pick leans toward one
+  // (openspec day-view: Lead absence is felt, not counted).
+  const lastTwo = sceneSpans(path).slice(-2).map(span => peopleIn(span.opened, path.slice(span.start, span.end)));
+  const leadless = state.leads.length > 0 && lastTwo.length === 2 && lastTwo.every(people => !people.some(name => state.leads.includes(name)));
   return {
-    state: mac.states.at(due.through.id),
+    state,
     world: worldOn(mac, due.through.id),
     scene: due.entries,
     from: due.from,
     until: due.until,
-    inScene
+    inScene: peopleIn(due.scene, due.entries),
+    leadless,
+    stillOn: onAhead(mac, due.through.id, due.until)
   };
+}
+
+/** A Gap shorter than this with nothing on in it passes without the Weaver: nothing in it will reach anyone. */
+const QUIET_GAP_MINUTES = 60;
+
+/**
+ * The Gap a choice at the Day View leaves (openspec day-view: The Gap is the player's), as the Weaver reads it: from
+ * where the World stands to the time chosen, with the choice's Move as how he spent it and what was on in it, which
+ * goes on without him. Null when there is no Gap, or a short one with nothing on in it.
+ */
+export function gapAsk(mac: Mac, move: Entry): WeaveAsk | null {
+  if (move.payload.kind !== "move" || !move.parentId) return null;
+  const choice = move.payload.choice;
+  const until = choice?.at;
+  if (!choice || !until) return null;
+  const state = mac.states.at(move.id);
+  const world = worldOn(mac, move.id);
+  const from = world.until ?? state.clock;
+  const start = parseStoryTime(from);
+  const end = parseStoryTime(until);
+  if (!start || !end || minutesOf(end) <= minutesOf(start)) return null;
+  const missed = onAhead(mac, move.parentId, from).filter(item => {
+    const at = parseStoryTime(item.at);
+    const chosen = item.at === until && item.place === choice.place;
+    return at !== null && minutesOf(at) < minutesOf(end) && !chosen;
+  });
+  if (missed.length === 0 && minutesOf(end) - minutesOf(start) < QUIET_GAP_MINUTES) return null;
+  return { state, world, scene: [move], from, until, inScene: [], gap: { missed } };
 }

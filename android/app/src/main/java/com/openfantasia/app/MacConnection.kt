@@ -86,6 +86,7 @@ class MacConnection(
     override suspend fun focus(storyID: String, request: FocusRequest): Accepted = command { it.focus(storyID, request) }
     override suspend fun linger(storyID: String, request: LingerRequest): Accepted = command { it.linger(storyID, request) }
     override suspend fun redo(storyID: String, request: RedoRequest): TurnAccepted = command { it.redo(storyID, request) }
+    override suspend fun choose(storyID: String, request: ChooseRequest): TurnAccepted = command { it.choose(storyID, request) }
     override suspend fun retryWorld(storyID: String): Accepted = command { it.retryWorld(storyID) }
     override suspend fun retry(storyID: String): TurnAccepted = command { it.retry(storyID) }
     override fun watch(initial: SceneView): Flow<SceneView> = StoryStream(

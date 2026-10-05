@@ -23,7 +23,7 @@ function hogwarts() {
 function moved(played: ReturnType<typeof playable>, parent: string, change: Partial<WorldMoved>) {
   return played.mac.tree.append(played.storyId, parent, {
     kind: "world_moved", scene: "scene", from: "Day 3 21:40", until: "Day 4 07:00",
-    lives: [], threads: [], happened: [], meanwhile: [], callId: "c", model: SONNET, ...change
+    lives: [], threads: [], happened: [], meanwhile: [], happenings: [], callId: "c", model: SONNET, ...change
   });
 }
 

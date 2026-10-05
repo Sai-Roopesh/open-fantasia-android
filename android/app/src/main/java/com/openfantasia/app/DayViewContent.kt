@@ -20,7 +20,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.style.TextAlign
 import com.openfantasia.protocol.*
 
-@Composable internal fun DayViewContent(day: DayView, scene: SceneCard, modifier: Modifier = Modifier, failure: @Composable () -> Unit = {}) {
+@Composable internal fun DayViewContent(day: DayView, scene: SceneCard, modifier: Modifier = Modifier, failure: @Composable () -> Unit = {},
+    enabled: Boolean = true, go: (Happening) -> Unit = {}, picker: (DayPicker) -> Unit = {}, story: () -> Unit = {}) {
     Column(modifier.padding(top = 4.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(if (day.world == World.Ready) 22.dp else 18.dp)) {
         if (day.world != World.Ready) EndedSceneCard(scene, day.sceneSpan)
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -64,6 +65,9 @@ import com.openfantasia.protocol.*
             }
         }
         if (day.world == World.Ready && day.meanwhile.isNotEmpty()) Meanwhile(day.meanwhile)
+        if (day.world == World.Ready && day.happenings.isNotEmpty()) Today(day, enabled, go)
+        if (day.world == World.Ready && (day.happenings.isNotEmpty() || day.choices.follow.isNotEmpty() ||
+            day.choices.places.isNotEmpty() || day.choices.skips.isNotEmpty())) OtherChoices(day, enabled, picker, story)
     }
 }
 

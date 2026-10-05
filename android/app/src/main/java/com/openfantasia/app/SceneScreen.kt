@@ -63,9 +63,21 @@ class SceneScrollState(val list: LazyListState) {
     scrollState: SceneScrollState = rememberSceneScrollState(),
     previously: Previously? = scene.previously,
     dismissPreviously: () -> Unit = {},
+    choose: (ChooseRequest) -> Unit = {},
     worldFailure: @Composable () -> Unit = {},
     failure: @Composable () -> Unit = {}
 ) {
+    val day = scene.dayView
+    var picker by remember(scene.storyID, scene.headEntryID, day?.world) { mutableStateOf<DayPicker?>(null) }
+    var gap by remember(scene.storyID, scene.headEntryID, day?.world) { mutableStateOf<DayChoice?>(null) }
+    fun destination(happening: Happening, kind: ChooseRequestKind) {
+        if (!controlsEnabled || day == null) return
+        val request = ChooseRequest(after = scene.headEntryID, kind = kind,
+            happening = happening.id.takeIf { kind == ChooseRequestKind.Go })
+        if (storyMinute(happening.at) > storyMinute(day.at)) {
+            gap = DayChoice(request, happening.at, happening.time, happening.place, "Go to ${happening.place}")
+        } else choose(request)
+    }
     val list = scrollState.list
     var entering by remember { mutableStateOf(true) }
     var viewportSize by remember { mutableStateOf(IntSize.Zero) }
@@ -109,7 +121,9 @@ class SceneScrollState(val list: LazyListState) {
                 val height = with(density) { viewportSize.height.toDp() }
                 Column(Modifier.fillMaxWidth().heightIn(min = (height - 22.dp).coerceAtLeast(0.dp)), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     previously?.let { PreviouslyCard(it, dismissPreviously) }
-                    DayViewContent(day, scene.scene, Modifier.fillMaxWidth(), worldFailure)
+                    DayViewContent(day, scene.scene, Modifier.fillMaxWidth(), worldFailure, enabled = controlsEnabled,
+                        go = { destination(it, ChooseRequestKind.Go) }, picker = { picker = it },
+                        story = { day.happenings.firstOrNull { it.pick }?.let { destination(it, ChooseRequestKind.Story) } })
                 }
             } }
             if (replyComing) item(key = "reply-being-written") {
@@ -145,6 +159,30 @@ class SceneScrollState(val list: LazyListState) {
                 followingEnd = info.visibleItemsInfo.lastOrNull()?.key == "scene-end"
             }
             last = position
+        }
+    }
+    if (day?.world == World.Ready) {
+        picker?.let { showing ->
+            ChoiceSheet(day, showing, controlsEnabled, dismiss = { picker = null }) { option ->
+                if (controlsEnabled) {
+                    picker = null
+                    when (showing) {
+                        DayPicker.Follow -> choose(ChooseRequest(after = scene.headEntryID, kind = ChooseRequestKind.Follow, who = option))
+                        DayPicker.Somewhere -> choose(ChooseRequest(after = scene.headEntryID, kind = ChooseRequestKind.Somewhere, place = option))
+                        DayPicker.Skip -> day.choices.skips.firstOrNull { it.at == option }?.let { skip ->
+                            val request = ChooseRequest(after = scene.headEntryID, kind = ChooseRequestKind.Skip, at = skip.at)
+                            if (storyMinute(skip.at) > storyMinute(day.at)) {
+                                gap = DayChoice(request, skip.at, skip.time, skip.label, "Skip to ${skip.label}")
+                            } else choose(request)
+                        }
+                    }
+                }
+            }
+        }
+        gap?.let { choice ->
+            GapSheet(day, scene.playerCharacter, choice, controlsEnabled, dismiss = { gap = null }) { text ->
+                if (controlsEnabled) { gap = null; choose(choice.request.copy(gap = text)) }
+            }
         }
     }
     var lastHead by remember { mutableStateOf<String?>(null) }
@@ -188,7 +226,7 @@ class SceneScrollState(val list: LazyListState) {
         withFrameNanos { }
         scrollingOurselves = true
         try {
-            if (scene.dayView != null) list.scrollToItem(scene.earlierScenes.size + 1 + scene.exchanges.size)
+            if (scene.dayView != null && !replyComing) list.scrollToItem(scene.earlierScenes.size + 1 + scene.exchanges.size)
             else list.scrollToItem(endIndex)
             withFrameNanos { }
         } finally { scrollingOurselves = false }

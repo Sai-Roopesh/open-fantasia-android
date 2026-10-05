@@ -8,7 +8,7 @@ import linkSchema from "../../../protocol/schemas/link.schema.json" with { type:
 import type { Engine } from "../engine/engine.js";
 import type { Mac } from "../mac.js";
 import { CONTRACT_VERSION } from "../protocol/generated/contract.js";
-import type { EndSceneRequest, ErrorBody, FocusRequest, LingerRequest, MoveRequest, PairRequest, RedoRequest } from "../protocol/generated/link.js";
+import type { ChooseRequest, EndSceneRequest, ErrorBody, FocusRequest, LingerRequest, MoveRequest, PairRequest, RedoRequest } from "../protocol/generated/link.js";
 import { newTraceId, Traces } from "../trace.js";
 import { pastScene, sceneView } from "../views/scene.js";
 import { listStories } from "../views/stories.js";
@@ -29,6 +29,7 @@ const validEndScene = ajv.compile<EndSceneRequest>({ $ref: "link#/$defs/EndScene
 const validFocus = ajv.compile<FocusRequest>({ $ref: "link#/$defs/FocusRequest" });
 const validLinger = ajv.compile<LingerRequest>({ $ref: "link#/$defs/LingerRequest" });
 const validRedo = ajv.compile<RedoRequest>({ $ref: "link#/$defs/RedoRequest" });
+const validChoose = ajv.compile<ChooseRequest>({ $ref: "link#/$defs/ChooseRequest" });
 
 const IMAGE_TYPES: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp" };
 
@@ -112,6 +113,11 @@ export function buildLink(options: LinkOptions): FastifyInstance {
   app.post<{ Params: { id: string } }>("/stories/:id/moves", async request => {
     if (!validMove(request.body)) throw new LinkError("invalid", "A Move needs its words and the entry it follows.");
     return engine.move(request.params.id, request.body.text, request.body.after, request.traceId);
+  });
+
+  app.post<{ Params: { id: string } }>("/stories/:id/choose", async request => {
+    if (!validChoose(request.body)) throw new LinkError("invalid", "A choice needs its kind, the entry it follows, and the Gap or null.");
+    return engine.choose(request.params.id, request.body, request.traceId);
   });
 
   app.post<{ Params: { id: string } }>("/stories/:id/retry", async request => engine.retry(request.params.id, request.traceId));

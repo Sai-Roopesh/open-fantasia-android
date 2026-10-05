@@ -13,6 +13,7 @@ interface FantasiaLink {
     suspend fun scene(storyID: String): SceneView
     suspend fun pastScene(storyID: String, number: Long): PastScene
     suspend fun move(storyID: String, move: MoveRequest): TurnAccepted
+    suspend fun choose(storyID: String, request: ChooseRequest): TurnAccepted
     suspend fun retryWorld(storyID: String): Accepted
     suspend fun retry(storyID: String): TurnAccepted
     suspend fun endScene(storyID: String, request: EndSceneRequest): Accepted

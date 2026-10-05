@@ -26,7 +26,7 @@ async function ask(changes: Partial<WeaveAsk> = {}, landmarks: { name: string; a
     world: worldOn(played.mac, head),
     scene: played.mac.tree.pathTo(head).slice(-4),
     from: "Day 3 21:40",
-    until: "Day 4 07:00",
+    until: "Day 4 07:30",
     inScene: ["Hermione Granger"],
     ...changes
   };
@@ -45,6 +45,7 @@ function answer(changes: Record<string, unknown> = {}) {
       { text: "A note under the door: \"My office, nine o'clock. Bring only what you saw.\" M. McGonagall.", how: "seen", happened: "H2", told_by: null },
       { text: "Lavender says Selwyn's bones broke one after another, \"like someone snapping kindling\".", how: "rumour", happened: "H3", told_by: null }
     ],
+    happenings: [],
     ...changes
   };
 }
@@ -92,6 +93,37 @@ describe("the Weaver's answer", () => {
     ]));
   });
 
+  it("offers at most four Happenings from the Day View on, the pick first, with names as the Story keeps them", async () => {
+    const summons = { id: "P1", at: "Day 4 09:00", place: "McGonagall's office", what: "Your account of the troll.", who: ["mcgonagall", "Hermione Granger"], expected: true, pick: true };
+    const twins = { id: "P2", at: "Day 4 20:00", place: "The Three Broomsticks", what: "The twins buy a round for anyone who saw the troll.", who: ["Harry Potter"], expected: false, pick: false };
+    const checked = checkWeave(await ask(), answer({ happenings: [summons, twins] }));
+    expect(checked.ok).toBe(true);
+    if (!checked.ok) return;
+    expect(checked.value.happenings.map(item => ({ who: item.who, expected: item.expected, pick: item.pick }))).toEqual([
+      { who: ["Minerva McGonagall", "Hermione Granger"], expected: true, pick: true },
+      { who: ["Harry Potter"], expected: false, pick: false }
+    ]);
+    expect(new Set(checked.value.happenings.map(item => item.id)).size).toBe(2);
+  });
+
+  it("names every rule its Happenings break", async () => {
+    const happening = (changes: Record<string, unknown>) => ({ id: "P1", at: "Day 4 09:00", place: "The library", what: "Reading.", who: ["Hermione Granger"], expected: false, pick: false, ...changes });
+    const checked = checkWeave(await ask(), answer({ happenings: [
+      happening({ id: "P1", at: "Day 4 06:00" }),
+      happening({ id: "P2", who: ["Roopesh Gantasala", "The Grey Lady"], pick: true }),
+      happening({ id: "P3", pick: true }),
+      happening({ id: "P4" }),
+      happening({ id: "P5" })
+    ] }));
+    expect(checked.ok ? [] : checked.problems).toEqual(expect.arrayContaining([
+      expect.stringMatching(/^happenings: there are 5; offer at most four/),
+      expect.stringMatching(/^happenings: P1 is at Day 4 06:00, before the Day View \(Day 4 07:30\)/),
+      expect.stringMatching(/^happenings: P2, who: Roopesh Gantasala is the player's character/),
+      expect.stringMatching(/^happenings: P2, who: The Grey Lady is not in the story/),
+      expect.stringMatching(/^happenings: 2 are the pick; pick one, and put it first/)
+    ]));
+  });
+
   it("is refused when it does not match the schema", async () => {
     expect(checkWeave(await ask(), { lives: [] }).ok).toBe(false);
   });
@@ -102,7 +134,7 @@ describe("the Weaver's call", () => {
     const { system, prompt } = weaverPrompt(await ask({}, [{ name: "the Halloween feast", at: "Day 3 23:00", what: "The Great Hall feast." }]));
     expect(system).toContain("# The Weaver");
     expect(system).toMatch(/Crabbe and Goyle/);
-    expect(prompt).toMatch(/<span from="Day 3 21:40 \(Friday 9:40 pm\)" until="Day 4 07:00 \(Saturday 7:00 am\)">/);
+    expect(prompt).toMatch(/<span from="Day 3 21:40 \(Friday 9:40 pm\)" until="Day 4 07:30 \(Saturday 7:30 am\)">/);
     expect(prompt).toMatch(/Quirrell and the third-floor door: Quirrell is testing the wards/);
     expect(prompt).toMatch(/<scene_that_ended title="After curfew"/);
     expect(prompt).toMatch(/<landmarks_in_span>\n- the Halloween feast, Day 3 23:00/);

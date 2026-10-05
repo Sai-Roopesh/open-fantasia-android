@@ -203,6 +203,23 @@ describe("mac-link", () => {
     expect(stream.received.find(event => event.event.kind === "scene_closed")!.event.day_view).toMatchObject({ place: "The Three Broomsticks" });
   });
 
+  it("takes a choice at the Day View as a turn, and refuses one without its kind", async () => {
+    const { call, storyId, engine } = await mac([{ answer: "Draconia laughs." }]);
+    const view = async () => await (await call(`/stories/${storyId}/scene`)).json() as SceneView;
+    await call(`/stories/${storyId}/moves`, { method: "POST", body: JSON.stringify({ text: "I say goodnight.", after: (await view()).head_entry_id }) });
+    await engine.settled(storyId);
+    await call(`/stories/${storyId}/end-scene`, { method: "POST", body: JSON.stringify({ after: (await view()).head_entry_id }) });
+    await engine.woven(storyId);
+    const day = await view();
+    const refused = await call(`/stories/${storyId}/choose`, { method: "POST", body: JSON.stringify({ after: day.head_entry_id, gap: null }) });
+    expect(refused.status).toBe(400);
+    const skip = day.day_view!.choices.skips[0]!;
+    const accepted = await call(`/stories/${storyId}/choose`, { method: "POST", body: JSON.stringify({ after: day.head_entry_id, kind: "skip", at: skip.at, gap: null }) });
+    expect(accepted.status).toBe(200);
+    expect(await accepted.json()).toMatchObject({ move_entry_id: expect.any(String), trace_id: expect.any(String) });
+    await engine.settled(storyId);
+  });
+
   it("answers Retry for the World only when the World could not move on", async () => {
     const { call, storyId } = await mac();
     const refused = await call(`/stories/${storyId}/world/retry`, { method: "POST", body: "{}" });

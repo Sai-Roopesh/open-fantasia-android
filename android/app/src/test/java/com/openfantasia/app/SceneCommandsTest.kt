@@ -109,6 +109,33 @@ class SceneCommandsTest {
         }
     }
 
+    @Test fun `Choose posts every kind and explicit blank Gap and reads TurnAccepted`() = runBlocking {
+        MacServer().use { mac ->
+            val link = connection(mac)
+            mac.enqueue(MockResponse().setBody("""{"stories":[],"trace_id":"list"}"""))
+            link.stories()
+            mac.server.takeRequest()
+            val choices = listOf(
+                ChooseRequest(after = "closed", kind = ChooseRequestKind.Go, happening = "hospital", gap = "I read."),
+                ChooseRequest(after = "closed", kind = ChooseRequestKind.Follow, who = "Hermione"),
+                ChooseRequest(after = "closed", kind = ChooseRequestKind.Somewhere, place = "The library"),
+                ChooseRequest(after = "closed", kind = ChooseRequestKind.Skip, at = "Day 4 07:30"),
+                ChooseRequest(after = "closed", kind = ChooseRequestKind.Story))
+            for (choice in choices) {
+                mac.enqueue(MockResponse().setResponseCode(202).setBody("""{"move_entry_id":"choice-move","trace_id":"choose"}"""))
+                assertEquals(TurnAccepted(moveEntryID = "choice-move", traceID = "choose"), link.choose("story", choice))
+                val request = mac.server.takeRequest()
+                assertEquals("/stories/story/choose", request.path)
+                assertEquals("POST", request.method)
+                val body = request.body.readUtf8()
+                assertEquals(choice, linkJson.decodeFromString<ChooseRequest>(body))
+                assertTrue(body.contains(if (choice.gap == null) "\"gap\":null" else "\"gap\":\"I read.\""))
+                assertEquals(CONTRACT_VERSION.toString(), request.getHeader("Fantasia-Contract"))
+                assertEquals("Bearer secret", request.getHeader("Authorization"))
+            }
+        }
+    }
+
     @Test fun `each Scene command preserves busy stale head and invalid reasons and trace ids`() = runBlocking {
         MacServer().use { mac ->
             val link = connection(mac)
@@ -116,6 +143,7 @@ class SceneCommandsTest {
             link.stories()
             mac.server.takeRequest()
             val commands: List<Pair<String, suspend () -> Any>> = listOf(
+                "choose" to { link.choose("story", ChooseRequest(after = "reply", kind = ChooseRequestKind.Story)) },
                 "end-scene" to { link.endScene("story", EndSceneRequest(after = "reply")) },
                 "focus" to { link.focus("story", FocusRequest(after = "reply", on = "Hermione")) },
                 "linger" to { link.linger("story", LingerRequest(after = "reply", on = true)) },
@@ -128,7 +156,7 @@ class SceneCommandsTest {
                 assertEquals("$code-trace", error.traceID)
                 assertEquals("/stories/story/$path", mac.server.takeRequest().path)
             }
-            assertEquals(13, mac.server.requestCount)
+            assertEquals(16, mac.server.requestCount)
         }
     }
 }

@@ -48,6 +48,26 @@ export function nextFreeAfter(ended: string): string {
   return ended;
 }
 
+/** An evening skip: "This evening" lands here. */
+const EVENING = 18 * 60;
+
+/**
+ * The later times the Day View offers to skip to from [now] (openspec day-view: Skip to later): this evening, while it
+ * is still to come; tomorrow morning; the weekend's first morning, when the Story knows its weekdays and it is a
+ * weekday now. The next Landmark is the Story's, and is added by whoever knows the Landmarks.
+ */
+export function laterTimes(now: StoryTime, dayOneWeekday: Weekday | null): { label: string; at: StoryTime }[] {
+  const times: { label: string; at: StoryTime }[] = [];
+  if (now.minuteOfDay < EVENING) times.push({ label: "This evening", at: { day: now.day, minuteOfDay: EVENING } });
+  times.push({ label: "Tomorrow", at: { day: now.day + 1, minuteOfDay: WAKING } });
+  const weekday = weekdayOf(now.day, dayOneWeekday);
+  if (weekday && weekday !== "saturday" && weekday !== "sunday") {
+    const toSaturday = (WEEK.indexOf("saturday") - WEEK.indexOf(weekday) + 7) % 7;
+    if (toSaturday > 1) times.push({ label: "The weekend", at: { day: now.day + toSaturday, minuteOfDay: WAKING } });
+  }
+  return times;
+}
+
 /** The weekday a Story day falls on, when the Story says which weekday Day 1 is. */
 export function weekdayOf(day: number, dayOneWeekday: Weekday | null): Weekday | null {
   if (!dayOneWeekday) return null;
