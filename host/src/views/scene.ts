@@ -1,8 +1,9 @@
-import type { Countdown, DayView, Exchange, SceneCard, SceneView, StoryEvent } from "../protocol/generated/link.js";
+import type { Countdown, DayView, Exchange, PastScene, SceneCard, SceneView, StoryEvent } from "../protocol/generated/link.js";
 import type { Engine } from "../engine/engine.js";
 import { LinkError } from "../link/errors.js";
 import type { Mac } from "../mac.js";
 import type { Chronicle, Entry } from "../story/entries.js";
+import { sceneSpans } from "../story/spans.js";
 import type { State } from "../story/state.js";
 import { minutesOf, parseStoryTime, sayDay, sayStoryTime, sayTime, type StoryTime } from "../time.js";
 
@@ -93,10 +94,7 @@ export function sceneView(mac: Mac, engine: Engine, storyId: string, traceId: st
   if (!scene) throw new Error("No Scene has opened");
   const all = mac.tree.pathTo(path.headEntryId);
   // Each earlier Scene's summary is the Chronicler's, once it has written one (openspec scenes: Scrolling back).
-  const summaries = new Map(mac.tree.chroniclesOn(path.headEntryId).flatMap(entry => {
-    const chronicle = entry.payload as Chronicle;
-    return chronicle.summary ? [[chronicle.scene, chronicle.summary] as const] : [];
-  }));
+  const summaries = summariesOn(mac, path.headEntryId);
   return {
     story_id: storyId,
     path_id: path.id,
@@ -113,6 +111,33 @@ export function sceneView(mac: Mac, engine: Engine, storyId: string, traceId: st
       : []),
     exchanges: exchanges(entries),
     turn: engine.turnState(storyId),
+    trace_id: traceId
+  };
+}
+
+/** The Chronicler's summary of each Scene on the Path at [head] that has one, by the Scene's opening entry. */
+function summariesOn(mac: Mac, head: string): Map<string, string> {
+  return new Map(mac.tree.chroniclesOn(head).flatMap(entry => {
+    const chronicle = entry.payload as Chronicle;
+    return chronicle.summary ? [[chronicle.scene, chronicle.summary] as const] : [];
+  }));
+}
+
+/** An earlier Scene on the Story's current Path, in full, for reading back (openspec scenes: Scrolling back). */
+export function pastScene(mac: Mac, storyId: string, number: number, traceId: string): PastScene {
+  const path = mac.tree.currentPath(storyId);
+  if (!path) throw new LinkError("not_found", "That Story is not on this Mac.");
+  const entries = mac.tree.pathTo(path.headEntryId);
+  const span = sceneSpans(entries).find(item => item.opened.payload.number === number);
+  if (!span) throw new LinkError("not_found", `There is no Scene ${number} on this Path.`);
+  const state = mac.states.at(span.opened.id);
+  return {
+    number,
+    title: span.opened.payload.title,
+    place: span.opened.payload.place,
+    at_label: say(state, span.opened.payload.at),
+    summary: summariesOn(mac, path.headEntryId).get(span.opened.id) ?? "",
+    exchanges: exchanges(entries.slice(span.start, span.end)),
     trace_id: traceId
   };
 }

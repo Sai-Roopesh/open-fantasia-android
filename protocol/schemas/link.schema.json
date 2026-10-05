@@ -419,7 +419,8 @@
           "type": "string"
         },
         "summary": {
-          "type": "string"
+          "type": "string",
+          "description": "The Chronicler's one line for the Scene, or empty until it has written one."
         }
       }
     },
@@ -677,6 +678,48 @@
       "properties": {
         "head_entry_id": {
           "type": "string"
+        },
+        "trace_id": {
+          "type": "string"
+        }
+      }
+    },
+    "PastScene": {
+      "description": "An earlier Scene on the current Path, in full, for reading back (openspec scenes: Scrolling back).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "number",
+        "title",
+        "place",
+        "at_label",
+        "summary",
+        "exchanges",
+        "trace_id"
+      ],
+      "properties": {
+        "number": {
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        },
+        "place": {
+          "type": "string"
+        },
+        "at_label": {
+          "description": "When the Scene began, as people say it.",
+          "type": "string"
+        },
+        "summary": {
+          "description": "The Chronicler's one line, or empty until it has written one.",
+          "type": "string"
+        },
+        "exchanges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Exchange"
+          }
         },
         "trace_id": {
           "type": "string"

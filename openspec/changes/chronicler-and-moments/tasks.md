@@ -39,8 +39,8 @@ Requirements this change builds:
 
 ## 5. The link, the phone and the Mac
 
-- [ ] 5.1 Extend the contract to version 4: earlier Scenes' summaries, and an earlier Scene in full; regenerate both sides
-- [ ] 5.2 Test first, then build: `scenes › Every Scene opens with a title card › Scrolling back` on the host (summaries in the Scene view; an earlier Scene in full on the current Path)
+- [x] 5.1 Extend the contract to version 4: earlier Scenes' summaries, and an earlier Scene in full; regenerate both sides
+- [x] 5.2 Test first, then build: `scenes › Every Scene opens with a title card › Scrolling back` on the host (summaries in the Scene view; an earlier Scene in full on the current Path)
 - [ ] 5.3 Test first, then build: `scenes › Every Scene opens with a title card › Scrolling back` on the phone, built to `Scene.dc.html` and `Journal.dc.html` in docs/design (a tap on Scene 13’s summary shows Scene 13 in full)
 - [x] 5.4 Add `fantasia moments <story>`, and verify a CLI test
 

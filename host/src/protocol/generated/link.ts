@@ -214,6 +214,9 @@ export interface SceneView {
 export interface SceneSummaryLine {
   number: number;
   title: string;
+  /**
+   * The Chronicler's one line for the Scene, or empty until it has written one.
+   */
   summary: string;
 }
 /**
@@ -427,5 +430,26 @@ export interface RedoRequest {
  */
 export interface Accepted {
   head_entry_id: string;
+  trace_id: string;
+}
+/**
+ * An earlier Scene on the current Path, in full, for reading back (openspec scenes: Scrolling back).
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "PastScene".
+ */
+export interface PastScene {
+  number: number;
+  title: string;
+  place: string;
+  /**
+   * When the Scene began, as people say it.
+   */
+  at_label: string;
+  /**
+   * The Chronicler's one line, or empty until it has written one.
+   */
+  summary: string;
+  exchanges: Exchange[];
   trace_id: string;
 }

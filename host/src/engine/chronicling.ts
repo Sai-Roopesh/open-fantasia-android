@@ -2,6 +2,7 @@ import type { ChronicleAsk } from "../agents/chronicler.js";
 import type { Mac } from "../mac.js";
 import type { Entry, SceneOpened } from "../story/entries.js";
 import { momentsOn } from "../story/memory.js";
+import { sceneSpans } from "../story/spans.js";
 
 /** An open Scene is chronicled once this many exchanges have passed since its last Chronicle (docs/adr/0004). */
 export const CHRONICLE_EVERY = 12;
@@ -26,16 +27,11 @@ export function dueChronicle(mac: Mac, head: string): DueChronicle | null {
   const path = mac.tree.pathTo(head);
   const position = new Map(path.map((entry, index) => [entry.id, index]));
   const chronicles = mac.tree.chroniclesOn(head);
-  const openings = path.flatMap((entry, index) => (entry.payload.kind === "scene_opened" ? [index] : []));
-  const startOf = (opened: Entry<SceneOpened>) => position.get(opened.payload.startsAt ?? opened.id) ?? position.get(opened.id) ?? 0;
+  const spans = sceneSpans(path);
 
-  for (let scene = 0; scene < openings.length; scene++) {
-    const opened = path[openings[scene] ?? 0] as Entry<SceneOpened>;
-    const next = openings[scene + 1];
-    const start = startOf(opened);
-    const end = next === undefined ? path.length : startOf(path[next] as Entry<SceneOpened>);
+  for (const [scene, { opened, start, end }] of spans.entries()) {
     let entries = path.slice(start, end);
-    const ended = next !== undefined || entries.some(entry => entry.payload.kind === "scene_closed");
+    const ended = scene < spans.length - 1 || entries.some(entry => entry.payload.kind === "scene_closed");
     if (!ended) {
       // A turn may be under way: an open Scene is read only up to its latest Reply.
       const lastReply = entries.findLastIndex(entry => entry.payload.kind === "reply");

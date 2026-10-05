@@ -248,4 +248,34 @@ describe("mac-link", () => {
     expect(stream.received.filter(event => event.event.kind === "reply_delta").map(event => event.event.text).join("")).toBe("three four.");
     expect(stream.received.some(event => event.event.kind === "reply_started")).toBe(false);
   });
+
+  // GIVEN the player is in Scene 14
+  // THEN Scenes 1 to 13 appear above it as one-line summaries
+  // AND tapping Scene 13's summary shows that Scene in full
+  it("scenes › Every Scene opens with a title card › Scrolling back", async () => {
+    const { call, storyId, engine } = await mac([{ answer: "Draconia laughs." }, { answer: "Breakfast is loud." }, { answer: "The library is quiet." }]);
+    const view = async () => await (await call(`/stories/${storyId}/scene`)).json() as SceneView;
+    const post = (path: string, body: unknown) => call(`/stories/${storyId}/${path}`, { method: "POST", body: JSON.stringify(body) });
+    for (const move of ["I raise my glass.", "In the morning I go to breakfast.", "After breakfast I go to the library."]) {
+      await post("moves", { text: move, after: (await view()).head_entry_id });
+      await engine.settled(storyId);
+      await post("end-scene", { after: (await view()).head_entry_id });
+      await engine.chronicled(storyId);
+    }
+    await post("moves", { text: "I go up to the tower.", after: (await view()).head_entry_id });
+    await engine.settled(storyId);
+    await engine.chronicled(storyId);
+
+    const shown = await view();
+    expect(shown.scene.number).toBe(4);
+    expect(shown.earlier_scenes.map(scene => scene.number)).toEqual([1, 2, 3]);
+    expect(shown.earlier_scenes.every(scene => scene.summary.length > 0)).toBe(true);
+
+    const third = await call(`/stories/${storyId}/scenes/3`);
+    expect(third.status).toBe(200);
+    const past = await third.json() as { number: number; summary: string; exchanges: { move: { text: string } | null; reply: { text: string } | null }[] };
+    expect(past).toMatchObject({ number: 3, summary: shown.earlier_scenes[2]!.summary });
+    expect(past.exchanges.map(exchange => [exchange.move?.text, exchange.reply?.text])).toEqual([["After breakfast I go to the library.", "The library is quiet."]]);
+    expect((await call(`/stories/${storyId}/scenes/9`)).status).toBe(404);
+  });
 });

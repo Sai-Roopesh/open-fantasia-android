@@ -10,7 +10,7 @@ import type { Mac } from "../mac.js";
 import { CONTRACT_VERSION } from "../protocol/generated/contract.js";
 import type { EndSceneRequest, ErrorBody, FocusRequest, LingerRequest, MoveRequest, PairRequest, RedoRequest } from "../protocol/generated/link.js";
 import { newTraceId, Traces } from "../trace.js";
-import { sceneView } from "../views/scene.js";
+import { pastScene, sceneView } from "../views/scene.js";
 import { listStories } from "../views/stories.js";
 import { LinkError, STATUS } from "./errors.js";
 import type { Pairing } from "./pairing.js";
@@ -102,6 +102,12 @@ export function buildLink(options: LinkOptions): FastifyInstance {
   app.get("/stories", async request => ({ stories: listStories(mac), trace_id: request.traceId }));
 
   app.get<{ Params: { id: string } }>("/stories/:id/scene", async request => sceneView(mac, engine, request.params.id, request.traceId));
+
+  app.get<{ Params: { id: string; number: string } }>("/stories/:id/scenes/:number", async request => {
+    const number = Number(request.params.number);
+    if (!Number.isInteger(number) || number < 1) throw new LinkError("invalid", "A Scene is asked for by its number.");
+    return pastScene(mac, request.params.id, number, request.traceId);
+  });
 
   app.post<{ Params: { id: string } }>("/stories/:id/moves", async request => {
     if (!validMove(request.body)) throw new LinkError("invalid", "A Move needs its words and the entry it follows.");
