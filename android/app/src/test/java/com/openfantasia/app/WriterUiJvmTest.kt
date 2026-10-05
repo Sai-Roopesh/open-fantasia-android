@@ -33,4 +33,5 @@ class WriterUiJvmTest : WriterUiChecks() {
     @Scenario("presence › The player can always write › Typing during a Reply")
     @Test fun typingWhileReplyArrives() = typingDuringReply()
     @Test fun redoDirectionIsOptionalAndCancelKeepsTheReply() = redoWithoutDirectionAndCancelling()
+    @Test fun readingBackStaysWhereThePlayerIs() = readingBackKeepsItsPlace()
 }

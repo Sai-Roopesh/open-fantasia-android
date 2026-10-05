@@ -18,7 +18,6 @@ open class PastSceneUiChecks {
     fun scrollingBack() {
         compose.setContent { FantasiaApp(FantasiaModel(link), PairingScanner { error("Already paired") }) }
         compose.onNodeWithText("The Malfoy Problem").performClick()
-        compose.onNodeWithTag("composer").performTextInput("I wait by the fire.")
         for (number in 1..13) {
             compose.onNodeWithTag("scene-passages").performScrollToNode(hasTestTag("earlier-$number"))
             compose.onNodeWithTag("earlier-$number").assertIsDisplayed()
@@ -26,6 +25,10 @@ open class PastSceneUiChecks {
             val summary = if (number == 13) "He got Hermione out before the club came down." else "What happened in Scene $number."
             compose.onNodeWithText("Scene $number · $title · $summary").assertIsDisplayed()
         }
+        // A draft in the composer survives reading back. It is typed once the player has scrolled up, as a player
+        // does: scrolling within the keyboard's opening animation is not something a person can do.
+        compose.onNodeWithTag("composer").performTextInput("I wait by the fire.")
+        compose.onNodeWithTag("scene-passages").performScrollToNode(hasTestTag("earlier-13"))
         val position = compose.onNodeWithTag("earlier-13").fetchSemanticsNode().boundsInRoot
         compose.onNodeWithTag("earlier-13").performClick()
         compose.onNodeWithText("Scene 13 · The troll").assertIsDisplayed()

@@ -117,7 +117,27 @@ class SceneScrollState(val list: LazyListState) {
         showRedo = false
         redo(direction, remember)
     })
+    // The player reading back keeps their place: the end is followed only while they are at it, and a new Move, Reply
+    // or Scene change brings them back to it.
+    var followingEnd by remember { mutableStateOf(true) }
+    var scrollingOurselves by remember { mutableStateOf(false) }
+    LaunchedEffect(list) {
+        // The player has moved when the first visible line moves and the app did not scroll: a keyboard opening only
+        // cuts the viewport short at the bottom, and a Reply growing moves only what is below. Whether they are at the
+        // end is read from the finished layout, where the end marker is the last item.
+        var last: Pair<Int, Int>? = null
+        snapshotFlow { list.layoutInfo }.collect { info ->
+            val position = list.firstVisibleItemIndex to list.firstVisibleItemScrollOffset
+            if (last != null && last != position && !scrollingOurselves) {
+                followingEnd = info.visibleItemsInfo.lastOrNull()?.key == "scene-end"
+            }
+            last = position
+        }
+    }
+    var lastHead by remember { mutableStateOf<String?>(null) }
     val measuredViewport = viewportSize
+    // A new Move, Reply or Scene change brings the player to the end; words arriving, the keyboard opening and the
+    // viewport resizing keep them there only if they are at it.
     LaunchedEffect(scene.storyID, scene.headEntryID, scene.exchanges, scene.turn.kind, replyComing, scene.turn.textSoFar, scene.dayView, imeBottom, measuredViewport) {
         if (measuredViewport == IntSize.Zero) return@LaunchedEffect
         if (entering) {
@@ -127,11 +147,19 @@ class SceneScrollState(val list: LazyListState) {
             // A fresh Scene opens at its latest Reply; returning from an earlier one resumes where it was.
             if (returning) return@LaunchedEffect
         }
+        val newHead = lastHead != scene.headEntryID
+        lastHead = scene.headEntryID
+        if (!newHead && !followingEnd) return@LaunchedEffect
+        followingEnd = true
         val endIndex = scene.earlierScenes.size + 1 + scene.exchanges.size + (if (replyComing) 1 else 0) +
             (if (scene.dayView != null) 1 else 0) + (if (scene.turn.kind == TurnStateKind.Failed) 1 else 0)
         withFrameNanos { }
-        if (scene.dayView != null) list.scrollToItem(scene.earlierScenes.size + 1 + scene.exchanges.size)
-        else list.scrollToItem(endIndex)
+        scrollingOurselves = true
+        try {
+            if (scene.dayView != null) list.scrollToItem(scene.earlierScenes.size + 1 + scene.exchanges.size)
+            else list.scrollToItem(endIndex)
+            withFrameNanos { }
+        } finally { scrollingOurselves = false }
     }
 }
 

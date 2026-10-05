@@ -66,7 +66,8 @@ open class WriterUiChecks {
         val second = compose.onNodeWithTag("countdown-Slytherin v Gryffindor").getUnclippedBoundsInRoot()
         assertEquals(first.top, second.top)
         assertEquals(first.right - first.left, second.right - second.left)
-        assertEquals(androidx.compose.ui.unit.Dp(10f), second.left - first.right)
+        // 10 dp apart, give or take the rounding of a real screen's pixels.
+        assertEquals(10f, (second.left - first.right).value, 0.5f)
         compose.onNodeWithText("Or write your own Move").assertIsDisplayed()
         compose.onNodeWithText("She smiles.").assertIsNotDisplayed()
         compose.onNodeWithText("7:40 am · you're in Common room").assertIsDisplayed()
@@ -190,6 +191,34 @@ open class WriterUiChecks {
         compose.onNodeWithText("Remember this").performClick().assertIsOn()
         compose.onNodeWithTag("confirm-redo").performClick()
         compose.runOnIdle { assertEquals(RedoRequest(after = "reply", direction = "don't dwell on school procedure", remember = true), link.redos.single()) }
+    }
+
+    // Reading back is the player's choice: the keyboard opening, or a Reply's words arriving, must not pull them away
+    // from an earlier Scene they scrolled up to. Only a new Move or Reply returns them to the end.
+    fun readingBackKeepsItsPlace() {
+        val model = FantasiaModel(link)
+        lateinit var view: View
+        var imeHeight = 0
+        var pixelsPerDp = 1f
+        compose.setContent {
+            view = LocalView.current
+            val density = LocalDensity.current
+            val bottom = WindowInsets.ime.getBottom(density)
+            SideEffect { imeHeight = bottom; pixelsPerDp = density.density }
+            FantasiaApp(model, PairingScanner { error("Already paired") })
+        }
+        compose.onNodeWithText("The Malfoy Problem").performClick()
+        compose.onNodeWithTag("scene-passages").performScrollToNode(hasTestTag("earlier-1"))
+        compose.onNodeWithTag("earlier-1").assertIsDisplayed()
+        compose.runOnIdle {
+            ViewCompat.dispatchApplyWindowInsets(view, WindowInsetsCompat.Builder()
+                .setInsets(WindowInsetsCompat.Type.ime(), Insets.of(0, 0, 0, (300 * pixelsPerDp).toInt()))
+                .setVisible(WindowInsetsCompat.Type.ime(), true).build())
+        }
+        compose.waitUntil(5000) { imeHeight > 0 }
+        compose.onNodeWithTag("earlier-1").assertIsDisplayed()
+        compose.runOnIdle { link.current.value = link.current.value.copy(turn = TurnState(kind = TurnStateKind.Writing, textSoFar = "Hermione ")) }
+        compose.onNodeWithTag("earlier-1").assertIsDisplayed()
     }
 
     fun replyEndStaysAboveComposerWithIme() {
