@@ -38,4 +38,4 @@ set aside); The Paths screen (Returning by the Paths screen; Deleting a Path); S
 ## 4. Together
 
 - [x] 4.1 Run `scripts/scenarios.mjs`, the host suite, the Android JVM and device suites, and `openspec validate --all --strict`, and verify all pass
-- [ ] 4.2 On the phone, with the Mac and the phone installed together at version 9: on the Night Train, Try another way from an earlier Reply, play a Move, open the Paths screen, return to Main, and Rewind; compare with the drawings, and check `fantasia trace` for each command
+- [x] 4.2 On the phone, with the Mac and the phone installed together at version 9: on the Night Train, Try another way from an earlier Reply, play a Move, open the Paths screen, return to Main, and Rewind; compare with the drawings, and check `fantasia trace` for each command
