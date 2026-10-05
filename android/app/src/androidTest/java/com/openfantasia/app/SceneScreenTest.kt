@@ -7,5 +7,6 @@ import org.junit.runner.RunWith
 class SceneScreenTest : DesignUiChecks() {
     @Scenario("scenes › Every Scene opens with a title card › The title card")
     @Test fun sceneCard() = titleCard()
+    @Scenario("scenes › Every Scene opens with a title card › Scrolling back")
     @Test fun earlierSceneSummariesAndOpeningRemainReachable() = earlierScenes()
 }

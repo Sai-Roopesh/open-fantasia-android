@@ -15,6 +15,9 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
     val focuses = mutableListOf<FocusRequest>()
     val endScenes = mutableListOf<EndSceneRequest>()
     var storyRequests = 0
+    val pastSceneRequests = mutableListOf<Pair<String, Long>>()
+    var pastSceneFailure: LinkFailure? = null
+    var past = pastSceneFixture()
     override suspend fun pair(invite: PairingInvite) { pairedInvite = invite; isPaired = true }
     override suspend fun stories(): StoryList {
         storyRequests++
@@ -24,6 +27,11 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
     ), traceID = "list")
     }
     override suspend fun scene(storyID: String) = current.value
+    override suspend fun pastScene(storyID: String, number: Long): PastScene {
+        pastSceneRequests += storyID to number
+        pastSceneFailure?.let { throw it }
+        return past.copy(number = number)
+    }
     override suspend fun move(storyID: String, move: MoveRequest): TurnAccepted {
         moves += move
         return TurnAccepted(moveEntryID = "move", traceID = "turn")
@@ -56,13 +64,23 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
     override fun watch(initial: SceneView): Flow<SceneView> = current
 
     companion object {
+        fun pastSceneFixture() = PastScene(number = 13, title = "The troll", place = "The girls' bathroom",
+            atLabel = "Friday · 8:10 pm", summary = "He got Hermione out before the club came down.", traceID = "past-scene",
+            exchanges = listOf(
+                Exchange(move = null, reply = Passage(entryID = "past-opening", text = "The troll raises its club.")),
+                Exchange(move = Passage(entryID = "past-move", text = "I pull Hermione through the door."),
+                    reply = Passage(entryID = "past-reply", text = "The club comes down behind them.")),
+                Exchange(move = null, reply = Passage(entryID = "past-long-reply", text = "The dust settles behind them. ".repeat(100))),
+                Exchange(move = null, reply = Passage(entryID = "past-last-reply", text = "They reach the corridor."))))
         // Named arguments throughout: the generated classes list their fields alphabetically, so positional ones
         // put a summary where a title belongs without a compiler error.
         fun dayView(closedBy: ClosedBy = ClosedBy.Story) = DayView(at = "Day 3 07:40", atLabel = "Sunday · 7:40 am", day = "Sunday", time = "7:40 am", place = "Common room", closedBy = closedBy,
             countdowns = listOf(Countdown(linkSchemaWhen = "3 days", landmark = "Draconia's flying test", label = "3 days to Draconia's flying test"),
                 Countdown(linkSchemaWhen = "9 weeks", landmark = "Slytherin v Gryffindor", label = "9 weeks to Slytherin v Gryffindor")))
         fun sceneView() = SceneView(
-            earlierScenes = (1L..13L).map { SceneSummaryLine(number = it, title = "Earlier Scene $it", summary = "What happened in Scene $it.") },
+            earlierScenes = (1L..13L).map { SceneSummaryLine(number = it,
+                title = if (it == 13L) "The troll" else "Earlier Scene $it",
+                summary = if (it == 13L) "He got Hermione out before the club came down." else "What happened in Scene $it.") },
             exchanges = listOf(
                 Exchange(reply = Passage(entryID = "opening", text = "Hermione looks up.")),
                 Exchange(move = Passage(entryID = "move", text = "I sit beside her."), reply = Passage(entryID = "reply", text = "She smiles."))

@@ -27,6 +27,7 @@
 // val lingerRequest    = json.parse(LingerRequest.serializer(), jsonString)
 // val redoRequest      = json.parse(RedoRequest.serializer(), jsonString)
 // val accepted         = json.parse(Accepted.serializer(), jsonString)
+// val pastScene        = json.parse(PastScene.serializer(), jsonString)
 
 package com.openfantasia.protocol
 
@@ -284,7 +285,12 @@ data class Countdown (
 @Serializable
 data class SceneSummaryLine (
     val number: Long,
+
+    /**
+     * The Chronicler's one line for the Scene, or empty until it has written one.
+     */
     val summary: String,
+
     val title: String
 )
 
@@ -509,6 +515,33 @@ data class RedoRequest (
 data class Accepted (
     @SerialName("head_entry_id")
     val headEntryID: String,
+
+    @SerialName("trace_id")
+    val traceID: String
+)
+
+/**
+ * An earlier Scene on the current Path, in full, for reading back (openspec scenes:
+ * Scrolling back).
+ */
+@Serializable
+data class PastScene (
+    /**
+     * When the Scene began, as people say it.
+     */
+    @SerialName("at_label")
+    val atLabel: String,
+
+    val exchanges: List<Exchange>,
+    val number: Long,
+    val place: String,
+
+    /**
+     * The Chronicler's one line, or empty until it has written one.
+     */
+    val summary: String,
+
+    val title: String,
 
     @SerialName("trace_id")
     val traceID: String

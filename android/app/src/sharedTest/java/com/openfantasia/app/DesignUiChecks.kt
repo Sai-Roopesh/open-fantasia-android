@@ -78,16 +78,18 @@ open class DesignUiChecks {
         compose.onNodeWithText("End scene").assertIsDisplayed()
     }
 
-    // Only summaries are available for earlier Scenes in this contract; expanding one still shows its summary.
+    // Earlier rows stay folded; contract 4 opens the full Scene, then returns to the current passages.
     fun earlierScenes() {
         openScene()
         for (number in 1..13) {
             compose.onNodeWithTag("scene-passages").performScrollToNode(hasTestTag("earlier-$number"))
             compose.onNodeWithTag("earlier-$number").assertIsDisplayed()
         }
-        compose.onNodeWithText("What happened in Scene 13.", useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithText("He got Hermione out before the club came down.", useUnmergedTree = true).assertDoesNotExist()
         compose.onNodeWithTag("earlier-13").performClick()
-        compose.onNodeWithText("What happened in Scene 13.", useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("He got Hermione out before the club came down.", useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("Scene 13 · The troll").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Back to Scene 14").performClick()
         compose.onNodeWithTag("scene-passages").performScrollToNode(hasText("Hermione looks up."))
         compose.onNodeWithText("Hermione looks up.").assertIsDisplayed()
         compose.onNodeWithTag("scene-passages").performScrollToNode(hasText("ROOPESH"))

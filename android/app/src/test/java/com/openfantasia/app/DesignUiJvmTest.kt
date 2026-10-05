@@ -17,6 +17,7 @@ class DesignUiJvmTest : DesignUiChecks() {
     @Test fun sceneCard() = titleCard()
     @Scenario("scenes › The latest Reply has its actions in view › Copying the latest Reply")
     @Test fun copyingReply() = copyReply()
+    @Scenario("scenes › Every Scene opens with a title card › Scrolling back")
     @Test fun earlierSceneSummariesAndOpeningRemainReachable() = earlierScenes()
     @Scenario("presence › Nothing fails silently › A model is down")
     @Test fun failedReplyHasReasonAndRetry() = failedReply()

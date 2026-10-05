@@ -68,6 +68,7 @@ class MacConnection(
 
     override suspend fun stories(): StoryList = read { it.stories() }
     override suspend fun scene(storyID: String): SceneView = read { it.scene(storyID) }
+    override suspend fun pastScene(storyID: String, number: Long): PastScene = read { it.pastScene(storyID, number) }
 
     private suspend fun <T> command(action: suspend (LinkClient) -> T): T {
         val client = current ?: read { it.stories(); it }

@@ -36,6 +36,16 @@ internal val SceneView.replyComing: Boolean
     get() = turn.kind == TurnStateKind.Writing ||
         (turn.kind == TurnStateKind.Idle && exchanges.lastOrNull()?.let { it.move != null && it.reply == null } == true)
 
+// Owned by the current Scene's navigation entry so reading its past does not discard the scroll position.
+class SceneScrollState(val list: LazyListState) {
+    internal var hasBeenShown = false
+}
+
+@Composable fun rememberSceneScrollState(): SceneScrollState {
+    val list = rememberLazyListState()
+    return remember(list) { SceneScrollState(list) }
+}
+
 @Composable fun SceneScreen(
     scene: SceneView,
     portrait: (String) -> PortraitSource?,
@@ -46,9 +56,12 @@ internal val SceneView.replyComing: Boolean
     storyTitle: String = scene.scene.title,
     back: () -> Unit = {},
     awaitingReply: Boolean = false,
+    openPastScene: (Long) -> Unit = {},
+    scrollState: SceneScrollState = rememberSceneScrollState(),
     failure: @Composable () -> Unit = {}
 ) {
-    val list = rememberLazyListState()
+    val list = scrollState.list
+    var entering by remember { mutableStateOf(true) }
     var viewportSize by remember { mutableStateOf(IntSize.Zero) }
     var showRedo by rememberSaveable(scene.storyID) { mutableStateOf(false) }
     val clipboard = LocalContext.current.getSystemService(ClipboardManager::class.java)
@@ -61,7 +74,7 @@ internal val SceneView.replyComing: Boolean
         LazyColumn(state = list, modifier = Modifier.weight(1f).onSizeChanged { viewportSize = it }.testTag("scene-passages"),
             verticalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 8.dp)) {
             itemsIndexed(scene.earlierScenes, key = { _, scene -> "earlier-${scene.number}" }) { index, earlier ->
-                Box(Modifier.padding(bottom = if (index == scene.earlierScenes.lastIndex) 8.dp else 0.dp)) { EarlierScene(earlier) }
+                Box(Modifier.padding(bottom = if (index == scene.earlierScenes.lastIndex) 8.dp else 0.dp)) { EarlierScene(earlier) { openPastScene(earlier.number) } }
             }
             item(key = "scene-title") {
                 Box(Modifier.padding(bottom = 8.dp)) { SceneTitleCard(scene.scene, portrait, scene.focus, controlsEnabled && scene.dayView == null, focus) }
@@ -70,7 +83,7 @@ internal val SceneView.replyComing: Boolean
                 Column(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     exchange.move?.let { MovePassage(it, scene.playerCharacter) }
                     exchange.reply?.let { reply ->
-                        Text(reply.text, modifier = Modifier.fillMaxWidth(), style = FantasiaType.prose, color = FantasiaProse)
+                        ReplyPassage(reply)
                         if (reply == latestReply && !replyComing && scene.turn.kind != TurnStateKind.Failed) {
                             Row(Modifier.offset(x = (-8).dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                 ReplyAction("Copy", onClick = { clipboard.setPrimaryClip(ClipData.newPlainText("Reply", reply.text)) })
@@ -104,7 +117,16 @@ internal val SceneView.replyComing: Boolean
         showRedo = false
         redo(direction, remember)
     })
-    LaunchedEffect(scene.storyID, scene.headEntryID, scene.exchanges, scene.turn.kind, replyComing, scene.turn.textSoFar, scene.dayView, imeBottom, viewportSize) {
+    val measuredViewport = viewportSize
+    LaunchedEffect(scene.storyID, scene.headEntryID, scene.exchanges, scene.turn.kind, replyComing, scene.turn.textSoFar, scene.dayView, imeBottom, measuredViewport) {
+        if (measuredViewport == IntSize.Zero) return@LaunchedEffect
+        if (entering) {
+            entering = false
+            val returning = scrollState.hasBeenShown
+            scrollState.hasBeenShown = true
+            // A fresh Scene opens at its latest Reply; returning from an earlier one resumes where it was.
+            if (returning) return@LaunchedEffect
+        }
         val endIndex = scene.earlierScenes.size + 1 + scene.exchanges.size + (if (replyComing) 1 else 0) +
             (if (scene.dayView != null) 1 else 0) + (if (scene.turn.kind == TurnStateKind.Failed) 1 else 0)
         withFrameNanos { }
@@ -223,21 +245,23 @@ internal val SceneView.replyComing: Boolean
     }
 }
 
-@Composable private fun EarlierScene(scene: SceneSummaryLine) {
-    var expanded by rememberSaveable(scene.number) { mutableStateOf(false) }
+@Composable private fun EarlierScene(scene: SceneSummaryLine, open: () -> Unit) {
     CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
-        Surface(onClick = { expanded = !expanded }, modifier = Modifier.fillMaxWidth().testTag("earlier-${scene.number}"),
+        Surface(onClick = open, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp).testTag("earlier-${scene.number}"),
             shape = FantasiaShapes.folded, color = FantasiaFolded) {
             Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
                 Text("Scene ${scene.number} · ${scene.title}" + scene.summary.takeIf { it.isNotEmpty() }?.let { " · $it" }.orEmpty(),
                     maxLines = 1, overflow = TextOverflow.Ellipsis, color = FantasiaSecondary, style = FantasiaType.meta)
-                if (expanded && scene.summary.isNotEmpty()) Text(scene.summary, style = FantasiaType.meta, color = FantasiaSecondary)
             }
         }
     }
 }
 
-@Composable private fun MovePassage(move: Passage, playerCharacter: String) {
+@Composable internal fun ReplyPassage(reply: Passage) {
+    Text(reply.text, modifier = Modifier.fillMaxWidth(), style = FantasiaType.prose, color = FantasiaProse)
+}
+
+@Composable internal fun MovePassage(move: Passage, playerCharacter: String) {
     BoxWithConstraints(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
         Surface(shape = FantasiaShapes.move, color = FantasiaRaised, modifier = Modifier.widthIn(max = maxWidth * .86f)) {
             Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {

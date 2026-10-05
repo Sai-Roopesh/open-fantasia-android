@@ -41,14 +41,14 @@ Requirements this change builds:
 
 - [x] 5.1 Extend the contract to version 4: earlier Scenes' summaries, and an earlier Scene in full; regenerate both sides
 - [x] 5.2 Test first, then build: `scenes › Every Scene opens with a title card › Scrolling back` on the host (summaries in the Scene view; an earlier Scene in full on the current Path)
-- [ ] 5.3 Test first, then build: `scenes › Every Scene opens with a title card › Scrolling back` on the phone, built to `Scene.dc.html` and `Journal.dc.html` in docs/design (a tap on Scene 13’s summary shows Scene 13 in full)
+- [x] 5.3 Test first, then build: `scenes › Every Scene opens with a title card › Scrolling back` on the phone, built to `Scene.dc.html` and `Journal.dc.html` in docs/design (a tap on Scene 13’s summary shows Scene 13 in full)
 - [x] 5.4 Add `fantasia moments <story>`, and verify a CLI test
 
 ## 6. Real models (opt-in)
 
-- [ ] 6.1 The Chronicler on Claude, three runs: its quotes are word for word, it records the inkwell and the troll as Moments shared with Hermione, and it never records Hermione's invented "you told me at breakfast you hate flying" as something Roopesh said
+- [x] 6.1 The Chronicler on Claude, three runs: its quotes are word for word, it records the inkwell and the troll as Moments shared with Hermione, and it never records Hermione's invented "you told me at breakfast you hate flying" as something Roopesh said
 - [ ] 6.2 `scenes › The Reply never writes the Player Character › Hermione asks a question` as a gate: the real Chronicler records an earlier Scene, then the real Writer and Actor answer the kiss; judged, three runs out of three
-- [ ] 6.3 `living-world › Moments are remembered from one record › Draconia remembers the station` and `living-world › Characters know only what they could know › Hermione does not know about the egg`, judged, three runs each
+- [x] 6.3 `living-world › Moments are remembered from one record › Draconia remembers the station` and `living-world › Characters know only what they could know › Hermione does not know about the egg`, judged, three runs each
 
 ## 7. Together
 

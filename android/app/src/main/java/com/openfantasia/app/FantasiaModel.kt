@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.openfantasia.protocol.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -17,6 +19,9 @@ data class FantasiaState(
     val hostName: String = "Mac",
     val stories: List<StorySummary> = emptyList(),
     val scene: SceneView? = null,
+    val readingScene: SceneSummaryLine? = null,
+    val pastScene: PastScene? = null,
+    val pastSceneLoading: Boolean = false,
     val draft: String = "",
     val sending: Boolean = false,
     val waiting: Boolean = false,
@@ -29,6 +34,7 @@ class FantasiaModel(private val link: FantasiaLink) : ViewModel() {
     private val mutable = MutableStateFlow(FantasiaState(paired = link.isPaired, hostName = link.hostName))
     val state = mutable.asStateFlow()
     private var stream: Job? = null
+    private var pastSceneJob: Job? = null
     private var pendingMoveID: String? = null
     private var afterSeq = 0L
 
@@ -57,6 +63,7 @@ class FantasiaModel(private val link: FantasiaLink) : ViewModel() {
 
     fun home() {
         stream?.cancel()
+        closePastScene()
         viewModelScope.launch {
             mutable.update { it.copy(scene = null, loading = true, problem = null) }
             try {
@@ -92,6 +99,29 @@ class FantasiaModel(private val link: FantasiaLink) : ViewModel() {
     fun resume() { mutable.value.scene?.let { openStory(it.storyID) } }
 
     fun writeMove(text: String) { mutable.update { it.copy(draft = text) } }
+
+    fun openPastScene(number: Long) {
+        val scene = mutable.value.scene ?: return
+        val earlier = scene.earlierScenes.firstOrNull { it.number == number } ?: return
+        closePastScene()
+        mutable.update { it.copy(readingScene = earlier, pastSceneLoading = true, problem = null) }
+        pastSceneJob = viewModelScope.launch {
+            try {
+                val past = link.pastScene(scene.storyID, number)
+                mutable.update { it.copy(pastScene = past) }
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) { showProblem(e)
+            } finally {
+                if (currentCoroutineContext().isActive) mutable.update { it.copy(pastSceneLoading = false) }
+            }
+        }
+    }
+
+    fun closePastScene() {
+        pastSceneJob?.cancel()
+        pastSceneJob = null
+        mutable.update { it.copy(readingScene = null, pastScene = null, pastSceneLoading = false, problem = null) }
+    }
 
     fun sendMove() {
         val state = mutable.value

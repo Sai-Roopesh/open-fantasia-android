@@ -27,6 +27,7 @@ class LinkClient(val address: HttpUrl, fingerprint: String, private val deviceTo
     suspend fun pair(request: PairRequest): PairResponse = command("pair", linkJson.encodeToString(request), paired = false)
     suspend fun stories(): StoryList = command("stories")
     suspend fun scene(storyID: String): SceneView = command(listOf("stories", storyID, "scene"))
+    suspend fun pastScene(storyID: String, number: Long): PastScene = command(listOf("stories", storyID, "scenes", number.toString()))
     suspend fun move(storyID: String, move: MoveRequest): TurnAccepted =
         command(listOf("stories", storyID, "moves"), linkJson.encodeToString(move))
     suspend fun retry(storyID: String): TurnAccepted = command(listOf("stories", storyID, "retry"), "{}")

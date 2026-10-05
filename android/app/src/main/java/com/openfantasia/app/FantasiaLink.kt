@@ -11,6 +11,7 @@ interface FantasiaLink {
     suspend fun pair(invite: PairingInvite)
     suspend fun stories(): StoryList
     suspend fun scene(storyID: String): SceneView
+    suspend fun pastScene(storyID: String, number: Long): PastScene
     suspend fun move(storyID: String, move: MoveRequest): TurnAccepted
     suspend fun retry(storyID: String): TurnAccepted
     suspend fun endScene(storyID: String, request: EndSceneRequest): Accepted
