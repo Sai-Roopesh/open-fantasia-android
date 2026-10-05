@@ -27,15 +27,15 @@ set aside); The Paths screen (Returning by the Paths screen; Deleting a Path); S
 
 ## 3. Paths on the phone
 
-- [ ] 3.1 Test first, then build: `paths › Try another way from any Reply › Following the lantern` on the phone: long-pressing an earlier Reply opens the menu built to `docs/design/LongPress.dc.html` (Copy, Rewind to here, Try another way from here; no Edit), Try another way sends the request and the Scene reloads at that Reply; the same from an earlier Scene being read; shared check on the JVM and the device
-- [ ] 3.2 Test first, then build: `paths › Rewind sets aside, never destroys › Going back and carrying on` on the phone: Rewind to here sends the request, the latest Reply offers no Rewind, and the Scene reloads; shared check on the JVM and the device
-- [ ] 3.3 Test first, then build: `paths › The Paths screen › Returning by the Paths screen` on the phone: the header's Paths opens the screen built to `docs/design/Paths.dc.html` (folded Scenes, the fork card, Path cards, MAIN · YOU ARE HERE, played time), and tapping a Path opens it; shared check on the JVM and the device
-- [ ] 3.4 Test first, then build: `paths › The Paths screen › Deleting a Path` and `paths › Rewind sets aside, never destroys › Clearing what was set aside` on the phone: Rename and Delete sheets, Delete asks once and is absent on the current card, Clear shows only when there is something to clear; shared checks on the JVM and the device
-- [ ] 3.5 Test first, then build: `paths › A Path changes only between Replies › Rewinding while a Reply is written` on the phone: the menu's Path actions and the Paths screen's are disabled while a Reply is written; shared check
-- [ ] 3.6 `path_changed` reloads the Scene, and the stream opens with the Path the phone shows; verify JVM stream tests
+- [x] 3.1 Test first, then build: `paths › Try another way from any Reply › Following the lantern` on the phone: long-pressing an earlier Reply opens the menu built to `docs/design/LongPress.dc.html` (Copy, Rewind to here, Try another way from here; no Edit), Try another way sends the request and the Scene reloads at that Reply; the same from an earlier Scene being read; shared check on the JVM and the device
+- [x] 3.2 Test first, then build: `paths › Rewind sets aside, never destroys › Going back and carrying on` on the phone: Rewind to here sends the request, the latest Reply offers no Rewind, and the Scene reloads; shared check on the JVM and the device
+- [x] 3.3 Test first, then build: `paths › The Paths screen › Returning by the Paths screen` on the phone: the header's Paths opens the screen built to `docs/design/Paths.dc.html` (folded Scenes, the fork card, Path cards, MAIN · YOU ARE HERE, played time), and tapping a Path opens it; shared check on the JVM and the device
+- [x] 3.4 Test first, then build: `paths › The Paths screen › Deleting a Path` and `paths › Rewind sets aside, never destroys › Clearing what was set aside` on the phone: Rename and Delete sheets, Delete asks once and is absent on the current card, Clear shows only when there is something to clear; shared checks on the JVM and the device
+- [x] 3.5 Test first, then build: `paths › A Path changes only between Replies › Rewinding while a Reply is written` on the phone: the menu's Path actions and the Paths screen's are disabled while a Reply is written; shared check
+- [x] 3.6 `path_changed` reloads the Scene, and the stream opens with the Path the phone shows; verify JVM stream tests
 - [ ] 3.7 Render with `-PfantasiaPreviews` and compare with `LongPress.dc.html` and `Paths.dc.html`; fix what differs
 
 ## 4. Together
 
-- [ ] 4.1 Run `scripts/scenarios.mjs`, the host suite, the Android JVM and device suites, and `openspec validate --all --strict`, and verify all pass
+- [x] 4.1 Run `scripts/scenarios.mjs`, the host suite, the Android JVM and device suites, and `openspec validate --all --strict`, and verify all pass
 - [ ] 4.2 On the phone, with the Mac and the phone installed together at version 9: on the Night Train, Try another way from an earlier Reply, play a Move, open the Paths screen, return to Main, and Rewind; compare with the drawings, and check `fantasia trace` for each command
