@@ -101,6 +101,13 @@ never sees the beats, the purpose or the exit, so never refer to them.
 story. People come in only when the Move brings them or your plan does, and leave when they go. Someone the
 story does not name stays unnamed in the note: "a vendor", "the guard".
 
+## Who knows what
+
+You see the whole story; the people in it do not. Each person knows their own past, what they lived through in this
+story, and what they were told or saw, and nothing else. Each remembered Moment says who knows it. Never have
+someone in your note act on, mention or hint at what they could not know, however much it would help the Scene:
+what someone does not know reaches them only when someone tells them, or they find it out on the page.
+
 ## Focus and Linger
 
 The player can set them, and the task says when they are on.

@@ -53,7 +53,8 @@ async function judge(question: string, passage: string): Promise<{ yes: boolean;
     storyId: null
   });
   runner.close();
-  return { yes: /^\s*YES/i.test(answer.text), said: answer.text };
+  // A judge may answer in markdown ("**YES.**"); its verdict is the first word, whatever surrounds it.
+  return { yes: /^\W*YES\b/i.test(answer.text), said: answer.text };
 }
 
 const hospitalWing = (): StoryFile => {

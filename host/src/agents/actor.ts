@@ -96,7 +96,7 @@ function scenePrompt(state: State, scene: Entry[], pc: string): string {
     section(`move by="${pc}"`, latest.payload.text),
     section("this_reply", thisReply),
     section("taste", state.taste.map(line => `- ${line}`).join("\n")),
-    `Write what happens next. What ${pc} says, chooses, thinks and feels belongs to the player, now and in anything the story has not shown; leave it out.`
+    `Write what happens next. What ${pc} says, chooses, thinks and feels belongs to the player, now and in anything the story has not shown; what he did before is only what the scene and remembered show, as they show it. Leave the rest out.`
   ].filter(part => part !== null).join("\n\n");
 }
 

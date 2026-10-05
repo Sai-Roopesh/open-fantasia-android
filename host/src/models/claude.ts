@@ -79,7 +79,9 @@ export class ClaudeRunner implements ModelRunner {
       model: request.model.model,
       systemPrompt: request.system,
       tools: [],
-      maxTurns: 1,
+      // An answer in a schema comes back through a tool the SDK checks, and the SDK asks again when the check fails;
+      // one turn left no room for that, and a Writer's call stopped with error_max_turns.
+      maxTurns: request.schema ? 3 : 1,
       persistSession: false,
       settingSources: [],
       includePartialMessages: true,

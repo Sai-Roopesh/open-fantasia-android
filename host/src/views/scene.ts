@@ -2,7 +2,7 @@ import type { Countdown, DayView, Exchange, SceneCard, SceneView, StoryEvent } f
 import type { Engine } from "../engine/engine.js";
 import { LinkError } from "../link/errors.js";
 import type { Mac } from "../mac.js";
-import type { Entry } from "../story/entries.js";
+import type { Chronicle, Entry } from "../story/entries.js";
 import type { State } from "../story/state.js";
 import { minutesOf, parseStoryTime, sayDay, sayStoryTime, sayTime, type StoryTime } from "../time.js";
 
@@ -92,6 +92,11 @@ export function sceneView(mac: Mac, engine: Engine, storyId: string, traceId: st
   const scene = state.scene;
   if (!scene) throw new Error("No Scene has opened");
   const all = mac.tree.pathTo(path.headEntryId);
+  // Each earlier Scene's summary is the Chronicler's, once it has written one (openspec scenes: Scrolling back).
+  const summaries = new Map(mac.tree.chroniclesOn(path.headEntryId).flatMap(entry => {
+    const chronicle = entry.payload as Chronicle;
+    return chronicle.summary ? [[chronicle.scene, chronicle.summary] as const] : [];
+  }));
   return {
     story_id: storyId,
     path_id: path.id,
@@ -104,7 +109,7 @@ export function sceneView(mac: Mac, engine: Engine, storyId: string, traceId: st
     linger: scene.linger,
     day_view: scene.closed ? dayView(state) : null,
     earlier_scenes: all.flatMap(entry => entry.payload.kind === "scene_opened" && entry.id !== scene.openedBy
-      ? [{ number: entry.payload.number, title: entry.payload.title, summary: "" }]
+      ? [{ number: entry.payload.number, title: entry.payload.title, summary: summaries.get(entry.id) ?? "" }]
       : []),
     exchanges: exchanges(entries),
     turn: engine.turnState(storyId),

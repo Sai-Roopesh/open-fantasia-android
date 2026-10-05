@@ -71,7 +71,8 @@ async function judge(question: string, reply: string): Promise<{ yes: boolean; s
   });
   runner.close();
   void mac;
-  return { yes: /^\s*YES/i.test(answer.text), said: answer.text };
+  // A judge may answer in markdown ("**YES.**"); its verdict is the first word, whatever surrounds it.
+  return { yes: /^\W*YES\b/i.test(answer.text), said: answer.text };
 }
 
 describe.skipIf(!token)("the Actor on Claude", () => {
