@@ -88,7 +88,7 @@ people or the Chronicles do, so it goes in the system prompt and the prompt cach
 
 ### The phone (protocol, android)
 
-Contract 3. Earlier Scenes in the Scene view carry their summaries; `GET /stories/{id}/scenes/{number}` answers with
+Contract 4. Earlier Scenes in the Scene view carry their summaries; `GET /stories/{id}/scenes/{number}` answers with
 one earlier Scene on the current Path in full. Tapping an earlier Scene's summary opens it.
 
 ### Inspecting it (host)

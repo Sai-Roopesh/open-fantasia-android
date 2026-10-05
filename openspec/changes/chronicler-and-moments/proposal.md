@@ -45,5 +45,5 @@ None.
 - host: the Chronicler agent and its prompt; a store of Moments, Scene summaries and who was told, kept beside the
   entries they quote (a new ADR); the engine's background jobs; recall in the Actor's and the Writer's prompts;
   `fantasia moments`; the Chronicler's model in `models.json`.
-- protocol: contract 3. Earlier Scenes carry their summaries, and a new request reads one earlier Scene in full.
+- protocol: contract 4. Earlier Scenes carry their summaries, and a new request reads one earlier Scene in full.
 - android: an earlier Scene's summary opens that Scene in full.
