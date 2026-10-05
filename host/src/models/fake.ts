@@ -14,7 +14,7 @@ interface WriterFacts {
 
 /**
  * A Writer's answer that keeps every rule, made from the facts its prompt was written from: it frames a Scene when
- * one is needed, keeps who is here, leaves the beats where they stand, and lets the Scene go on. Scripted models
+ * one is needed, brings nobody in and sends nobody away, leaves the beats where they stand, and lets the Scene go on. Scripted models
  * answer the Writer with it unless a test says otherwise.
  */
 export function fakeWriterAnswer(request: ModelRequest): Script {
@@ -33,7 +33,8 @@ export function fakeWriterAnswer(request: ModelRequest): Script {
     answer: JSON.stringify({
       leaves_scene: false,
       frame,
-      here: facts.opening === "day_view" ? [] : facts.here,
+      comes_in: [],
+      goes: [],
       beats,
       note: "Someone answers the Move, and wants something back.",
       call: "continue",

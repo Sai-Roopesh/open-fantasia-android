@@ -16,7 +16,7 @@ function entry(payload: Payload): Entry {
 const beats = (inPlay: number): Beat[] => [0, 1, 2].map(index => ({ text: `beat ${index + 1}`, status: index < inPlay ? "done" : index === inPlay ? "in_play" : "pending" }));
 
 function note(changes: Partial<BeatNote> = {}): Payload {
-  return { kind: "beat_note", plan: null, here: ["Meera Kulkarni", "Uncle Bhalla"], beats: beats(0), note: "Meera sits.", call: "continue", intensity: 2, arcMoved: true, clock: "Day 1 22:45", taste: null, inPlay: [], callId: "c", model: { provider: "claude", model: "claude-sonnet-5-5" }, ...changes };
+  return { kind: "beat_note", plan: null, here: ["Meera Kulkarni", "Uncle Bhalla"], goes: [], beats: beats(0), note: "Meera sits.", call: "continue", intensity: 2, arcMoved: true, clock: "Day 1 22:45", taste: null, inPlay: [], callId: "c", model: { provider: "claude", model: "claude-sonnet-5-5" }, ...changes };
 }
 
 const play = (state: State, ...payloads: Payload[]) => payloads.reduce((current, payload) => apply(current, entry(payload)), state);
@@ -46,6 +46,16 @@ describe("the reducer", () => {
     const { state } = nightTrain();
     expect(play(state, note({ inPlay: ["moment-seat"] })).scene!.inPlay).toEqual(["moment-seat"]);
     expect(play(state, note({ inPlay: ["moment-seat"] }), note({ inPlay: [] })).scene!.inPlay).toEqual([]);
+  });
+
+  it("takes whoever goes out of the Scene once the Reply that has them go is written, and Focus on them clears", () => {
+    const { state } = nightTrain();
+    const model = { provider: "claude", model: "claude-opus-5-5" } as const;
+    const focused = play(state, { kind: "focus_set", on: "Uncle Bhalla" });
+    const planned = play(focused, { kind: "move", text: "Bhalla goes for tea." }, note({ goes: ["Uncle Bhalla"] }));
+    expect(planned.scene).toMatchObject({ here: ["Meera Kulkarni", "Uncle Bhalla"], goes: ["Uncle Bhalla"], focus: "Uncle Bhalla" });
+    const written = play(planned, { kind: "reply", text: "Bhalla takes his thermos and goes.", callId: "c", model });
+    expect(written.scene).toMatchObject({ here: ["Meera Kulkarni"], goes: [], focus: null });
   });
 
   it("keeps Taste to ten lines, dropping the oldest", () => {

@@ -35,7 +35,8 @@ function answer(changes: Record<string, unknown> = {}) {
   return {
     leaves_scene: false,
     frame: null,
-    here: ["Meera Kulkarni", "Uncle Bhalla"],
+    comes_in: [],
+    goes: [],
     beats: [
       { text: "Meera makes her claim on the window seat.", status: "done" },
       { text: "Uncle Bhalla takes a side, loudly.", status: "done" },
@@ -55,14 +56,14 @@ function answer(changes: Record<string, unknown> = {}) {
 describe("the Writer's answer", () => {
   it("is taken when it keeps every rule, with names as the Story keeps them", () => {
     const { state } = nightTrain();
-    const checked = checkWriterAnswer(ask(planned(state), "I offer her the window seat."), answer({ here: ["Meera", "uncle bhalla"] }));
+    const checked = checkWriterAnswer(ask(planned(state), "I offer her the window seat."), answer({ comes_in: ["Meera", "uncle bhalla"] }));
     expect(checked).toMatchObject({ ok: true, plan: { opens: null, plans: null, here: ["Meera Kulkarni", "Uncle Bhalla"], call: "continue", clock: "Day 1 22:43", arcMoved: true } });
   });
 
   it("names every rule an answer breaks, so one repair can fix them all", () => {
     const { state } = nightTrain();
     const checked = checkWriterAnswer(ask(planned(state), "I offer her the window seat."), answer({
-      here: ["Meera Kulkarni", "Ishaan Mehra", "The Conductor"],
+      comes_in: ["Meera Kulkarni", "Ishaan Mehra", "The Conductor"],
       beats: [{ text: "Ishaan tells her the truth about the interview.", status: "in_play" }, { text: "Bhalla sleeps.", status: "in_play" }],
       note: Array.from({ length: 65 }, () => "word").join(" "),
       clock: "Day 1 22:00"
@@ -70,8 +71,8 @@ describe("the Writer's answer", () => {
     expect(checked.ok).toBe(false);
     const problems = checked.ok ? [] : checked.problems;
     expect(problems).toEqual(expect.arrayContaining([
-      expect.stringMatching(/^here: The Conductor is not in the story/),
-      expect.stringMatching(/^here: Ishaan Mehra is the player's character/),
+      expect.stringMatching(/^comes_in: The Conductor is not in the story/),
+      expect.stringMatching(/^comes_in: Ishaan Mehra is the player's character/),
       expect.stringMatching(/^beats: there are 2; a Scene has three to five/),
       expect.stringMatching(/^beats: 2 are in play/),
       expect.stringMatching(/^beats: beat 1 decides for the player's character \("Ishaan tells her/),
@@ -104,7 +105,7 @@ describe("the Writer's answer", () => {
   it("frames the next Scene when a Move leaves this one", () => {
     const { state } = nightTrain();
     const move = "I go to the vestibule for some air.";
-    const leaving = answer({ leaves_scene: true, here: [], clock: "Day 1 22:45", beats: answer().beats.map(beat => ({ ...beat, status: "pending" })).map((beat, index) => (index === 0 ? { ...beat, status: "in_play" } : beat)) });
+    const leaving = answer({ leaves_scene: true, comes_in: [], clock: "Day 1 22:45", beats: answer().beats.map(beat => ({ ...beat, status: "pending" })).map((beat, index) => (index === 0 ? { ...beat, status: "in_play" } : beat)) });
     expect(checkWriterAnswer(ask(planned(state), move), leaving)).toMatchObject({ ok: false, problems: [expect.stringMatching(/^frame: this Move opens a new Scene/)] });
     const frame = { title: "Air", place: "The vestibule", purpose: "Ishaan's evening goes from crowded to his own, or not.", exit: "Someone follows him out, or nobody does." };
     expect(checkWriterAnswer(ask(planned(state), move), { ...leaving, frame })).toMatchObject({ ok: true, plan: { opens: frame, here: [] } });
@@ -119,9 +120,27 @@ describe("the Writer's answer", () => {
   it("keeps Focus: nobody new comes in unless the Move brings them", () => {
     const { state } = nightTrain();
     const focused = planned(state, { here: ["Meera Kulkarni"], focus: "Meera Kulkarni" });
-    const withBhalla = answer({ here: ["Meera Kulkarni", "Uncle Bhalla"] });
-    expect(checkWriterAnswer(ask(focused, "I ask her about the birds."), withBhalla)).toMatchObject({ ok: false, problems: [expect.stringMatching(/^here: Focus is on Meera Kulkarni, and the Move does not bring in Uncle Bhalla/)] });
+    const withBhalla = answer({ comes_in: ["Uncle Bhalla"] });
+    expect(checkWriterAnswer(ask(focused, "I ask her about the birds."), withBhalla)).toMatchObject({ ok: false, problems: [expect.stringMatching(/^comes_in: Focus is on Meera Kulkarni, and the Move does not bring in Uncle Bhalla/)] });
     expect(checkWriterAnswer(ask(focused, "Uncle Bhalla comes back from the vestibule with tea."), withBhalla)).toMatchObject({ ok: true });
+    // The person in Focus may always be here.
+    const missing = planned(state, { here: [], focus: "Meera Kulkarni" });
+    expect(checkWriterAnswer(ask(missing, "I ask about the birds."), answer({ comes_in: ["Meera Kulkarni"] }))).toMatchObject({ ok: true, plan: { here: ["Meera Kulkarni"] } });
+  });
+
+  it("names only who comes in and who goes, so nobody leaves a Scene by being left out", () => {
+    const { state } = nightTrain();
+    const move = "I offer her the window seat.";
+    // Nobody named: everyone stays.
+    expect(checkWriterAnswer(ask(planned(state), move), answer())).toMatchObject({ ok: true, plan: { here: ["Meera Kulkarni", "Uncle Bhalla"], goes: [] } });
+    // Someone already here coming in, or someone not here going, changes nothing.
+    const alone = planned(state, { here: ["Meera Kulkarni"] });
+    expect(checkWriterAnswer(ask(alone, move), answer({ comes_in: ["Meera Kulkarni"], goes: ["Uncle Bhalla"] }))).toMatchObject({ ok: true, plan: { here: ["Meera Kulkarni"], goes: [] } });
+    // Whoever goes is in the Reply that has them go.
+    expect(checkWriterAnswer(ask(planned(state), move), answer({ goes: ["Bhalla"] }))).toMatchObject({ ok: true, plan: { here: ["Meera Kulkarni", "Uncle Bhalla"], goes: ["Uncle Bhalla"] } });
+    // A new Scene starts with nobody: whoever comes in is everyone there.
+    const leaving = answer({ leaves_scene: true, frame: { title: "Air", place: "The vestibule", purpose: "p", exit: "e" }, comes_in: ["Uncle Bhalla"], clock: "Day 1 22:45" });
+    expect(checkWriterAnswer(ask(planned(state), "I go to the vestibule for some air."), leaving)).toMatchObject({ ok: true, plan: { here: ["Uncle Bhalla"] } });
   });
 
   it("keeps Linger: the Scene is not pushed to its turn or closed", () => {

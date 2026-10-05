@@ -7,6 +7,19 @@ import type { Beat, ModelChoice, SceneCall } from "./state.js";
  */
 export type Payload = StorySetUp | SceneOpened | MoveWritten | Redo | BeatNote | ReplyWritten | SceneClosed | FocusSet | LingerSet | Chronicle;
 
+/** A payload as any version may have stored it. */
+export type StoredPayload = Exclude<Payload, BeatNote> | (Omit<BeatNote, "inPlay" | "goes"> & Partial<Pick<BeatNote, "inPlay" | "goes">>);
+
+/**
+ * An entry as it reads now, however long ago it was written. Entries never change (docs/adr/0003), so a field added
+ * later is filled here, the one place entries are read, as having been empty: a Beat Note from before Moments were
+ * put in play has none in play, and one from before people could go has nobody going.
+ */
+export function readPayload(stored: StoredPayload): Payload {
+  if (stored.kind === "beat_note") return { ...stored, inPlay: stored.inPlay ?? [], goes: stored.goes ?? [] };
+  return stored;
+}
+
 /** The Story as its Story File set it up. Portraits map each person's name to the stored image's file name. */
 export interface StorySetUp {
   kind: "story_set_up";
@@ -56,7 +69,10 @@ export interface Redo {
 export interface BeatNote {
   kind: "beat_note";
   plan: { purpose: string; exit: string } | null;
+  /** Who is in the Scene for the Reply besides the Player Character, worked out from who came in and who goes. */
   here: string[];
+  /** Who leaves in the Reply: written leaving, and out of the Scene once it is written. */
+  goes: string[];
   beats: Beat[];
   note: string;
   call: SceneCall;

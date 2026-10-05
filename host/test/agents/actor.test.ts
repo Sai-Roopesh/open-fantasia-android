@@ -68,7 +68,7 @@ describe("the Actor's prompt for one Reply", () => {
         ...changes
       }
     };
-    return actorPrompt(current, [...scene, { ...move, seq: move.seq + 1, id: "note", payload: { kind: "beat_note", plan: null, here: [], beats: [], note: "", call: "continue", intensity: 2, arcMoved: true, clock: "Day 1 22:52", taste: null, inPlay: [], callId: "c", model: state.actor } }]);
+    return actorPrompt(current, [...scene, { ...move, seq: move.seq + 1, id: "note", payload: { kind: "beat_note", plan: null, here: [], goes: [], beats: [], note: "", call: "continue", intensity: 2, arcMoved: true, clock: "Day 1 22:52", taste: null, inPlay: [], callId: "c", model: state.actor } }]);
   };
 
   it("adds the time, the Beat Note, Focus, Linger and Taste after the Move, and never the beats, purpose or exit", () => {

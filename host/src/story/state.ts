@@ -70,6 +70,8 @@ export interface CurrentScene {
   intensity: number | null;
   /** The remembered Moments the latest Beat Note put in play, by id. */
   inPlay: string[];
+  /** Who leaves in the Reply the latest Beat Note plans; they are out of the Scene once it is written. */
+  goes: string[];
   /** How many Beat Notes in a row have had the same beat in play. */
   beatInPlayFor: number;
   /** How many Beat Notes in a row have judged that no Arc moved. */

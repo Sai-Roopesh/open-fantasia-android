@@ -92,6 +92,16 @@ describe("working out the State on a Path", () => {
     expect(reopened.pragma("user_version", { simple: true })).toBe(STATE_SHAPE);
   });
 
+  it("reads a Beat Note written before a field was added as having it empty", () => {
+    const { db, tree, opened } = storyWithScene();
+    const move = tree.append("s", opened.id, { kind: "move", text: "I raise my glass." });
+    // As the Writer's first version stored it: nothing in play and nobody going, because neither existed yet.
+    const stored = { kind: "beat_note", plan: null, here: ["Draconia Malfoy"], beats: [], note: "She drinks.", call: "continue", intensity: 2, arcMoved: true, clock: "Day 1 21:41", taste: null, callId: "c", model: { provider: "claude", model: "claude-sonnet-5-5" } };
+    db.prepare("INSERT INTO entries (id, story_id, parent_id, kind, payload, created_at) VALUES ('old-note', 's', ?, 'beat_note', ?, 'now')").run(move.id, JSON.stringify(stored));
+    expect(tree.entry("old-note")?.payload).toMatchObject({ kind: "beat_note", inPlay: [], goes: [] });
+    expect(tree.pathTo("old-note").at(-1)?.payload).toMatchObject({ inPlay: [], goes: [] });
+  });
+
   it("keeps Chronicles beside the Path: a Path sees those whose parent is on it, and never walks one", () => {
     const { tree, opened } = storyWithScene();
     const model = { provider: "claude", model: "claude-sonnet-5-5" } as const;

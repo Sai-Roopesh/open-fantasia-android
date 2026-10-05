@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { Entry, Payload } from "../story/entries.js";
+import { readPayload, type Entry, type Payload, type StoredPayload } from "../story/entries.js";
 import type { Db } from "./db.js";
 
 interface EntryRow {
@@ -32,7 +32,7 @@ export interface StoryPath {
 }
 
 function toEntry(row: EntryRow): Entry {
-  return { seq: row.seq, id: row.id, storyId: row.story_id, parentId: row.parent_id, payload: JSON.parse(row.payload) as Payload, createdAt: row.created_at };
+  return { seq: row.seq, id: row.id, storyId: row.story_id, parentId: row.parent_id, payload: readPayload(JSON.parse(row.payload) as StoredPayload), createdAt: row.created_at };
 }
 
 function toPath(row: PathRow): StoryPath {

@@ -8,7 +8,8 @@ Requirements this change builds:
   remembered from one record (Draconia remembers the station); Characters know only what they could know (Hermione
   does not know about the egg).
 - `scenes`: Every Scene opens with a title card (Scrolling back); The Reply never writes the Player Character
-  (Hermione asks a question, as a real-model gate).
+  (Hermione asks a question, as a real-model gate); People stay in a Scene until they go (added here, both
+  scenarios).
 
 ## 1. The Chronicler
 
@@ -36,6 +37,7 @@ Requirements this change builds:
 - [x] 4.5 Recall caps and ranks: at most five Moments, from earlier Scenes, ranked by weight, the people present who know them and recency, shown oldest first; the end of the last Scene and the summaries of the last day's Scenes for the Writer only; the Writer reads `what` and the quotes, the Actor only the quotes; verify unit tests
 
 - [x] 4.6 The Writer names up to two remembered Moments in play for a Reply; the Beat Note keeps them, and the Actor reads their words again just before its last line; verify unit tests that a label it was not shown and more than two are refused, and that the words reach the Actor's prompt
+- [x] 4.7 Test first, then build: `scenes › People stay in a Scene until they go › Meera stays on the toy train` and `› Meera gets off at Barog` (the Writer names who comes in and who goes, never the whole Scene again; the Mac keeps everyone else, and Focus on someone who goes clears); found on the phone in 7.1
 
 ## 5. The link, the phone and the Mac
 
@@ -52,5 +54,5 @@ Requirements this change builds:
 
 ## 7. Together
 
-- [ ] 7.1 On the phone, play the Night Train across two Scenes, then read `fantasia moments`; verify the first Scene's summary shows on the phone and opens in full, a later Reply draws on a Moment in its own words, and the Chronicler never delays a Reply (from `fantasia trace`)
-- [ ] 7.2 Run `scripts/scenarios.mjs`, the host suite, the Android JVM and device suites, and `openspec validate --all --strict`, and verify all pass
+- [x] 7.1 On the phone, play the Night Train across two Scenes, then read `fantasia moments`; verify the first Scene's summary shows on the phone and opens in full, a later Reply draws on a Moment in its own words, and the Chronicler never delays a Reply (from `fantasia trace`)
+- [x] 7.2 Run `scripts/scenarios.mjs`, the host suite, the Android JVM and device suites, and `openspec validate --all --strict`, and verify all pass

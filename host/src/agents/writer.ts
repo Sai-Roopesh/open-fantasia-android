@@ -45,7 +45,7 @@ const text = { type: "string", minLength: 1 } as const;
 export const WRITER_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["leaves_scene", "frame", "here", "beats", "note", "call", "intensity", "arc_moved", "clock", "taste", "in_play"],
+  required: ["leaves_scene", "frame", "comes_in", "goes", "beats", "note", "call", "intensity", "arc_moved", "clock", "taste", "in_play"],
   properties: {
     leaves_scene: { type: "boolean", description: "The Move leaves this Scene or skips well ahead, so the next Scene begins with it." },
     frame: {
@@ -60,7 +60,8 @@ export const WRITER_SCHEMA = {
         { type: "null" }
       ]
     },
-    here: { type: "array", items: { type: "string" }, description: "Everyone in the Scene for the next Reply besides the player's character." },
+    comes_in: { type: "array", items: { type: "string" }, description: "Who comes into the Scene in the next Reply; when a Scene opens, everyone there besides the player's character. Usually nobody." },
+    goes: { type: "array", items: { type: "string" }, description: "Who leaves the Scene in the next Reply. Usually nobody." },
     beats: {
       type: "array",
       items: {
@@ -83,7 +84,8 @@ export const WRITER_SCHEMA = {
 interface RawAnswer {
   leaves_scene: boolean;
   frame: { title: string; place: string; purpose: string; exit: string } | null;
-  here: string[];
+  comes_in: string[];
+  goes: string[];
   beats: Beat[];
   note: string;
   call: SceneCall;
@@ -123,7 +125,10 @@ export interface WriterPlan {
   opens: Frame | null;
   /** The purpose and exit of the open Scene, which had no plan until now. */
   plans: { purpose: string; exit: string } | null;
+  /** Who is in the Scene for the Reply: everyone already there, or nobody when a Scene opens, and whoever comes in. */
   here: string[];
+  /** Who of them leaves in the Reply. */
+  goes: string[];
   beats: Beat[];
   note: string;
   call: SceneCall;
@@ -190,20 +195,23 @@ export function checkWriterAnswer(ask: WriterAsk, raw: unknown): Checked {
     }
   }
 
-  // Who is here, as the Story names them.
-  const here: string[] = [];
-  for (const name of raw.here) {
+  // Who is here: the Writer names only who comes in and who goes, so nobody leaves a Scene by being left out. A new
+  // Scene starts with nobody besides the player's character. Someone already here coming in, or someone not here
+  // going, changes nothing.
+  const story = (field: "comes_in" | "goes") => raw[field].flatMap(name => {
     const known = index.get(name.trim().toLocaleLowerCase());
-    if (!known) problems.push(`here: ${name.trim() || "a blank name"} is not in the story; use a name from the people, and leave walk-ons unnamed`);
-    else if (known === pc) problems.push(`here: ${pc} is the player's character, who is always here; leave them out`);
-    else if (!here.includes(known)) here.push(known);
-  }
+    if (!known) return (problems.push(`${field}: ${name.trim() || "a blank name"} is not in the story; use a name from the people, and leave walk-ons unnamed`), []);
+    if (known === pc) return (problems.push(`${field}: ${pc} is the player's character, who is always here; leave them out`), []);
+    return [known];
+  });
+  const before = opensScene ? [] : scene?.here ?? [];
+  const comesIn = story("comes_in").filter(name => !before.includes(name));
+  const here = [...new Set([...before, ...comesIn])];
+  const goes = [...new Set(story("goes"))].filter(name => here.includes(name));
   if (!opens && scene?.focus) {
-    for (const name of here) {
+    for (const name of comesIn) {
       const person = state.people[name];
-      if (!scene.here.includes(name) && person && !names(ask.move, person)) {
-        problems.push(`here: Focus is on ${scene.focus}, and the Move does not bring in ${name}; leave them out`);
-      }
+      if (person && name !== scene.focus && !names(ask.move, person)) problems.push(`comes_in: Focus is on ${scene.focus}, and the Move does not bring in ${name}; leave them out`);
     }
   }
 
@@ -255,7 +263,7 @@ export function checkWriterAnswer(ask: WriterAsk, raw: unknown): Checked {
   });
 
   if (problems.length) return { ok: false, problems };
-  return { ok: true, plan: { opens, plans, here, beats, note, call: raw.call, intensity: raw.intensity, arcMoved: raw.arc_moved, clock, taste, inPlay: memoriesInPlay } };
+  return { ok: true, plan: { opens, plans, here, goes, beats, note, call: raw.call, intensity: raw.intensity, arcMoved: raw.arc_moved, clock, taste, inPlay: memoriesInPlay } };
 }
 
 function section(tag: string, body: string): string | null {

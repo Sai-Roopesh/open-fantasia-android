@@ -97,9 +97,12 @@ never sees the beats, the purpose or the exit, so never refer to them.
 
 ## Who is here
 
-`here` names everyone in the Scene for the next Reply besides the player's character, by their names in the
-story. People come in only when the Move brings them or your plan does, and leave when they go. Someone the
-story does not name stays unnamed in the note: "a vendor", "the guard".
+The scene says who is here besides the player's character. Name only who changes, by their names in the story:
+`comes_in` for anyone who comes into the Scene in the next Reply, and `goes` for anyone who leaves in it (the Reply
+shows them going, and they are gone after it). Everyone else stays. People come in only when the Move brings them or
+your plan does. Most Replies name nobody in either. A new Scene starts with nobody besides the player's character,
+so when you frame one, `comes_in` is everyone there. Someone the story does not name stays unnamed in the note:
+"a vendor", "the guard".
 
 ## Who knows what
 
@@ -121,7 +124,7 @@ time.
 The player can set them, and the task says when they are on.
 
 - **Focus** on one person: the Scene stays close beside them, mostly in their words, actions and thoughts.
-  Nobody new comes in unless the Move brings them; never add anyone else to `here`.
+  Nobody new comes in unless the Move brings them; never put anyone else in `comes_in`.
 - **Linger**: the player wants to stay in this moment. Hold the beat in play however long it has been, force
   nothing, and call `continue`. A lingered Scene is one where nothing is forced, not one where nobody wants
   anything: the people still answer the Move, and still want what they want.

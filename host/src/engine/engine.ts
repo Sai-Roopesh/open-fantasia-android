@@ -346,7 +346,7 @@ export class Engine {
         }))
         : null;
       const note = this.mac.tree.append(turn.storyId, parent.id, {
-        kind: "beat_note", plan: plan.plans, here: plan.here, beats: plan.beats, note: plan.note, call: plan.call, intensity: plan.intensity,
+        kind: "beat_note", plan: plan.plans, here: plan.here, goes: plan.goes, beats: plan.beats, note: plan.note, call: plan.call, intensity: plan.intensity,
         arcMoved: plan.arcMoved, clock: plan.clock, taste: plan.taste, inPlay: plan.inPlay, callId, model
       });
       if (!this.mac.tree.moveHead(turn.pathId, head.id, note.id)) throw new Error("The Path moved while the Writer planned its Reply");

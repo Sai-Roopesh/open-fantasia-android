@@ -6,7 +6,7 @@ import type { Chronicle, Entry } from "../../src/story/entries.js";
 import { playable } from "../support/play.js";
 import { hogwartsStoryFile } from "../support/story-files.js";
 
-const leaving = { answer: JSON.stringify({ leaves_scene: true, frame: { title: "Lights out", place: "The boys' dormitory", purpose: "p", exit: "e" }, here: ["Ron Weasley"], beats: [{ text: "a", status: "in_play" }, { text: "b", status: "pending" }, { text: "c", status: "pending" }], note: "Ron is up.", call: "continue", intensity: 2, arc_moved: true, clock: "Day 3 21:45", taste: null, in_play: [] }) };
+const leaving = { answer: JSON.stringify({ leaves_scene: true, frame: { title: "Lights out", place: "The boys' dormitory", purpose: "p", exit: "e" }, comes_in: ["Ron Weasley"], goes: [], beats: [{ text: "a", status: "in_play" }, { text: "b", status: "pending" }, { text: "c", status: "pending" }], note: "Ron is up.", call: "continue", intensity: 2, arc_moved: true, clock: "Day 3 21:45", taste: null, in_play: [] }) };
 
 /** The Chronicles the current Path sees, as their payloads, with the entry each hangs off. */
 function chronicles(mac: ReturnType<typeof playable>["mac"], head: string): (Chronicle & { parent: Entry })[] {
@@ -27,7 +27,7 @@ describe("when the Chronicler runs", () => {
   });
 
   it("chronicles a Scene a Move left, up to the Reply before that Move", async () => {
-    const { play, engine, storyId, head, mac } = playable(hogwartsStoryFile(), { writer: [{ answer: JSON.stringify({ leaves_scene: false, frame: { title: "After curfew", place: "The Gryffindor common room", purpose: "p", exit: "e" }, here: ["Hermione Granger"], beats: [{ text: "a", status: "in_play" }, { text: "b", status: "pending" }, { text: "c", status: "pending" }], note: "n", call: "continue", intensity: 2, arc_moved: true, clock: "Day 3 21:42", taste: null, in_play: [] }) }, leaving] });
+    const { play, engine, storyId, head, mac } = playable(hogwartsStoryFile(), { writer: [{ answer: JSON.stringify({ leaves_scene: false, frame: { title: "After curfew", place: "The Gryffindor common room", purpose: "p", exit: "e" }, comes_in: ["Hermione Granger"], goes: [], beats: [{ text: "a", status: "in_play" }, { text: "b", status: "pending" }, { text: "c", status: "pending" }], note: "n", call: "continue", intensity: 2, arc_moved: true, clock: "Day 3 21:42", taste: null, in_play: [] }) }, leaving] });
     await play("I sit down.");
     await play("I go to my room.");
     await engine.chronicled(storyId);

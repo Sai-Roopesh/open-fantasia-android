@@ -95,6 +95,21 @@ scenario tests while building). The Writer, which sees everything and passes on 
 it. The Actor's recall changes only when the Scene's people or the Chronicles do, so it goes in its system prompt and
 the prompt cache still hits.
 
+### Who is here comes from changes (host)
+
+Recall is sorted by who is present, so the Scene's people decide what the Actor remembers. Playing the Night Train on
+the phone, the Writer restated the Scene's people as an empty list with Focus on Meera (it read "never add anyone
+else to `here`" as "nobody"); the Beat Note kept it, and the Actor wrote Meera with neither her description nor
+anything she remembers, and filled the gap with words the player never wrote ("you said 'it depends'"). A roster
+restated every turn lets one omission empty a Scene.
+
+So the Writer no longer restates who is here. It names who comes in (`comes_in`) and who goes (`goes`); the Mac
+works out who is here from the Scene's people before, and the Beat Note keeps the result as now, so everything that
+reads it is unchanged. A new Scene starts with nobody besides the Player Character, so at an opening `comes_in` is
+everyone there. Naming someone already here as coming in, or someone not here as going, changes nothing and is not a
+fault: the answer's meaning is kept, and a turn is not spent on a repair. Focus on someone who goes clears, and the person in Focus may always come in
+(a Scene that lost them to the old roster gets them back on its next turn).
+
 ### The phone (protocol, android)
 
 Contract 4. Earlier Scenes in the Scene view carry their summaries; `GET /stories/{id}/scenes/{number}` answers with

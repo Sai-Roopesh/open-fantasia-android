@@ -39,12 +39,23 @@ export function apply(state: State | null, entry: Entry): State {
     case "chronicle":
       // A Chronicle hangs off the Path and is never walked (docs/adr/0007); recall reads it beside the Path.
       return state;
-    case "move":
     case "reply":
-      // A Move and a Reply change the Story through what they say; the agents that record it (the Chronicler, the
-      // Weaver) arrive in later changes. For now they only lengthen the Scene, which is read from the Path.
+      // Whoever the Beat Note had go has gone once the Reply is written, and Focus on them clears.
+      return state.scene?.goes.length ? { ...state, scene: leave(state.scene) } : state;
+    case "move":
+      // A Move changes the Story through what it says, which the Writer and the Chronicler read; in the State it only
+      // lengthens the Scene, which is read from the Path.
       return state;
   }
+}
+
+function leave(scene: CurrentScene): CurrentScene {
+  return {
+    ...scene,
+    here: scene.here.filter(name => !scene.goes.includes(name)),
+    focus: scene.focus !== null && scene.goes.includes(scene.focus) ? null : scene.focus,
+    goes: []
+  };
 }
 
 function inScene(state: State): CurrentScene {
@@ -69,6 +80,7 @@ function followScene(scene: CurrentScene, note: BeatNote): CurrentScene {
     beats: note.beats,
     note: note.note,
     inPlay: note.inPlay,
+    goes: note.goes,
     call: note.call,
     intensity: note.intensity,
     beatInPlayFor: inPlay < 0 ? 0 : sameBeat ? scene.beatInPlayFor + 1 : 1,
@@ -138,6 +150,7 @@ function openScene(state: State, scene: SceneOpened, entryId: string): State {
       beats: [],
       note: null,
       inPlay: [],
+      goes: [],
       call: null,
       intensity: null,
       beatInPlayFor: 0,
