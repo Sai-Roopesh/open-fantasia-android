@@ -8,6 +8,7 @@ context: |
   CONTEXT.md is the glossary; every artifact uses its terms and avoids the words it lists under Avoid.
   docs/adr/ holds the decisions; cite them by number. An ADR can be superseded by a newer one, never edited silently.
   Stories are made outside the app as Story Files (docs/adr/0002).
+  docs/design/ holds the approved screens (README.md says which file is which); phone work builds to them.
 
 rules:
   specs:
@@ -16,6 +17,7 @@ rules:
     - Describe behaviour the player can check, never classes, tables or prompts.
   design:
     - Say for each part whether it lands in host, android or protocol.
+    - Phone work names the docs/design screens it builds, and builds them as drawn.
     - A decision that is hard to reverse, surprising and the result of a real trade-off becomes a new ADR in docs/adr/.
   tasks:
     - Every scenario gets a task that writes its test first and names the scenario it proves.

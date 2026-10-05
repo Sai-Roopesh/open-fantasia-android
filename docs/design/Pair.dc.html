@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pairing</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,400;7..72,500;7..72,600&amp;family=Manrope:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#B9A4FF;text-decoration:none}a:hover{color:#D6C9FF}
+button{font:inherit;cursor:pointer}
+</style>
+</helmet>
+<div style="width:390px;height:844px;box-sizing:border-box;background:#141218;color:#EEEAF4;font-family:Manrope,system-ui,sans-serif;display:flex;flex-direction:column;padding:56px 24px 32px">
+  <h1 style="margin:0;font-family:Literata,Georgia,serif;font-size:30px;font-weight:600;letter-spacing:-0.01em">Open Fantasia</h1>
+  <p style="margin:12px 0 0;font-size:16px;line-height:1.55;color:#B3ACC0">Your Stories live on your Mac. Pair once, and this phone finds it on any network you share.</p>
+
+  <ol style="margin:36px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:18px">
+    <li style="display:flex;gap:14px;align-items:flex-start">
+      <span style="flex:none;display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:16px;background:#2A2632;font-weight:700;color:#D6C9FF">1</span>
+      <span style="font-size:15px;line-height:1.5;padding-top:5px">On the Mac, run <span style="font-family:ui-monospace,Menlo,monospace;font-size:14px;padding:2px 6px;border-radius:6px;background:#2A2632">fantasia pair</span></span>
+    </li>
+    <li style="display:flex;gap:14px;align-items:flex-start">
+      <span style="flex:none;display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:16px;background:#2A2632;font-weight:700;color:#D6C9FF">2</span>
+      <span style="font-size:15px;line-height:1.5;padding-top:5px">Scan the code it shows. It works once, for ten minutes.</span>
+    </li>
+  </ol>
+
+  <div style="flex:1"></div>
+  <a href="Main.dc.html" style="display:flex;align-items:center;justify-content:center;gap:10px;height:56px;border-radius:28px;background:#7552DD;color:#FFFFFF;font-size:16px;font-weight:600">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"></path><path d="M8 12h8"></path></svg>
+    Scan the QR code
+  </a>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

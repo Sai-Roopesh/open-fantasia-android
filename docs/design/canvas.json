@@ -1,0 +1,180 @@
+{
+  "v": 3,
+  "attachments": {},
+  "boards": {
+    "Backstage.dc.html": {
+      "h": 1200,
+      "title": "Backstage",
+      "w": 390,
+      "x": 1410,
+      "y": 3480
+    },
+    "DayView.dc.html": {
+      "h": 1680,
+      "title": "Day View",
+      "w": 390,
+      "x": 470,
+      "y": 1440
+    },
+    "Gap.dc.html": {
+      "h": 844,
+      "title": "The Gap",
+      "w": 390,
+      "x": 940,
+      "y": 1440
+    },
+    "Journal.dc.html": {
+      "h": 844,
+      "title": "Journal",
+      "w": 390,
+      "x": 940,
+      "y": 3480
+    },
+    "LongPress.dc.html": {
+      "h": 844,
+      "title": "An earlier Reply, long-pressed",
+      "w": 390,
+      "x": 2820,
+      "y": 0
+    },
+    "Main.dc.html": {
+      "h": 844,
+      "title": "Home",
+      "w": 390,
+      "x": 0,
+      "y": 0
+    },
+    "Models.dc.html": {
+      "h": 1000,
+      "title": "Models",
+      "w": 390,
+      "x": 2350,
+      "y": 3480
+    },
+    "MovingOn.dc.html": {
+      "h": 844,
+      "title": "The World moves on",
+      "w": 390,
+      "x": 0,
+      "y": 1440
+    },
+    "Pair.dc.html": {
+      "h": 844,
+      "title": "Pairing",
+      "w": 390,
+      "x": 2820,
+      "y": 3480
+    },
+    "Paths.dc.html": {
+      "h": 844,
+      "title": "Paths",
+      "w": 390,
+      "x": 1880,
+      "y": 3480
+    },
+    "Person.dc.html": {
+      "h": 1000,
+      "title": "A person",
+      "w": 390,
+      "x": 470,
+      "y": 3480
+    },
+    "Redo.dc.html": {
+      "h": 844,
+      "title": "Redo, with a Direction",
+      "w": 390,
+      "x": 2350,
+      "y": 0
+    },
+    "Scene.dc.html": {
+      "h": 844,
+      "title": "Scene",
+      "w": 390,
+      "x": 470,
+      "y": 0
+    },
+    "SceneFailed.dc.html": {
+      "h": 844,
+      "title": "A Reply that failed",
+      "w": 390,
+      "x": 1410,
+      "y": 0
+    },
+    "SceneReturn.dc.html": {
+      "h": 844,
+      "title": "Back after a night away",
+      "w": 390,
+      "x": 1880,
+      "y": 0
+    },
+    "SceneWriting.dc.html": {
+      "h": 844,
+      "title": "A Reply arriving",
+      "w": 390,
+      "x": 940,
+      "y": 0
+    },
+    "World.dc.html": {
+      "h": 844,
+      "title": "World \u00b7 People",
+      "w": 390,
+      "x": 0,
+      "y": 3480
+    }
+  },
+  "createdOnFiles": {
+    "at": "2026-10-05T04:10:00Z",
+    "v": 1
+  },
+  "designSystems": [],
+  "launch": {
+    "view": "canvas"
+  },
+  "notes": {
+    "row1": {
+      "kind": "title1",
+      "maxW": 3210,
+      "text": "Playing a Scene",
+      "w": 240,
+      "x": 0,
+      "y": -300
+    },
+    "row2": {
+      "kind": "title1",
+      "maxW": 1330,
+      "text": "Between Scenes",
+      "w": 240,
+      "x": 0,
+      "y": 1140
+    },
+    "row3": {
+      "kind": "title1",
+      "maxW": 3210,
+      "text": "Outside the Scene",
+      "w": 240,
+      "x": 0,
+      "y": 3180
+    }
+  },
+  "order": [
+    "Main.dc.html",
+    "Scene.dc.html",
+    "SceneWriting.dc.html",
+    "SceneFailed.dc.html",
+    "SceneReturn.dc.html",
+    "Redo.dc.html",
+    "LongPress.dc.html",
+    "MovingOn.dc.html",
+    "DayView.dc.html",
+    "Gap.dc.html",
+    "World.dc.html",
+    "Person.dc.html",
+    "Journal.dc.html",
+    "Backstage.dc.html",
+    "Paths.dc.html",
+    "Models.dc.html",
+    "Pair.dc.html"
+  ],
+  "pages": [],
+  "title": "Open Fantasia screens"
+}
