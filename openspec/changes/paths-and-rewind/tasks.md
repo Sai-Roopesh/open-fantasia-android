@@ -33,7 +33,7 @@ set aside); The Paths screen (Returning by the Paths screen; Deleting a Path); S
 - [x] 3.4 Test first, then build: `paths › The Paths screen › Deleting a Path` and `paths › Rewind sets aside, never destroys › Clearing what was set aside` on the phone: Rename and Delete sheets, Delete asks once and is absent on the current card, Clear shows only when there is something to clear; shared checks on the JVM and the device
 - [x] 3.5 Test first, then build: `paths › A Path changes only between Replies › Rewinding while a Reply is written` on the phone: the menu's Path actions and the Paths screen's are disabled while a Reply is written; shared check
 - [x] 3.6 `path_changed` reloads the Scene, and the stream opens with the Path the phone shows; verify JVM stream tests
-- [ ] 3.7 Render with `-PfantasiaPreviews` and compare with `LongPress.dc.html` and `Paths.dc.html`; fix what differs
+- [x] 3.7 Render with `-PfantasiaPreviews` and compare with `LongPress.dc.html` and `Paths.dc.html`; fix what differs
 
 ## 4. Together
 
