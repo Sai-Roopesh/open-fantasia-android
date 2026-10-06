@@ -54,11 +54,11 @@ Scenarios this change builds:
 
 ## 6. The long run, live
 
-- [ ] 6.1 Test first: `long-run › The Premise is what the Story serves › The Premise keeps returning`, live (decision
+- [x] 6.1 Test first: `long-run › The Premise is what the Story serves › The Premise keeps returning`, live (decision
   7): ten Scenes of The Malfoy Problem with the real Writer and Director, and a judge on each Scene's purpose
-- [ ] 6.2 Test first: `long-run › Arcs are built toward, never resolved on a schedule › A slow burn stays slow`, live:
+- [x] 6.2 Test first: `long-run › Arcs are built toward, never resolved on a schedule › A slow burn stays slow`, live:
   twenty Scenes, and a judge on how far the Arc has moved
-- [ ] 6.3 Run both, with the Director's prompt changed only as their results show; verify they pass
+- [x] 6.3 Run both, with the Director's prompt changed only as their results show; verify they pass
 
 ## 7. Together
 
