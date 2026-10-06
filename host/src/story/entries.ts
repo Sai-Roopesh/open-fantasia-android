@@ -78,6 +78,8 @@ export interface Redo {
   kind: "redo";
   direction: string | null;
   remember: boolean;
+  /** The model for just this Reply, when the player chose one (openspec scenes: Redo on another model). */
+  model?: ModelChoice;
 }
 
 /**

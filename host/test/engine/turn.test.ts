@@ -50,7 +50,7 @@ describe("a turn", () => {
     expect(path.filter(payload => payload.kind === "move").at(-1)).toEqual({ kind: "move", text: "I sit beside her." });
     expect(path.at(-1)!.kind).not.toBe("reply");
     const view = sceneView(mac, engine, storyId, "trace-view");
-    expect(view.turn).toEqual({ kind: "failed", reason: expect.stringContaining("Claude is overloaded"), trace_id: "trace-b" });
+    expect(view.turn).toEqual({ kind: "failed", reason: expect.stringContaining("Claude is overloaded"), trace_id: "trace-b", job: "actor" });
     expect(events.map(event => event.event.kind)).toContain("reply_failed");
     const call = mac.db.prepare("SELECT error FROM calls WHERE trace_id = 'trace-b' AND agent = 'actor'").get() as { error: string };
     expect(call.error).toBe("Claude is overloaded");

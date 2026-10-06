@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import type { Mac } from "../mac.js";
 import type { ModelChoice } from "../story/state.js";
 
 /** The jobs whose model is the Mac's to choose for every Story. The Actor is each Story's own (docs/adr/0008). */
@@ -50,6 +51,14 @@ export function setJobModel(home: string, job: Job, choice: ModelChoice): void {
 /** The Actor the player set for this Story, or null when it is the one its Story File names. */
 export function storyActor(home: string, storyId: string): ModelChoice | null {
   return saved(home).actors?.[storyId] ?? null;
+}
+
+/** The Actor writing a Story's Replies: the player's choice for it, or the one its Story File names (docs/adr/0008). */
+export function actorOf(mac: Mac, storyId: string): ModelChoice | null {
+  const own = storyActor(mac.home, storyId);
+  if (own) return own;
+  const path = mac.tree.currentPath(storyId);
+  return path ? mac.states.at(path.headEntryId).actor : null;
 }
 
 /** Sets a Story's own Actor; null goes back to its Story File's. */

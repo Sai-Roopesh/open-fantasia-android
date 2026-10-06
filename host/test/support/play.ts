@@ -1,6 +1,7 @@
 import { Engine, type OutgoingEvent } from "../../src/engine/engine.js";
 import { FakeModels } from "../../src/models/fake.js";
 import { Models } from "../../src/models/model-call.js";
+import { scriptedRunners } from "../../src/models/runners.js";
 import type { Script } from "../../src/models/scripted.js";
 import type { StoryFile } from "../../src/protocol/generated/story-file.js";
 import { importStoryFile } from "../../src/storyfile/import.js";
@@ -14,7 +15,8 @@ export function playable(storyFile: StoryFile = hogwartsStoryFile(), scripts: { 
   const result = importStoryFile(writeStoryFile(storyFile), mac);
   if (!result.ok) throw new Error(`import failed: ${JSON.stringify(result.problems)}`);
   const models = new FakeModels(scripts, actorFallback);
-  const engine = new Engine(mac, new Models(mac.db, { claude: models }));
+  // The same scripted models stand in for every provider; the Mac's record of each call says which it went to.
+  const engine = new Engine(mac, new Models(mac.db, scriptedRunners(models)));
   const events: OutgoingEvent[] = [];
   const storyId = result.storyId;
   engine.subscribe(storyId, event => events.push(event));

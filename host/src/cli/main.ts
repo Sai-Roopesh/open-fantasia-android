@@ -36,7 +36,8 @@ program.command("show").argument("<story>", "a Story's id").option("--entry <id>
   .description("Show a Story's current Path, or one entry")
   .action((story: string, options: { entry?: string }) => exitWith(show(mac(), story, options.entry, out)));
 
-program.command("models").argument("[setting...]", "a job, a provider, a model and an optional effort").description("Show the model for each job, or set one: fantasia models writer claude claude-sonnet-5-5")
+program.command("models").argument("[setting...]", "a job, a provider, a model and an optional effort; or actor, a Story, and the same")
+  .description("Show every job's model, each Story's Actor and what each provider offers, or set one: fantasia models weaver codex gpt-6.1-sol high; fantasia models actor \"The Night Train to Kalka\" claude claude-opus-5-5")
   .action((setting: string[]) => exitWith(models(mac(), setting, out)));
 
 program.command("moments").argument("<story>", "a Story's id").description("List the Moments a Story remembers, with who knows each")

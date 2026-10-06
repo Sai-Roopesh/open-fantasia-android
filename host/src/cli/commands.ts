@@ -11,7 +11,8 @@ import { LinkError } from "../link/errors.js";
 import type { Mac } from "../mac.js";
 import { pathsView } from "../views/paths.js";
 import { randomUUID } from "node:crypto";
-import { DEFAULT_JOB_MODELS, JOBS, jobModels, setJobModel, type Job } from "../models/jobs.js";
+import { Catalog } from "../models/catalog.js";
+import { actorOf, DEFAULT_JOB_MODELS, JOBS, jobModels, setJobModel, setStoryActor, storyActor, type Job } from "../models/jobs.js";
 import { CLAUDE_TOKEN, readSecret, storeSecret } from "../secrets.js";
 import type { ModelChoice } from "../story/state.js";
 import type { Payload } from "../story/entries.js";
@@ -97,15 +98,23 @@ function describe(payload: Payload): string {
 }
 
 const PROVIDERS: readonly ModelChoice["provider"][] = ["claude", "codex", "antigravity"];
-/** The providers `fantasia serve` can reach today; the others arrive with their runners. */
-const REACHABLE: readonly ModelChoice["provider"][] = ["claude"];
+
+/** The catalog as the Mac last kept it: the command reads what `fantasia serve` was told, and asks no provider itself. */
+function keptCatalog(home: string): Catalog {
+  const unasked = () => Promise.reject(new Error("Not asked from the command line"));
+  return new Catalog(home, { claude: unasked, codex: unasked, antigravity: unasked });
+}
+
+const sayChoice = (choice: ModelChoice) => `${choice.provider} ${choice.model}${choice.effort ? ` (effort ${choice.effort})` : ""}`;
 
 /**
- * `fantasia models`: with no arguments, the model for each job; with a job, a provider, a model and an optional
- * effort, sets that job's model from its next call (until the Models screen arrives).
+ * `fantasia models` (models-screen design decision 8): with no arguments, every job's model, each Story's Actor and
+ * what each provider last offered; with a job, a provider, a model and an optional effort, sets that job's model from
+ * its next call; with `actor "<Story>"`, sets that Story's own Actor, or `reset` puts back its Story File's.
  */
 export function models(mac: Mac, args: string[], out: Out): boolean {
-  const [job, provider, model, effort] = args;
+  const catalog = keptCatalog(mac.home);
+  const [job, ...rest] = args;
   if (!job) {
     const current = jobModels(mac.home);
     for (const name of JOBS) {
@@ -113,16 +122,49 @@ export function models(mac: Mac, args: string[], out: Out): boolean {
       const isDefault = JSON.stringify(choice) === JSON.stringify(DEFAULT_JOB_MODELS[name]);
       out(`${name}  ${choice.provider}  ${choice.model}${choice.effort ? `  effort ${choice.effort}` : ""}${isDefault ? "  (default)" : ""}`);
     }
+    const stories = mac.db.prepare("SELECT id, title FROM stories ORDER BY created_at").all() as { id: string; title: string }[];
+    for (const story of stories) {
+      const actor = actorOf(mac, story.id);
+      if (!actor) continue;
+      out(`actor  "${story.title}" (${story.id})  ${actor.provider}  ${actor.model}${actor.effort ? `  effort ${actor.effort}` : ""}${storyActor(mac.home, story.id) ? "" : "  (its Story File's)"}`);
+    }
+    for (const offer of catalog.view()) {
+      out(offer.models.length === 0 ? `${offer.provider} offers  nothing known yet; \`fantasia serve\` asks it`
+        : `${offer.provider} offers  ${offer.models.map(model => model.efforts.length ? `${model.id} (${model.efforts.join(" ")})` : model.id).join(", ")}`);
+    }
     return true;
   }
-  if (!JOBS.includes(job as Job)) return (out(`No job "${job}". The jobs are: ${JOBS.join(", ")}.`), false);
-  if (!provider || !PROVIDERS.includes(provider as ModelChoice["provider"])) return (out(`No provider "${provider ?? ""}". The providers are: ${PROVIDERS.join(", ")}.`), false);
-  if (!REACHABLE.includes(provider as ModelChoice["provider"])) return (out(`${provider} models cannot be reached from this Mac yet. Use ${REACHABLE.join(" or ")}.`), false);
-  if (!model) return (out("Name the model, as its provider lists it: fantasia models writer claude claude-sonnet-5-5"), false);
-  const choice: ModelChoice = effort ? { provider: provider as ModelChoice["provider"], model, effort } : { provider: provider as ModelChoice["provider"], model };
+  if (job === "actor") {
+    const [story, ...setting] = rest;
+    const found = (mac.db.prepare("SELECT id, title FROM stories WHERE id = ? OR title = ?").get(story ?? "", story ?? "") as { id: string; title: string } | undefined);
+    if (!found) return (out(`No Story "${story ?? ""}" on this Mac.`), false);
+    if (setting[0] === "reset") {
+      setStoryActor(mac.home, found.id, null);
+      const fileActor = actorOf(mac, found.id);
+      out(`The Actor of "${found.title}" is its Story File's again${fileActor ? `: ${sayChoice(fileActor)}` : ""}.`);
+      return true;
+    }
+    const choice = chosen(catalog, setting, out);
+    if (!choice) return false;
+    setStoryActor(mac.home, found.id, choice);
+    out(`The Actor of "${found.title}" now uses ${sayChoice(choice)}, from its next Reply.`);
+    return true;
+  }
+  if (!JOBS.includes(job as Job)) return (out(`No job "${job}". The jobs are: ${JOBS.join(", ")}, or actor "<Story>".`), false);
+  const choice = chosen(catalog, rest, out);
+  if (!choice) return false;
   setJobModel(mac.home, job as Job, choice);
-  out(`The ${job.charAt(0).toUpperCase()}${job.slice(1)} now uses ${provider} ${model}${effort ? ` (effort ${effort})` : ""}, from its next call.`);
+  out(`The ${job.charAt(0).toUpperCase()}${job.slice(1)} now uses ${sayChoice(choice)}, from its next call.`);
   return true;
+}
+
+/** A provider, a model and an optional effort from the command line, when the provider offers them. */
+function chosen(catalog: Catalog, [provider, model, effort]: string[], out: Out): ModelChoice | null {
+  if (!provider || !PROVIDERS.includes(provider as ModelChoice["provider"])) return (out(`No provider "${provider ?? ""}". The providers are: ${PROVIDERS.join(", ")}.`), null);
+  if (!model) return (out("Name the model, as its provider lists it: fantasia models writer claude claude-sonnet-5-5"), null);
+  const choice: ModelChoice = effort ? { provider: provider as ModelChoice["provider"], model, effort } : { provider: provider as ModelChoice["provider"], model };
+  const refusal = catalog.refusal(choice);
+  return refusal ? (out(refusal), null) : choice;
 }
 
 /**

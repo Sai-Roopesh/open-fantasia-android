@@ -9,7 +9,7 @@ import type { Engine } from "../engine/engine.js";
 import type { Mac } from "../mac.js";
 import type { ModelChoice } from "../story/state.js";
 import { CONTRACT_VERSION } from "../protocol/generated/contract.js";
-import type { ChooseRequest, EditRequest, SetActorRequest, SetJobModelRequest, EndSceneRequest, ErrorBody, FocusRequest, LingerRequest, MoveRequest, PairRequest, RedoRequest, RemoveTasteRequest, RenamePathRequest, RewindRequest, TryAnotherWayRequest } from "../protocol/generated/link.js";
+import type { ChooseRequest, EditRequest, RetryRequest, RetryWorldRequest, SetActorRequest, SetJobModelRequest, EndSceneRequest, ErrorBody, FocusRequest, LingerRequest, MoveRequest, PairRequest, RedoRequest, RemoveTasteRequest, RenamePathRequest, RewindRequest, TryAnotherWayRequest } from "../protocol/generated/link.js";
 import { newTraceId, Traces } from "../trace.js";
 import { backstageView } from "../views/backstage.js";
 import { journalView } from "../views/journal.js";
@@ -44,6 +44,8 @@ const validEdit = ajv.compile<EditRequest>({ $ref: "link#/$defs/EditRequest" });
 const validRemoveTaste = ajv.compile<RemoveTasteRequest>({ $ref: "link#/$defs/RemoveTasteRequest" });
 const validSetJobModel = ajv.compile<SetJobModelRequest>({ $ref: "link#/$defs/SetJobModelRequest" });
 const validSetActor = ajv.compile<SetActorRequest>({ $ref: "link#/$defs/SetActorRequest" });
+const validRetry = ajv.compile<RetryRequest>({ $ref: "link#/$defs/RetryRequest" });
+const validRetryWorld = ajv.compile<RetryWorldRequest>({ $ref: "link#/$defs/RetryWorldRequest" });
 
 const IMAGE_TYPES: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp" };
 
@@ -194,8 +196,17 @@ export function buildLink(options: LinkOptions): FastifyInstance {
   app.delete<{ Params: { id: string; path: string } }>("/stories/:id/paths/:path", async request =>
     engine.deletePath(request.params.id, request.params.path, request.traceId));
 
-  app.post<{ Params: { id: string } }>("/stories/:id/retry", async request => engine.retry(request.params.id, request.traceId));
-  app.post<{ Params: { id: string } }>("/stories/:id/world/retry", async request => engine.retryWorld(request.params.id, request.traceId));
+  // Retry, or another model for this one try (openspec presence: Nothing fails silently). An empty body is a plain Retry.
+  app.post<{ Params: { id: string } }>("/stories/:id/retry", async request => {
+    const body = request.body ?? {};
+    if (!validRetry(body)) throw new LinkError("invalid", "A Retry takes a model for this one try, or null.");
+    return engine.retry(request.params.id, request.traceId, body.model ? offered(options.catalog, body.model) : null);
+  });
+  app.post<{ Params: { id: string } }>("/stories/:id/world/retry", async request => {
+    const body = request.body ?? {};
+    if (!validRetryWorld(body)) throw new LinkError("invalid", "A Retry takes a model for this one try, or null.");
+    return engine.retryWorld(request.params.id, request.traceId, body.model ? offered(options.catalog, body.model) : null);
+  });
 
   app.post<{ Params: { id: string } }>("/stories/:id/end-scene", async request => {
     if (!validEndScene(request.body)) throw new LinkError("invalid", "End scene needs the entry the phone last saw.");
@@ -214,7 +225,8 @@ export function buildLink(options: LinkOptions): FastifyInstance {
 
   app.post<{ Params: { id: string } }>("/stories/:id/redo", async request => {
     if (!validRedo(request.body)) throw new LinkError("invalid", "Redo needs the entry the phone last saw, a Direction or null, and whether to remember it.");
-    return engine.redo(request.params.id, request.body.after, request.body.direction, request.body.remember, request.traceId);
+    const model = request.body.model ? offered(options.catalog, request.body.model) : null;
+    return engine.redo(request.params.id, request.body.after, request.body.direction, request.body.remember, request.traceId, model);
   });
 
   app.get<{ Params: { id: string; file: string } }>("/stories/:id/portraits/:file", async (request, reply) => {

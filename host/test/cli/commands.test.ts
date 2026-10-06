@@ -7,7 +7,9 @@ import { importCommand, models, moments, pair, show, stories, trace, world } fro
 import { Engine } from "../../src/engine/engine.js";
 import { Models } from "../../src/models/model-call.js";
 import { ScriptedRunner } from "../../src/models/scripted.js";
+import { jobModels, storyActor } from "../../src/models/jobs.js";
 import { freshHome } from "../support/host.js";
+import { offeredCatalog } from "../support/link.js";
 import { playable } from "../support/play.js";
 import { hogwartsWorldStoryFile, minimalStoryFile, writeStoryFile } from "../support/story-files.js";
 
@@ -78,11 +80,21 @@ describe("the fantasia command", () => {
     expect(output).toContain("No Stories yet.");
   }, 30_000);
 
-  it("shows the model for each job, and a change reaches the next Writer call", async () => {
-    const { mac, play, models: scripted } = playable();
+  it("shows the model for each job, each Story's Actor and what each provider offers, and a change reaches the next Writer call", async () => {
+    const { mac, play, models: scripted, storyId } = playable();
+    await offeredCatalog(mac.home);
     const shown = capture();
     expect(models(mac, [], shown.out)).toBe(true);
-    expect(shown.text()).toBe("writer  claude  claude-sonnet-5-5  (default)\nchronicler  claude  claude-sonnet-5-5  (default)\nweaver  claude  claude-sonnet-5-5  (default)");
+    expect(shown.text()).toBe([
+      "writer  claude  claude-sonnet-5-5  (default)",
+      "chronicler  claude  claude-sonnet-5-5  (default)",
+      "weaver  claude  claude-sonnet-5-5  (default)",
+      "director  claude  claude-opus-5-5  (default)",
+      `actor  "After Curfew" (${storyId})  claude  claude-opus-5-5  (its Story File's)`,
+      "claude offers  claude-opus-5-5 (low medium high xhigh max), claude-sonnet-5-5 (low medium high xhigh max), claude-haiku-4-5-20251001",
+      "codex offers  gpt-6.1-sol (low medium high xhigh max ultra), gpt-6-luna (low medium high xhigh max)",
+      "antigravity offers  gemini-3.8-flash (low medium high)"
+    ].join("\n"));
 
     const set = capture();
     expect(models(mac, ["writer", "claude", "claude-opus-5-5", "high"], set.out)).toBe(true);
@@ -91,20 +103,50 @@ describe("the fantasia command", () => {
     expect(scripted.writer.requests[0]!.model).toEqual({ provider: "claude", model: "claude-opus-5-5", effort: "high" });
     const after = capture();
     models(mac, [], after.out);
-    expect(after.text()).toBe("writer  claude  claude-opus-5-5  effort high\nchronicler  claude  claude-sonnet-5-5  (default)\nweaver  claude  claude-sonnet-5-5  (default)");
+    expect(after.text().split("\n")[0]).toBe("writer  claude  claude-opus-5-5  effort high");
   });
 
-  it("refuses a job or a provider it does not know", () => {
+  it("sets the Director, and any job on any provider the Mac knows", () => {
     const mac = freshHome();
-    const refused = capture();
-    expect(models(mac, ["director", "claude", "claude-opus-5-5"], refused.out)).toBe(false);
-    expect(refused.text()).toMatch(/No job "director"\. The jobs are: writer, chronicler, weaver/);
+    const director = capture();
+    expect(models(mac, ["director", "antigravity", "gemini-3.1-pro", "high"], director.out)).toBe(true);
+    expect(director.text()).toBe("The Director now uses antigravity gemini-3.1-pro (effort high), from its next call.");
+    const weaver = capture();
+    expect(models(mac, ["weaver", "codex", "gpt-6.1-sol"], weaver.out)).toBe(true);
+    expect(jobModels(mac.home).weaver).toEqual({ provider: "codex", model: "gpt-6.1-sol" });
+  });
+
+  it("sets a Story's own Actor by its title or id, and puts it back to its Story File's", async () => {
+    const { mac, storyId } = playable();
+    await offeredCatalog(mac.home);
+    const set = capture();
+    expect(models(mac, ["actor", "After Curfew", "codex", "gpt-6.1-sol", "high"], set.out)).toBe(true);
+    expect(set.text()).toBe("The Actor of \"After Curfew\" now uses codex gpt-6.1-sol (effort high), from its next Reply.");
+    expect(storyActor(mac.home, storyId)).toEqual({ provider: "codex", model: "gpt-6.1-sol", effort: "high" });
+    const back = capture();
+    expect(models(mac, ["actor", storyId, "reset"], back.out)).toBe(true);
+    expect(back.text()).toBe("The Actor of \"After Curfew\" is its Story File's again: claude claude-opus-5-5.");
+    expect(storyActor(mac.home, storyId)).toBeNull();
+  });
+
+  it("refuses a job, a provider, a model, an effort or a Story it does not know", async () => {
+    const mac = freshHome();
+    await offeredCatalog(mac.home);
+    const job = capture();
+    expect(models(mac, ["narrator", "claude", "claude-opus-5-5"], job.out)).toBe(false);
+    expect(job.text()).toMatch(/No job "narrator"\. The jobs are: writer, chronicler, weaver, director, or actor "<Story>"/);
     const provider = capture();
     expect(models(mac, ["writer", "openai", "gpt-6.1-sol"], provider.out)).toBe(false);
     expect(provider.text()).toMatch(/No provider "openai"\. The providers are: claude, codex, antigravity/);
-    const unreachable = capture();
-    expect(models(mac, ["writer", "codex", "gpt-6.1-sol"], unreachable.out)).toBe(false);
-    expect(unreachable.text()).toMatch(/codex models cannot be reached from this Mac yet/);
+    const model = capture();
+    expect(models(mac, ["writer", "codex", "gpt-9"], model.out)).toBe(false);
+    expect(model.text()).toBe("Codex does not offer gpt-9.");
+    const effort = capture();
+    expect(models(mac, ["writer", "claude", "claude-haiku-4-5-20251001", "max"], effort.out)).toBe(false);
+    expect(effort.text()).toBe("Haiku 4.5 has no effort max.");
+    const story = capture();
+    expect(models(mac, ["actor", "Nowhere", "claude", "claude-opus-5-5"], story.out)).toBe(false);
+    expect(story.text()).toBe("No Story \"Nowhere\" on this Mac.");
   });
 
   it("lists a Story's Moments with who was there, who was told, and their words", async () => {

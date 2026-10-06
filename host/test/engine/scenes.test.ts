@@ -161,7 +161,7 @@ describe("a turn with the Writer", () => {
     engine.move(storyId, "I sit down.", head(), "trace-1");
     await engine.settled(storyId);
     expect(mac.tree.entry(head())!.payload).toEqual({ kind: "move", text: "I sit down." });
-    expect(view().turn).toEqual({ kind: "failed", reason: expect.stringMatching(/Writer.*Sonnet is overloaded/), trace_id: "trace-1" });
+    expect(view().turn).toEqual({ kind: "failed", reason: expect.stringMatching(/Writer.*Sonnet is overloaded/), trace_id: "trace-1", job: "writer" });
     expect(events.at(-1)!.event.kind).toBe("reply_failed");
     expect(models.actor.requests).toHaveLength(0);
 

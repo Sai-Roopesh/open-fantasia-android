@@ -1,20 +1,24 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { ModelsView } from "../../src/protocol/generated/link.js";
 import { jobModels, storyActor } from "../../src/models/jobs.js";
+import { callsFor } from "../support/host.js";
 import { runningMac } from "../support/link.js";
+import type { SceneView } from "../../src/protocol/generated/link.js";
 
 const closers: (() => Promise<unknown>)[] = [];
 afterEach(async () => {
   while (closers.length) await closers.pop()!();
 });
 
-async function mac() {
-  const running = await runningMac();
+async function mac(home?: string) {
+  const running = await runningMac(undefined, undefined, { home });
   closers.push(running.close);
   const models = async () => await (await running.call("/models")).json() as ModelsView;
   const put = async (path: string, body: unknown) => await running.call(path, { method: "PUT", body: JSON.stringify(body) });
+  const view = async () => await (await running.call(`/stories/${running.storyId}/scene`)).json() as SceneView;
+  const post = async (path: string, body: unknown) => await running.call(`/stories/${running.storyId}/${path}`, { method: "POST", body: JSON.stringify(body) });
   const message = async (response: Response) => (await response.json() as { error: { message: string } }).error.message;
-  return { ...running, models, put, message };
+  return { ...running, models, put, view, post, message };
 }
 
 describe("the Models screen over the link", () => {
@@ -66,4 +70,47 @@ describe("the Models screen over the link", () => {
     const shape = await put(`/stories/${storyId}/actor`, { model: { provider: "openai", model: "x" } });
     expect(shape.status).toBe(400);
   });
+
+  // WHEN the player sets the Weaver to GPT 6.1 Sol
+  // THEN the next Weaver work runs on GPT 6.1 Sol
+  it("outside-the-scene › One Models screen › Moving the Weaver to Codex", async () => {
+    const { put, post, view, engine, storyId, mac: home } = await mac();
+    await put("/models/jobs/weaver", { model: { provider: "codex", model: "gpt-6.1-sol", effort: null } });
+    await post("moves", { text: "I say goodnight.", after: (await view()).head_entry_id });
+    await engine.settled(storyId);
+    await post("end-scene", { after: (await view()).head_entry_id });
+    await engine.woven(storyId);
+    expect(callsFor(home.db, "weaver").at(-1)).toMatchObject({ provider: "codex", model: "gpt-6.1-sol" });
+    expect((await view()).day_view?.world).toBe("ready");
+  });
+
+  // GIVEN the player set the Writer to Gemini 3.8 Flash at high effort
+  // WHEN the Mac's host is restarted
+  // THEN the Models screen still shows the Writer on Gemini 3.8 Flash, high, and the next Writer work runs on it
+  it("outside-the-scene › One Models screen › A setting outlasts the Mac restarting", async () => {
+    const first = await mac();
+    await first.put("/models/jobs/writer", { model: { provider: "antigravity", model: "gemini-3.8-flash", effort: "high" } });
+    await first.close();
+    const again = await mac(first.mac.home);
+    expect((await again.models()).jobs.find(job => job.job === "writer")!.model.label).toBe("Gemini 3.8 Flash · high");
+    await again.post("moves", { text: "I wave.", after: (await again.view()).head_entry_id });
+    await again.engine.settled(again.storyId);
+    expect(callsFor(again.mac.db, "writer").at(-1)).toEqual({ provider: "antigravity", model: "gemini-3.8-flash", effort: "high" });
+  });
+
+  it("carries a model for one Reply on Redo and Retry, and checks it is offered", async () => {
+    const { post, view, engine, storyId, mac: home, message } = await mac();
+    await post("moves", { text: "I sit beside her.", after: (await view()).head_entry_id });
+    await engine.settled(storyId);
+    const refused = await post("redo", { after: (await view()).head_entry_id, direction: null, remember: false, model: { provider: "codex", model: "gpt-9", effort: null } });
+    expect(await message(refused)).toBe("Codex does not offer gpt-9.");
+    const redo = await post("redo", { after: (await view()).head_entry_id, direction: null, remember: false, model: { provider: "codex", model: "gpt-6.1-sol", effort: null } });
+    expect(redo.status).toBe(200);
+    await engine.settled(storyId);
+    expect(callsFor(home.db, "actor").at(-1)).toMatchObject({ provider: "codex", model: "gpt-6.1-sol" });
+    // A Retry with nothing to retry is refused whatever it carries.
+    expect(await message(await post("retry", { model: null }))).toBe("There is no Move waiting for a Reply.");
+    expect(await message(await post("world/retry", { model: { provider: "claude", model: "claude-sonnet-5-5", effort: null } }))).toBe("The World is not waiting on anything.");
+  });
 });
+

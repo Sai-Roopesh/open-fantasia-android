@@ -1,5 +1,5 @@
 import { Catalog } from "../../src/models/catalog.js";
-import { SCRIPTED_OFFERS } from "../../src/models/runners.js";
+import { SCRIPTED_OFFERS, scriptedRunners } from "../../src/models/runners.js";
 import type { AddressInfo } from "node:net";
 import { Engine } from "../../src/engine/engine.js";
 import { buildLink } from "../../src/link/server.js";
@@ -10,7 +10,7 @@ import { ScriptedRunner } from "../../src/models/scripted.js";
 import { CONTRACT_VERSION } from "../../src/protocol/generated/contract.js";
 import type { StoryEvent } from "../../src/protocol/generated/link.js";
 import { importStoryFile } from "../../src/storyfile/import.js";
-import { freshHome } from "./host.js";
+import { freshHome, openHome } from "./host.js";
 import { malfoyProblemStoryFile, writeStoryFile } from "./story-files.js";
 
 /**
@@ -76,11 +76,11 @@ export function withWriter(actor: ModelRunner, writer: ModelRunner = new Scripte
 }
 
 /** A Mac with the Harry Potter Story imported, listening on a free port, and a paired phone's token. */
-export async function runningMac(actor: ModelRunner = new ScriptedRunner(), writer?: ModelRunner) {
-  const mac = freshHome();
-  const imported = importStoryFile(writeStoryFile(malfoyProblemStoryFile()), mac);
-  if (!imported.ok) throw new Error("import failed");
-  const engine = new Engine(mac, new Models(mac.db, { claude: withWriter(actor, writer) }));
+export async function runningMac(actor: ModelRunner = new ScriptedRunner(), writer?: ModelRunner, options: { home?: string | undefined } = {}) {
+  const mac = options.home ? openHome(options.home) : freshHome();
+  const storyId = options.home ? (mac.db.prepare("SELECT id FROM stories").get() as { id: string }).id : imported(mac);
+  // The same scripted models stand in for every provider; the Mac's record of each call says which it went to.
+  const engine = new Engine(mac, new Models(mac.db, scriptedRunners(withWriter(actor, writer))));
   const pairing = new Pairing(mac.db);
   const catalog = await offeredCatalog(mac.home);
   const app = buildLink({ mac, engine, pairing, catalog, hostId: "mac-1", hostName: "Test Mac" });
@@ -91,7 +91,7 @@ export async function runningMac(actor: ModelRunner = new ScriptedRunner(), writ
   const { device_token: token } = await paired.json() as { device_token: string };
   const headers = { "content-type": "application/json", "fantasia-contract": String(CONTRACT_VERSION), authorization: `Bearer ${token}` };
   const call = (path: string, init: RequestInit = {}) => fetch(`${base}${path}`, { ...init, headers: { ...headers, ...(init.headers as Record<string, string> | undefined) } });
-  return { mac, engine, pairing, catalog, app, base, token, headers, call, storyId: imported.storyId, close: () => app.close() };
+  return { mac, engine, pairing, catalog, app, base, token, headers, call, storyId, close: () => app.close() };
 }
 
 export interface ReceivedEvent {
@@ -139,6 +139,12 @@ export function openStream(base: string, storyId: string, headers: Record<string
       }
     }
   };
+}
+
+function imported(mac: ReturnType<typeof freshHome>): string {
+  const result = importStoryFile(writeStoryFile(malfoyProblemStoryFile()), mac);
+  if (!result.ok) throw new Error("import failed");
+  return result.storyId;
 }
 
 /** What the three providers offer in the tests. */

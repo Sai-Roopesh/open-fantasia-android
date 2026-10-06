@@ -51,26 +51,26 @@ Scenarios this change builds:
 
 ## 4. The Mac's jobs on the chosen models
 
-- [ ] 4.1 Test first, then build: `outside-the-scene › One Models screen › Moving the Weaver to Codex` (engine test:
+- [x] 4.1 Test first, then build: `outside-the-scene › One Models screen › Moving the Weaver to Codex` (engine test:
   set the Weaver through the link, end a Scene, the Weaver's call goes to Codex GPT 6.1 Sol)
-- [ ] 4.2 Test first, then build: `outside-the-scene › One Models screen › A Story's own Actor` (two Stories; only "The
+- [x] 4.2 Test first, then build: `outside-the-scene › One Models screen › A Story's own Actor` (two Stories; only "The
   Malfoy Problem"'s Replies go to Opus 5.5, and its Reply records it)
-- [ ] 4.3 Test first, then build: `outside-the-scene › One Models screen › A setting outlasts the Mac restarting`
+- [x] 4.3 Test first, then build: `outside-the-scene › One Models screen › A setting outlasts the Mac restarting`
   (set the Writer to Gemini 3.8 Flash high, start a new host on the same folder, `GET /models` shows it and the next
   Writer call uses it)
-- [ ] 4.4 Test first, then build: `scenes › Redo, with a Direction and another model if wanted › Redo on another
+- [x] 4.4 Test first, then build: `scenes › Redo, with a Direction and another model if wanted › Redo on another
   model`:
   - the Redo's Reply is written by GPT 6.1 Sol and records it;
   - the next Reply goes to Opus 5.5;
   - a Redo interrupted by a restart is written on GPT 6.1 Sol.
-- [ ] 4.5 Test first, then build: `presence › Nothing fails silently › Another model for a failed Reply`:
+- [x] 4.5 Test first, then build: `presence › Nothing fails silently › Another model for a failed Reply`:
   - the failure names the Actor's job;
   - Retry on GPT 6.1 Sol writes the Reply;
   - the next Reply goes to Opus 5.5;
   - a Writer failure retried on another model runs the Writer on it.
-- [ ] 4.6 Test first, then build: `presence › Nothing fails silently › Another model for the World` (the Weaver
+- [x] 4.6 Test first, then build: `presence › Nothing fails silently › Another model for the World` (the Weaver
   fails, Retry World on Sonnet 5.5 moves the World on, and the setting is unchanged)
-- [ ] 4.7 `fantasia models` prints the jobs, each Story's Actor and the catalog, and sets a job or a Story's Actor on
+- [x] 4.7 `fantasia models` prints the jobs, each Story's Actor and the catalog, and sets a job or a Story's Actor on
   any provider; CLI tests
 
 ## 5. The phone

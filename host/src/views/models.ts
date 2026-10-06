@@ -1,6 +1,6 @@
 import type { Mac } from "../mac.js";
 import type { Catalog } from "../models/catalog.js";
-import { JOBS, jobModels, storyActor, type Job } from "../models/jobs.js";
+import { actorOf, JOBS, jobModels, storyActor, type Job } from "../models/jobs.js";
 import type { ChosenModel, ModelsView } from "../protocol/generated/link.js";
 import type { ModelChoice } from "../story/state.js";
 
@@ -11,14 +11,6 @@ const JOB_LINES: Record<Job, { title: string; does: string }> = {
   weaver: { title: "Weaver", does: "Moves the World on" },
   director: { title: "Director", does: "Shapes the long run" }
 };
-
-/** The Actor writing a Story's Replies: the player's choice for it, or the one its Story File names (docs/adr/0008). */
-export function actorOf(mac: Mac, storyId: string): ModelChoice | null {
-  const own = storyActor(mac.home, storyId);
-  if (own) return own;
-  const path = mac.tree.currentPath(storyId);
-  return path ? mac.states.at(path.headEntryId).actor : null;
-}
 
 /** The Models screen (openspec outside-the-scene: One Models screen). */
 export function modelsView(mac: Mac, catalog: Catalog, traceId: string): ModelsView {

@@ -1,5 +1,5 @@
 import type { Entry } from "../story/entries.js";
-import type { Person, State } from "../story/state.js";
+import type { ModelChoice, Person, State } from "../story/state.js";
 import { parseStoryTime, sayDay, sayTime, type StoryTime, type Weekday } from "../time.js";
 import type { ModelAnswer, Models } from "../models/model-call.js";
 import { NOTHING_RECALLED, sayWords, type Recall } from "./recall.js";
@@ -135,7 +135,7 @@ function section(tag: string, body: string): string | null {
 }
 
 /** Writes the Reply to the Scene's latest Move, streaming its words through [onText]. */
-export function writeReply(models: Models, state: State, scene: Entry[], recall: Recall, world: World, storyId: string, traceId: string, onText: (delta: string) => void, signal: AbortSignal): Promise<ModelAnswer> {
+export function writeReply(models: Models, state: State, scene: Entry[], recall: Recall, world: World, storyId: string, traceId: string, onText: (delta: string) => void, signal: AbortSignal, model: ModelChoice = state.actor): Promise<ModelAnswer> {
   const { system, prompt } = actorPrompt(state, scene, recall, world);
-  return models.call({ agent: "actor", model: state.actor, system, prompt, traceId, storyId }, onText, signal);
+  return models.call({ agent: "actor", model, system, prompt, traceId, storyId }, onText, signal);
 }
