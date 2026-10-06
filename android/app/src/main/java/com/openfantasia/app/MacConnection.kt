@@ -30,7 +30,8 @@ class MacConnection(
             try {
                 val response = client.pair(PairRequest(code = invite.code, deviceName = deviceName))
                 if (response.hostID != invite.hostID) throw LinkFailure("The QR code belongs to a different Mac", response.traceID)
-                val mac = PairedMac(response.hostID, response.hostName, invite.fingerprint, response.deviceToken, candidate)
+                val mac = PairedMac(response.hostID, response.hostName, invite.fingerprint, response.deviceToken, candidate,
+                    knownAddresses = (listOf(candidate) + invite.addresses.map { MacAddress(it, invite.port.toInt()) }).distinct())
                 store.write(mac)
                 current = LinkClient(candidate.url(), mac.fingerprint, mac.deviceToken)
                 connected.value = true
@@ -54,7 +55,7 @@ class MacConnection(
                 ?: LinkClient(address.url(), mac.fingerprint, mac.deviceToken)
             val result = action(client)
             current = client
-            store.write(mac.copy(lastAddress = address))
+            store.write(mac.answeredAt(address))
             connected.value = true
             Result.success(result)
         } catch (e: LinkFailure) { throw e

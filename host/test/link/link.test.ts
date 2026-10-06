@@ -284,6 +284,26 @@ describe("mac-link", () => {
     expect(strict).toEqual([]);
   });
 
+  // WHEN the player ends a Scene and locks the phone at once
+  // THEN the Day View is ready when they next open the app
+  it("presence › The Mac keeps working while the phone is locked › Ending a Scene and locking the phone", async () => {
+    const running = await mac([{ answer: "Draconia laughs." }]);
+    const { call, storyId, engine, base, headers } = running;
+    const view = async () => await (await call(`/stories/${storyId}/scene`)).json() as SceneView;
+    await call(`/stories/${storyId}/moves`, { method: "POST", body: JSON.stringify({ text: "I say goodnight.", after: (await view()).head_entry_id }) });
+    await engine.settled(storyId);
+    const playing = await view();
+    const stream = openStream(base, storyId, headers, playing.last_event_id, playing.path_id, playing.head_entry_id);
+    await call(`/stories/${storyId}/end-scene`, { method: "POST", body: JSON.stringify({ after: playing.head_entry_id }) });
+    // The phone locks: its stream is gone before the World has moved on.
+    await stream.close();
+    await engine.woven(storyId);
+    await engine.chronicled(storyId);
+    const reopened = await view();
+    expect(reopened.day_view).toMatchObject({ world: "ready" });
+    expect(reopened.earlier_scenes.length + 1).toBe(reopened.scene.number);
+  });
+
   it("answers Retry for the World only when the World could not move on", async () => {
     const { call, storyId } = await mac();
     const refused = await call(`/stories/${storyId}/world/retry`, { method: "POST", body: "{}" });

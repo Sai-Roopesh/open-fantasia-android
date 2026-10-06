@@ -10,7 +10,7 @@ What has been seen can be read without the Mac (The Mac is asleep); The Mac keep
 
 ## 1. Reaching the Mac
 
-- [ ] 1.1 Test first, then build: `presence › The phone finds the Mac on any shared network › A new network` and `› A network that keeps them apart` (every address the Mac gave or that answered is kept and tried; a stored pairing from before still reads); JVM tests against fake Macs on two addresses
+- [x] 1.1 Test first, then build: `presence › The phone finds the Mac on any shared network › A new network` and `› A network that keeps them apart` (every address the Mac gave or that answered is kept and tried; a stored pairing from before still reads); JVM tests against fake Macs on two addresses
 
 ## 2. Without the Mac
 
@@ -24,7 +24,7 @@ What has been seen can be read without the Mac (The Mac is asleep); The Mac keep
 
 ## 4. The Mac
 
-- [ ] 4.1 Test first: `presence › The Mac keeps working while the phone is locked › Ending a Scene and locking the phone` on the host (End scene, the stream closed at once, the Day View ready on the next read)
+- [x] 4.1 Test first: `presence › The Mac keeps working while the phone is locked › Ending a Scene and locking the phone` on the host (End scene, the stream closed at once, the Day View ready on the next read)
 
 ## 5. Together
 

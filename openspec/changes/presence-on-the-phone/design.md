@@ -23,7 +23,8 @@ not (`FantasiaModel.pause`). Nothing is kept on the phone but the pairing and th
 ## Decisions
 
 **1. Every address (android).** `PairedMac` gains `knownAddresses`: the invite's addresses at pairing, then every
-address discovery finds or a request succeeds on, newest first, at most eight. `read` tries the last that worked,
+address a request succeeds on, newest first, at most eight; an address discovery reports but that never answers is
+not kept. `read` tries the last that worked,
 then discovery, then the rest known. A stored pairing from before is read with its `lastAddress` as the only one.
 
 **2. A kept copy of what was read (android).** `ReadCache` keeps the JSON of every successful read (the Stories, each
