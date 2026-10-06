@@ -46,7 +46,7 @@ class WorldModelTest {
             fake.current.value = fake.current.value.copy(headEntryID = "closed", dayView = failed)
             var requests = 0
             val link = object : FantasiaLink by fake {
-                override suspend fun retryWorld(storyID: String): Accepted {
+                override suspend fun retryWorld(storyID: String, request: RetryWorldRequest): Accepted {
                     requests++
                     throw LinkFailure("The Mac could not retry the World", "retry-trace")
                 }

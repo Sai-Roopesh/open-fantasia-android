@@ -20,10 +20,11 @@ class ReplyFailureTest {
         assertEquals("failure", projection.view.turn.traceID)
         MacServer().use { mac ->
             mac.enqueue(MockResponse().setBody("""{"move_entry_id":"move","trace_id":"retry"}"""))
-            assertEquals("move", mac.client.retry("story").moveEntryID)
+            assertEquals("move", mac.client.retry("story", RetryRequest()).moveEntryID)
             val request = mac.server.takeRequest()
             assertEquals("/stories/story/retry", request.path)
             assertEquals("POST", request.method)
+            assertEquals("""{"model":null}""", request.body.readUtf8())
             assertEquals("Bearer secret", request.getHeader("Authorization"))
             assertEquals(com.openfantasia.protocol.CONTRACT_VERSION.toString(), request.getHeader("Fantasia-Contract"))
         }

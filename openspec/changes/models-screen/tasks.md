@@ -75,16 +75,16 @@ Scenarios this change builds:
 
 ## 5. The phone
 
-- [ ] 5.1 The Models screen to `Models.dc.html`, from Home's Models button (`Main.dc.html`):
+- [x] 5.1 The Models screen to `Models.dc.html`, from Home's Models button (`Main.dc.html`):
   - the Actor per Story, and the jobs with their lines;
   - the picker in place with provider labels and effort chips;
   - an unreachable provider's chips disabled with its reason.
 
   Shared checks on the JVM and the device for "Moving the Weaver to Codex" and "A Story's own Actor" as the phone
   sees them, and a preview compared with the design.
-- [ ] 5.2 Redo's "Written by" to `Redo.dc.html`: the Actor first, every other model "· just this Reply". Shared check
+- [x] 5.2 Redo's "Written by" to `Redo.dc.html`: the Actor first, every other model "· just this Reply". Shared check
   that the Redo request carries the model.
-- [ ] 5.3 "Another model" on the failed Reply (`SceneFailed.dc.html`) and on the World's failure: the picker in a
+- [x] 5.3 "Another model" on the failed Reply (`SceneFailed.dc.html`) and on the World's failure: the picker in a
   sheet, then a Retry with the model. Shared checks for both scenarios as the phone sees them.
 
 ## 6. Together

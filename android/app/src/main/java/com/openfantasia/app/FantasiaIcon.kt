@@ -12,7 +12,7 @@ import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.material3.LocalContentColor
 
-internal enum class FantasiaIconKind { Back, Send, Scan, Linger, Dismiss, Copy, Rewind, TryAnotherWay, Edit }
+internal enum class FantasiaIconKind { Back, Send, Scan, Linger, Dismiss, Copy, Rewind, TryAnotherWay, Edit, Models, ChevronRight, ChevronDown }
 
 // The strokes and viewboxes of the approved HTML icons, without a platform icon font.
 @Composable internal fun FantasiaIcon(kind: FantasiaIconKind, modifier: Modifier, color: Color = LocalContentColor.current) {
@@ -38,6 +38,11 @@ internal enum class FantasiaIconKind { Back, Send, Scan, Linger, Dismiss, Copy, 
             FantasiaIconKind.Edit -> svg(color, sx, sy, "M4 20h4L19 9l-4-4L4 16z")
             FantasiaIconKind.TryAnotherWay -> svg(color, sx, sy, "M6 3a2 2 0 1 0 0 4a2 2 0 1 0 0-4z", "M6 17a2 2 0 1 0 0 4a2 2 0 1 0 0-4z",
                 "M18 7a2 2 0 1 0 0 4a2 2 0 1 0 0-4z", "M6 7v10", "M18 11c0 4-6 3-12 6")
+            FantasiaIconKind.ChevronRight -> { line(9f, 6f, 15f, 12f, 2f); line(15f, 12f, 9f, 18f, 2f) }
+            FantasiaIconKind.ChevronDown -> { line(6f, 9f, 12f, 15f, 2f); line(12f, 15f, 18f, 9f, 2f) }
+            // Main.dc.html's Models button: a gear.
+            FantasiaIconKind.Models -> svg(color, sx, sy, "M9 12a3 3 0 1 0 6 0a3 3 0 1 0-6 0z",
+                "M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z")
             FantasiaIconKind.Linger -> { drawCircle(color, 9f * sx, style = Stroke(1.8f * sx)); line(12f, 7f, 12f, 12f); line(12f, 12f, 15f, 14f) }
         }
     }

@@ -26,6 +26,11 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
     var backstageView = backstageFixture()
     val tasteRemovals = mutableListOf<RemoveTasteRequest>()
     var retries = 0
+    val retryRequests = mutableListOf<RetryRequest>()
+    val worldRetryRequests = mutableListOf<RetryWorldRequest>()
+    var modelsView = modelsFixture()
+    val jobModelSets = mutableListOf<Pair<ModelJob, ModelChoice>>()
+    val actorSets = mutableListOf<Pair<String, ModelChoice?>>()
     val worldRetries = mutableListOf<String>()
     var endedDayView = dayView(ClosedBy.Player)
     val redos = mutableListOf<RedoRequest>()
@@ -81,13 +86,15 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
         chooseFailure?.let { throw it }
         return TurnAccepted(moveEntryID = "move", traceID = "choose")
     }
-    override suspend fun retryWorld(storyID: String): Accepted {
+    override suspend fun retryWorld(storyID: String, request: RetryWorldRequest): Accepted {
         worldRetries += storyID
+        worldRetryRequests += request
         current.value = current.value.copy(dayView = current.value.dayView!!.copy(world = World.MovingOn, failure = null))
         return Accepted(headEntryID = current.value.headEntryID, traceID = "world-retry")
     }
-    override suspend fun retry(storyID: String): TurnAccepted {
+    override suspend fun retry(storyID: String, request: RetryRequest): TurnAccepted {
         retries++
+        retryRequests += request
         return TurnAccepted(moveEntryID = "move", traceID = "retry")
     }
     override suspend fun edit(storyID: String, request: EditRequest): Accepted {
@@ -105,6 +112,24 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
         return Accepted(headEntryID = current.value.headEntryID, traceID = "edit")
     }
     override suspend fun paths(storyID: String): PathsView = pathsView
+    override suspend fun models(): ModelsView = modelsView
+    override suspend fun setJobModel(job: ModelJob, request: SetJobModelRequest): ModelsView {
+        jobModelSets += job to request.model
+        modelsView = modelsView.copy(jobs = modelsView.jobs.map { if (it.job == job) it.copy(model = chosenOf(request.model)) else it })
+        return modelsView
+    }
+    override suspend fun setActor(storyID: String, request: SetActorRequest): ModelsView {
+        actorSets += storyID to request.model
+        modelsView = modelsView.copy(stories = modelsView.stories.map {
+            if (it.storyID == storyID) it.copy(actor = request.model?.let(::chosenOf) ?: chosen(ModelProvider.Claude, "claude-opus-5-5", "Opus 5.5"), own = request.model != null) else it
+        })
+        return modelsView
+    }
+    /** As the Mac names a choice: the model's name from the catalog, and its effort. */
+    private fun chosenOf(choice: ModelChoice): ChosenModel {
+        val name = modelsView.providers.flatMap { it.models }.firstOrNull { it.id == choice.model }?.name ?: choice.model
+        return ChosenModel(choice = choice, label = choice.effort?.let { "$name · $it" } ?: name)
+    }
     override suspend fun journal(storyID: String): JournalView = journalView
     override suspend fun backstage(storyID: String): BackstageView = backstageView
     override suspend fun removeTaste(storyID: String, request: RemoveTasteRequest): Accepted {
@@ -155,6 +180,32 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
     override fun watch(initial: SceneView): Flow<SceneView> = current
 
     companion object {
+        fun chosen(provider: ModelProvider, model: String, label: String, effort: String? = null) =
+            ChosenModel(choice = ModelChoice(provider = provider, model = model, effort = effort), label = label)
+        private val UP_TO_MAX = listOf("low", "medium", "high", "xhigh", "max")
+        // The Models screen as drawn in Models.dc.html, the providers as they listed their models on 6 October 2026.
+        fun modelsFixture(antigravityReason: String? = null) = ModelsView(traceID = "models",
+            stories = listOf(
+                StoryActor(storyID = "story", title = "The Malfoy Problem", actor = chosen(ModelProvider.Claude, "claude-opus-5-5", "Opus 5.5"), own = false),
+                StoryActor(storyID = "other", title = "The coast", actor = chosen(ModelProvider.Claude, "claude-opus-5-5", "Opus 5.5"), own = false)),
+            jobs = listOf(
+                JobModel(job = ModelJob.Writer, title = "Writer", does = "Plans each Reply before it starts", model = chosen(ModelProvider.Claude, "claude-sonnet-5-5", "Sonnet 5.5")),
+                JobModel(job = ModelJob.Chronicler, title = "Chronicler", does = "Records what happened", model = chosen(ModelProvider.Claude, "claude-sonnet-5-5", "Sonnet 5.5")),
+                JobModel(job = ModelJob.Weaver, title = "Weaver", does = "Moves the World on", model = chosen(ModelProvider.Claude, "claude-sonnet-5-5", "Sonnet 5.5")),
+                JobModel(job = ModelJob.Director, title = "Director", does = "Shapes the long run", model = chosen(ModelProvider.Claude, "claude-opus-5-5", "Opus 5.5"))),
+            providers = listOf(
+                ProviderModels(provider = ModelProvider.Claude, label = "CLAUDE", reachable = true, reason = null, models = listOf(
+                    ModelOption(id = "claude-opus-5-5", name = "Opus 5.5", efforts = UP_TO_MAX, defaultEffort = null),
+                    ModelOption(id = "claude-sonnet-5-5", name = "Sonnet 5.5", efforts = UP_TO_MAX, defaultEffort = null),
+                    ModelOption(id = "claude-fable-5-1", name = "Fable 5.1", efforts = UP_TO_MAX, defaultEffort = null),
+                    ModelOption(id = "claude-haiku-4-5-20251001", name = "Haiku 4.5", efforts = emptyList(), defaultEffort = null))),
+                ProviderModels(provider = ModelProvider.Codex, label = "CODEX", reachable = true, reason = null, models = listOf(
+                    ModelOption(id = "gpt-6.1-sol", name = "GPT 6.1 Sol", efforts = UP_TO_MAX + "ultra", defaultEffort = "low"),
+                    ModelOption(id = "gpt-6-astra", name = "GPT 6 Astra", efforts = UP_TO_MAX + "ultra", defaultEffort = "low"),
+                    ModelOption(id = "gpt-6-luna", name = "GPT 6 Luna", efforts = UP_TO_MAX, defaultEffort = "medium"))),
+                ProviderModels(provider = ModelProvider.Antigravity, label = "ANTIGRAVITY", reachable = antigravityReason == null, reason = antigravityReason, models = listOf(
+                    ModelOption(id = "gemini-3.8-flash", name = "Gemini 3.8 Flash", efforts = listOf("low", "medium", "high"), defaultEffort = null),
+                    ModelOption(id = "gemini-3.1-pro", name = "Gemini 3.1 Pro", efforts = listOf("low", "high"), defaultEffort = null)))))
         fun pastSceneFixture() = PastScene(number = 13, title = "The troll", place = "The girls' bathroom",
             atLabel = "Friday 8:10 pm", summary = "He got Hermione out before the club came down.", traceID = "past-scene",
             exchanges = listOf(

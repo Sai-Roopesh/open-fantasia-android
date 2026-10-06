@@ -32,6 +32,9 @@ data class FantasiaState(
     val journal: JournalView? = null,
     val showingBackstage: Boolean = false,
     val backstage: BackstageView? = null,
+    /** The Models screen while it is open; the Models view also feeds the model for one Reply (openspec presence, scenes). */
+    val showingModels: Boolean = false,
+    val models: ModelsView? = null,
     val draft: String = "",
     val waitingMove: WaitingMove? = null,
     val sending: Boolean = false,
@@ -77,6 +80,7 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
 
     fun home() {
         stream?.cancel()
+        closeModels()
         closePastScene()
         closePaths()
         closeJournal()
@@ -307,7 +311,40 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
         }
     }
 
-    fun retryWorld() {
+    fun openModels() {
+        mutable.update { it.copy(showingModels = true, problem = null) }
+        loadModels()
+    }
+
+    fun closeModels() { mutable.update { it.copy(showingModels = false) } }
+
+    /** Reads what the Mac's jobs run on and what each provider offers, for the Models screen or a choice of model. */
+    fun loadModels() {
+        viewModelScope.launch {
+            try { val models = link.models(); mutable.update { it.copy(models = models) }
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) { showProblem(e) }
+        }
+    }
+
+    /** Sets a job's model from its next work; the Mac answers with the screen as it now stands. */
+    fun setJobModel(job: ModelJob, choice: ModelChoice) = changeModels { link.setJobModel(job, SetJobModelRequest(model = choice)) }
+
+    /** Sets a Story's own Actor, or null for the one its Story File names. */
+    fun setActor(storyID: String, choice: ModelChoice?) = changeModels { link.setActor(storyID, SetActorRequest(model = choice)) }
+
+    private fun changeModels(change: suspend () -> ModelsView) {
+        if (!mutable.value.reachable) return
+        mutable.update { it.copy(problem = null) }
+        viewModelScope.launch {
+            try { val models = change(); mutable.update { it.copy(models = models) }
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) { showProblem(e) }
+        }
+    }
+
+    /** Moves the World on again; with a model, the Weaver runs on it for this one try (openspec presence). */
+    fun retryWorld(model: ModelChoice? = null) {
         val state = mutable.value
         val scene = state.scene ?: return
         if (scene.dayView?.world != World.Failed || state.loading || state.sending || state.waiting ||
@@ -315,7 +352,7 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
         mutable.update { it.copy(sending = true, problem = null) }
         viewModelScope.launch {
             try {
-                link.retryWorld(scene.storyID)
+                link.retryWorld(scene.storyID, RetryWorldRequest(model = model))
                 val fresh = link.scene(scene.storyID)
                 mutable.update { it.copy(scene = visibleScene(fresh)) }
             } catch (e: CancellationException) { throw e
@@ -324,7 +361,8 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
         }
     }
 
-    fun retryReply() {
+    /** Writes the failed Reply again; with a model, the job that failed runs on it for this one try (openspec presence). */
+    fun retryReply(model: ModelChoice? = null) {
         val state = mutable.value
         val scene = state.scene ?: return
         if (scene.turn.kind != TurnStateKind.Failed || state.sending || state.waiting || !state.reachable || state.problem?.needsUpdate == true) return
@@ -332,7 +370,7 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
         mutable.update { it.copy(sending = true, problem = null) }
         viewModelScope.launch {
             try {
-                val accepted = link.retry(scene.storyID)
+                val accepted = link.retry(scene.storyID, RetryRequest(model = model))
                 pendingMoveID = accepted.moveEntryID
                 val current = mutable.value.scene
                 val finished = current != null && current.seq > scene.seq && current.headEntryID != accepted.moveEntryID && current.turn.kind == TurnStateKind.Idle
@@ -354,7 +392,8 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
         changeScene { link.linger(it.storyID, LingerRequest(after = it.headEntryID, on = on)) }
     }
 
-    fun redo(direction: String?, remember: Boolean) {
+    /** Writes the latest Reply again; with a model, on it for just this Reply (openspec scenes: Redo on another model). */
+    fun redo(direction: String?, remember: Boolean, model: ModelChoice? = null) {
         val state = mutable.value
         val scene = state.scene ?: return
         if (!state.canChangeScene || scene.exchanges.lastOrNull()?.let { it.move != null && it.reply != null } != true) return
@@ -363,7 +402,7 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
         viewModelScope.launch {
             try {
                 val accepted = link.redo(scene.storyID, RedoRequest(after = scene.headEntryID,
-                    direction = direction?.trim()?.takeIf { it.isNotEmpty() }, remember = remember))
+                    direction = direction?.trim()?.takeIf { it.isNotEmpty() }, remember = remember, model = model))
                 pendingMoveID = accepted.moveEntryID
                 val current = mutable.value.scene
                 val finished = current != null && current.seq > scene.seq && current.headEntryID != accepted.moveEntryID && current.turn.kind == TurnStateKind.Idle

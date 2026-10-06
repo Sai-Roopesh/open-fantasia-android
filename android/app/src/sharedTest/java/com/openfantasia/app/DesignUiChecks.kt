@@ -136,7 +136,7 @@ open class DesignUiChecks {
     // GIVEN the Actor's model fails while writing a Reply
     // THEN the Scene shows that the Reply failed, with Retry and another model
     // AND the player's Move is still there
-    // Another model comes with the Models screen.
+    // Another model is checked with the Models screen (ModelsUiChecks).
     fun failedReply() {
         link.current.value = link.current.value.copy(turn = TurnState(kind = TurnStateKind.Failed,
             reason = "The Actor is unavailable", traceID = "trace-failure"))

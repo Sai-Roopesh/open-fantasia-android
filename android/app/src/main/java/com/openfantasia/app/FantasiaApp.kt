@@ -13,6 +13,7 @@ import androidx.lifecycle.Lifecycle
 
 @Composable fun FantasiaApp(model: FantasiaModel, scanner: PairingScanner, portrait: (String) -> PortraitSource? = { null }, moveSent: () -> Unit = {}) {
     val state by model.state.collectAsStateWithLifecycle()
+    BackHandler(enabled = state.scene == null && state.showingModels) { model.closeModels() }
     BackHandler(enabled = state.scene != null) {
         when {
             state.readingScene != null -> model.closePastScene()
@@ -55,11 +56,11 @@ import androidx.lifecycle.Lifecycle
                         SceneScreen(scene, portrait, Modifier.weight(1f), controlsEnabled = state.canChangeScene,
                             openPaths = model::openPaths, openJournal = model::openJournal, openBackstage = model::openBackstage, pathsEnabled = state.canChangePath, rewind = model::rewind, tryAnotherWay = model::tryAnotherWay,
                             edit = model::edit,
-                            focus = model::focus, redo = model::redo, choose = model::choose, problem = state.problem?.reason, dismissPreviously = model::dismissPreviously, back = model::home, awaitingReply = state.replyComing,
+                            focus = model::focus, redo = model::redo, models = state.models, loadModels = model::loadModels, choose = model::choose, problem = state.problem?.reason, dismissPreviously = model::dismissPreviously, back = model::home, awaitingReply = state.replyComing,
                             openPastScene = { focusManager.clearFocus(); model.openPastScene(it) }, scrollState = scrollState,
                             storyTitle = state.stories.firstOrNull { it.id == scene.storyID }?.title ?: scene.scene.title,
-                            worldFailure = { WorldFailureContent(state, model::retryWorld) },
-                            failure = { ReplyFailure(state, model::retryReply) })
+                            worldFailure = { WorldFailureContent(state, model::retryWorld, model::loadModels) },
+                            failure = { ReplyFailure(state, model::retryReply, model::loadModels) })
                         if (state.worldReady) {
                             if (scene.dayView == null) HorizontalDivider(color = FantasiaHeaderLine)
                             Column(Modifier.padding(start = 16.dp, end = 16.dp, top = if (scene.dayView == null) 10.dp else 4.dp, bottom = if (scene.dayView == null) 18.dp else 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -69,8 +70,12 @@ import androidx.lifecycle.Lifecycle
                         }
                     }
                 }
+                else if (state.showingModels) {
+                    ModelsScreen(state.models, enabled = state.reachable, back = model::closeModels, setJob = model::setJobModel,
+                        setActor = { storyID, choice -> model.setActor(storyID, choice) }, modifier = Modifier.weight(1f))
+                }
                 else {
-                    HomeScreen(state, model::openStory, Modifier.weight(1f))
+                    HomeScreen(state, model::openStory, Modifier.weight(1f), openModels = model::openModels)
                 }
                 if (state.loading) CircularProgressIndicator()
             }

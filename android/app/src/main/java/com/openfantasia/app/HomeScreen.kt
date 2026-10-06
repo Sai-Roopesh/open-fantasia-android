@@ -9,6 +9,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
@@ -30,11 +32,17 @@ internal fun playedAgo(updatedAt: String, now: Instant = Instant.now(), zone: Zo
     }
 }
 
-@Composable fun HomeScreen(state: FantasiaState, openStory: (String) -> Unit, modifier: Modifier = Modifier) {
+@Composable fun HomeScreen(state: FantasiaState, openStory: (String) -> Unit, modifier: Modifier = Modifier, openModels: () -> Unit = {}) {
     var now by remember { mutableStateOf(Instant.now()) }
     LaunchedEffect(Unit) { while (true) { delay(60_000); now = Instant.now() } }
     Column(modifier.fillMaxSize()) {
-        Text("Open Fantasia", style = FantasiaType.homeTitle, modifier = Modifier.padding(start = 20.dp, top = 20.dp, bottom = 12.dp))
+        // Main.dc.html: the title, and the Models button beside it.
+        Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 12.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("Open Fantasia", style = FantasiaType.homeTitle, modifier = Modifier.weight(1f))
+            IconButton(onClick = openModels, modifier = Modifier.size(44.dp).semantics { contentDescription = "Models" }) {
+                FantasiaIcon(FantasiaIconKind.Models, Modifier.size(22.dp), FantasiaSecondary)
+            }
+        }
         Row(Modifier.padding(start = 20.dp, end = 20.dp, bottom = 20.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Spacer(Modifier.size(8.dp).background(if (state.reachable) FantasiaSeen else FailureAmber, FantasiaShapes.round))

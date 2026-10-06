@@ -25,7 +25,7 @@ class RetryTest {
                 override suspend fun stories() = StoryList(stories = emptyList(), traceID = "list")
                 override suspend fun scene(storyID: String) = failed
                 override suspend fun move(storyID: String, move: MoveRequest): TurnAccepted = error("Retry must keep the original Move")
-                override suspend fun retry(storyID: String): TurnAccepted { retries++; return TurnAccepted(moveEntryID = "move", traceID = "retry") }
+                override suspend fun retry(storyID: String, request: RetryRequest): TurnAccepted { retries++; return TurnAccepted(moveEntryID = "move", traceID = "retry") }
                 override fun watch(initial: SceneView) = emptyFlow<SceneView>()
             }
             val model = FantasiaModel(link)

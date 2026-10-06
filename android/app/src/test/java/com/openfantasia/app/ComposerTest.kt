@@ -26,7 +26,7 @@ class ComposerTest {
                     moves += move
                     return TurnAccepted(moveEntryID = "move", traceID = "turn")
                 }
-                override suspend fun retry(storyID: String) = TurnAccepted(moveEntryID = "move", traceID = "turn")
+                override suspend fun retry(storyID: String, request: RetryRequest) = TurnAccepted(moveEntryID = "move", traceID = "turn")
                 override fun watch(initial: SceneView): Flow<SceneView> = view
             }
             val model = FantasiaModel(link)

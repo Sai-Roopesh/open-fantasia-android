@@ -55,7 +55,10 @@ class SceneScrollState(val list: LazyListState) {
     modifier: Modifier = Modifier,
     controlsEnabled: Boolean = true,
     focus: (String) -> Unit = {},
-    redo: (String?, Boolean) -> Unit = { _, _ -> },
+    redo: (String?, Boolean, ModelChoice?) -> Unit = { _, _, _ -> },
+    /** What the Mac's jobs run on and what each provider offers, read when Redo opens, for "Written by". */
+    models: ModelsView? = null,
+    loadModels: () -> Unit = {},
     storyTitle: String = scene.scene.title,
     back: () -> Unit = {},
     awaitingReply: Boolean = false,
@@ -170,10 +173,13 @@ class SceneScrollState(val list: LazyListState) {
             item(key = "scene-end") { Spacer(Modifier.height(1.dp)) }
         }
     }
-    if (showRedo) RedoSheet(onDismiss = { showRedo = false }, onRedo = { direction, remember ->
-        showRedo = false
-        redo(direction, remember)
-    })
+    if (showRedo) {
+        LaunchedEffect(Unit) { loadModels() }
+        RedoSheet(scene.storyID, models, onDismiss = { showRedo = false }, onRedo = { direction, remember, model ->
+            showRedo = false
+            redo(direction, remember, model)
+        })
+    }
     editing?.let { passage ->
         EditSheet(passage, enabled = pathsEnabled, onDismiss = { editing = null }) { words -> editing = null; edit(passage.entryID, words) }
     }
@@ -359,33 +365,48 @@ class SceneScrollState(val list: LazyListState) {
         })
 }
 
-@Composable fun ReplyFailure(state: FantasiaState, retry: () -> Unit) {
+@Composable fun ReplyFailure(state: FantasiaState, retry: (ModelChoice?) -> Unit, loadModels: () -> Unit = {}) {
     val turn = state.scene?.turn ?: return
     StoryFailure("The Reply could not be written", turn.reason.orEmpty(), turn.traceID, retry,
-        state.reachable && !state.sending && !state.waiting && state.problem?.needsUpdate != true)
+        state.reachable && !state.sending && !state.waiting && state.problem?.needsUpdate != true,
+        another = "Write it with another model", models = state.models, loadModels = loadModels)
 }
 
-@Composable internal fun WorldFailureContent(state: FantasiaState, retry: () -> Unit) {
+@Composable internal fun WorldFailureContent(state: FantasiaState, retry: (ModelChoice?) -> Unit, loadModels: () -> Unit = {}) {
     val failure = state.scene?.dayView?.failure ?: return
     StoryFailure("The World could not move on", failure.reason, failure.traceID, retry,
         state.reachable && !state.loading && !state.sending && !state.waiting && state.problem?.needsUpdate != true,
-        Modifier.testTag("world-failure"))
+        Modifier.testTag("world-failure"), another = "Move the World on with another model", models = state.models, loadModels = loadModels)
 }
 
-@Composable private fun StoryFailure(title: String, reason: String, traceID: String?, retry: () -> Unit,
-    retryEnabled: Boolean, modifier: Modifier = Modifier) {
+/**
+ * What failed, in words, with Retry and Another model beside it (SceneFailed.dc.html; openspec presence: Nothing fails
+ * silently). Another model opens the picker in a sheet titled [another]; choosing one retries on it for this one try.
+ */
+@Composable private fun StoryFailure(title: String, reason: String, traceID: String?, retry: (ModelChoice?) -> Unit,
+    retryEnabled: Boolean, modifier: Modifier = Modifier, another: String, models: ModelsView?, loadModels: () -> Unit) {
+    var choosing by remember { mutableStateOf(false) }
     Surface(modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Assertive }, shape = FantasiaShapes.card,
         color = FantasiaFailureSurface, border = BorderStroke(1.dp, FantasiaFailureLine)) {
         Column(Modifier.padding(17.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(title, color = FailureAmber, style = FantasiaType.failureTitle)
             Text(reason, color = FantasiaProse, style = FantasiaType.detail)
-            Button(onClick = retry, modifier = Modifier.padding(top = 2.dp).height(44.dp), shape = FantasiaShapes.round,
-                contentPadding = PaddingValues(horizontal = 20.dp), enabled = retryEnabled) {
-                Text("Retry", style = FantasiaType.retryButton)
+            Row(Modifier.padding(top = 2.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { retry(null) }, modifier = Modifier.height(44.dp), shape = FantasiaShapes.round,
+                    contentPadding = PaddingValues(horizontal = 20.dp), enabled = retryEnabled) {
+                    Text("Retry", style = FantasiaType.retryButton)
+                }
+                OutlinedButton(onClick = { loadModels(); choosing = true }, enabled = retryEnabled, modifier = Modifier.height(44.dp),
+                    shape = FantasiaShapes.round, border = BorderStroke(1.dp, FantasiaStrongLine), contentPadding = PaddingValues(horizontal = 16.dp)) {
+                    Text("Another model", style = FantasiaType.metadata, color = if (retryEnabled) FantasiaText else FantasiaDisabled)
+                    Spacer(Modifier.width(6.dp))
+                    FantasiaIcon(FantasiaIconKind.ChevronDown, Modifier.size(14.dp), if (retryEnabled) FantasiaText else FantasiaDisabled)
+                }
             }
             traceID?.let { Text("Trace $it", color = FantasiaCaption, style = FantasiaType.small) }
         }
     }
+    if (choosing) AnotherModelSheet(another, models, onDismiss = { choosing = false }) { choice -> choosing = false; retry(choice) }
 }
 
 @Composable private fun SceneTitleCard(card: SceneCard, portrait: (String) -> PortraitSource?, focus: String?, enabled: Boolean, setFocus: (String) -> Unit) {

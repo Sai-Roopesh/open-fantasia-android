@@ -34,18 +34,20 @@ class SceneCommandsTest {
         }
     }
 
-    @Test fun `World retry posts no body and reads Accepted`() = runBlocking {
+    // Contract 12: the body says which model, if any, runs the Weaver for this one try. An empty body with a JSON
+    // content type was refused by the Mac before it reached the route.
+    @Test fun `World retry posts its model, or null, and reads Accepted`() = runBlocking {
         MacServer().use { mac ->
             val link = connection(mac)
             mac.enqueue(MockResponse().setBody("""{"stories":[],"trace_id":"list"}"""))
             link.stories()
             mac.server.takeRequest()
             mac.enqueue(MockResponse().setResponseCode(202).setBody("""{"head_entry_id":"closed","trace_id":"world-retry"}"""))
-            assertEquals(Accepted(headEntryID = "closed", traceID = "world-retry"), link.retryWorld("story"))
+            assertEquals(Accepted(headEntryID = "closed", traceID = "world-retry"), link.retryWorld("story", RetryWorldRequest()))
             val request = mac.server.takeRequest()
             assertEquals("/stories/story/world/retry", request.path)
             assertEquals("POST", request.method)
-            assertEquals(0L, request.bodySize)
+            assertEquals("""{"model":null}""", request.body.readUtf8())
             assertEquals(CONTRACT_VERSION.toString(), request.getHeader("Fantasia-Contract"))
             assertEquals("Bearer secret", request.getHeader("Authorization"))
         }
@@ -101,8 +103,8 @@ class SceneCommandsTest {
                 val request = mac.server.takeRequest()
                 assertEquals("/stories/story/redo", request.path)
                 assertEquals("POST", request.method)
-                val expected = if (direction == null) """{"after":"reply","direction":null,"remember":false}"""
-                    else """{"after":"reply","direction":"move on","remember":false}"""
+                val expected = if (direction == null) """{"after":"reply","direction":null,"model":null,"remember":false}"""
+                    else """{"after":"reply","direction":"move on","model":null,"remember":false}"""
                 assertEquals(expected, request.body.readUtf8())
                 assertEquals(com.openfantasia.protocol.CONTRACT_VERSION.toString(), request.getHeader("Fantasia-Contract"))
             }

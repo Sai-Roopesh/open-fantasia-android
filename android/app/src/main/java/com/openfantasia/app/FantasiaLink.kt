@@ -26,8 +26,12 @@ interface FantasiaLink {
     suspend fun journal(storyID: String): JournalView = throw LinkFailure("The Journal is not on this link")
     suspend fun backstage(storyID: String): BackstageView = throw LinkFailure("Backstage is not on this link")
     suspend fun removeTaste(storyID: String, request: RemoveTasteRequest): Accepted = throw LinkFailure("Taste is not on this link")
-    suspend fun retryWorld(storyID: String): Accepted
-    suspend fun retry(storyID: String): TurnAccepted
+    suspend fun retryWorld(storyID: String, request: RetryWorldRequest): Accepted
+    suspend fun retry(storyID: String, request: RetryRequest): TurnAccepted
+    // The Models screen (openspec outside-the-scene: One Models screen). A link that does not reach a Mac has none.
+    suspend fun models(): ModelsView = throw LinkFailure("Models are not on this link")
+    suspend fun setJobModel(job: ModelJob, request: SetJobModelRequest): ModelsView = throw LinkFailure("Models are not on this link")
+    suspend fun setActor(storyID: String, request: SetActorRequest): ModelsView = throw LinkFailure("Models are not on this link")
     suspend fun endScene(storyID: String, request: EndSceneRequest): Accepted
     suspend fun focus(storyID: String, request: FocusRequest): Accepted
     suspend fun linger(storyID: String, request: LingerRequest): Accepted

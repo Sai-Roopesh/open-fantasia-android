@@ -103,8 +103,12 @@ class MacConnection(
     override suspend fun linger(storyID: String, request: LingerRequest): Accepted = command { it.linger(storyID, request) }
     override suspend fun redo(storyID: String, request: RedoRequest): TurnAccepted = command { it.redo(storyID, request) }
     override suspend fun choose(storyID: String, request: ChooseRequest): TurnAccepted = command { it.choose(storyID, request) }
-    override suspend fun retryWorld(storyID: String): Accepted = command { it.retryWorld(storyID) }
-    override suspend fun retry(storyID: String): TurnAccepted = command { it.retry(storyID) }
+    override suspend fun retryWorld(storyID: String, request: RetryWorldRequest): Accepted = command { it.retryWorld(storyID, request) }
+    override suspend fun retry(storyID: String, request: RetryRequest): TurnAccepted = command { it.retry(storyID, request) }
+    // Read only from the Mac, never kept: a model list from before could offer what the Mac no longer has.
+    override suspend fun models(): ModelsView = read { it.models() }
+    override suspend fun setJobModel(job: ModelJob, request: SetJobModelRequest): ModelsView = command { it.setJobModel(job, request) }
+    override suspend fun setActor(storyID: String, request: SetActorRequest): ModelsView = command { it.setActor(storyID, request) }
     override suspend fun paths(storyID: String): PathsView = read { it.paths(storyID) }
     override suspend fun tryAnotherWay(storyID: String, request: TryAnotherWayRequest): Accepted = command { it.tryAnotherWay(storyID, request) }
     override suspend fun rewind(storyID: String, request: RewindRequest): Accepted = command { it.rewind(storyID, request) }

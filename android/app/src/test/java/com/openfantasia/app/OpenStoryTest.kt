@@ -21,7 +21,7 @@ class OpenStoryTest {
                 override suspend fun stories() = StoryList(stories = emptyList(), traceID = "list")
                 override suspend fun scene(storyID: String) = view
                 override suspend fun move(storyID: String, move: MoveRequest) = TurnAccepted(moveEntryID = "move", traceID = "turn")
-                override suspend fun retry(storyID: String) = TurnAccepted(moveEntryID = "move", traceID = "turn")
+                override suspend fun retry(storyID: String, request: RetryRequest) = TurnAccepted(moveEntryID = "move", traceID = "turn")
                 override fun watch(initial: SceneView) = emptyFlow<SceneView>()
             }
             val model = FantasiaModel(link)
