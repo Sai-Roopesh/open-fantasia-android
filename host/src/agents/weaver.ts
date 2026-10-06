@@ -72,7 +72,10 @@ export const WEAVER_SCHEMA = {
         type: "object",
         additionalProperties: false,
         required: ["id", "at", "place", "what", "who", "expected", "pick"],
-        properties: { id: text, at: text, place: text, what: text, who: names, expected: { type: "boolean" }, pick: { type: "boolean" } }
+        properties: {
+          id: text, at: text, place: text, what: text, who: names, expected: { type: "boolean" }, pick: { type: "boolean" },
+          quiet: { type: "boolean", description: "Nothing is at stake in it: an ordinary meal, a walk, study, a letter home." }
+        }
       }
     }
   }
@@ -83,7 +86,7 @@ interface RawWeave {
   threads: { name: string; now: string }[];
   happened: { id: string; what: string; at: string; where: string; known_to: string[]; landmark: string | null; missed?: string | null }[];
   meanwhile: { text: string; how: "seen" | "told" | "rumour"; happened: string; told_by: string | null }[];
-  happenings: { id: string; at: string; place: string; what: string; who: string[]; expected: boolean; pick: boolean }[];
+  happenings: { id: string; at: string; place: string; what: string; who: string[]; expected: boolean; pick: boolean; quiet?: boolean }[];
 }
 
 const ajv = new Ajv2020({ strict: false, allErrors: true });
@@ -104,6 +107,8 @@ export interface WeaveAsk {
   inScene: string[];
   /** The last two Scenes had no Lead in them, so the Story's pick has one (openspec day-view: Lead absence). */
   leadless?: boolean;
+  /** The Scene that ended peaked, so the Story's pick is quiet (openspec long-run: Rest is deliberate). */
+  afterPeak?: boolean;
   /** When the span is a Gap the player chose to skip: what was on in it, which goes on without him. */
   gap?: { missed: Happening[] };
   /** What was on already and is still ahead: the Day View keeps it, so it is not offered again. */
@@ -223,7 +228,7 @@ export function checkWeave(ask: WeaveAsk, raw: unknown): Checked<WeaveRecord> {
       if (known === pc) return (problems.push(`happenings: ${item.id}, who: ${pc} is the player's character; say who else will be there`), []);
       return [known];
     });
-    return { id: `p-${randomUUID().slice(0, 8)}`, at: item.at.trim(), place: item.place.trim(), what: item.what.trim(), who: [...new Set(who)], expected: item.expected, pick: item.pick };
+    return { id: `p-${randomUUID().slice(0, 8)}`, at: item.at.trim(), place: item.place.trim(), what: item.what.trim(), who: [...new Set(who)], expected: item.expected, pick: item.pick, quiet: item.quiet === true };
   });
   const picks = happenings.filter(item => item.pick).length;
   if (picks > 1) problems.push(`happenings: ${picks} are the pick; pick one, and put it first`);
@@ -232,6 +237,12 @@ export function checkWeave(ask: WeaveAsk, raw: unknown): Checked<WeaveRecord> {
     const pick = happenings.find(item => item.pick);
     const lead = (item: Happening | undefined) => item?.who.some(name => state.leads.includes(name)) ?? false;
     if (!lead(pick)) problems.push(`happenings: the last two Scenes had no Lead in them; make your pick something with a Lead in it (${state.leads.join(", ")})`);
+  }
+
+  if (ask.afterPeak && !ask.gap) {
+    const pick = happenings.find(item => item.pick);
+    if (!pick) problems.push("happenings: the Scene that ended peaked; offer a quiet Happening as your pick, nothing at stake in it, with quiet true");
+    else if (!pick.quiet) problems.push("happenings: the Scene that ended peaked; make your pick a quiet Happening, nothing at stake in it, and set its quiet true");
   }
 
   if (problems.length) return { ok: false, problems };
@@ -326,10 +337,11 @@ export function weaverPrompt(ask: WeaveAsk): { system: string; prompt: string; f
       landmarks.length ? "Every Landmark in the span happens." : "",
       ask.gap ? "Leave happenings empty: the next Scene begins where the Gap ends." : `Then say what is on from ${say(state, ask.until)} on; what is still on stays, so do not offer it again.`,
       ask.leadless ? `The last two Scenes had no Lead in them (${state.leads.join(", ")}): your pick has one in it.` : "",
+      ask.afterPeak && !ask.gap ? "The Scene that ended peaked. Your pick is a quiet Happening, nothing at stake in it, with quiet true: an ordinary part of the day, with no one wanting anything from him and nothing left hanging." : "",
       "Return only the JSON object."
     ].filter(Boolean).join("\n"))
   ].filter(part => part !== null).join("\n\n");
-  const facts = { from: ask.from, until: ask.until, landmarks: landmarks.map(landmark => ({ name: landmark.name, at: landmark.at })), leadless: ask.leadless ?? false, leads: state.leads,
+  const facts = { from: ask.from, until: ask.until, landmarks: landmarks.map(landmark => ({ name: landmark.name, at: landmark.at })), leadless: ask.leadless ?? false, afterPeak: (ask.afterPeak ?? false) && !ask.gap, leads: state.leads,
     missed: (ask.gap?.missed ?? []).map((item, index) => ({ label: `G${index + 1}`, at: item.at, place: item.place, who: item.who, expected: item.expected })) };
   return { system: storyPrompt(state), prompt, facts };
 }

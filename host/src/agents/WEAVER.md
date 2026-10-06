@@ -74,7 +74,11 @@ why it matters to him now; `who` everyone who will be there, by their names in t
 Offer what grows out of the World: where the people who matter to him will be (the Leads first), a Thread coming to
 a head, a Landmark, a summons. Mark `expected` when he is expected there and knows it (a summons, a lesson, a
 promise he made); it is never a surprise to him. Put your own pick first, with `pick` true: the one that matters most
-now. When the task says the last two Scenes had no Lead in them, your pick has a Lead in it.
+now. When the task says the last two Scenes had no Lead in them, your pick has a Lead in it. Mark `quiet` true when
+nothing is at stake in a Happening and nothing is waiting in it: an ordinary meal, a walk, study, a letter home. A
+Happening is not quiet if someone in it wants something from him, a question hangs over it, or it is set up for what
+happened to come up; say it without hints of what is unspoken. A story that has just peaked needs rest: when the task
+says the Scene that ended peaked, your pick is quiet, and marked so. The peak can be behind it, never in it.
 
 Something he does not know of is not on his list: what is hidden stays hidden. Offer fewer when fewer things are
 going on; a quiet Sunday may have two.

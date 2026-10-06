@@ -162,3 +162,26 @@ describe("the Weaver's call", () => {
     await expect(writeWeave(new Models(played.mac.db, { claude: refused }), SONNET, await ask(), "story", "trace-w", new AbortController().signal)).rejects.toThrow(WeaverFailed);
   });
 });
+
+describe("rest after a peak (openspec long-run: Rest is deliberate)", () => {
+  const pick = (quiet: boolean | undefined) => ({ id: "P1", at: "Day 4 09:00", place: "the Great Hall", what: quiet ? "Breakfast, late, with nothing to do after." : "Draconia calls him out in front of Slytherin.", who: ["Hermione Granger"], expected: false, pick: true, ...(quiet === undefined ? {} : { quiet }) });
+
+  it("is asked for when the Scene that ended peaked", async () => {
+    expect(weaverPrompt(await ask({ afterPeak: true })).prompt).toContain("The Scene that ended peaked. Your pick is a quiet Happening, nothing at stake in it, with quiet true");
+    expect(weaverPrompt(await ask()).prompt).not.toContain("peaked");
+  });
+
+  it("refuses a pick that is not quiet, or no pick at all, after a peak", async () => {
+    const after = await ask({ afterPeak: true });
+    expect(checkWeave(after, answer({ happenings: [pick(false)] }))).toMatchObject({ ok: false, problems: ["happenings: the Scene that ended peaked; make your pick a quiet Happening, nothing at stake in it, and set its quiet true"] });
+    expect(checkWeave(after, answer({ happenings: [pick(undefined)] })).ok).toBe(false);
+    expect(checkWeave(after, answer({ happenings: [] }))).toMatchObject({ ok: false, problems: ["happenings: the Scene that ended peaked; offer a quiet Happening as your pick, nothing at stake in it, with quiet true"] });
+    const quiet = checkWeave(after, answer({ happenings: [pick(true)] }));
+    expect(quiet.ok && quiet.value.happenings[0]).toMatchObject({ pick: true, quiet: true });
+  });
+
+  it("leaves the pick to the Weaver when nothing peaked", async () => {
+    expect(checkWeave(await ask(), answer({ happenings: [pick(false)] })).ok).toBe(true);
+  });
+});
+

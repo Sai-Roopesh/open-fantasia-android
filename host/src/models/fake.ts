@@ -83,6 +83,7 @@ interface WeaverFacts {
   until: string;
   landmarks: { name: string; at: string }[];
   leadless: boolean;
+  afterPeak?: boolean;
   leads: string[];
   missed: { label: string; at: string; place: string; who: string[]; expected: boolean }[];
 }
@@ -103,9 +104,11 @@ export function fakeWeaveAnswer(request: ModelRequest): Script {
         ...facts.missed.filter(item => item.expected).map((item, index) => ({ id: `M${index + 1}`, what: `${item.place} went on without him, and they noticed.`, at: item.at, where: item.place, known_to: item.who, landmark: null, missed: item.label }))
       ],
       meanwhile: [],
-      happenings: facts.leadless && facts.leads[0]
-        ? [{ id: "P1", at: facts.until, place: "where they are", what: `${facts.leads[0]} is about.`, who: [facts.leads[0]], expected: false, pick: true }]
-        : []
+      happenings: facts.afterPeak
+        ? [{ id: "P1", at: facts.until, place: "the Great Hall", what: "A late breakfast, with nothing to do after.", who: facts.leadless && facts.leads[0] ? [facts.leads[0]] : [], expected: false, pick: true, quiet: true }]
+        : facts.leadless && facts.leads[0]
+          ? [{ id: "P1", at: facts.until, place: "where they are", what: `${facts.leads[0]} is about.`, who: [facts.leads[0]], expected: false, pick: true }]
+          : []
     })
   };
 }

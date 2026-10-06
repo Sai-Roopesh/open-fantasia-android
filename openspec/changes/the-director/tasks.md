@@ -37,7 +37,7 @@ Scenarios this change builds:
 
 ## 4. Rest
 
-- [ ] 4.1 Test first, then build: `long-run › Rest is deliberate › A quiet pick after a peak`:
+- [x] 4.1 Test first, then build: `long-run › Rest is deliberate › A quiet pick after a peak`:
   - `afterPeak` in the Weaver's task, and `quiet` on Happenings;
   - the check refuses a pick that is not quiet after a peak;
   - engine test: a Scene the Writer rated 4 ends, and the Day View's pick is quiet;

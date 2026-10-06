@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { writeWeave, type WeaveRecord } from "../../src/agents/weaver.js";
+import { writeWeave, type WeaveAsk, type WeaveRecord } from "../../src/agents/weaver.js";
 import { Engine } from "../../src/engine/engine.js";
 import { dueWeave, weaveAsk } from "../../src/engine/weaving.js";
 import { ClaudeRunner } from "../../src/models/claude.js";
@@ -18,7 +18,7 @@ const token = readSecret(CLAUDE_TOKEN);
 const RUNS = 3;
 
 /** A Scene played as written (no models), ended by the player, and the Weaver's real answer for the span after it. */
-async function woven(story: StoryFile, exchanges: [string, string][], span: { from?: string; until?: string } = {}): Promise<WeaveRecord> {
+async function woven(story: StoryFile, exchanges: [string, string][], span: Partial<Pick<WeaveAsk, "from" | "until" | "afterPeak">> = {}): Promise<WeaveRecord> {
   const mac = freshHome();
   const imported = importStoryFile(writeStoryFile(story), mac);
   if (!imported.ok) throw new Error(`import failed: ${JSON.stringify(imported.problems)}`);
@@ -146,6 +146,21 @@ describe.skipIf(!token)("the Weaver on Claude", () => {
       expect(earlier, `run ${run + 1}: ${show(record)}`).toEqual([]);
       const verdict = await judge("Does anything here put the train's stop at Barog, or anything on the platform there, before 9:05 am (Day 2 09:05), or have Ishaan get back on the train or the train leave Barog with him?", show(record));
       expect(verdict.yes, `run ${run + 1}: ${verdict.said}\n${show(record)}`).toBe(false);
+    }
+  });
+
+  // GIVEN the Scene where Draconia chose the Player Character in front of her House just ended
+  // THEN the Story's own pick at the Day View is a quiet Happening
+  it("long-run › Rest is deliberate › A quiet pick after a peak", async () => {
+    for (let run = 0; run < RUNS; run++) {
+      const record = await woven(hogwartsWorldStoryFile({ title: "In front of her House", place: "The Slytherin common room", at: "Day 3 21:40", who: ["Draconia Malfoy"] }), [
+        ["I walk into the Slytherin common room and wait for her to choose.", "Draconia stands, crosses the whole room under every eye in her House, and takes his hand. \"Him,\" she says. Nobody speaks."]
+      ], { afterPeak: true });
+      const pick = record.happenings.find(item => item.pick);
+      expect(pick, JSON.stringify(record.happenings)).toBeDefined();
+      expect(pick!.quiet).toBe(true);
+      const verdict = await judge("Is something at stake in this: a confrontation, a contest, a secret coming out, or a choice that could change what is between people? Answer YES or NO.", `${pick!.what} (${pick!.place}, ${pick!.at})`);
+      expect(verdict.yes, verdict.said).toBe(false);
     }
   });
 });

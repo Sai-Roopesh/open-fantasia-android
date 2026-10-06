@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { currentPlan, directionDue, landmarkPassed } from "../../src/engine/directing.js";
-import { fakeWriterAnswer } from "../../src/models/fake.js";
+import { fakeWeaveAnswer, fakeWriterAnswer } from "../../src/models/fake.js";
 import type { ModelRequest } from "../../src/models/model-call.js";
 import { setJobModel } from "../../src/models/jobs.js";
-import type { DirectorPlan } from "../../src/story/entries.js";
+import type { DirectorPlan, WorldMoved } from "../../src/story/entries.js";
 import { callsFor, freshHome } from "../support/host.js";
 import { playable } from "../support/play.js";
 import { hogwartsStoryFile, malfoyProblemStoryFile } from "../support/story-files.js";
@@ -186,3 +186,26 @@ describe("the plan reaches the Story only through the Writer (docs/adr/0004)", (
     for (const agent of ["actor", "chronicler", "weaver"]) expect(mentions(agent), agent).toBe(false);
   });
 });
+
+describe("rest after a peak, in play", () => {
+  // GIVEN the Scene where Draconia chose the Player Character in front of her House just ended
+  // THEN the Story's own pick at the Day View is a quiet Happening
+  it("long-run › Rest is deliberate › A quiet pick after a peak", async () => {
+    const peaked = { from: (request: ModelRequest) => ({ answer: JSON.stringify({ ...JSON.parse((fakeWriterAnswer(request) as { answer: string }).answer) as object, intensity: 5 }) }) };
+    // The Weaver first offers a duel as its pick; the check sends it back for a quiet one.
+    const duel = { from: (request: ModelRequest) => {
+      const weave = JSON.parse((fakeWeaveAnswer(request) as { answer: string }).answer) as Record<string, unknown>;
+      const until = (request.facts as { until: string }).until;
+      return { answer: JSON.stringify({ ...weave, happenings: [{ id: "P1", at: until, place: "the Quidditch pitch", what: "Flint calls Roopesh out for a duel.", who: [], expected: false, pick: true, quiet: false }] }) };
+    } };
+    const { mac, engine, storyId, head, play, models } = playable(hogwartsStoryFile(), { writer: [peaked], weaver: [duel] });
+    await play("I tell her what I am, in front of her whole House.");
+    engine.endScene(storyId, head(), "end-peak");
+    await engine.woven(storyId);
+    expect(models.weaver.requests[0]!.prompt).toContain("The Scene that ended peaked.");
+    expect(models.weaver.requests[1]!.prompt).toContain("make your pick a quiet Happening");
+    const moved = mac.tree.recordsOn(head(), "world_moved").at(-1)!.payload as WorldMoved;
+    expect(moved.happenings.find(item => item.pick)).toMatchObject({ quiet: true });
+  });
+});
+

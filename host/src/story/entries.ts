@@ -223,6 +223,8 @@ export interface Happening {
   expected: boolean;
   /** The Story's own pick. */
   pick: boolean;
+  /** Nothing is at stake in it, as the Weaver judged; absent from Happenings woven before it was asked. */
+  quiet?: boolean;
 }
 
 /**

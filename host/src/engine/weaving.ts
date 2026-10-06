@@ -1,3 +1,4 @@
+import { PEAK } from "./directing.js";
 import type { WeaveAsk } from "../agents/weaver.js";
 import type { Mac } from "../mac.js";
 import type { Entry, SceneOpened, WorldMoved } from "../story/entries.js";
@@ -63,6 +64,8 @@ export function weaveAsk(mac: Mac, due: DueWeave): WeaveAsk {
     until: due.until,
     inScene: peopleIn(due.scene, due.entries),
     leadless,
+    // The Writer rated the Scene that ended at a peak: the Story's next pick is a quiet one (openspec long-run).
+    afterPeak: due.entries.some(entry => entry.payload.kind === "beat_note" && entry.payload.intensity >= PEAK),
     stillOn: onAhead(mac, due.through.id, due.until)
   };
 }
