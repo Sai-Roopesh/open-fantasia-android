@@ -23,12 +23,12 @@ Move); `stories › Claude can edit a Story as the player can` (Claude fixes a t
 
 ## 3. Editing on the phone
 
-- [ ] 3.1 Test first, then build: `scenes › The latest Reply has its actions in view › Copying the latest Reply` on the phone, with the row built to `docs/design/Scene.dc.html` (Copy, Redo, Edit, Try another way); shared check on the JVM and the device
-- [ ] 3.2 Test first, then build: `scenes › The latest Reply has its actions in view › Holding an earlier Move` on the phone: a held Move opens Copy, Rewind to here, Try another way from here and Edit, with the line under the menu built to `docs/design/LongPress.dc.html`; shared check on the JVM and the device
-- [ ] 3.3 Test first, then build: `scenes › Editing › Fixing a typo in the latest Reply` on the phone: Edit opens the sheet in the style of `docs/design/Redo.dc.html` with the words, Save sends the edit and the Scene shows it; shared check on the JVM and the device
-- [ ] 3.4 Test first, then build: `scenes › Editing › Editing an earlier Move` on the phone: Edit from the menu, in the Scene and in an earlier Scene being read, says it starts a Path and lands on it; Edit is off while a Reply is written; shared check on the JVM and the device
-- [ ] 3.5 The stream opens with the head the phone shows, and `path_changed` after an edit reloads the Scene; verify JVM stream tests
-- [ ] 3.6 Render with `-PfantasiaPreviews` and compare the latest Reply's row with `Scene.dc.html`, the menu with `LongPress.dc.html` and the Edit sheet with `Redo.dc.html`; fix what differs
+- [x] 3.1 Test first, then build: `scenes › The latest Reply has its actions in view › Copying the latest Reply` on the phone, with the row built to `docs/design/Scene.dc.html` (Copy, Redo, Edit, Try another way); shared check on the JVM and the device
+- [x] 3.2 Test first, then build: `scenes › The latest Reply has its actions in view › Holding an earlier Move` on the phone: a held Move opens Copy, Rewind to here, Try another way from here and Edit, with the line under the menu built to `docs/design/LongPress.dc.html`; shared check on the JVM and the device
+- [x] 3.3 Test first, then build: `scenes › Editing › Fixing a typo in the latest Reply` on the phone: Edit opens the sheet in the style of `docs/design/Redo.dc.html` with the words, Save sends the edit and the Scene shows it; shared check on the JVM and the device
+- [x] 3.4 Test first, then build: `scenes › Editing › Editing an earlier Move` on the phone: Edit from the menu, in the Scene and in an earlier Scene being read, says it starts a Path and lands on it; Edit is off while a Reply is written; shared check on the JVM and the device
+- [x] 3.5 The stream opens with the head the phone shows, and `path_changed` after an edit reloads the Scene; verify JVM stream tests
+- [x] 3.6 Render with `-PfantasiaPreviews` and compare the latest Reply's row with `Scene.dc.html`, the menu with `LongPress.dc.html` and the Edit sheet with `Redo.dc.html`; fix what differs
 
 ## 4. Together
 

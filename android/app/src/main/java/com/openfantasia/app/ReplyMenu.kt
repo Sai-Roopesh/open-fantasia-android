@@ -17,7 +17,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import kotlin.math.roundToInt
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Dp
@@ -25,7 +27,7 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import com.openfantasia.protocol.Passage
 
-/** How close to a Reply's end a press opens the menu under the whole Reply, and how far under the finger otherwise. */
+/** How near a passage's ends a press opens the menu beside the whole passage, and how far from the finger otherwise. */
 private val NEAR_THE_END = 160.dp
 private val UNDER_THE_FINGER = 24.dp
 
@@ -41,46 +43,88 @@ private fun Modifier.bleed(by: Dp) = layout { measurable, constraints ->
     layout(placeable.width - extra, placeable.height) { placeable.place(-by.roundToPx(), 0) }
 }
 
+/** What holding a passage offers (LongPress.dc.html), and what each choice does. */
+internal class PassageActions(
+    val isMove: Boolean,
+    /** The latest Move or Reply, which an edit changes in place; anything earlier, an edit carries on a new Path. */
+    val latest: Boolean,
+    /** Not on the latest Reply, which has nothing after it to set aside. */
+    val canRewind: Boolean,
+    /** Off while a Reply is being written (openspec paths: A Path changes only between Replies). */
+    val pathsEnabled: Boolean,
+    val copy: () -> Unit,
+    val rewind: () -> Unit,
+    val tryAnotherWay: () -> Unit,
+    val edit: () -> Unit
+)
+
 /**
- * A Reply that can be held (openspec paths: Try another way from any Reply). Holding it lifts it and opens its menu as
- * drawn in LongPress.dc.html: Copy, Rewind to here (not on the latest Reply, which has nothing after it), and Try
- * another way from here. The Path actions are off while a Reply is being written. Edit comes with Editing.
+ * A passage that can be held, a Reply or a Move: holding it lifts it and opens its menu, under it as drawn when it
+ * ends near where it was pressed, under the finger on one that runs on past it and may be taller than the screen.
  */
-@Composable internal fun HeldReply(
-    reply: Passage,
-    held: Boolean,
-    dimmed: Boolean,
-    canRewind: Boolean,
-    pathsEnabled: Boolean,
-    hold: () -> Unit,
-    release: () -> Unit,
-    copy: () -> Unit,
-    rewind: () -> Unit,
-    tryAnotherWay: () -> Unit
-) {
-    // Where the menu opens: under a Reply that ends near where it was pressed, as drawn; under the finger on a Reply
-    // that runs on past it, which may be taller than the screen and have room neither under nor above it.
+@Composable private fun Holdable(held: Boolean, hold: () -> Unit, release: () -> Unit, actions: PassageActions,
+    content: @Composable (Modifier) -> Unit) {
     var pressed by remember { mutableStateOf<Offset?>(null) }
     var height by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
-    val anchor = pressed?.let { press ->
-        with(density) { if (height - press.y <= NEAR_THE_END.toPx()) height.toFloat() else press.y + UNDER_THE_FINGER.toPx() }
-    } ?: height.toFloat()
+    // The span the menu opens beside: the whole passage when it was pressed near both its ends, so the menu sits under
+    // it or, with no room on the screen, wholly above it; otherwise a band around the finger.
+    val (top, bottom) = with(density) {
+        val press = pressed
+        if (press == null) 0f to height.toFloat()
+        else (if (press.y <= NEAR_THE_END.toPx()) 0f else press.y - UNDER_THE_FINGER.toPx()) to
+            (if (height - press.y <= NEAR_THE_END.toPx()) height.toFloat() else press.y + UNDER_THE_FINGER.toPx())
+    }
     Box(Modifier.fillMaxWidth()) {
+        content(Modifier.onSizeChanged { height = it.height }
+            .pointerInput(Unit) { awaitEachGesture { pressed = awaitFirstDown(requireUnconsumed = false).position } }
+            .combinedClickable(interactionSource = null, indication = null, onClick = {}, onLongClickLabel = "Open this passage's menu", onLongClick = hold))
+        Box(Modifier.offset { IntOffset(0, top.roundToInt()) }.width(0.dp).height(with(density) { (bottom - top).coerceAtLeast(0f).toDp() })) {
+            PassageMenu(held, release, actions)
+        }
+    }
+}
+
+/** A Reply that can be held (openspec scenes: The latest Reply has its actions in view). */
+@Composable internal fun HeldReply(reply: Passage, held: Boolean, dimmed: Boolean, actions: PassageActions, hold: () -> Unit, release: () -> Unit) {
+    Holdable(held, hold, release, actions) { gestures ->
         val lifted = if (held) Modifier.bleed(12.dp).background(FantasiaHeld, FantasiaShapes.field)
             .border(1.dp, FantasiaAccent, FantasiaShapes.field).padding(12.dp) else Modifier
         Text(prose(reply.text), style = FantasiaType.prose, color = if (dimmed) FantasiaDimmed else if (held) FantasiaText else FantasiaProse,
-            modifier = Modifier.fillMaxWidth().then(lifted).testTag("reply-${reply.entryID}").onSizeChanged { height = it.height }
-                .pointerInput(Unit) { awaitEachGesture { pressed = awaitFirstDown(requireUnconsumed = false).position } }
-                .combinedClickable(interactionSource = null, indication = null, onClick = {}, onLongClickLabel = "Open this Reply's menu", onLongClick = hold))
-        Box(Modifier.offset { IntOffset(0, anchor.roundToInt()) }.size(0.dp)) {
-            DropdownMenu(expanded = held, onDismissRequest = release, offset = DpOffset(0.dp, 8.dp), shape = RoundedCornerShape(16.dp),
-                containerColor = FantasiaRaised, border = BorderStroke(1.dp, FantasiaStrongLine), shadowElevation = 12.dp,
-                modifier = Modifier.widthIn(min = 230.dp)) {
-                MenuItem("Copy", FantasiaIconKind.Copy, true) { release(); copy() }
-                if (canRewind) MenuItem("Rewind to here", FantasiaIconKind.Rewind, pathsEnabled) { release(); rewind() }
-                MenuItem("Try another way from here", FantasiaIconKind.TryAnotherWay, pathsEnabled) { release(); tryAnotherWay() }
+            modifier = Modifier.fillMaxWidth().then(lifted).testTag("reply-${reply.entryID}").then(gestures))
+    }
+}
+
+/** A Move that can be held, opening the same menu. */
+@Composable internal fun HeldMove(move: Passage, playerCharacter: String, held: Boolean, dimmed: Boolean, actions: PassageActions,
+    hold: () -> Unit, release: () -> Unit) {
+    Holdable(held, hold, release, actions) { gestures ->
+        MovePassage(move, playerCharacter, dimmed = dimmed, held = held, modifier = gestures.testTag("move-${move.entryID}"))
+    }
+}
+
+/**
+ * The menu as drawn in LongPress.dc.html: Copy, Rewind to here, Try another way from here and Edit, then the line under
+ * it that says what an edit does here.
+ */
+@Composable private fun PassageMenu(held: Boolean, release: () -> Unit, actions: PassageActions) {
+    val card = RoundedCornerShape(16.dp)
+    DropdownMenu(expanded = held, onDismissRequest = release, offset = DpOffset(0.dp, 8.dp), containerColor = Color.Transparent,
+        shadowElevation = 0.dp, tonalElevation = 0.dp) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(Modifier.widthIn(min = 230.dp).shadow(12.dp, card).background(FantasiaRaised, card).border(1.dp, FantasiaStrongLine, card)
+                .padding(vertical = 6.dp)) {
+                MenuItem("Copy", FantasiaIconKind.Copy, true) { release(); actions.copy() }
+                if (actions.canRewind) MenuItem("Rewind to here", FantasiaIconKind.Rewind, actions.pathsEnabled) { release(); actions.rewind() }
+                MenuItem("Try another way from here", FantasiaIconKind.TryAnotherWay, actions.pathsEnabled) { release(); actions.tryAnotherWay() }
+                MenuItem("Edit", FantasiaIconKind.Edit, actions.pathsEnabled) { release(); actions.edit() }
             }
+            val passage = if (actions.isMove) "Move" else "Reply"
+            Text(if (actions.latest) "Editing the latest $passage changes it where it is."
+                else "Editing an earlier $passage carries the Story on from the edit on a new Path. The Path you were on stays as it was.",
+                style = FantasiaType.small.copy(lineHeight = 18.sp), color = FantasiaCaption, modifier = Modifier.widthIn(max = 280.dp)
+                    // A soft ground of its own, so the line reads over whatever passage lies under the menu.
+                    .background(FantasiaBackground.copy(alpha = .92f), RoundedCornerShape(10.dp)).padding(horizontal = 8.dp, vertical = 6.dp))
         }
     }
 }

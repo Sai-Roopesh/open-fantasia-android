@@ -120,7 +120,11 @@ open class DesignUiChecks {
     // THEN the Reply's text is on the clipboard
     fun copyReply() {
         openScene()
-        compose.onNodeWithText("Copy").assertIsDisplayed().performClick()
+        // The latest Reply's actions, in view without a menu, as drawn in Scene.dc.html.
+        val row = { label: String -> compose.onNode(hasText(label) and hasAnyAncestor(hasTestTag("latest-actions"))) }
+        for (label in listOf("Copy", "Redo", "Edit", "Try another way")) row(label).assertIsDisplayed()
+        compose.preview("LatestReply")
+        row("Copy").performClick()
         compose.runOnIdle {
             val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
             val clipboard = context.getSystemService(android.content.ClipboardManager::class.java)

@@ -150,6 +150,8 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
     fun renamePath(pathID: String, name: String) = changePath(staysOnPaths = true) { link.renamePath(it.storyID, pathID, RenamePathRequest(name = name)) }
     fun deletePath(pathID: String) = changePath(staysOnPaths = true) { link.deletePath(it.storyID, pathID) }
     fun clearPaths() = changePath(staysOnPaths = true) { link.clearPaths(it.storyID) }
+    /** Edit a Move or a Reply (openspec scenes: Editing): the Mac decides whether in place or on a new Path. */
+    fun edit(entryID: String, text: String) = changePath { link.edit(it.storyID, EditRequest(entry = entryID, text = text, after = it.headEntryID)) }
 
     /**
      * Sends a Path command, then reads the Scene again from the Mac, which owns where the Story now stands; the

@@ -69,6 +69,7 @@ class SceneScrollState(val list: LazyListState) {
     pathsEnabled: Boolean = false,
     rewind: (String) -> Unit = {},
     tryAnotherWay: (String) -> Unit = {},
+    edit: (String, String) -> Unit = { _, _ -> },
     worldFailure: @Composable () -> Unit = {},
     failure: @Composable () -> Unit = {}
 ) {
@@ -95,9 +96,17 @@ class SceneScrollState(val list: LazyListState) {
     val replyComing = scene.replyComing || awaitingReply
     val latestReply = scene.exchanges.lastOrNull { it.reply != null }?.reply
     var previouslyOffset by remember(previously?.since) { mutableStateOf<Int?>(null) }
+    val copy = { text: String -> clipboard.setPrimaryClip(ClipData.newPlainText("Reply", text)) }
     // The Reply being held, whose menu is open (LongPress.dc.html); everything else steps back.
     var held by remember(scene.storyID, scene.headEntryID) { mutableStateOf<String?>(null) }
-    val copy = { text: String -> clipboard.setPrimaryClip(ClipData.newPlainText("Reply", text)) }
+    var editing by remember(scene.storyID, scene.headEntryID) { mutableStateOf<Editing?>(null) }
+    // The latest Move and Reply: an edit changes them in place, anything earlier on a new Path (openspec scenes: Editing).
+    val latestMove = scene.exchanges.lastOrNull()?.move?.entryID
+    val latestReplyID = scene.exchanges.lastOrNull()?.reply?.entryID
+    fun actions(passage: Passage, isMove: Boolean) = PassageActions(isMove = isMove,
+        latest = passage.entryID == (if (isMove) latestMove else latestReplyID), canRewind = isMove || passage.entryID != scene.headEntryID,
+        pathsEnabled = pathsEnabled, copy = { copy(passage.text) }, rewind = { rewind(passage.entryID) }, tryAnotherWay = { tryAnotherWay(passage.entryID) },
+        edit = { editing = Editing(passage.entryID, passage.text, isMove, passage.entryID == (if (isMove) latestMove else latestReplyID)) })
     Column(modifier) {
         SceneHeader(scene, storyTitle, back, scene.dayView == null && scene.opening == null && (replyComing || scene.turn.kind == TurnStateKind.Failed || imeBottom > 0), openPaths)
         LazyColumn(state = list, modifier = Modifier.weight(1f).onSizeChanged { viewportSize = it }.testTag("scene-passages"),
@@ -112,21 +121,25 @@ class SceneScrollState(val list: LazyListState) {
             }
             items(scene.exchanges, key = { it.move?.entryID ?: it.reply!!.entryID }) { exchange ->
                 Column(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    exchange.move?.let { MovePassage(it, scene.playerCharacter, dimmed = held != null) }
+                    exchange.move?.let { move ->
+                        HeldMove(move, scene.playerCharacter, held = held == move.entryID, dimmed = held != null && held != move.entryID,
+                            actions = actions(move, isMove = true), hold = { held = move.entryID }, release = { held = null })
+                    }
                     exchange.reply?.let { reply ->
                         if (reply == latestReply && scene.dayView == null && previously != null) {
                             PreviouslyCard(previously, dismissPreviously, Modifier.onGloballyPositioned { previouslyOffset = it.positionInParent().y.toInt() })
                         }
                         HeldReply(reply, held = held == reply.entryID, dimmed = held != null && held != reply.entryID,
-                            canRewind = reply.entryID != scene.headEntryID, pathsEnabled = pathsEnabled,
-                            hold = { held = reply.entryID }, release = { held = null }, copy = { copy(reply.text) },
-                            rewind = { rewind(reply.entryID) }, tryAnotherWay = { tryAnotherWay(reply.entryID) })
+                            actions = actions(reply, isMove = false), hold = { held = reply.entryID }, release = { held = null })
                         if (reply == latestReply && !replyComing && scene.turn.kind != TurnStateKind.Failed) {
-                            Row(Modifier.offset(x = (-8).dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            // The latest Reply's actions, in view without a menu, as drawn in Scene.dc.html.
+                            Row(Modifier.offset(x = (-8).dp).testTag("latest-actions"), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                 ReplyAction("Copy", onClick = { copy(reply.text) })
                                 if (scene.dayView?.closedBy != ClosedBy.Player && scene.exchanges.lastOrNull()?.let { it.move != null && it.reply != null } == true) {
                                     ReplyAction("Redo", enabled = controlsEnabled, onClick = { showRedo = true })
                                 }
+                                ReplyAction("Edit", enabled = pathsEnabled, onClick = { editing = Editing(reply.entryID, reply.text, isMove = false, latest = true) })
+                                ReplyAction("Try another way", enabled = pathsEnabled, onClick = { tryAnotherWay(reply.entryID) })
                             }
                         }
                     }
@@ -159,6 +172,9 @@ class SceneScrollState(val list: LazyListState) {
         showRedo = false
         redo(direction, remember)
     })
+    editing?.let { passage ->
+        EditSheet(passage, enabled = pathsEnabled, onDismiss = { editing = null }) { words -> editing = null; edit(passage.entryID, words) }
+    }
     // The player reading back keeps their place: the end is followed only while they are at it, and a new Move, Reply
     // or Scene change brings them back to it.
     var followingEnd by remember { mutableStateOf(true) }
@@ -408,9 +424,10 @@ class SceneScrollState(val list: LazyListState) {
     Text(prose(reply.text), modifier = Modifier.fillMaxWidth(), style = FantasiaType.prose, color = FantasiaProse)
 }
 
-@Composable internal fun MovePassage(move: Passage, playerCharacter: String, dimmed: Boolean = false) {
+@Composable internal fun MovePassage(move: Passage, playerCharacter: String, dimmed: Boolean = false, held: Boolean = false, modifier: Modifier = Modifier) {
     BoxWithConstraints(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
-        Surface(shape = FantasiaShapes.move, color = if (dimmed) FantasiaDimmedMove else FantasiaRaised, modifier = Modifier.widthIn(max = maxWidth * .86f)) {
+        Surface(shape = FantasiaShapes.move, color = if (dimmed) FantasiaDimmedMove else FantasiaRaised,
+            border = if (held) BorderStroke(1.dp, FantasiaAccent) else null, modifier = Modifier.widthIn(max = maxWidth * .86f).then(modifier)) {
             Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(firstName(playerCharacter).uppercase(Locale.ROOT), color = if (dimmed) FantasiaDimmed else FantasiaLabel, style = FantasiaType.player)
                 Text(prose(move.text), style = FantasiaType.body, color = if (dimmed) FantasiaDimmed else FantasiaText)

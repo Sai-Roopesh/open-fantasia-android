@@ -96,6 +96,7 @@ class MacConnection(
     override suspend fun renamePath(storyID: String, pathID: String, request: RenamePathRequest): Accepted = command { it.renamePath(storyID, pathID, request) }
     override suspend fun deletePath(storyID: String, pathID: String): Accepted = command { it.deletePath(storyID, pathID) }
     override suspend fun clearPaths(storyID: String): Accepted = command { it.clearPaths(storyID) }
+    override suspend fun edit(storyID: String, request: EditRequest): Accepted = command { it.edit(storyID, request) }
     override fun watch(initial: SceneView): Flow<SceneView> = StoryStream(
         onConnection = { connected.value = it }, loadScene = { scene(it) }
     ) {

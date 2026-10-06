@@ -22,6 +22,7 @@ interface FantasiaLink {
     suspend fun renamePath(storyID: String, pathID: String, request: RenamePathRequest): Accepted = throw LinkFailure("Paths are not on this link")
     suspend fun deletePath(storyID: String, pathID: String): Accepted = throw LinkFailure("Paths are not on this link")
     suspend fun clearPaths(storyID: String): Accepted = throw LinkFailure("Paths are not on this link")
+    suspend fun edit(storyID: String, request: EditRequest): Accepted = throw LinkFailure("Editing is not on this link")
     suspend fun retryWorld(storyID: String): Accepted
     suspend fun retry(storyID: String): TurnAccepted
     suspend fun endScene(storyID: String, request: EndSceneRequest): Accepted

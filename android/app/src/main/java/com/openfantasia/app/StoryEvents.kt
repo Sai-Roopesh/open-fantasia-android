@@ -15,10 +15,15 @@ import java.util.concurrent.TimeUnit
 
 data class StoryEventEnvelope(val id: String?, val event: StoryEvent)
 
-fun LinkClient.events(storyID: String, lastEventID: String, pathID: String? = null, onConnection: (Boolean) -> Unit = {}): Flow<StoryEventEnvelope> = callbackFlow {
+fun LinkClient.events(storyID: String, lastEventID: String, pathID: String? = null, headEntryID: String? = null,
+    onConnection: (Boolean) -> Unit = {}): Flow<StoryEventEnvelope> = callbackFlow {
     val events = request(listOf("stories", storyID, "events"))
-    // The Path the phone shows: when the Story has moved to another, the Mac says so first.
-    val request = events.newBuilder().url(events.url.newBuilder().apply { pathID?.let { addQueryParameter("path", it) } }.build())
+    // The Path and the head the phone shows: when the Story has moved to another Path, or that head was edited away
+    // or rewound past, the Mac says so first.
+    val request = events.newBuilder().url(events.url.newBuilder().apply {
+        pathID?.let { addQueryParameter("path", it) }
+        headEntryID?.let { addQueryParameter("head", it) }
+    }.build())
         .header("Accept", "text/event-stream")
         .header("Last-Event-ID", lastEventID).build()
     val client = http.newBuilder().readTimeout(0, TimeUnit.MILLISECONDS).build()

@@ -12,7 +12,7 @@ import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.material3.LocalContentColor
 
-internal enum class FantasiaIconKind { Back, Send, Scan, Linger, Dismiss, Copy, Rewind, TryAnotherWay }
+internal enum class FantasiaIconKind { Back, Send, Scan, Linger, Dismiss, Copy, Rewind, TryAnotherWay, Edit }
 
 // The strokes and viewboxes of the approved HTML icons, without a platform icon font.
 @Composable internal fun FantasiaIcon(kind: FantasiaIconKind, modifier: Modifier, color: Color = LocalContentColor.current) {
@@ -35,6 +35,7 @@ internal enum class FantasiaIconKind { Back, Send, Scan, Linger, Dismiss, Copy, 
             FantasiaIconKind.Copy -> svg(color, sx, sy, "M10 8h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2z",
                 "M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2")
             FantasiaIconKind.Rewind -> svg(color, sx, sy, "M3 12a9 9 0 1 0 3-6.7", "M3 4v5h5")
+            FantasiaIconKind.Edit -> svg(color, sx, sy, "M4 20h4L19 9l-4-4L4 16z")
             FantasiaIconKind.TryAnotherWay -> svg(color, sx, sy, "M6 3a2 2 0 1 0 0 4a2 2 0 1 0 0-4z", "M6 17a2 2 0 1 0 0 4a2 2 0 1 0 0-4z",
                 "M18 7a2 2 0 1 0 0 4a2 2 0 1 0 0-4z", "M6 7v10", "M18 11c0 4-6 3-12 6")
             FantasiaIconKind.Linger -> { drawCircle(color, 9f * sx, style = Stroke(1.8f * sx)); line(12f, 7f, 12f, 12f); line(12f, 12f, 15f, 14f) }

@@ -21,6 +21,7 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
     val renames = mutableListOf<Pair<String, RenamePathRequest>>()
     val deleted = mutableListOf<String>()
     var clears = 0
+    val edits = mutableListOf<EditRequest>()
     var retries = 0
     val worldRetries = mutableListOf<String>()
     var endedDayView = dayView(ClosedBy.Player)
@@ -85,6 +86,19 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
     override suspend fun retry(storyID: String): TurnAccepted {
         retries++
         return TurnAccepted(moveEntryID = "move", traceID = "retry")
+    }
+    override suspend fun edit(storyID: String, request: EditRequest): Accepted {
+        edits += request
+        val view = current.value
+        val at = view.exchanges.indexOfFirst { it.reply?.entryID == request.entry || it.move?.entryID == request.entry }
+        val exchange = view.exchanges[at]
+        val isMove = exchange.move?.entryID == request.entry
+        val latest = at == view.exchanges.lastIndex
+        val edited = if (isMove) exchange.copy(move = exchange.move!!.copy(text = request.text)) else exchange.copy(reply = exchange.reply!!.copy(text = request.text))
+        current.value = view.copy(seq = view.seq + 1, lastEventID = (view.seq + 1).toString(),
+            pathID = if (latest) view.pathID else "edited", headEntryID = if (latest) view.headEntryID else request.entry,
+            exchanges = view.exchanges.take(at) + (if (latest || !isMove) edited else edited.copy(reply = null)))
+        return Accepted(headEntryID = current.value.headEntryID, traceID = "edit")
     }
     override suspend fun paths(storyID: String): PathsView = pathsView
     /** The Scene as the Mac would show it with its head at [entryID]: what came after is not on this Path. */

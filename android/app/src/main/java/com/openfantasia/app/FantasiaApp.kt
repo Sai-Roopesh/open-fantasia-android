@@ -33,7 +33,7 @@ import androidx.lifecycle.Lifecycle
                     if (state.readingScene != null) {
                         PastSceneScreen(state.readingScene!!, state.pastScene, scene.playerCharacter,
                             scene.scene.number, model::closePastScene, Modifier.weight(1f), pathsEnabled = state.canChangePath,
-                            rewind = model::rewind, tryAnotherWay = model::tryAnotherWay)
+                            rewind = model::rewind, tryAnotherWay = model::tryAnotherWay, edit = model::edit)
                         if (state.pastSceneLoading) CircularProgressIndicator()
                     } else if (state.showingPaths) {
                         PathsScreen(state.paths, state.canChangePath, model::closePaths, model::openPath, model::renamePath,
@@ -41,6 +41,7 @@ import androidx.lifecycle.Lifecycle
                     } else {
                         SceneScreen(scene, portrait, Modifier.weight(1f), controlsEnabled = state.canChangeScene,
                             openPaths = model::openPaths, pathsEnabled = state.canChangePath, rewind = model::rewind, tryAnotherWay = model::tryAnotherWay,
+                            edit = model::edit,
                             focus = model::focus, redo = model::redo, choose = model::choose, problem = state.problem?.reason, dismissPreviously = model::dismissPreviously, back = model::home, awaitingReply = state.replyComing,
                             openPastScene = { focusManager.clearFocus(); model.openPastScene(it) }, scrollState = scrollState,
                             storyTitle = state.stories.firstOrNull { it.id == scene.storyID }?.title ?: scene.scene.title,

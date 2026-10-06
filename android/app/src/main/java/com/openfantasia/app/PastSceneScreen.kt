@@ -16,6 +16,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.openfantasia.protocol.Passage
 import com.openfantasia.protocol.PastScene
 import com.openfantasia.protocol.SceneSummaryLine
 
@@ -28,11 +29,18 @@ import com.openfantasia.protocol.SceneSummaryLine
     modifier: Modifier = Modifier,
     pathsEnabled: Boolean = false,
     rewind: (String) -> Unit = {},
-    tryAnotherWay: (String) -> Unit = {}
+    tryAnotherWay: (String) -> Unit = {},
+    edit: (String, String) -> Unit = { _, _ -> }
 ) {
     // A Reply in an earlier Scene can be held too (openspec paths: Try another way from any Reply).
     var held by remember(scene?.number) { mutableStateOf<String?>(null) }
     val clipboard = LocalContext.current.getSystemService(ClipboardManager::class.java)
+    var editing by remember(scene?.number) { mutableStateOf<Editing?>(null) }
+    // Everything in an earlier Scene is earlier: an edit carries the Story on from it on a new Path.
+    fun actions(passage: Passage, isMove: Boolean) = PassageActions(isMove = isMove, latest = false, canRewind = true, pathsEnabled = pathsEnabled,
+        copy = { clipboard.setPrimaryClip(ClipData.newPlainText(if (isMove) "Move" else "Reply", passage.text)) },
+        rewind = { rewind(passage.entryID) }, tryAnotherWay = { tryAnotherWay(passage.entryID) },
+        edit = { editing = Editing(passage.entryID, passage.text, isMove, latest = false) })
     Column(modifier) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -53,15 +61,19 @@ import com.openfantasia.protocol.SceneSummaryLine
             }
             items(scene.exchanges) { exchange ->
                 Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    exchange.move?.let { MovePassage(it, playerCharacter, dimmed = held != null) }
+                    exchange.move?.let { move ->
+                        HeldMove(move, playerCharacter, held = held == move.entryID, dimmed = held != null && held != move.entryID,
+                            actions = actions(move, isMove = true), hold = { held = move.entryID }, release = { held = null })
+                    }
                     exchange.reply?.let { reply ->
-                        HeldReply(reply, held = held == reply.entryID, dimmed = held != null && held != reply.entryID, canRewind = true,
-                            pathsEnabled = pathsEnabled, hold = { held = reply.entryID }, release = { held = null },
-                            copy = { clipboard.setPrimaryClip(ClipData.newPlainText("Reply", reply.text)) },
-                            rewind = { rewind(reply.entryID) }, tryAnotherWay = { tryAnotherWay(reply.entryID) })
+                        HeldReply(reply, held = held == reply.entryID, dimmed = held != null && held != reply.entryID,
+                            actions = actions(reply, isMove = false), hold = { held = reply.entryID }, release = { held = null })
                     }
                 }
             }
         }
+    }
+    editing?.let { passage ->
+        EditSheet(passage, enabled = pathsEnabled, onDismiss = { editing = null }) { words -> editing = null; edit(passage.entryID, words) }
     }
 }

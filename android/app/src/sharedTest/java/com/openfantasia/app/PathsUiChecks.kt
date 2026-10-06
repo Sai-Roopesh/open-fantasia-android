@@ -1,6 +1,7 @@
 package com.openfantasia.app
 
 import androidx.compose.ui.test.*
+import androidx.compose.ui.unit.dp
 import com.openfantasia.protocol.*
 import org.junit.Assert.*
 
@@ -20,13 +21,23 @@ open class PathsUiChecks : WorldUiChecks() {
         menu("Copy").assertIsDisplayed()
         menu("Rewind to here").assertIsDisplayed()
         menu("Try another way from here").assertIsDisplayed()
-        menu("Edit").assertDoesNotExist()
-        // As drawn in LongPress.dc.html, the menu opens under the Reply it belongs to, at its left edge. The menu is
-        // its own window, so both are measured on the screen.
+        menu("Edit").assertIsDisplayed()
+        // As drawn in LongPress.dc.html, the menu opens under the Reply it belongs to, at its left edge; with no room
+        // left under it on the screen, right above it instead, never pinned to a corner. The menu is its own window,
+        // so everything is measured on the screen.
         val held = compose.onNodeWithTag("reply-opening").fetchSemanticsNode()
-        val copy = menu("Copy").fetchSemanticsNode().positionOnScreen
         val reply = held.positionOnScreen
-        assertTrue("The menu opens under the held Reply: $copy below $reply + ${held.size}", copy.y >= reply.y + held.size.height)
+        val copy = menu("Copy").fetchSemanticsNode().positionOnScreen
+        val line = compose.onNode(hasText("Editing", substring = true) and hasAnyAncestor(isPopup())).fetchSemanticsNode()
+        // The app and the menu are two windows; Material keeps a menu 48 dp clear of the screen's edge.
+        val windows = compose.onAllNodes(isRoot()).fetchSemanticsNodes()
+        val menuHeight = windows.minBy { it.size.height }.size.height
+        val screen = windows.maxBy { it.size.height }.let { it.positionOnScreen.y + it.size.height }
+        val margin = with(compose.density) { 56.dp.toPx() }
+        val roomUnder = reply.y + held.size.height + menuHeight + margin <= screen
+        if (roomUnder) assertTrue("The menu opens under the held Reply: $copy below $reply + ${held.size}", copy.y >= reply.y + held.size.height)
+        else assertTrue("With no room under it, the menu opens right above the held Reply: ends at ${line.positionOnScreen.y + line.size.height}, Reply at $reply",
+            line.positionOnScreen.y + line.size.height <= reply.y && copy.y > reply.y - menuHeight - 120)
         assertTrue("The menu starts at the held Reply's left: $copy beside $reply", copy.x >= reply.x - 60 && copy.x < reply.x + 120)
         compose.preview("LongPress")
         menu("Try another way from here").performClick()

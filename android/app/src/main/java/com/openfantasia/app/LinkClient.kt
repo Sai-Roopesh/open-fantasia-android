@@ -57,6 +57,8 @@ class LinkClient(val address: HttpUrl, fingerprint: String, private val deviceTo
         command(listOf("stories", storyID, "paths", pathID, "rename"), commandJson.encodeToString(request))
     suspend fun deletePath(storyID: String, pathID: String): Accepted = command(listOf("stories", storyID, "paths", pathID), delete = true)
     suspend fun clearPaths(storyID: String): Accepted = command(listOf("stories", storyID, "paths", "clear"), "{}")
+    suspend fun edit(storyID: String, request: EditRequest): Accepted =
+        command(listOf("stories", storyID, "edit"), commandJson.encodeToString(request))
 
     internal fun request(path: List<String>, body: String? = null, paired: Boolean = true, delete: Boolean = false): Request {
         val url = address.newBuilder().apply { path.forEach { addPathSegment(it) } }.build()

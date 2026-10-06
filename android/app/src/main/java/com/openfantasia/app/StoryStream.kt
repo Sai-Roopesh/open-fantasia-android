@@ -19,7 +19,7 @@ class StoryStream(
         var projection = SceneProjection(initial)
         while (currentCoroutineContext().isActive) {
             try {
-                client().events(initial.storyID, projection.lastEventID, projection.view.pathID, onConnection).collect { envelope ->
+                client().events(initial.storyID, projection.lastEventID, projection.view.pathID, projection.view.headEntryID, onConnection).collect { envelope ->
                     val before = projection.view
                     val next = SceneProjection(before)
                     next.apply(envelope)
