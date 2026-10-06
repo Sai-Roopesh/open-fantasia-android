@@ -92,10 +92,11 @@ internal enum class DayPicker(val title: String) { Follow("Follow someone"), Som
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable internal fun DaySheet(tag: String, dismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+/** A sheet in the Day View's style; one with words to write passes [draggable] false, so scrolling them never moves it. */
+@Composable internal fun DaySheet(tag: String, dismiss: () -> Unit, draggable: Boolean = true, content: @Composable ColumnScope.() -> Unit) {
     ModalBottomSheet(onDismissRequest = dismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         shape = FantasiaShapes.sheet, containerColor = FantasiaSurface, contentColor = FantasiaText,
-        scrimColor = FantasiaScrim, dragHandle = null) {
+        scrimColor = FantasiaScrim, dragHandle = null, sheetGesturesEnabled = draggable) {
         Column(Modifier.fillMaxWidth().drawWithContent {
             drawContent()
             clipRect(bottom = 24.dp.toPx()) {
@@ -137,7 +138,7 @@ internal enum class DayPicker(val title: String) { Follow("Follow someone"), Som
     var text by remember { mutableStateOf("") }
     val name = firstName(player)
     val missed = day.happenings.filter { storyMinute(it.at) >= storyMinute(day.at) && storyMinute(it.at) < storyMinute(choice.at) }
-    DaySheet("gap-sheet", dismiss) {
+    DaySheet("gap-sheet", dismiss, draggable = false) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("What did you do in the Gap?", style = FantasiaType.sheetTitle)
             Text("${day.time} – ${choice.time}, before ${choice.destination}", style = FantasiaType.metadata, color = FantasiaSecondary)

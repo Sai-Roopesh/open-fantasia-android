@@ -78,7 +78,7 @@ private val FantasiaCurrentRing = Color(0xFF2B2245)
     }
     renaming?.let { card ->
         var name by remember(card.id) { mutableStateOf(card.title) }
-        DaySheet("rename-sheet", dismiss = { renaming = null }) {
+        DaySheet("rename-sheet", dismiss = { renaming = null }, draggable = false) {
             Text("Rename this Path", style = FantasiaType.sheetTitle)
             BasicTextField(value = name, onValueChange = { name = it }, singleLine = true,
                 textStyle = FantasiaType.direction.copy(color = FantasiaText), cursorBrush = SolidColor(FantasiaLabel),

@@ -15,4 +15,5 @@ class EditingScreenTest : EditingUiChecks() {
     @Test fun earlierMove() = editingAnEarlierMove()
 
     @Test fun editingWaitsForTheReplyCheck() = editingWaitsForTheReply()
+    @Test fun editSheetStaysWhileItsWordsScrollCheck() = editSheetStaysWhileItsWordsScroll()
 }

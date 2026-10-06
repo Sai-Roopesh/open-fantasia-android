@@ -27,7 +27,7 @@ internal data class Editing(val entryID: String, val text: String, val isMove: B
     var words by rememberSaveable(editing.entryID) { mutableStateOf(editing.text) }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         shape = FantasiaShapes.sheet, containerColor = FantasiaSurface, contentColor = FantasiaText,
-        scrimColor = FantasiaScrim, dragHandle = null) {
+        scrimColor = FantasiaScrim, dragHandle = null, sheetGesturesEnabled = false) {
         Column(Modifier.fillMaxWidth().testTag("edit-sheet").padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Spacer(Modifier.align(Alignment.CenterHorizontally).size(width = 36.dp, height = 4.dp).background(FantasiaStrongLine, FantasiaShapes.round))

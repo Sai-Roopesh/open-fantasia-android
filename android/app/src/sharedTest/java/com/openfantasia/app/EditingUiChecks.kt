@@ -96,4 +96,23 @@ open class EditingUiChecks : WorldUiChecks() {
         menu("Copy").performClick()
         compose.runOnIdle { assertTrue(link.edits.isEmpty()) }
     }
+
+    // Found on the phone: scrolling the words of a long Reply in the Edit sheet dragged the whole sheet with the finger,
+    // so the screen shook. A sheet with words to change stays where it is; Cancel and the scrim close it.
+    fun editSheetStaysWhileItsWordsScroll() {
+        val long = "She looks at him properly then, at his glasses fogged at the edges. ".repeat(12).trim()
+        link.current.value = link.current.value.copy(exchanges = link.current.value.exchanges.dropLast(1) +
+            Exchange(move = Passage(entryID = "move", text = "I sit beside her."), reply = Passage(entryID = "reply", text = long)))
+        openScene()
+        latest("Edit").performClick()
+        val sheet = { compose.onNodeWithTag("edit-sheet").getUnclippedBoundsInRoot().top }
+        val before = sheet()
+        compose.onNodeWithTag("edit-text").performTouchInput { swipeDown(startY = top + 20f, endY = bottom - 20f, durationMillis = 400) }
+        compose.waitForIdle()
+        assertEquals("The sheet stays put while its words scroll down", before, sheet())
+        compose.onNodeWithTag("edit-text").performTouchInput { swipeUp(startY = bottom - 20f, endY = top + 20f, durationMillis = 400) }
+        compose.waitForIdle()
+        assertEquals("The sheet stays put while its words scroll up", before, sheet())
+        compose.onNodeWithText("Edit this Reply").assertIsDisplayed()
+    }
 }
