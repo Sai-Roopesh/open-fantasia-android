@@ -316,6 +316,12 @@ class SceneScrollState(val list: LazyListState) {
 @Composable fun MoveComposer(state: FantasiaState, write: (String) -> Unit, send: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         if (!state.reachable) Text("The Mac is unreachable", color = FailureAmber, style = FantasiaType.small)
+        state.waitingMove?.takeIf { it.storyID == state.scene?.storyID }?.let { move ->
+            Column(Modifier.fillMaxWidth().testTag("waiting-move"), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(move.text, style = FantasiaType.composer, color = FantasiaSecondary, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                Text("Sends when the Mac is back.", style = FantasiaType.small, color = FantasiaCaption)
+            }
+        }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             BasicTextField(value = state.draft, onValueChange = write, minLines = 2, maxLines = 5,
                 modifier = Modifier.weight(1f).heightIn(min = 70.dp).testTag("composer")

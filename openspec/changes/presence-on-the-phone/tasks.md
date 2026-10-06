@@ -14,13 +14,13 @@ What has been seen can be read without the Mac (The Mac is asleep); The Mac keep
 
 ## 2. Without the Mac
 
-- [ ] 2.1 Test first, then build: `presence › What has been seen can be read without the Mac › The Mac is asleep` (the Stories, a Scene, an earlier Scene and the Journal read from the kept copy with no Mac; the composer says the Mac is unreachable); JVM test and shared check on the JVM and the device
-- [ ] 2.2 A Move written without the Mac waits ("Sends when the Mac is back") and is sent once when it is back; a Story that moved on meanwhile returns it to the composer with the reason; JVM tests
+- [x] 2.1 Test first, then build: `presence › What has been seen can be read without the Mac › The Mac is asleep` (the Stories, a Scene, an earlier Scene and the Journal read from the kept copy with no Mac; the composer says the Mac is unreachable); JVM test and shared check on the JVM and the device
+- [x] 2.2 A Move written without the Mac waits ("Sends when the Mac is back") and is sent once when it is back; a Story that moved on meanwhile returns it to the composer with the reason; JVM tests
 
 ## 3. Notifications
 
-- [ ] 3.1 Test first, then build: `presence › The phone buzzes for two things only › A Reply finishes while the phone is locked` (with the app away and a Reply under way, one silent note, then one "The Reply is ready" notification and the watch stops; the same for a Day View; nothing for anything else); Robolectric tests of the watch
-- [ ] 3.2 The notification permission is asked the first time a Move is sent on Android 13 and later; without it nothing is shown; verify a JVM check
+- [x] 3.1 Test first, then build: `presence › The phone buzzes for two things only › A Reply finishes while the phone is locked` (with the app away and a Reply under way, one silent note, then one "The Reply is ready" notification and the watch stops; the same for a Day View; nothing for anything else); Robolectric tests of the watch
+- [x] 3.2 The notification permission is asked the first time a Move is sent on Android 13 and later; without it nothing is shown; verify a JVM check
 
 ## 4. The Mac
 

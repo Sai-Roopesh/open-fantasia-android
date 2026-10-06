@@ -5,12 +5,14 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.serialization.encodeToString
 import java.io.IOException
 
 class MacConnection(
     private val store: PairingStore,
     discovery: MacDiscovery,
-    private val deviceName: String
+    private val deviceName: String,
+    private val kept: ReadCache = MemoryReadCache()
 ) : FantasiaLink {
     private val finder = MacFinder(discovery)
     private val connected = MutableStateFlow(false)
@@ -64,12 +66,25 @@ class MacConnection(
         attempt(known)?.let { return it.getOrThrow() }
         for (address in finder.addresses(mac).filter { it != known }) attempt(address)?.let { return it.getOrThrow() }
         connected.value = false
-        throw lastFailure ?: LinkFailure("The Mac is unreachable")
+        throw lastFailure ?: LinkFailure(UNREACHABLE)
     }
 
-    override suspend fun stories(): StoryList = read { it.stories() }
-    override suspend fun scene(storyID: String): SceneView = read { it.scene(storyID) }
-    override suspend fun pastScene(storyID: String, number: Long): PastScene = read { it.pastScene(storyID, number) }
+    /**
+     * A read that is kept (openspec presence: What has been seen can be read without the Mac): when no address
+     * answers, the copy from the last read that did is given instead, and [reachable] stays false.
+     */
+    private suspend inline fun <reified T> keptRead(storyID: String?, name: String, noinline action: suspend (LinkClient) -> T): T = try {
+        read(action).also { kept.write(storyID, name, linkJson.encodeToString(it)) }
+    } catch (e: IOException) {
+        if (e is LinkFailure && e.reason != UNREACHABLE) throw e
+        kept.read(storyID, name)?.let { linkJson.decodeFromString<T>(it) } ?: throw e
+    }
+
+    override suspend fun stories(): StoryList = keptRead(null, "stories") { client ->
+        client.stories().also { list -> kept.keepOnly(list.stories.map { it.id }.toSet()) }
+    }
+    override suspend fun scene(storyID: String): SceneView = keptRead(storyID, "scene") { it.scene(storyID) }
+    override suspend fun pastScene(storyID: String, number: Long): PastScene = keptRead(storyID, "scene-$number") { it.pastScene(storyID, number) }
 
     private suspend fun <T> command(action: suspend (LinkClient) -> T): T {
         val client = current ?: read { it.stories(); it }
@@ -98,7 +113,7 @@ class MacConnection(
     override suspend fun deletePath(storyID: String, pathID: String): Accepted = command { it.deletePath(storyID, pathID) }
     override suspend fun clearPaths(storyID: String): Accepted = command { it.clearPaths(storyID) }
     override suspend fun edit(storyID: String, request: EditRequest): Accepted = command { it.edit(storyID, request) }
-    override suspend fun journal(storyID: String): JournalView = read { it.journal(storyID) }
+    override suspend fun journal(storyID: String): JournalView = keptRead(storyID, "journal") { it.journal(storyID) }
     override suspend fun backstage(storyID: String): BackstageView = read { it.backstage(storyID) }
     override suspend fun removeTaste(storyID: String, request: RemoveTasteRequest): Accepted = command { it.removeTaste(storyID, request) }
     override fun watch(initial: SceneView): Flow<SceneView> = StoryStream(
@@ -119,3 +134,5 @@ class MacConnection(
         return PortraitSource(address.toString(), http)
     }
 }
+
+private const val UNREACHABLE = "The Mac is unreachable"

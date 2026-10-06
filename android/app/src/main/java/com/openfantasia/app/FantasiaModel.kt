@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.SerializationException
 
+/** A Move written while the Mac was away, sent once it is back (openspec presence). */
+data class WaitingMove(val storyID: String, val after: String, val text: String)
 data class AppProblem(val reason: String, val traceID: String? = null, val needsUpdate: Boolean = false)
 data class FantasiaState(
     val paired: Boolean,
@@ -31,6 +33,7 @@ data class FantasiaState(
     val showingBackstage: Boolean = false,
     val backstage: BackstageView? = null,
     val draft: String = "",
+    val waitingMove: WaitingMove? = null,
     val sending: Boolean = false,
     val waiting: Boolean = false,
     val reachable: Boolean = false,
@@ -47,7 +50,10 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
     private var afterSeq = 0L
 
     init {
-        viewModelScope.launch { link.reachable.collect { reachable -> mutable.update { it.copy(reachable = reachable) } } }
+        viewModelScope.launch { link.reachable.collect { reachable ->
+            mutable.update { it.copy(reachable = reachable) }
+            if (reachable) sendWaitingMove()
+        } }
         if (link.isPaired) home()
     }
 
@@ -94,6 +100,7 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
                 val scene = link.scene(storyID)
                 pendingMoveID = null
                 mutable.update { it.copy(scene = visibleScene(scene), loading = false, waiting = false) }
+                if (mutable.value.reachable) sendWaitingMove()
                 link.watch(scene).collect { updated ->
                     val finished = updated.turn.kind == TurnStateKind.Failed ||
                         (updated.seq > afterSeq && updated.headEntryID != pendingMoveID && updated.turn.kind == TurnStateKind.Idle)
@@ -231,10 +238,41 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
         val state = mutable.value
         val scene = state.scene ?: return
         if (!state.canSendMove) return
+        if (!state.reachable) {
+            mutable.update { it.copy(waitingMove = WaitingMove(scene.storyID, scene.headEntryID, state.draft), draft = "") }
+            return
+        }
         sendTurn(scene, clearDraft = state.draft) {
             link.move(scene.storyID, MoveRequest(after = scene.headEntryID, text = state.draft))
         }
     }
+
+    /**
+     * The Mac is back: the waiting Move is sent once, after the Scene is read again. If the Story moved on meanwhile
+     * it goes back to the composer with the reason; it is never sent blind, and never twice.
+     */
+    private fun sendWaitingMove() {
+        val move = mutable.value.waitingMove ?: return
+        if (mutable.value.scene?.storyID != move.storyID) return
+        mutable.update { it.copy(waitingMove = null, sending = true) }
+        viewModelScope.launch {
+            val fresh = try { link.scene(move.storyID)
+            } catch (e: CancellationException) { mutable.update { it.copy(waitingMove = move, sending = false) }; throw e
+            } catch (e: Exception) {
+                // Not read, so not sent: it keeps waiting for the Mac.
+                mutable.update { it.copy(waitingMove = move, sending = false) }
+                return@launch
+            }
+            mutable.update { it.copy(scene = visibleScene(fresh), sending = false) }
+            if (fresh.headEntryID != move.after || fresh.turn.kind != TurnStateKind.Idle || fresh.replyComing) {
+                mutable.update { it.copy(draft = giveBack(move, it.draft), problem = AppProblem(MOVED_ON)) }
+                return@launch
+            }
+            sendTurn(fresh, giveBack = move) { link.move(move.storyID, MoveRequest(after = move.after, text = move.text)) }
+        }
+    }
+
+    private fun giveBack(move: WaitingMove, draft: String) = listOf(move.text, draft).filter { it.isNotBlank() }.joinToString("\n")
 
     fun choose(request: ChooseRequest) {
         val state = mutable.value
@@ -244,7 +282,7 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
     }
 
     // Moves and Day View choices are the same turn on the Mac, including acceptance before the stream catches up.
-    private fun sendTurn(scene: SceneView, clearDraft: String? = null, command: suspend () -> TurnAccepted) {
+    private fun sendTurn(scene: SceneView, clearDraft: String? = null, giveBack: WaitingMove? = null, command: suspend () -> TurnAccepted) {
         afterSeq = scene.seq
         mutable.update { it.copy(sending = true, problem = null) }
         viewModelScope.launch {
@@ -258,6 +296,7 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
             } catch (e: CancellationException) { throw e
             } catch (e: Exception) {
                 showProblem(e)
+                if (giveBack != null) mutable.update { it.copy(draft = giveBack(giveBack, it.draft)) }
                 // Re-read the Mac's head before another command; a refused or interrupted turn can leave the view behind.
                 if (e !is LinkFailure || !e.versionMismatch) {
                     try { val fresh = link.scene(scene.storyID); mutable.update { it.copy(scene = visibleScene(fresh)) }
@@ -383,7 +422,11 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
 }
 
 val FantasiaState.canChangeScene: Boolean
-    get() = scene?.turn?.kind == TurnStateKind.Idle && worldReady && !scene.replyComing && reachable && !loading && !sending && !waiting && problem?.needsUpdate != true
+    get() = sceneSettled && reachable
+
+/** Everything a change to the Scene needs but the Mac; a Move can wait for the Mac (openspec presence). */
+private val FantasiaState.sceneSettled: Boolean
+    get() = scene?.turn?.kind == TurnStateKind.Idle && worldReady && !scene.replyComing && !loading && !sending && !waiting && problem?.needsUpdate != true
 
 internal val FantasiaState.replyComing: Boolean
     get() = scene?.replyComing == true || (waiting && scene?.turn?.kind != TurnStateKind.Failed)
@@ -391,7 +434,9 @@ internal val FantasiaState.replyComing: Boolean
 internal val FantasiaState.canChangePath: Boolean
     get() = scene != null && !replyComing && reachable && !loading && !sending && problem?.needsUpdate != true
 internal val FantasiaState.canSendMove: Boolean
-    get() = draft.isNotBlank() && canChangeScene && !replyComing
+    get() = draft.isNotBlank() && waitingMove == null && sceneSettled && !replyComing
+
+private const val MOVED_ON = "The Story moved on while the Mac was away. Your Move is back to send again."
 
 internal val FantasiaState.worldReady: Boolean
     get() = scene?.dayView?.world?.let { it == World.Ready } ?: true

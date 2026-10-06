@@ -11,7 +11,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.Lifecycle
 
-@Composable fun FantasiaApp(model: FantasiaModel, scanner: PairingScanner, portrait: (String) -> PortraitSource? = { null }) {
+@Composable fun FantasiaApp(model: FantasiaModel, scanner: PairingScanner, portrait: (String) -> PortraitSource? = { null }, moveSent: () -> Unit = {}) {
     val state by model.state.collectAsStateWithLifecycle()
     BackHandler(enabled = state.scene != null) {
         when {
@@ -64,7 +64,7 @@ import androidx.lifecycle.Lifecycle
                             if (scene.dayView == null) HorizontalDivider(color = FantasiaHeaderLine)
                             Column(Modifier.padding(start = 16.dp, end = 16.dp, top = if (scene.dayView == null) 10.dp else 4.dp, bottom = if (scene.dayView == null) 18.dp else 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                 if (scene.dayView == null && scene.turn.kind != com.openfantasia.protocol.TurnStateKind.Failed) SceneControls(scene, state.canChangeScene, model::endScene, model::linger)
-                                MoveComposer(state, model::writeMove, model::sendMove)
+                                MoveComposer(state, model::writeMove) { model.sendMove(); moveSent() }
                             }
                         }
                     }
