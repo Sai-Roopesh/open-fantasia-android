@@ -183,6 +183,15 @@ export class Engine {
     return accepted;
   }
 
+  /** Delete a lesson from Taste on the Path the player is on (openspec long-run: Taste is short, readable and the player's). */
+  removeTaste(storyId: string, line: string, after: string, traceId: string): Accepted {
+    const path = this.pathHead(storyId, after);
+    const taste = this.mac.states.at(path.headEntryId).taste;
+    if (!taste.includes(line)) throw new LinkError("invalid", "That is not a line of Taste on this Path.");
+    const entry = this.write(storyId, path, { kind: "taste_set", lines: taste.filter(lesson => lesson !== line) });
+    return { head_entry_id: entry.id, trace_id: traceId };
+  }
+
   /** Focus on someone in the Scene, or clear it with null (openspec scenes: Focus keeps a Scene close to one person). */
   setFocus(storyId: string, after: string, on: string | null, traceId: string): Accepted {
     const { path } = this.idleHead(storyId, after);

@@ -9,13 +9,13 @@ Scenarios this change builds: `outside-the-scene › The Journal reads the Story
 
 ## 1. The contract
 
-- [ ] 1.1 Extend the contract to version 11: `JournalView` (days of Scene and Meanwhile rows), `BackstageView` (off-screen by day, Threads, Lives, the Writer's plan, Taste), `RemoveTasteRequest`; regenerate both sides; verify the host typecheck and the Android build
+- [x] 1.1 Extend the contract to version 11: `JournalView` (days of Scene and Meanwhile rows), `BackstageView` (off-screen by day, Threads, Lives, the Writer's plan, Taste), `RemoveTasteRequest`; regenerate both sides; verify the host typecheck and the Android build
 
 ## 2. On the Mac
 
-- [ ] 2.1 Test first, then build: `outside-the-scene › The Journal reads the Story back › Reading back` on the host (the Journal lists every Scene on the Path by day with its summary, the Meanwhile after each in order, nothing only Backstage knows; Scene 3 opens in full through the past-Scene route)
-- [ ] 2.2 Test first, then build: `outside-the-scene › Backstage shows everything else, only when visited › Quirrell's nights, Backstage` on the host (Saturday night's off-screen has what Quirrell did, known to him alone; Threads, Lives, the Writer's plan and Taste)
-- [ ] 2.3 Test first, then build: `long-run › Taste is short, readable and the player's › Deleting a lesson` (a `taste_set` entry; later Writer and Actor calls no longer carry the line; other Paths keep it; refused mid-Reply); verify engine and link tests
+- [x] 2.1 Test first, then build: `outside-the-scene › The Journal reads the Story back › Reading back` on the host (the Journal lists every Scene on the Path by day with its summary, the Meanwhile after each in order, nothing only Backstage knows; Scene 3 opens in full through the past-Scene route)
+- [x] 2.2 Test first, then build: `outside-the-scene › Backstage shows everything else, only when visited › Quirrell's nights, Backstage` on the host (Saturday night's off-screen has what Quirrell did, known to him alone; Threads, Lives, the Writer's plan and Taste)
+- [x] 2.3 Test first, then build: `long-run › Taste is short, readable and the player's › Deleting a lesson` (a `taste_set` entry; later Writer and Actor calls no longer carry the line; other Paths keep it; refused mid-Reply); verify engine and link tests
 
 ## 3. On the phone
 

@@ -1121,6 +1121,355 @@
         }
       }
     },
+    "JournalView": {
+      "description": "The Journal (openspec outside-the-scene: The Journal reads the Story back): the Scenes on the current Path by day, and what the Player Character heard Meanwhile between them, in order.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "story_id",
+        "days",
+        "trace_id"
+      ],
+      "properties": {
+        "story_id": {
+          "type": "string"
+        },
+        "days": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/JournalDay"
+          }
+        },
+        "trace_id": {
+          "type": "string"
+        }
+      }
+    },
+    "JournalDay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "day",
+        "rows"
+      ],
+      "properties": {
+        "day": {
+          "description": "\"Friday\".",
+          "type": "string"
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/JournalRow"
+          }
+        }
+      }
+    },
+    "JournalRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "scene",
+        "meanwhile"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "scene",
+            "meanwhile"
+          ]
+        },
+        "scene": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/JournalScene"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "meanwhile": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/MeanwhileItem"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "JournalScene": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "number",
+        "label",
+        "title",
+        "summary",
+        "now"
+      ],
+      "properties": {
+        "number": {
+          "type": "integer"
+        },
+        "label": {
+          "description": "\"Scene 12 · 6:10 pm · The Three Broomsticks\", or with \"now\" for the Scene the player is in.",
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "summary": {
+          "description": "The Chronicler's line, or empty until it has written one.",
+          "type": "string"
+        },
+        "now": {
+          "description": "Whether it is the Scene the player is in.",
+          "type": "boolean"
+        }
+      }
+    },
+    "BackstageView": {
+      "description": "Backstage (openspec outside-the-scene: Backstage shows everything else, only when visited): what the Player Character does not know.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "story_id",
+        "offscreen",
+        "threads",
+        "lives",
+        "writer",
+        "taste",
+        "trace_id"
+      ],
+      "properties": {
+        "story_id": {
+          "type": "string"
+        },
+        "offscreen": {
+          "description": "What happened off-screen, by day, newest first, the last seven days.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BackstageDay"
+          }
+        },
+        "threads": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BackstageThread"
+          }
+        },
+        "lives": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BackstageLife"
+          }
+        },
+        "writer": {
+          "description": "The Writer's plan for the Scene the player is in; null between Scenes.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/WriterPlan"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "taste": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "trace_id": {
+          "type": "string"
+        }
+      }
+    },
+    "BackstageDay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "day",
+        "items"
+      ],
+      "properties": {
+        "day": {
+          "description": "\"Saturday\".",
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BackstageItem"
+          }
+        }
+      }
+    },
+    "BackstageItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "time",
+        "what",
+        "known_to"
+      ],
+      "properties": {
+        "time": {
+          "description": "\"11:50 pm\".",
+          "type": "string"
+        },
+        "what": {
+          "type": "string"
+        },
+        "known_to": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "BackstageThread": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "now"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "now": {
+          "description": "Where it stands.",
+          "type": "string"
+        }
+      }
+    },
+    "BackstageLife": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "who",
+        "where",
+        "doing"
+      ],
+      "properties": {
+        "who": {
+          "type": "string"
+        },
+        "where": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "doing": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "WriterPlan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "call",
+        "purpose",
+        "beats",
+        "exit"
+      ],
+      "properties": {
+        "call": {
+          "description": "What the Writer says the next Reply does with the Scene, or null before its first plan.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/SceneCall"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "purpose": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "beats": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WriterBeat"
+          }
+        },
+        "exit": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "SceneCall": {
+      "description": "Go on, bring the Scene to its turn, or close it.",
+      "type": "string",
+      "enum": [
+        "continue",
+        "land",
+        "end"
+      ]
+    },
+    "WriterBeat": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text",
+        "status"
+      ],
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "in_play",
+            "done",
+            "skipped"
+          ]
+        }
+      }
+    },
+    "RemoveTasteRequest": {
+      "description": "Delete a lesson from Taste on the Path the player is on (openspec long-run: Taste is short, readable and the player's).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "line",
+        "after"
+      ],
+      "properties": {
+        "line": {
+          "description": "The lesson to delete, as Taste reads it.",
+          "type": "string"
+        },
+        "after": {
+          "description": "The head the phone saw; refused as stale if the Story has moved on.",
+          "type": "string"
+        }
+      }
+    },
     "EndSceneRequest": {
       "type": "object",
       "additionalProperties": false,

@@ -180,7 +180,7 @@ function previously(mac: Mac, head: string, scene: string, summaries: Map<string
 }
 
 /** The Chronicler's summary of each Scene on the Path at [head] that has one, by the Scene's opening entry. */
-function summariesOn(mac: Mac, head: string): Map<string, string> {
+export function summariesOn(mac: Mac, head: string): Map<string, string> {
   // Chronicles come oldest first, so each Scene keeps its latest: what happened in it once it has ended.
   return new Map(mac.tree.recordsOn(head, "chronicle").flatMap(entry => {
     const chronicle = entry.payload as Chronicle;
@@ -247,6 +247,9 @@ export function entryEvent(mac: Mac, storyId: string, entry: Entry): StoryEvent 
       return { kind: "linger_set", seq: entry.seq, linger: payload.on };
     case "redo":
       return { kind: "redo", seq: entry.seq };
+    // A lesson deleted from Taste changes the Scene's head and nothing a phone shows: it reads the Scene again.
+    case "taste_set":
+      return { kind: "path_changed", seq: entry.seq };
     case "beat_note":
     case "chronicle":
     case "world_moved":

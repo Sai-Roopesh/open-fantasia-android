@@ -44,6 +44,8 @@ export function apply(state: State | null, entry: Entry): State {
     case "reply":
       // Whoever the Beat Note had go has gone once the Reply is written, and Focus on them clears.
       return state.scene?.goes.length ? { ...state, scene: leave(state.scene) } : state;
+    case "taste_set":
+      return { ...state, taste: payload.lines };
     case "move":
       // A Move changes the Story through what it says, which the Writer and the Chronicler read; in the State it only
       // lengthens the Scene, which is read from the Path.

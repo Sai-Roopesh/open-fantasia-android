@@ -37,6 +37,19 @@
 // val rewindRequest        = json.parse(RewindRequest.serializer(), jsonString)
 // val renamePathRequest    = json.parse(RenamePathRequest.serializer(), jsonString)
 // val editRequest          = json.parse(EditRequest.serializer(), jsonString)
+// val journalView          = json.parse(JournalView.serializer(), jsonString)
+// val journalDay           = json.parse(JournalDay.serializer(), jsonString)
+// val journalRow           = json.parse(JournalRow.serializer(), jsonString)
+// val journalScene         = json.parse(JournalScene.serializer(), jsonString)
+// val backstageView        = json.parse(BackstageView.serializer(), jsonString)
+// val backstageDay         = json.parse(BackstageDay.serializer(), jsonString)
+// val backstageItem        = json.parse(BackstageItem.serializer(), jsonString)
+// val backstageThread      = json.parse(BackstageThread.serializer(), jsonString)
+// val backstageLife        = json.parse(BackstageLife.serializer(), jsonString)
+// val writerPlan           = json.parse(WriterPlan.serializer(), jsonString)
+// val sceneCall            = json.parse(SceneCall.serializer(), jsonString)
+// val writerBeat           = json.parse(WriterBeat.serializer(), jsonString)
+// val removeTasteRequest   = json.parse(RemoveTasteRequest.serializer(), jsonString)
 // val endSceneRequest      = json.parse(EndSceneRequest.serializer(), jsonString)
 // val focusRequest         = json.parse(FocusRequest.serializer(), jsonString)
 // val lingerRequest        = json.parse(LingerRequest.serializer(), jsonString)
@@ -906,6 +919,190 @@ data class EditRequest (
      * The words it should read.
      */
     val text: String
+)
+
+/**
+ * The Journal (openspec outside-the-scene: The Journal reads the Story back): the Scenes on
+ * the current Path by day, and what the Player Character heard Meanwhile between them, in
+ * order.
+ */
+@Serializable
+data class JournalView (
+    val days: List<JournalDay>,
+
+    @SerialName("story_id")
+    val storyID: String,
+
+    @SerialName("trace_id")
+    val traceID: String
+)
+
+@Serializable
+data class JournalDay (
+    /**
+     * "Friday".
+     */
+    val day: String,
+
+    val rows: List<JournalRow>
+)
+
+@Serializable
+data class JournalRow (
+    val kind: JournalRowKind,
+    val meanwhile: MeanwhileItem? = null,
+    val scene: JournalScene? = null
+)
+
+@Serializable
+enum class JournalRowKind(val value: String) {
+    @SerialName("meanwhile") Meanwhile("meanwhile"),
+    @SerialName("scene") Scene("scene");
+}
+
+@Serializable
+data class JournalScene (
+    /**
+     * "Scene 12 · 6:10 pm · The Three Broomsticks", or with "now" for the Scene the player is
+     * in.
+     */
+    val label: String,
+
+    /**
+     * Whether it is the Scene the player is in.
+     */
+    val now: Boolean,
+
+    val number: Long,
+
+    /**
+     * The Chronicler's line, or empty until it has written one.
+     */
+    val summary: String,
+
+    val title: String
+)
+
+/**
+ * Backstage (openspec outside-the-scene: Backstage shows everything else, only when
+ * visited): what the Player Character does not know.
+ */
+@Serializable
+data class BackstageView (
+    val lives: List<BackstageLife>,
+
+    /**
+     * What happened off-screen, by day, newest first, the last seven days.
+     */
+    val offscreen: List<BackstageDay>,
+
+    @SerialName("story_id")
+    val storyID: String,
+
+    val taste: List<String>,
+    val threads: List<BackstageThread>,
+
+    @SerialName("trace_id")
+    val traceID: String,
+
+    /**
+     * The Writer's plan for the Scene the player is in; null between Scenes.
+     */
+    val writer: WriterPlan? = null
+)
+
+@Serializable
+data class BackstageLife (
+    val doing: String? = null,
+    val where: String? = null,
+    val who: String
+)
+
+@Serializable
+data class BackstageDay (
+    /**
+     * "Saturday".
+     */
+    val day: String,
+
+    val items: List<BackstageItem>
+)
+
+@Serializable
+data class BackstageItem (
+    @SerialName("known_to")
+    val knownTo: List<String>,
+
+    /**
+     * "11:50 pm".
+     */
+    val time: String,
+
+    val what: String
+)
+
+@Serializable
+data class BackstageThread (
+    val name: String,
+
+    /**
+     * Where it stands.
+     */
+    val now: String
+)
+
+@Serializable
+data class WriterPlan (
+    val beats: List<WriterBeat>,
+
+    /**
+     * What the Writer says the next Reply does with the Scene, or null before its first plan.
+     */
+    val call: SceneCall? = null,
+
+    val exit: String? = null,
+    val purpose: String? = null
+)
+
+@Serializable
+data class WriterBeat (
+    val status: Status,
+    val text: String
+)
+
+@Serializable
+enum class Status(val value: String) {
+    @SerialName("done") Done("done"),
+    @SerialName("in_play") InPlay("in_play"),
+    @SerialName("pending") Pending("pending"),
+    @SerialName("skipped") Skipped("skipped");
+}
+
+/**
+ * Go on, bring the Scene to its turn, or close it.
+ */
+@Serializable
+enum class SceneCall(val value: String) {
+    @SerialName("continue") Continue("continue"),
+    @SerialName("end") End("end"),
+    @SerialName("land") Land("land");
+}
+
+/**
+ * Delete a lesson from Taste on the Path the player is on (openspec long-run: Taste is
+ * short, readable and the player's).
+ */
+@Serializable
+data class RemoveTasteRequest (
+    /**
+     * The head the phone saw; refused as stale if the Story has moved on.
+     */
+    val after: String,
+
+    /**
+     * The lesson to delete, as Taste reads it.
+     */
+    val line: String
 )
 
 @Serializable

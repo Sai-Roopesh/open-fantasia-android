@@ -6,6 +6,13 @@
  */
 export type ErrorCode =
   "unpaired" | "version_mismatch" | "busy" | "stale_head" | "not_found" | "invalid" | "model_failed" | "internal";
+/**
+ * Go on, bring the Scene to its turn, or close it.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "SceneCall".
+ */
+export type SceneCall = "continue" | "land" | "end";
 
 /**
  * Everything the phone and the Mac say to each other (openspec/specs/mac-link). Every request carries the Fantasia-Contract header with the contract version; every response carries a trace id. Unions are flat objects with a kind field, so the Kotlin side stays plain data classes.
@@ -727,6 +734,158 @@ export interface EditRequest {
    * The words it should read.
    */
   text: string;
+  /**
+   * The head the phone saw; refused as stale if the Story has moved on.
+   */
+  after: string;
+}
+/**
+ * The Journal (openspec outside-the-scene: The Journal reads the Story back): the Scenes on the current Path by day, and what the Player Character heard Meanwhile between them, in order.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "JournalView".
+ */
+export interface JournalView {
+  story_id: string;
+  days: JournalDay[];
+  trace_id: string;
+}
+/**
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "JournalDay".
+ */
+export interface JournalDay {
+  /**
+   * "Friday".
+   */
+  day: string;
+  rows: JournalRow[];
+}
+/**
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "JournalRow".
+ */
+export interface JournalRow {
+  kind: "scene" | "meanwhile";
+  scene: JournalScene | null;
+  meanwhile: MeanwhileItem | null;
+}
+/**
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "JournalScene".
+ */
+export interface JournalScene {
+  number: number;
+  /**
+   * "Scene 12 · 6:10 pm · The Three Broomsticks", or with "now" for the Scene the player is in.
+   */
+  label: string;
+  title: string;
+  /**
+   * The Chronicler's line, or empty until it has written one.
+   */
+  summary: string;
+  /**
+   * Whether it is the Scene the player is in.
+   */
+  now: boolean;
+}
+/**
+ * Backstage (openspec outside-the-scene: Backstage shows everything else, only when visited): what the Player Character does not know.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "BackstageView".
+ */
+export interface BackstageView {
+  story_id: string;
+  /**
+   * What happened off-screen, by day, newest first, the last seven days.
+   */
+  offscreen: BackstageDay[];
+  threads: BackstageThread[];
+  lives: BackstageLife[];
+  /**
+   * The Writer's plan for the Scene the player is in; null between Scenes.
+   */
+  writer: WriterPlan | null;
+  taste: string[];
+  trace_id: string;
+}
+/**
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "BackstageDay".
+ */
+export interface BackstageDay {
+  /**
+   * "Saturday".
+   */
+  day: string;
+  items: BackstageItem[];
+}
+/**
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "BackstageItem".
+ */
+export interface BackstageItem {
+  /**
+   * "11:50 pm".
+   */
+  time: string;
+  what: string;
+  known_to: string[];
+}
+/**
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "BackstageThread".
+ */
+export interface BackstageThread {
+  name: string;
+  /**
+   * Where it stands.
+   */
+  now: string;
+}
+/**
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "BackstageLife".
+ */
+export interface BackstageLife {
+  who: string;
+  where: string | null;
+  doing: string | null;
+}
+/**
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "WriterPlan".
+ */
+export interface WriterPlan {
+  /**
+   * What the Writer says the next Reply does with the Scene, or null before its first plan.
+   */
+  call: SceneCall | null;
+  purpose: string | null;
+  beats: WriterBeat[];
+  exit: string | null;
+}
+/**
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "WriterBeat".
+ */
+export interface WriterBeat {
+  text: string;
+  status: "pending" | "in_play" | "done" | "skipped";
+}
+/**
+ * Delete a lesson from Taste on the Path the player is on (openspec long-run: Taste is short, readable and the player's).
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "RemoveTasteRequest".
+ */
+export interface RemoveTasteRequest {
+  /**
+   * The lesson to delete, as Taste reads it.
+   */
+  line: string;
   /**
    * The head the phone saw; refused as stale if the Story has moved on.
    */

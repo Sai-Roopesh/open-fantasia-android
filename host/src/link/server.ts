@@ -8,8 +8,10 @@ import linkSchema from "../../../protocol/schemas/link.schema.json" with { type:
 import type { Engine } from "../engine/engine.js";
 import type { Mac } from "../mac.js";
 import { CONTRACT_VERSION } from "../protocol/generated/contract.js";
-import type { ChooseRequest, EditRequest, EndSceneRequest, ErrorBody, FocusRequest, LingerRequest, MoveRequest, PairRequest, RedoRequest, RenamePathRequest, RewindRequest, TryAnotherWayRequest } from "../protocol/generated/link.js";
+import type { ChooseRequest, EditRequest, EndSceneRequest, ErrorBody, FocusRequest, LingerRequest, MoveRequest, PairRequest, RedoRequest, RemoveTasteRequest, RenamePathRequest, RewindRequest, TryAnotherWayRequest } from "../protocol/generated/link.js";
 import { newTraceId, Traces } from "../trace.js";
+import { backstageView } from "../views/backstage.js";
+import { journalView } from "../views/journal.js";
 import { pathsView } from "../views/paths.js";
 import { pastScene, sceneView } from "../views/scene.js";
 import { listStories } from "../views/stories.js";
@@ -35,6 +37,7 @@ const validTry = ajv.compile<TryAnotherWayRequest>({ $ref: "link#/$defs/TryAnoth
 const validRewind = ajv.compile<RewindRequest>({ $ref: "link#/$defs/RewindRequest" });
 const validRename = ajv.compile<RenamePathRequest>({ $ref: "link#/$defs/RenamePathRequest" });
 const validEdit = ajv.compile<EditRequest>({ $ref: "link#/$defs/EditRequest" });
+const validRemoveTaste = ajv.compile<RemoveTasteRequest>({ $ref: "link#/$defs/RemoveTasteRequest" });
 
 const IMAGE_TYPES: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp" };
 
@@ -136,6 +139,14 @@ export function buildLink(options: LinkOptions): FastifyInstance {
   app.post<{ Params: { id: string } }>("/stories/:id/rewind", async request => {
     if (!validRewind(request.body)) throw new LinkError("invalid", "Rewind needs the Reply to go back to and the entry the phone last saw.");
     return engine.rewind(request.params.id, request.body.to, request.body.after, request.traceId);
+  });
+
+  // Outside the Scene (openspec outside-the-scene): the Journal, what he saw and heard; Backstage, everything else.
+  app.get<{ Params: { id: string } }>("/stories/:id/journal", async request => journalView(mac, request.params.id, request.traceId));
+  app.get<{ Params: { id: string } }>("/stories/:id/backstage", async request => backstageView(mac, request.params.id, request.traceId));
+  app.post<{ Params: { id: string } }>("/stories/:id/taste/remove", async request => {
+    if (!validRemoveTaste(request.body)) throw new LinkError("invalid", "Deleting a lesson needs the line and the entry the phone last saw.");
+    return engine.removeTaste(request.params.id, request.body.line, request.body.after, request.traceId);
   });
 
   // Editing (openspec scenes: Editing): the latest Move or Reply in place, anything earlier on a new Path.

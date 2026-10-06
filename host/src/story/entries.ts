@@ -5,7 +5,7 @@ import type { Beat, ModelChoice, SceneCall } from "./state.js";
  * What can be written to a Story's tree (docs/adr/0003). Each kind is something that happened; the State on a
  * Path is what all of them add up to, worked out by the reducer.
  */
-export type Payload = StorySetUp | SceneOpened | MoveWritten | Redo | BeatNote | ReplyWritten | SceneClosed | FocusSet | LingerSet | Chronicle | WorldMoved;
+export type Payload = StorySetUp | SceneOpened | MoveWritten | Redo | BeatNote | ReplyWritten | SceneClosed | FocusSet | LingerSet | TasteSet | Chronicle | WorldMoved;
 
 /** A payload as any version may have stored it. */
 export type StoredPayload = Exclude<Payload, BeatNote | Chronicle | WorldMoved>
@@ -121,6 +121,12 @@ export interface FocusSet {
 export interface LingerSet {
   kind: "linger_set";
   on: boolean;
+}
+
+/** The player deleted a lesson: Taste on this Path is these lines from here on (openspec long-run). */
+export interface TasteSet {
+  kind: "taste_set";
+  lines: string[];
 }
 
 /** Words taken exactly from one entry, the way a Moment keeps what was said and done. */

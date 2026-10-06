@@ -61,4 +61,17 @@ describe("Editing over the link", () => {
     expect(await message(notAPassage)).toMatch(/Only a Move or a Reply/);
     expect((await edit({ entry: reply.entry_id, after: played.head_entry_id })).status).toBe(400);
   });
+
+  it("answers the Journal and Backstage, and deletes a lesson from Taste", async () => {
+    const { view, call, storyId, engine } = await mac([{ answer: "Draconia laughs." }]);
+    const opening = await view();
+    await call(`/stories/${storyId}/moves`, { method: "POST", body: JSON.stringify({ text: "I wave.", after: opening.head_entry_id }) });
+    await engine.settled(storyId);
+    const journal = await (await call(`/stories/${storyId}/journal`)).json() as { days: { rows: { kind: string }[] }[] };
+    expect(journal.days.flatMap(day => day.rows).map(row => row.kind)).toContain("scene");
+    const backstage = await (await call(`/stories/${storyId}/backstage`)).json() as { taste: string[]; writer: unknown };
+    expect(backstage).toMatchObject({ taste: [], writer: expect.anything() });
+    const refused = await call(`/stories/${storyId}/taste/remove`, { method: "POST", body: JSON.stringify({ line: "Nothing.", after: (await view()).head_entry_id }) });
+    expect(refused.status).toBe(400);
+  });
 });
