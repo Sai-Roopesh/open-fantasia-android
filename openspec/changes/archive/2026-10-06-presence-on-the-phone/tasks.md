@@ -28,5 +28,5 @@ What has been seen can be read without the Mac (The Mac is asleep); The Mac keep
 
 ## 5. Together
 
-- [ ] 5.1 Run `scripts/scenarios.mjs`, the host suite, the Android JVM and device suites, and `openspec validate --all --strict`, and verify all pass
-- [ ] 5.2 On the phone: send a Move and lock the phone, and see the quiet note then the buzz; stop the Mac's host and read the Night Train from the kept copy, write a Move, start the host and see it sent; with the phone on mobile data and Tailscale, see it reach the Mac
+- [x] 5.1 Run `scripts/scenarios.mjs`, the host suite, the Android JVM and device suites, and `openspec validate --all --strict`, and verify all pass
+- [x] 5.2 On the phone: send a Move and lock the phone, and see the quiet note then the buzz; stop the Mac's host and read the Night Train from the kept copy, write a Move, start the host and see it sent; with the phone on mobile data and Tailscale, see it reach the Mac
