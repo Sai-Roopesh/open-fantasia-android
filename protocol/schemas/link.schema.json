@@ -1249,7 +1249,8 @@
         "lives",
         "writer",
         "taste",
-        "trace_id"
+        "trace_id",
+        "director"
       ],
       "properties": {
         "story_id": {
@@ -1293,6 +1294,17 @@
         },
         "trace_id": {
           "type": "string"
+        },
+        "director": {
+          "description": "What the Director is building toward; null until the Director has planned on this Path.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/DirectorLine"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     },
@@ -1907,6 +1919,38 @@
               "type": "null"
             }
           ]
+        }
+      }
+    },
+    "DirectorPhase": {
+      "description": "Where a stretch of the Story is: building, at its peak, or resting after one.",
+      "type": "string",
+      "enum": [
+        "build",
+        "peak",
+        "rest"
+      ]
+    },
+    "DirectorLine": {
+      "description": "The Director's plan as Backstage shows it (Backstage.dc.html: THE DIRECTOR).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "toward",
+        "phase",
+        "line"
+      ],
+      "properties": {
+        "toward": {
+          "description": "What the stretch builds toward: \"the flying test on Wednesday\".",
+          "type": "string"
+        },
+        "phase": {
+          "$ref": "#/$defs/DirectorPhase"
+        },
+        "line": {
+          "description": "Said for Backstage: \"Building toward the flying test on Wednesday. This stretch builds; rest comes after it.\"",
+          "type": "string"
         }
       }
     }

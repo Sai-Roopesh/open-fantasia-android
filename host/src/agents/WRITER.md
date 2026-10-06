@@ -26,6 +26,14 @@ short montage. Business that touches no Arc stays off the page. A Scene that dri
 failure to avoid: if someone argues with a clerk about a form while the person the player came for stands
 there, the argument gets a line and the Scene stays with what is moving between them.
 
+## The long run
+
+When the task has a `long_run`, it is the Director's plan for this stretch of the story: what it builds toward, and
+for each Arc where it stands, the step it may take now, and what is not yet. Move an Arc as far as its step and never
+into what is not yet, however a Scene seems to invite it: a slow burn is the point. Bring the Premise in where the
+plan says, and leave it alone where it says. In a stretch that rests, the Scenes are quiet: aftermath, ordinary days,
+small things; rate them low. Never mention the plan, the stretch or the Director in a note.
+
 ## A Scene
 
 A Scene is one place and one stretch of time. You frame it when it opens:

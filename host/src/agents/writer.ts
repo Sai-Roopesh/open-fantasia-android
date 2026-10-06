@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import type { Models } from "../models/model-call.js";
 import type { World } from "../story/world.js";
-import type { Choice } from "../story/entries.js";
+import type { Choice, DirectorPlan } from "../story/entries.js";
 import { answerWithOneRepair } from "./repair.js";
 import type { Entry } from "../story/entries.js";
 import type { Beat, ModelChoice, PendingDirection, SceneCall, State } from "../story/state.js";
@@ -115,6 +115,8 @@ export interface WriterAsk {
   world: World;
   /** What the player chose at the Day View, when the Move is a choice: the Scene opens on it. */
   choice?: Choice | null;
+  /** The Director's plan for this stretch, and how many of its Scenes are left (openspec long-run), once there is one. */
+  plan?: { plan: DirectorPlan; scenesLeft: number } | null;
 }
 
 /** A new Scene's frame. */
@@ -413,6 +415,7 @@ export function writerPrompt(ask: WriterAsk): { system: string; prompt: string; 
     section(opening === "day_view" ? "last_scene_so_far" : "scene_so_far", sceneSoFar(ask.scene, pc)),
     section(`move by="${pc}"`, move),
     direction?.text ? section("direction", direction.text) : null,
+    ask.plan ? section("long_run", longRun(ask.plan.plan, ask.plan.scenesLeft)) : null,
     section("taste", state.taste.map(line => `- ${line}`).join("\n")),
     direction?.text ? section("directions_before", state.directions.map(line => `- ${line}`).join("\n")) : null,
     section("task", task.join("\n"))
@@ -434,6 +437,20 @@ export function writerPrompt(ask: WriterAsk): { system: string; prompt: string; 
     choice: ask.choice ?? null
   };
   return { system: storyPrompt(state), prompt, facts };
+}
+
+/** The Director's plan as the Writer reads it: the stretch, each Arc's step and what is not yet, and the Premise. */
+function longRun(plan: DirectorPlan, scenesLeft: number): string {
+  const left = `About ${scenesLeft} Scene${scenesLeft === 1 ? " is" : "s are"} left in it`;
+  const stretch = plan.phase === "build" ? `This stretch builds toward ${plan.toward}. ${left}.`
+    : plan.phase === "peak" ? `This stretch peaks: ${plan.toward}. ${left}.`
+    : `This stretch rests. ${left}; then the Story builds toward ${plan.toward}.`;
+  return [
+    stretch,
+    plan.landmark ? `It builds toward the Landmark ${plan.landmark}.` : "",
+    plan.arcs.length ? `Arcs:\n${plan.arcs.map(arc => `- ${arc.arc}: now, ${arc.now}. In this stretch it may go as far as: ${arc.next}. Not yet: ${arc.not_yet}.`).join("\n")}` : "",
+    `Premise: ${plan.premise}`
+  ].filter(Boolean).join("\n");
 }
 
 /**

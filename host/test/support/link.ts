@@ -5,7 +5,7 @@ import { Engine } from "../../src/engine/engine.js";
 import { buildLink } from "../../src/link/server.js";
 import { Pairing } from "../../src/link/pairing.js";
 import { Models, type ModelRequest, type ModelRunner } from "../../src/models/model-call.js";
-import { fakeChronicleAnswer, fakeWeaveAnswer, fakeWriterAnswer } from "../../src/models/fake.js";
+import { fakeChronicleAnswer, fakeDirectorAnswer, fakeWeaveAnswer, fakeWriterAnswer } from "../../src/models/fake.js";
 import { ScriptedRunner } from "../../src/models/scripted.js";
 import { CONTRACT_VERSION } from "../../src/protocol/generated/contract.js";
 import type { StoryEvent } from "../../src/protocol/generated/link.js";
@@ -71,7 +71,8 @@ export class HeldRunner implements ModelRunner {
 export function withWriter(actor: ModelRunner, writer: ModelRunner = new ScriptedRunner([], fakeWriterAnswer)): ModelRunner {
   const chronicler = new ScriptedRunner([], fakeChronicleAnswer);
   const weaver = new ScriptedRunner([], fakeWeaveAnswer);
-  const runners: Record<string, ModelRunner> = { writer, chronicler, weaver };
+  const director = new ScriptedRunner([], fakeDirectorAnswer);
+  const runners: Record<string, ModelRunner> = { writer, chronicler, weaver, director };
   return { run: (request, onText, signal) => (runners[request.agent] ?? actor).run(request, onText, signal) };
 }
 

@@ -1,6 +1,7 @@
 import { LinkError } from "../link/errors.js";
 import type { Mac } from "../mac.js";
-import type { BackstageDay, BackstageView } from "../protocol/generated/link.js";
+import { currentPlan } from "../engine/directing.js";
+import type { BackstageDay, BackstageView, DirectorLine } from "../protocol/generated/link.js";
 import { worldOn } from "../story/world.js";
 import { minutesOf, parseStoryTime, sayDay, sayTime } from "../time.js";
 
@@ -41,6 +42,18 @@ export function backstageView(mac: Mac, storyId: string, traceId: string): Backs
     lives: world.lives.map(life => ({ who: life.who, where: life.where, doing: life.doing })),
     writer: scene && !scene.closed ? { call: scene.call, purpose: scene.purpose, beats: scene.beats.map(beat => ({ text: beat.text, status: beat.status })), exit: scene.exit } : null,
     taste: state.taste,
+    director: directorLine(mac, path.headEntryId),
     trace_id: traceId
   };
 }
+
+/** What the Director is building toward, as Backstage.dc.html says it; null until he has planned on this Path. */
+export function directorLine(mac: Mac, head: string): DirectorLine | null {
+  const plan = currentPlan(mac, head)?.entry.payload;
+  if (!plan) return null;
+  const line = plan.phase === "build" ? `Building toward ${plan.toward}. This stretch builds; rest comes after it.`
+    : plan.phase === "peak" ? `Building toward ${plan.toward}. This stretch peaks.`
+    : `Resting. Next, building toward ${plan.toward}.`;
+  return { toward: plan.toward, phase: plan.phase, line };
+}
+

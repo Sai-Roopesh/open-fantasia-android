@@ -1,7 +1,7 @@
 import type { ModelRequest, ModelRunner } from "./model-call.js";
 
-/** What a scripted model does with one call: answer with this text, or fail with this reason. */
-export type Script = { answer: string } | { fail: string };
+/** What a scripted model does with one call: answer with this text, fail with this reason, or work it out from the call. */
+export type Script = { answer: string } | { fail: string } | { from: (request: ModelRequest) => Script };
 
 /**
  * A model that answers from a script instead of a provider, word by word as a real one streams. Every scenario
@@ -24,7 +24,8 @@ export class ScriptedRunner implements ModelRunner {
 
   async run(request: ModelRequest, onText: (delta: string) => void, signal: AbortSignal): Promise<string> {
     this.requests.push(request);
-    const script = this.scripts.shift() ?? this.fallback(request);
+    let script = this.scripts.shift() ?? this.fallback(request);
+    while ("from" in script) script = script.from(request);
     if ("fail" in script) throw new Error(script.fail);
     const words = script.answer.split(/(?<=\s)/);
     for (const word of words) {

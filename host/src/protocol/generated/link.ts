@@ -21,6 +21,13 @@ export type SceneCall = "continue" | "land" | "end";
  */
 export type BeatStatus = "pending" | "in_play" | "done" | "skipped";
 /**
+ * Where a stretch of the Story is: building, at its peak, or resting after one.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "DirectorPhase".
+ */
+export type DirectorPhase = "build" | "peak" | "rest";
+/**
  * Who offers a model: each is reached through the player's own subscription (docs/adr/0005).
  *
  * This interface was referenced by `Link`'s JSON-Schema
@@ -835,6 +842,10 @@ export interface BackstageView {
   writer: WriterPlan | null;
   taste: string[];
   trace_id: string;
+  /**
+   * What the Director is building toward; null until the Director has planned on this Path.
+   */
+  director: DirectorLine | null;
 }
 /**
  * This interface was referenced by `Link`'s JSON-Schema
@@ -899,6 +910,23 @@ export interface WriterPlan {
 export interface WriterBeat {
   text: string;
   status: BeatStatus;
+}
+/**
+ * The Director's plan as Backstage shows it (Backstage.dc.html: THE DIRECTOR).
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "DirectorLine".
+ */
+export interface DirectorLine {
+  /**
+   * What the stretch builds toward: "the flying test on Wednesday".
+   */
+  toward: string;
+  phase: DirectorPhase;
+  /**
+   * Said for Backstage: "Building toward the flying test on Wednesday. This stretch builds; rest comes after it."
+   */
+  line: string;
 }
 /**
  * Delete a lesson from Taste on the Path the player is on (openspec long-run: Taste is short, readable and the player's).

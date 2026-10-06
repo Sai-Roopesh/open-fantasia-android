@@ -5,7 +5,11 @@ import type { Beat, ModelChoice, SceneCall } from "./state.js";
  * What can be written to a Story's tree (docs/adr/0003). Each kind is something that happened; the State on a
  * Path is what all of them add up to, worked out by the reducer.
  */
-export type Payload = StorySetUp | SceneOpened | MoveWritten | Redo | BeatNote | ReplyWritten | SceneClosed | FocusSet | LingerSet | TasteSet | Chronicle | WorldMoved;
+export type Payload = StorySetUp | SceneOpened | MoveWritten | Redo | BeatNote | ReplyWritten | SceneClosed | FocusSet | LingerSet | TasteSet | Chronicle | WorldMoved | DirectorPlan;
+
+/** The kinds written beside play, hanging off the Path and never on it (docs/adr/0007). */
+export const RECORD_KINDS = ["chronicle", "world_moved", "director_plan"] as const;
+export type RecordKind = (typeof RECORD_KINDS)[number];
 
 /** A payload as any version may have stored it. */
 export type StoredPayload = Exclude<Payload, BeatNote | Chronicle | WorldMoved>
@@ -238,6 +242,35 @@ export interface WorldMoved {
   meanwhile: MeanwhileItem[];
   /** What is on from [until] on, the Story's pick first. */
   happenings: Happening[];
+  callId: string;
+  model: ModelChoice;
+}
+
+/** One Arc as the Director plans it for a stretch: where it stands, the one step it may take, and what is too far. */
+export interface ArcStep {
+  arc: string;
+  now: string;
+  next: string;
+  not_yet: string;
+}
+
+/**
+ * The Director's plan for the next stretch of the Story (openspec long-run: The Director shapes the long run). It
+ * hangs off the entry that closed the Scene it followed (docs/adr/0007); the newest one on a Path is its plan, and has
+ * run its course once [scenes] Scenes have closed since.
+ */
+export interface DirectorPlan {
+  kind: "director_plan";
+  /** What the stretch builds toward, in the Story's words: "the flying test on Wednesday". */
+  toward: string;
+  /** The Landmark it builds toward, when it is one. */
+  landmark: string | null;
+  phase: "build" | "peak" | "rest";
+  /** How many Scenes the stretch should take. */
+  scenes: number;
+  arcs: ArcStep[];
+  /** How the Premise comes into the stretch: which kinds of Scene serve it, and which leave it alone. */
+  premise: string;
   callId: string;
   model: ModelChoice;
 }

@@ -235,3 +235,31 @@ describe("the Writer's call", () => {
     expect((failure as WriterFailed).message).toMatch(/clock: Day 1 22:00 is before now/);
   });
 });
+
+describe("the Writer and the Director's plan (openspec long-run)", () => {
+  const plan = {
+    kind: "director_plan" as const, toward: "the night she finds out what he is", landmark: null, phase: "build" as const, scenes: 4,
+    arcs: [{ arc: "Meera trusts Ishaan", now: "she lets him carry her bag", next: "she tells him why she is going to Shimla", not_yet: "anything about her mother" }],
+    premise: "Two of these Scenes are with Meera; the others are Ishaan alone in Shimla.", callId: "c", model: { provider: "claude" as const, model: "claude-opus-5-5" }
+  };
+
+  it("reads the stretch, each Arc's step and what is not yet, and how the Premise comes in", () => {
+    const { state } = nightTrain();
+    const { prompt } = writerPrompt(ask(state, "I ask her where she is going.", { plan: { plan, scenesLeft: 3 } }));
+    expect(prompt).toContain("<long_run>");
+    expect(prompt).toContain("This stretch builds toward the night she finds out what he is. About 3 Scenes are left in it.");
+    expect(prompt).toContain("- Meera trusts Ishaan: now, she lets him carry her bag. In this stretch it may go as far as: she tells him why she is going to Shimla. Not yet: anything about her mother.");
+    expect(prompt).toContain("Premise: Two of these Scenes are with Meera; the others are Ishaan alone in Shimla.");
+  });
+
+  it("is told a resting stretch is quiet", () => {
+    const { state } = nightTrain();
+    const { prompt } = writerPrompt(ask(state, "I sleep late.", { plan: { plan: { ...plan, phase: "rest" }, scenesLeft: 1 } }));
+    expect(prompt).toContain("This stretch rests. About 1 Scene is left in it; then the Story builds toward the night she finds out what he is.");
+  });
+
+  it("has no long run before the Director has planned", () => {
+    const { state } = nightTrain();
+    expect(writerPrompt(ask(state, "I wave.")).prompt).not.toContain("<long_run>");
+  });
+});

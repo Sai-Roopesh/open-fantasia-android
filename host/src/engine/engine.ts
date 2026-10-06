@@ -8,6 +8,8 @@ import { writeBeat, WriterFailed } from "../agents/writer.js";
 import { LinkError } from "../link/errors.js";
 import type { Mac } from "../mac.js";
 import { actorOf, jobModels } from "../models/jobs.js";
+import { writePlan } from "../agents/director.js";
+import { directionDue, planForWriter } from "./directing.js";
 import type { Models } from "../models/model-call.js";
 import type { Accepted, ChooseRequest, StoryEvent, TurnAccepted, TurnState } from "../protocol/generated/link.js";
 import type { StoryPath } from "../store/tree.js";
@@ -74,6 +76,9 @@ export class Engine {
   private readonly failures = new Map<string, Failure>();
   private readonly chronicling = new Map<string, Promise<void>>();
   private readonly weaving = new Map<string, Promise<void>>();
+  private readonly directing = new Map<string, Promise<void>>();
+  /** Per Story, the Scene end the Director failed to plan after: a plan is due again at the next one (openspec long-run). */
+  private readonly directionFailedAt = new Map<string, string>();
   /** Per Story, the Scene end the Weaver could not move the World on from, until Retry (openspec presence). */
   private readonly worldFailures = new Map<string, { scene: string; reason: string; traceId: string; seq: number }>();
   /** Per Story, the model Retry World chose for the Weaver's next try, and only that one (openspec presence). */
@@ -135,6 +140,7 @@ export class Engine {
     const closed = this.write(storyId, path, { kind: "scene_closed", by: "player" });
     this.chronicle(storyId);
     this.weave(storyId);
+    this.direct(storyId);
     return { head_entry_id: closed.id, trace_id: traceId };
   }
 
@@ -288,6 +294,60 @@ export class Engine {
   weave(storyId: string): void {
     const previous = this.weaving.get(storyId) ?? Promise.resolve();
     this.weaving.set(storyId, previous.then(() => this.weaveDue(storyId)).catch(() => {}));
+  }
+
+  /**
+   * Queues the Director for the Scene end the Story's current Path is at (docs/adr/0004: the Director after the
+   * Chronicler and the Weaver, when the chapter turned). It plans only when a plan is due (engine/directing.ts); its
+   * plan hangs off the Scene's end (docs/adr/0007). A failure is kept in its call, and a plan is due again next time.
+   */
+  direct(storyId: string): void {
+    const previous = this.directing.get(storyId) ?? Promise.resolve();
+    this.directing.set(storyId, previous.then(async () => {
+      await this.chronicled(storyId);
+      await this.woven(storyId);
+      await this.directDue(storyId);
+    }).catch(() => {}));
+  }
+
+  /** Queues the Director for every Story, for `fantasia serve` when it starts. */
+  directAll(): void {
+    const stories = this.mac.db.prepare("SELECT id FROM stories").all() as { id: string }[];
+    for (const story of stories) this.direct(story.id);
+  }
+
+  /** Resolves when the Story's Director queue is empty: for tests and for shutting down cleanly. */
+  async directed(storyId: string): Promise<void> {
+    let waitingOn: Promise<void> | undefined;
+    do {
+      waitingOn = this.directing.get(storyId);
+      await waitingOn;
+    } while (waitingOn !== this.directing.get(storyId));
+  }
+
+  private async directDue(storyId: string): Promise<void> {
+    const dueNow = () => {
+      const path = this.mac.tree.currentPath(storyId);
+      return path ? directionDue(this.mac, path.headEntryId, this.directionFailedAt.get(storyId) ?? null) : null;
+    };
+    if (!dueNow()) return;
+    // A Scene may have ended since this run was queued: the Director plans from what the Chronicler and the Weaver
+    // recorded of it, so it waits for them, then looks again.
+    await this.chronicled(storyId);
+    await this.woven(storyId);
+    const due = dueNow();
+    if (!due) return;
+    const traceId = `direct-${randomUUID().slice(0, 8)}`;
+    const model = jobModels(this.mac.home).director;
+    try {
+      const { value, callId } = await writePlan(this.models, model, due.ask, storyId, traceId, new AbortController().signal);
+      const record = this.mac.tree.append(storyId, due.closing.id, { kind: "director_plan", ...value, callId, model });
+      this.models.attach(callId, record.id);
+      this.directionFailedAt.delete(storyId);
+    } catch {
+      // The call and why it failed are kept with it; the Writer goes on with the last plan until the next Scene's end.
+      this.directionFailedAt.set(storyId, due.closing.id);
+    }
   }
 
   /** Queues the Weaver for every Story, for `fantasia serve` when it starts. */
@@ -514,6 +574,7 @@ export class Engine {
     this.emit(storyId, { id: String(seq), event: { kind: "path_changed", seq } });
     this.chronicle(storyId);
     this.weave(storyId);
+    this.direct(storyId);
     return { head_entry_id: head, trace_id: traceId };
   }
 
@@ -610,7 +671,7 @@ export class Engine {
     const model = turn.models.writer;
     const text = turn.move.payload.kind === "move" ? turn.move.payload.text : "";
     const { plan, callId } = await writeBeat(this.models, model,
-      { state, scene: moveAt >= 0 ? entries.slice(0, moveAt) : entries, move: text, direction: state.pendingDirection, recall: recall(this.mac, head.id, state.scene?.here ?? []), world: worldOn(this.mac, head.id), choice: turn.move.payload.kind === "move" ? turn.move.payload.choice ?? null : null },
+      { state, scene: moveAt >= 0 ? entries.slice(0, moveAt) : entries, move: text, direction: state.pendingDirection, recall: recall(this.mac, head.id, state.scene?.here ?? []), world: worldOn(this.mac, head.id), choice: turn.move.payload.kind === "move" ? turn.move.payload.choice ?? null : null, plan: planForWriter(this.mac, head.id) },
       turn.storyId, turn.traceId, turn.abort.signal);
 
     const written = this.mac.db.transaction(() => {
@@ -654,6 +715,7 @@ export class Engine {
     if (written.closed) this.publish(turn.storyId, written.closed);
     this.chronicle(turn.storyId);
     this.weave(turn.storyId);
+    this.direct(turn.storyId);
   }
 
   private started(turn: Turn, anchor: Entry): OutgoingEvent {

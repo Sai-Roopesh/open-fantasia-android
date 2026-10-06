@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { readPayload, type Entry, type Payload, type StoredPayload } from "../story/entries.js";
+import { readPayload, RECORD_KINDS, type Entry, type Payload, type RecordKind, type StoredPayload } from "../story/entries.js";
 import type { Db } from "./db.js";
 
 interface EntryRow {
@@ -95,11 +95,11 @@ export class Tree {
    */
   /** The background records hanging off [entryId] itself, oldest first. */
   recordsOf(entryId: string): Entry[] {
-    const rows = this.db.prepare("SELECT * FROM entries WHERE parent_id = ? AND kind IN ('chronicle', 'world_moved') ORDER BY seq").all(entryId) as EntryRow[];
+    const rows = this.db.prepare(`SELECT * FROM entries WHERE parent_id = ? AND kind IN (${RECORD_KINDS.map(() => "?").join(", ")}) ORDER BY seq`).all(entryId, ...RECORD_KINDS) as EntryRow[];
     return rows.map(toEntry);
   }
 
-  recordsOn(headId: string, kind: "chronicle" | "world_moved"): Entry[] {
+  recordsOn(headId: string, kind: RecordKind): Entry[] {
     const rows = this.db.prepare(`
       WITH RECURSIVE path(id, parent_id, depth) AS (
         SELECT id, parent_id, 0 FROM entries WHERE id = ?

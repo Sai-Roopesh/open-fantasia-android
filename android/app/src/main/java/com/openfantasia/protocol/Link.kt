@@ -70,6 +70,8 @@
 // val setActorRequest      = json.parse(SetActorRequest.serializer(), jsonString)
 // val retryRequest         = json.parse(RetryRequest.serializer(), jsonString)
 // val retryWorldRequest    = json.parse(RetryWorldRequest.serializer(), jsonString)
+// val directorPhase        = json.parse(DirectorPhase.serializer(), jsonString)
+// val directorLine         = json.parse(DirectorLine.serializer(), jsonString)
 
 package com.openfantasia.protocol
 
@@ -1022,6 +1024,11 @@ data class JournalScene (
  */
 @Serializable
 data class BackstageView (
+    /**
+     * What the Director is building toward; null until the Director has planned on this Path.
+     */
+    val director: DirectorLine? = null,
+
     val lives: List<BackstageLife>,
 
     /**
@@ -1043,6 +1050,35 @@ data class BackstageView (
      */
     val writer: WriterPlan? = null
 )
+
+/**
+ * The Director's plan as Backstage shows it (Backstage.dc.html: THE DIRECTOR).
+ */
+@Serializable
+data class DirectorLine (
+    /**
+     * Said for Backstage: "Building toward the flying test on Wednesday. This stretch builds;
+     * rest comes after it."
+     */
+    val line: String,
+
+    val phase: DirectorPhase,
+
+    /**
+     * What the stretch builds toward: "the flying test on Wednesday".
+     */
+    val toward: String
+)
+
+/**
+ * Where a stretch of the Story is: building, at its peak, or resting after one.
+ */
+@Serializable
+enum class DirectorPhase(val value: String) {
+    @SerialName("build") Build("build"),
+    @SerialName("peak") Peak("peak"),
+    @SerialName("rest") REST("rest");
+}
 
 @Serializable
 data class BackstageLife (

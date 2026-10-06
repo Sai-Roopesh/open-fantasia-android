@@ -94,6 +94,7 @@ function describe(payload: Payload): string {
     case "taste_set": return `Taste: ${payload.lines.join(" / ") || "nothing"}`;
     case "chronicle": return `${payload.moments.length} Moments${payload.summary ? `: ${payload.summary}` : ""}`;
     case "world_moved": return `The World moved on to ${payload.until}: ${payload.lives.length} Lives, ${payload.happened.length} happened, ${payload.meanwhile.length} in Meanwhile`;
+    case "director_plan": return `The Director: ${payload.phase} toward ${payload.toward}, ${payload.scenes} Scenes`;
   }
 }
 

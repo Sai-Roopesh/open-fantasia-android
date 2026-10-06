@@ -10,7 +10,7 @@ import { freshHome } from "./host.js";
 import { hogwartsStoryFile, writeStoryFile } from "./story-files.js";
 
 /** A Story ready to play on scripted models, with every event it sends kept. */
-export function playable(storyFile: StoryFile = hogwartsStoryFile(), scripts: { writer?: Script[]; actor?: Script[]; chronicler?: Script[]; weaver?: Script[] } = {}, actorFallback?: ConstructorParameters<typeof FakeModels>[1]) {
+export function playable(storyFile: StoryFile = hogwartsStoryFile(), scripts: { writer?: Script[]; actor?: Script[]; chronicler?: Script[]; weaver?: Script[]; director?: Script[] } = {}, actorFallback?: ConstructorParameters<typeof FakeModels>[1]) {
   const mac = freshHome();
   const result = importStoryFile(writeStoryFile(storyFile), mac);
   if (!result.ok) throw new Error(`import failed: ${JSON.stringify(result.problems)}`);

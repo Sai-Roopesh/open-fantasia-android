@@ -39,6 +39,7 @@ export function apply(state: State | null, entry: Entry): State {
       return { ...state, scene: { ...inScene(state), linger: payload.on } };
     case "chronicle":
     case "world_moved":
+    case "director_plan":
       // Records written beside play hang off the Path and are never walked (docs/adr/0007); they are read beside it.
       return state;
     case "reply":
