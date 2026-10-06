@@ -26,5 +26,5 @@ Scenarios this change builds: `outside-the-scene › The Journal reads the Story
 
 ## 4. Together
 
-- [ ] 4.1 Run `scripts/scenarios.mjs`, the host suite, the Android JVM and device suites, and `openspec validate --all --strict`, and verify all pass
+- [x] 4.1 Run `scripts/scenarios.mjs`, the host suite, the Android JVM and device suites, and `openspec validate --all --strict`, and verify all pass
 - [ ] 4.2 On the phone, with the Mac and the phone installed together at version 11: open the Journal and Backstage on the Night Train, tap an earlier Scene, and compare with the drawings

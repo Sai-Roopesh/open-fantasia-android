@@ -5,6 +5,11 @@ import com.openfantasia.protocol.*
 import org.junit.Assert.*
 
 open class OutsideUiChecks : WorldUiChecks() {
+    /** A line of Backstage, scrolled to first: the screen is a list that only builds what it has shown. */
+    private fun backstage(text: String): SemanticsNodeInteraction {
+        compose.onNodeWithTag("backstage").performScrollToNode(hasText(text))
+        return compose.onNodeWithText(text)
+    }
     // WHEN the player opens the Journal and taps Scene 3
     // THEN Scene 3 is shown in full
     fun readingBack() {
@@ -39,18 +44,18 @@ open class OutsideUiChecks : WorldUiChecks() {
         compose.onNodeWithText("11:50 pm").assertIsDisplayed()
         compose.onNodeWithText("Quirrell tests the wards on the third-floor door. Nobody sees him.").assertIsDisplayed()
         compose.onNodeWithText("Hagrid's lantern stops at the edge of the forest.").assertDoesNotExist()
-        compose.onNodeWithText("THREADS").performScrollTo().assertIsDisplayed()
+        backstage("THREADS").assertIsDisplayed()
         compose.onNodeWithText("Quirrell has tried the wards twice and scorched the door").assertIsDisplayed()
-        compose.onNodeWithText("LIVES").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("THE WRITER · THIS SCENE").performScrollTo().assertIsDisplayed()
+        backstage("LIVES").assertIsDisplayed()
+        backstage("THE WRITER · THIS SCENE").assertIsDisplayed()
         compose.onNodeWithText("LANDING").assertIsDisplayed()
-        compose.onNodeWithText("Out: she goes up to bed, or asks him to come and look.").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("TASTE · WHAT THE STORY HAS LEARNED").performScrollTo().assertIsDisplayed()
+        backstage("Out: she goes up to bed, or asks him to come and look.").assertIsDisplayed()
+        backstage("TASTE · WHAT THE STORY HAS LEARNED").assertIsDisplayed()
         compose.preview("Backstage")
         // Another day, from the day's chip.
-        compose.onNodeWithText("Saturday").performScrollTo().performClick()
+        backstage("Saturday").performClick()
         compose.onNodeWithText("Friday").performClick()
-        compose.onNodeWithText("Hagrid's lantern stops at the edge of the forest.").performScrollTo().assertIsDisplayed()
+        backstage("Hagrid's lantern stops at the edge of the forest.").assertIsDisplayed()
     }
 
     // GIVEN Taste has the line "keep Ron in the background"
@@ -59,8 +64,8 @@ open class OutsideUiChecks : WorldUiChecks() {
     fun deletingALesson() {
         openScene()
         compose.onNodeWithText("Backstage").performClick()
-        compose.onNodeWithText("Keep Ron in the background unless he's needed.").performScrollTo().assertIsDisplayed()
-        compose.onAllNodesWithContentDescription("Delete this line")[1].performScrollTo().performClick()
+        backstage("Keep Ron in the background unless he's needed.").assertIsDisplayed()
+        compose.onAllNodesWithContentDescription("Delete this line")[1].performClick()
         compose.runOnIdle { assertEquals(listOf(RemoveTasteRequest(line = "Keep Ron in the background unless he's needed.", after = "reply")), link.tasteRemovals) }
         compose.onNodeWithText("Keep Ron in the background unless he's needed.").assertDoesNotExist()
         compose.onNodeWithText("Keep school procedure to a line.").assertIsDisplayed()
