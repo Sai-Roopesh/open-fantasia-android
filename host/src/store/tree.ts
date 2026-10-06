@@ -26,8 +26,8 @@ interface PathRow {
   named: number;
 }
 
-/** How a Path began: the Story's first, tried another way, set aside by Rewind, or started again from the beginning. */
-export type PathOrigin = "main" | "tried" | "set_aside" | "beginning";
+/** How a Path began: the Story's first, tried another way, set aside by Rewind, started again, or an earlier edit. */
+export type PathOrigin = "main" | "tried" | "set_aside" | "beginning" | "edited";
 
 export interface StoryPath {
   id: string;
@@ -93,6 +93,12 @@ export class Tree {
    * The records of [kind] a Path sees: those whose parent is on the Path from the root to [headId], in Path order
    * (docs/adr/0007). They hang off the Path, so walking it never meets one.
    */
+  /** The background records hanging off [entryId] itself, oldest first. */
+  recordsOf(entryId: string): Entry[] {
+    const rows = this.db.prepare("SELECT * FROM entries WHERE parent_id = ? AND kind IN ('chronicle', 'world_moved') ORDER BY seq").all(entryId) as EntryRow[];
+    return rows.map(toEntry);
+  }
+
   recordsOn(headId: string, kind: "chronicle" | "world_moved"): Entry[] {
     const rows = this.db.prepare(`
       WITH RECURSIVE path(id, parent_id, depth) AS (

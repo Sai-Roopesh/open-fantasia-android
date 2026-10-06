@@ -8,11 +8,20 @@ import type { StoryPath } from "../store/tree.js";
  * removed, so going back, trying something else and starting again never lose anything (docs/adr/0003).
  */
 
-/** The Reply [entryId] on [path]: a Reply, or a Scene's opening prose, which the player reads as one. */
+/**
+ * The moment [entryId] names on [path]: a Reply, or a Scene's opening prose, which the player reads as one, is that
+ * moment; a Move names the moment before it, the entry it answered (openspec scenes: The latest Reply has its actions
+ * in view).
+ */
 export function replyOnPath(mac: Mac, path: StoryPath, entryId: string): Entry {
-  const entry = mac.tree.pathTo(path.headEntryId).find(item => item.id === entryId);
+  const entries = mac.tree.pathTo(path.headEntryId);
+  const entry = entries.find(item => item.id === entryId);
+  if (entry?.payload.kind === "move") {
+    const before = entries.find(item => item.id === entry.parentId);
+    if (before) return before;
+  }
   const reply = entry && (entry.payload.kind === "reply" || (entry.payload.kind === "scene_opened" && entry.payload.prose !== null));
-  if (!entry || !reply) throw new LinkError("invalid", "That is not a Reply on this Path.");
+  if (!entry || !reply) throw new LinkError("invalid", "That is not a Reply or a Move on this Path.");
   return entry;
 }
 

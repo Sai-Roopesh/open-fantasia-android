@@ -440,7 +440,7 @@ export interface TurnAccepted {
   trace_id: string;
 }
 /**
- * One event on a Story's live stream. Entry events (scene_opened, move, reply, scene_closed, focus_set, linger_set, redo) are replayed after a reconnect; reply_started, reply_delta and reply_failed describe the turn under way; world_moved and world_failed say the World has moved on, or could not, after a Scene ended. path_changed says the Story is now on another Path, or its Path was moved back. After scene_opened, scene_closed, redo, world_moved, world_failed and path_changed, and after a move that opens the next Scene, the phone reads the Scene again, because they change more than one part of it.
+ * One event on a Story's live stream. Entry events (scene_opened, move, reply, scene_closed, focus_set, linger_set, redo) are replayed after a reconnect; reply_started, reply_delta and reply_failed describe the turn under way; world_moved and world_failed say the World has moved on, or could not, after a Scene ended. path_changed says the Story is now on another Path, or its Path was moved back, or a Move or Reply on it was edited. After scene_opened, scene_closed, redo, world_moved, world_failed and path_changed, and after a move that opens the next Scene, the phone reads the Scene again, because they change more than one part of it.
  *
  * This interface was referenced by `Link`'s JSON-Schema
  * via the `definition` "StoryEvent".
@@ -711,6 +711,26 @@ export interface RenamePathRequest {
    * The Path's new name; empty to go back to its newest Scene.
    */
   name: string;
+}
+/**
+ * Edit a Move or a Reply in the player's words (openspec scenes: Editing). The latest changes in place; anything earlier carries the Story on from the edit on a new Path.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "EditRequest".
+ */
+export interface EditRequest {
+  /**
+   * The Move's or the Reply's entry, or a Scene's opening prose.
+   */
+  entry: string;
+  /**
+   * The words it should read.
+   */
+  text: string;
+  /**
+   * The head the phone saw; refused as stale if the Story has moved on.
+   */
+  after: string;
 }
 /**
  * This interface was referenced by `Link`'s JSON-Schema

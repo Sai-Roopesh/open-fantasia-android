@@ -36,6 +36,7 @@
 // val tryAnotherWayRequest = json.parse(TryAnotherWayRequest.serializer(), jsonString)
 // val rewindRequest        = json.parse(RewindRequest.serializer(), jsonString)
 // val renamePathRequest    = json.parse(RenamePathRequest.serializer(), jsonString)
+// val editRequest          = json.parse(EditRequest.serializer(), jsonString)
 // val endSceneRequest      = json.parse(EndSceneRequest.serializer(), jsonString)
 // val focusRequest         = json.parse(FocusRequest.serializer(), jsonString)
 // val lingerRequest        = json.parse(LingerRequest.serializer(), jsonString)
@@ -630,10 +631,10 @@ data class TurnAccepted (
  * scene_closed, focus_set, linger_set, redo) are replayed after a reconnect; reply_started,
  * reply_delta and reply_failed describe the turn under way; world_moved and world_failed
  * say the World has moved on, or could not, after a Scene ended. path_changed says the
- * Story is now on another Path, or its Path was moved back. After scene_opened,
- * scene_closed, redo, world_moved, world_failed and path_changed, and after a move that
- * opens the next Scene, the phone reads the Scene again, because they change more than one
- * part of it.
+ * Story is now on another Path, or its Path was moved back, or a Move or Reply on it was
+ * edited. After scene_opened, scene_closed, redo, world_moved, world_failed and
+ * path_changed, and after a move that opens the next Scene, the phone reads the Scene
+ * again, because they change more than one part of it.
  */
 @Serializable
 data class StoryEvent (
@@ -883,6 +884,28 @@ data class RenamePathRequest (
      * The Path's new name; empty to go back to its newest Scene.
      */
     val name: String
+)
+
+/**
+ * Edit a Move or a Reply in the player's words (openspec scenes: Editing). The latest
+ * changes in place; anything earlier carries the Story on from the edit on a new Path.
+ */
+@Serializable
+data class EditRequest (
+    /**
+     * The head the phone saw; refused as stale if the Story has moved on.
+     */
+    val after: String,
+
+    /**
+     * The Move's or the Reply's entry, or a Scene's opening prose.
+     */
+    val entry: String,
+
+    /**
+     * The words it should read.
+     */
+    val text: String
 )
 
 @Serializable

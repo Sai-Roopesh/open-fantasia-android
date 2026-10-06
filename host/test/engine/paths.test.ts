@@ -48,12 +48,12 @@ describe("Paths", () => {
     expect(mac.states.at(mac.tree.path(forest.id)!.headEntryId).scene!.number).toBe(3);
   });
 
-  it("refuses to try another way from anything but a Reply on the Path", async () => {
+  it("refuses to try another way from anything but a Reply or a Move on the Path", async () => {
     const played = await atTheLantern();
-    const move = played.mac.tree.pathTo(played.head()).find(entry => entry.payload.kind === "move")!;
-    const refused = () => played.engine.tryAnotherWay(played.storyId, move.id, played.head(), "trace");
+    const note = played.mac.tree.pathTo(played.head()).find(entry => entry.payload.kind === "beat_note")!;
+    const refused = () => played.engine.tryAnotherWay(played.storyId, note.id, played.head(), "trace");
     expect(refused).toThrow(LinkError);
-    expect(refused).toThrow(/not a Reply on this Path/);
+    expect(refused).toThrow(/not a Reply or a Move on this Path/);
   });
   // GIVEN one Path stands on Tuesday afternoon and another on Saturday night
   // WHEN the player switches from the first to the second
@@ -168,5 +168,28 @@ describe("Paths", () => {
     expect(state()).toEqual(setUp);
     expect(view().exchanges).toEqual([{ move: null, reply: { entry_id: opening.id, text: expect.stringContaining("The fire has burned down") } }]);
     expect(mac.tree.path(main.id)).toMatchObject({ headEntryId: main.headEntryId, isCurrent: false });
+  });
+  // GIVEN the player's Move "I sit at the other end of the sofa" has a Reply after it
+  // WHEN the player holds that Move
+  // THEN Copy, Rewind to here, Try another way from here and Edit are offered
+  // AND Rewind to here goes back to the moment before that Move, with the Move and everything after it set aside
+  it("scenes › The latest Reply has its actions in view › Holding an earlier Move", async () => {
+    const played = await atTheLantern();
+    const { engine, storyId, head, mac } = played;
+    const before = head();
+    await played.play("I sit at the other end of the sofa.");
+    const latest = head();
+    const move = mac.tree.pathTo(latest).filter(entry => entry.payload.kind === "move").at(-1)!;
+    const main = mac.tree.currentPath(storyId)!;
+
+    engine.rewind(storyId, move.id, latest, "trace-rewind");
+    expect(mac.tree.currentPath(storyId)).toMatchObject({ id: main.id, headEntryId: before });
+    const aside = paths(played).find(path => path.origin === "set_aside")!;
+    expect(aside).toMatchObject({ headEntryId: latest, forkedAt: before });
+    expect(mac.tree.pathTo(aside.headEntryId).some(entry => entry.id === move.id)).toBe(true);
+
+    engine.openPath(storyId, aside.id, "trace-back");
+    engine.tryAnotherWay(storyId, move.id, latest, "trace-try");
+    expect(mac.tree.currentPath(storyId)).toMatchObject({ origin: "tried", headEntryId: before, forkedAt: before });
   });
 });

@@ -78,7 +78,8 @@ function pathCard(mac: Mac, { path, entries }: Laid): PathCard {
   const forkScene = path.forkedAt ? mac.states.at(path.forkedAt).scene?.number ?? null : null;
   const began = path.origin === "tried" ? `FROM SCENE ${forkScene} · TRIED ANOTHER WAY`
     : path.origin === "set_aside" ? `SET ASIDE AT SCENE ${forkScene}`
-    : path.origin === "beginning" ? "FROM THE BEGINNING" : "MAIN";
+    : path.origin === "beginning" ? "FROM THE BEGINNING"
+    : path.origin === "edited" ? `FROM SCENE ${forkScene} · EDITED` : "MAIN";
   const label = path.isCurrent ? `${began} · YOU ARE HERE` : began;
   // Its own Scenes: from the one it forked in, or every Scene for a Path that began at the opening.
   const opened = entries.filter(entry => entry.payload.kind === "scene_opened").length;

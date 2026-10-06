@@ -8,7 +8,7 @@ import linkSchema from "../../../protocol/schemas/link.schema.json" with { type:
 import type { Engine } from "../engine/engine.js";
 import type { Mac } from "../mac.js";
 import { CONTRACT_VERSION } from "../protocol/generated/contract.js";
-import type { ChooseRequest, EndSceneRequest, ErrorBody, FocusRequest, LingerRequest, MoveRequest, PairRequest, RedoRequest, RenamePathRequest, RewindRequest, TryAnotherWayRequest } from "../protocol/generated/link.js";
+import type { ChooseRequest, EditRequest, EndSceneRequest, ErrorBody, FocusRequest, LingerRequest, MoveRequest, PairRequest, RedoRequest, RenamePathRequest, RewindRequest, TryAnotherWayRequest } from "../protocol/generated/link.js";
 import { newTraceId, Traces } from "../trace.js";
 import { pathsView } from "../views/paths.js";
 import { pastScene, sceneView } from "../views/scene.js";
@@ -34,6 +34,7 @@ const validChoose = ajv.compile<ChooseRequest>({ $ref: "link#/$defs/ChooseReques
 const validTry = ajv.compile<TryAnotherWayRequest>({ $ref: "link#/$defs/TryAnotherWayRequest" });
 const validRewind = ajv.compile<RewindRequest>({ $ref: "link#/$defs/RewindRequest" });
 const validRename = ajv.compile<RenamePathRequest>({ $ref: "link#/$defs/RenamePathRequest" });
+const validEdit = ajv.compile<EditRequest>({ $ref: "link#/$defs/EditRequest" });
 
 const IMAGE_TYPES: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp" };
 
@@ -135,6 +136,12 @@ export function buildLink(options: LinkOptions): FastifyInstance {
   app.post<{ Params: { id: string } }>("/stories/:id/rewind", async request => {
     if (!validRewind(request.body)) throw new LinkError("invalid", "Rewind needs the Reply to go back to and the entry the phone last saw.");
     return engine.rewind(request.params.id, request.body.to, request.body.after, request.traceId);
+  });
+
+  // Editing (openspec scenes: Editing): the latest Move or Reply in place, anything earlier on a new Path.
+  app.post<{ Params: { id: string } }>("/stories/:id/edit", async request => {
+    if (!validEdit(request.body)) throw new LinkError("invalid", "An edit needs the Move or Reply, the words it should read, and the entry the phone last saw.");
+    return engine.edit(request.params.id, request.body.entry, request.body.text, request.body.after, request.traceId);
   });
 
   app.post<{ Params: { id: string } }>("/stories/:id/paths/clear", async request => engine.clearPaths(request.params.id, request.traceId));

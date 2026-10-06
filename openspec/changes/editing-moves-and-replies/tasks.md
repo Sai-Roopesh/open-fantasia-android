@@ -9,15 +9,15 @@ Move); `stories › Claude can edit a Story as the player can` (Claude fixes a t
 
 ## 1. The contract
 
-- [ ] 1.1 Extend the contract to version 10: `EditRequest` (`entry`, `text`, `after`), `path_changed` described as covering an edit, and regenerate both sides; verify the host typecheck, the Android build and the mac-link rule test that every optional request field accepts null
+- [x] 1.1 Extend the contract to version 10: `EditRequest` (`entry`, `text`, `after`), `path_changed` described as covering an edit, and regenerate both sides; verify the host typecheck, the Android build and the mac-link rule test that every optional request field accepts null
 
 ## 2. Editing on the Mac
 
-- [ ] 2.1 Test first, then build: `scenes › Editing › Fixing a typo in the latest Reply` (the Reply reads "Hermione", the Path keeps its id and name, no new Path exists; Focus, Linger and a Scene the Story closed after it are replayed with their records, so nothing is woven or chronicled again)
-- [ ] 2.2 Test first, then build: `scenes › Editing › Fixing the latest Move` (the Move reads "I sit at the far end of the sofa", its Reply is as it was, no new Path exists)
-- [ ] 2.3 Test first, then build: `scenes › Editing › Editing an earlier Move` (a new current Path from the edited Move with its Reply written, its card "FROM SCENE N · EDITED"; the ten exchanges after the original remain on the Path they were on)
-- [ ] 2.4 A Scene's opening prose can be edited as a Reply; an edit is refused with the reason while a Reply is written, from a stale head, with empty or unchanged words, and for anything that is not a Move or a Reply; verify engine and link tests for `POST /stories/:id/edit`
-- [ ] 2.5 Test first, then build: `scenes › The latest Reply has its actions in view › Holding an earlier Move` on the Mac (Rewind to here and Try another way from here on a Move act on the moment before it)
+- [x] 2.1 Test first, then build: `scenes › Editing › Fixing a typo in the latest Reply` (the Reply reads "Hermione", the Path keeps its id and name, no new Path exists; Focus, Linger and a Scene the Story closed after it are replayed with their records, so nothing is woven or chronicled again)
+- [x] 2.2 Test first, then build: `scenes › Editing › Fixing the latest Move` (the Move reads "I sit at the far end of the sofa", its Reply is as it was, no new Path exists)
+- [x] 2.3 Test first, then build: `scenes › Editing › Editing an earlier Move` (a new current Path from the edited Move with its Reply written, its card "FROM SCENE N · EDITED"; the ten exchanges after the original remain on the Path they were on)
+- [x] 2.4 A Scene's opening prose can be edited as a Reply; an edit is refused with the reason while a Reply is written, from a stale head, with empty or unchanged words, and for anything that is not a Move or a Reply; verify engine and link tests for `POST /stories/:id/edit`
+- [x] 2.5 Test first, then build: `scenes › The latest Reply has its actions in view › Holding an earlier Move` on the Mac (Rewind to here and Try another way from here on a Move act on the moment before it)
 - [ ] 2.6 A stream opened with the head the phone shows starts with `path_changed` when that head is no longer on the current Path, after an edit in place or a Rewind; verify link stream tests
 - [ ] 2.7 Test first, then build: `stories › Claude can edit a Story as the player can › Claude fixes a typo through the Mac` (`fantasia edit` in a second process on the same store; the serving engine sends `path_changed` within two seconds and the Scene view shows "Hermione"); and `fantasia edit` of an earlier Move waits for the Reply and prints it; verify CLI and two-process tests
 

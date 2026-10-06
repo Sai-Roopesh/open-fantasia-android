@@ -49,21 +49,21 @@ describe("Paths over the link", () => {
     await engine.settled(storyId);
   });
 
-  it("refuses a Path change from a stale head, from anything but a Reply on the Path, and a Rewind with nothing after it", async () => {
-    const { view, post, message, call, storyId, engine } = await mac([{ answer: "Draconia laughs." }]);
+  it("refuses a Path change from a stale head, from anything but a Reply or a Move on the Path, and a Rewind with nothing after it", async () => {
+    const { view, post, message, call, storyId, engine, mac: home } = await mac([{ answer: "Draconia laughs." }]);
     const opening = await view();
     await post("moves", { text: "I wave.", after: opening.head_entry_id });
     await engine.settled(storyId);
     const played = await view();
-    const move = played.exchanges.at(-1)!.move!.entry_id;
+    const note = home.tree.pathTo(played.head_entry_id).find(entry => entry.payload.kind === "beat_note")!.id;
     const latest = played.exchanges.at(-1)!.reply!.entry_id;
 
     const stale = await post("rewind", { to: opening.exchanges[0]!.reply!.entry_id, after: opening.head_entry_id });
     expect(stale.status).toBe(409);
     expect(await message(stale)).toMatch(/moved on/);
-    const notAReply = await post("paths", { from: move, after: played.head_entry_id });
+    const notAReply = await post("paths", { from: note, after: played.head_entry_id });
     expect(notAReply.status).toBe(400);
-    expect(await message(notAReply)).toMatch(/not a Reply on this Path/);
+    expect(await message(notAReply)).toMatch(/not a Reply or a Move on this Path/);
     const nothingAfter = await post("rewind", { to: latest, after: played.head_entry_id });
     expect(nothingAfter.status).toBe(400);
     expect(await message(nothingAfter)).toMatch(/Nothing comes after/);

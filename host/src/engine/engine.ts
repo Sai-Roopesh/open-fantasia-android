@@ -17,6 +17,7 @@ import { chronicleAsk, dueChronicle, STEPPED_AWAY_MS } from "./chronicling.js";
 import { dueWeave, gapAsk, weaveAsk } from "./weaving.js";
 import { chosen } from "./choosing.js";
 import { clearable, rewind, tryAnotherWay } from "./paths.js";
+import { editEarlier, editInPlace, isLatest, passageOnPath, wordsOf } from "./editing.js";
 import { worldOn } from "../story/world.js";
 
 /** A live event and its id on the stream: "<seq>" for an entry, "<seq>.<n>" for what a turn under way says. */
@@ -161,6 +162,25 @@ export class Engine {
     this.notWriting(storyId);
     for (const path of clearable(this.mac, storyId)) this.mac.tree.deletePath(path.id);
     return { head_entry_id: current.headEntryId, trace_id: traceId };
+  }
+
+  /**
+   * Edit a Move or a Reply (openspec scenes: Editing): the latest in place, anything earlier on a new Path. An edited
+   * Move left waiting for its Reply gets one, as any Move does.
+   */
+  edit(storyId: string, entryId: string, text: string, after: string, traceId: string): Accepted {
+    const path = this.pathHead(storyId, after);
+    const entry = passageOnPath(this.mac, path, entryId);
+    const words = text.trim();
+    if (!words) throw new LinkError("invalid", "An edit needs the words it should read.");
+    if (words === wordsOf(entry).trim()) throw new LinkError("invalid", "That is what it already says. Nothing was changed.");
+    const head = isLatest(this.mac, path, entry)
+      ? editInPlace(this.mac, path, entry, words)
+      : this.mac.tree.entry(editEarlier(this.mac, path, entry, words).headEntryId);
+    if (!head) throw new LinkError("internal", "The edit was written but cannot be found.");
+    const accepted = this.pathChanged(storyId, head.id, traceId);
+    if (head.payload.kind === "move") this.startTurn(storyId, this.path(storyId).id, head, traceId);
+    return accepted;
   }
 
   /** Focus on someone in the Scene, or clear it with null (openspec scenes: Focus keeps a Scene close to one person). */
