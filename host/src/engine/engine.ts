@@ -374,6 +374,35 @@ export class Engine {
     while (this.turns.has(storyId)) await this.turns.get(storyId)?.done;
   }
 
+  /**
+   * Edits through the Mac's commands reach watching phones (openspec stories: Claude can edit a Story as the player
+   * can). A command writes the store from its own process; every [everyMs] this reads SQLite's data_version, which
+   * changes only when another connection has written, and for each Story a phone is watching whose current head
+   * moved since the last look, says path_changed so the phone reads the Scene again. Returns the way to stop.
+   */
+  watchStore(everyMs = 1000): () => void {
+    const version = () => this.mac.db.pragma("data_version", { simple: true }) as number;
+    let seen = version();
+    const heads = new Map<string, string>();
+    const look = () => {
+      const now = version();
+      const written = now !== seen;
+      seen = now;
+      for (const storyId of this.bus.eventNames().filter((name): name is string => typeof name === "string" && this.bus.listenerCount(name) > 0)) {
+        const head = this.mac.tree.currentPath(storyId)?.headEntryId;
+        if (!head) continue;
+        const before = heads.get(storyId);
+        heads.set(storyId, head);
+        if (written && before !== undefined && before !== head) {
+          const seq = this.newestSeq(storyId);
+          this.emit(storyId, { id: String(seq), event: { kind: "path_changed", seq } });
+        }
+      }
+    };
+    const timer = setInterval(look, everyMs);
+    return () => clearInterval(timer);
+  }
+
   subscribe(storyId: string, listener: (event: OutgoingEvent) => void): () => void {
     this.bus.on(storyId, listener);
     return () => this.bus.off(storyId, listener);
@@ -385,10 +414,12 @@ export class Engine {
    * (openspec mac-link: A dropped connection loses nothing). Every change to a Path is an entry with a newer seq,
    * so a phone that missed a Redo is sent the Redo, and reads the Scene again.
    */
-  catchUp(storyId: string, lastEventId: string | null, seenPath: string | null = null): OutgoingEvent[] {
+  catchUp(storyId: string, lastEventId: string | null, seenPath: string | null = null, seenHead: string | null = null): OutgoingEvent[] {
     const path = this.path(storyId);
-    // A phone showing another Path reads the Scene again before anything else; this Path's entries are not its.
-    if (seenPath !== null && seenPath !== path.id) {
+    // A phone showing another Path, or a head no longer on this one (edited away, rewound past), reads the Scene
+    // again before anything else: the entries after its last event are not a continuation of what it shows.
+    const headGone = seenHead !== null && !this.mac.tree.pathTo(path.headEntryId).some(entry => entry.id === seenHead);
+    if ((seenPath !== null && seenPath !== path.id) || headGone) {
       const seq = this.newestSeq(storyId);
       return [{ id: String(seq), event: { kind: "path_changed", seq } }];
     }

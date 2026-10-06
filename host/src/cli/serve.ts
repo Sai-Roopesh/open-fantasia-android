@@ -35,11 +35,14 @@ export async function serve(mac: Mac, options: { port?: number; fakeModels: bool
   // Whatever the Chronicler and the Weaver owe from before the host last stopped is done now, in the background.
   engine.chronicleAll();
   engine.weaveAll();
+  // What the Mac's commands change in the store reaches the phones watching (openspec stories).
+  const stopWatching = engine.watchStore();
   const stopAdvertising = advertise(me.hostId, me.hostName, me.port);
   console.log(`Open Fantasia is serving on port ${me.port} as ${me.hostName}${options.fakeModels ? ", with scripted models" : ""}.`);
 
   const stop = async () => {
     stopAdvertising();
+    stopWatching();
     await app.close();
     if ("claude" in runners && runners.claude instanceof ClaudeRunner) runners.claude.close();
     process.exit(0);

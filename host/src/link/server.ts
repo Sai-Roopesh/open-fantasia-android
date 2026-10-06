@@ -186,14 +186,16 @@ export function buildLink(options: LinkOptions): FastifyInstance {
     return reply.type(IMAGE_TYPES[extname(file).toLowerCase()] ?? "application/octet-stream").send(createReadStream(file));
   });
 
-  app.get<{ Params: { id: string }; Querystring: { path?: string } }>("/stories/:id/events", (request, reply) => {
+  app.get<{ Params: { id: string }; Querystring: { path?: string; head?: string } }>("/stories/:id/events", (request, reply) => {
     const storyId = request.params.id;
     const lastEventId = (request.headers["last-event-id"] as string | undefined) ?? null;
-    // The Path the phone is showing: when the Story has moved to another since, it is told that first.
+    // The Path and the head the phone is showing: when the Story has moved to another Path since, or that head was
+    // edited away or rewound past, it is told that first.
     const seenPath = request.query.path ?? null;
+    const seenHead = request.query.head ?? null;
     // Everything below runs before this function returns, so no event can be emitted between the catch-up and
     // the subscription: the store is read synchronously, and nothing else runs until we yield.
-    const missed = engine.catchUp(storyId, lastEventId, seenPath);
+    const missed = engine.catchUp(storyId, lastEventId, seenPath, seenHead);
     reply.hijack();
     const raw = reply.raw;
     raw.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive", [TRACE_HEADER]: request.traceId, [CONTRACT_HEADER]: String(CONTRACT_VERSION) });

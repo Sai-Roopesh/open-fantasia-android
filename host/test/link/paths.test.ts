@@ -102,4 +102,34 @@ describe("Paths over the link", () => {
     const paths = await (await call(`/stories/${storyId}/paths`)).json() as PathsView;
     expect(paths.rows.filter(row => row.kind === "path").map(row => row.path!.label)).toEqual(["FROM SCENE 1 · TRIED ANOTHER WAY · YOU ARE HERE", "MAIN"]);
   });
+  it("tells a phone whose head was edited away or rewound past to read the Scene again, though the Path is the same", async () => {
+    const running = await mac([{ answer: "Draconia laughs." }, { answer: "She shrugs." }]);
+    const { view, post, storyId, base, headers, engine } = running;
+    const opening = await view();
+    await post("moves", { text: "I wave.", after: opening.head_entry_id });
+    await engine.settled(storyId);
+    const played = await view();
+    const reply = played.exchanges.at(-1)!.reply!;
+    await post("edit", { entry: reply.entry_id, text: "Draconia laughs at him.", after: played.head_entry_id });
+    const edited = await view();
+    expect(edited.path_id).toBe(played.path_id);
+
+    const stale = openStream(base, storyId, headers, String(played.seq), played.path_id, played.head_entry_id);
+    closers.push(stale.close);
+    await stale.until(events => events.length > 0);
+    expect(stale.received[0]!.event).toMatchObject({ kind: "path_changed" });
+
+    const current = openStream(base, storyId, headers, edited.last_event_id, edited.path_id, edited.head_entry_id);
+    closers.push(current.close);
+    await post("moves", { text: "I bow.", after: edited.head_entry_id });
+    await current.until(events => events.some(event => event.event.kind === "move"));
+    expect(current.received.map(event => event.event.kind)).not.toContain("path_changed");
+    await engine.settled(storyId);
+
+    await post("rewind", { to: opening.exchanges[0]!.reply!.entry_id, after: (await view()).head_entry_id });
+    const rewound = openStream(base, storyId, headers, edited.last_event_id, edited.path_id, edited.head_entry_id);
+    closers.push(rewound.close);
+    await rewound.until(events => events.length > 0);
+    expect(rewound.received[0]!.event).toMatchObject({ kind: "path_changed" });
+  });
 });

@@ -6,7 +6,11 @@ import qrcode from "qrcode-terminal";
 import { localAddresses } from "../link/bonjour.js";
 import { Pairing, PAIRING_MINUTES } from "../link/pairing.js";
 import { ensureCertificate } from "../link/tls.js";
+import type { Engine } from "../engine/engine.js";
+import { LinkError } from "../link/errors.js";
 import type { Mac } from "../mac.js";
+import { pathsView } from "../views/paths.js";
+import { randomUUID } from "node:crypto";
 import { DEFAULT_JOB_MODELS, JOBS, jobModels, setJobModel, type Job } from "../models/jobs.js";
 import { CLAUDE_TOKEN, readSecret, storeSecret } from "../secrets.js";
 import type { ModelChoice } from "../story/state.js";
@@ -231,4 +235,35 @@ export function doctor(mac: Mac, out: Out): boolean {
   checks.push(["Serving", running, existsSync(plist) ? (running ? "the LaunchAgent is running" : "the LaunchAgent is installed but not running") : "not installed: run `fantasia install`"]);
   for (const [name, ok, detail] of checks) out(`${ok ? "ok " : "!! "} ${name}: ${detail}`);
   return checks.every(([, ok]) => ok);
+}
+
+/**
+ * Edits a Move or a Reply as the player can (openspec stories: Claude can edit a Story as the player can): the latest
+ * in place, anything earlier on a new Path, where an edited Move waits here for its Reply. A phone watching the Story
+ * is told by the serving Mac, which notices the change.
+ */
+export async function edit(mac: Mac, engine: Engine, storyId: string, entryId: string, text: string, out: Out): Promise<boolean> {
+  const path = mac.tree.currentPath(storyId);
+  if (!path) {
+    out(`No Story ${storyId} on this Mac.`);
+    return false;
+  }
+  try {
+    const accepted = engine.edit(storyId, entryId, text, path.headEntryId, `edit-${randomUUID().slice(0, 8)}`);
+    const now = mac.tree.currentPath(storyId);
+    if (now?.id === path.id) out("Edited in place.");
+    else out(`Edited on a new Path: ${pathsView(mac, storyId, "edit").rows.find(row => row.path?.current)?.path?.label ?? "a new Path"}.`);
+    if (mac.tree.entry(accepted.head_entry_id)?.payload.kind === "move") {
+      await engine.settled(storyId);
+      const turn = engine.turnState(storyId);
+      const reply = mac.tree.pathTo(mac.tree.currentPath(storyId)?.headEntryId ?? accepted.head_entry_id).filter(entry => entry.payload.kind === "reply").at(-1);
+      if (turn.kind === "failed") out(`The Reply could not be written: ${turn.reason ?? ""}`);
+      else if (reply?.payload.kind === "reply") out(reply.payload.text);
+    }
+    return true;
+  } catch (error) {
+    if (!(error instanceof LinkError)) throw error;
+    out(error.message);
+    return false;
+  }
 }

@@ -2,7 +2,11 @@ import { readFileSync } from "node:fs";
 import { Command } from "commander";
 import { fantasiaHome } from "../home.js";
 import { openMac } from "../mac.js";
-import { claudeToken, doctor, importCommand, install, models, moments, pair, show, stories, trace, world } from "./commands.js";
+import { Engine } from "../engine/engine.js";
+import { ClaudeRunner } from "../models/claude.js";
+import { Models } from "../models/model-call.js";
+import { CLAUDE_TOKEN, readSecret } from "../secrets.js";
+import { claudeToken, doctor, edit, importCommand, install, models, moments, pair, show, stories, trace, world } from "./commands.js";
 import { serve } from "./serve.js";
 
 /**
@@ -40,6 +44,17 @@ program.command("moments").argument("<story>", "a Story's id").description("List
   .action((story: string) => exitWith(moments(mac(), story, out)));
 program.command("world").argument("<story>", "a Story's id").description("Show the World off-screen: Lives, Threads, and what happened with who knows it")
   .action((story: string) => exitWith(world(mac(), story, out)));
+
+program.command("edit").argument("<story>", "a Story's id").argument("<entry>", "the Move or Reply, by its entry id")
+  .argument("<words...>", "what it should read").description("Edit a Move or a Reply as the player can: the latest in place, anything earlier on a new Path")
+  .action(async (story: string, entry: string, words: string[]) => {
+    const home = mac();
+    const runner = new ClaudeRunner(home.home, () => readSecret(CLAUDE_TOKEN));
+    let ok = false;
+    try { ok = await edit(home, new Engine(home, new Models(home.db, { claude: runner })), story, entry, words.join(" "), out);
+    } finally { runner.close(); }
+    exitWith(ok);
+  });
 
 program.command("trace").argument("<id>", "a trace id the app showed").description("Show what a request asked, how it ended, and its model calls")
   .action((id: string) => exitWith(trace(mac(), id, out)));
