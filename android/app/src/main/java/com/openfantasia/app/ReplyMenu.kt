@@ -120,7 +120,8 @@ internal class PassageActions(
                 MenuItem("Edit", FantasiaIconKind.Edit, actions.pathsEnabled) { release(); actions.edit() }
             }
             val passage = if (actions.isMove) "Move" else "Reply"
-            Text(if (actions.latest) "Editing the latest $passage changes it where it is."
+            Text(if (actions.latest && actions.isMove) "Editing the latest Move changes it where it is, and the Story answers it again."
+                else if (actions.latest) "Editing the latest $passage changes it where it is."
                 else "Editing an earlier $passage carries the Story on from the edit on a new Path. The Path you were on stays as it was.",
                 style = FantasiaType.small.copy(lineHeight = 18.sp), color = FantasiaCaption, modifier = Modifier.widthIn(max = 280.dp)
                     // A soft ground of its own, so the line reads over whatever passage lies under the menu.

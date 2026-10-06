@@ -45,18 +45,18 @@ describe("Editing", () => {
 
   // GIVEN the latest Move reads "I sit at the other end of the sofa" and has its Reply
   // WHEN the player edits it to "I sit at the far end of the sofa"
-  // THEN the Move reads "I sit at the far end of the sofa", its Reply is as it was, and no new Path exists
+  // THEN the Move reads "I sit at the far end of the sofa", a new Reply answers it, and no new Path exists
   it("scenes › Editing › Fixing the latest Move", async () => {
-    const played = playable(hogwartsStoryFile(), { actor: [{ answer: "She doesn't look up." }] });
+    const played = playable(hogwartsStoryFile(), { actor: [{ answer: "She doesn't look up." }, { answer: "She shifts her feet to make room." }] });
     const { engine, storyId, head, mac } = played;
     await played.play("I sit at the other end of the sofa.");
     const main = mac.tree.currentPath(storyId)!;
 
     engine.edit(storyId, last(played, "move").id, "I sit at the far end of the sofa.", head(), "trace-edit");
     await engine.settled(storyId);
-    expect(passages(played)).toEqual(["> I sit at the far end of the sofa.", "She doesn't look up."]);
+    expect(passages(played)).toEqual(["> I sit at the far end of the sofa.", "She shifts her feet to make room."]);
     expect(mac.tree.paths(storyId)).toEqual([expect.objectContaining({ id: main.id, isCurrent: true })]);
-    expect(played.models.requests.filter(request => request.agent === "actor")).toHaveLength(1);
+    expect(played.models.requests.filter(request => request.agent === "actor")).toHaveLength(2);
   });
 
   // GIVEN the player is ten exchanges past a Move

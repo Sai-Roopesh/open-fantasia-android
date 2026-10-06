@@ -21,11 +21,13 @@ same SQLite store in their own process; the serving process is not told of what 
 **Non-Goals:**
 - Editing the Story's setup (people, places, Groups, Leads, Arcs, Landmarks, Premise, Style, Taste, the time): that
   comes with the World and Person screens.
-- Rewriting what came after an edit in place. An edited latest Move keeps its Reply; Redo is there to change it.
+- Rewriting what came after an edited latest Reply; Redo is there to change a Reply.
 
 ## Decisions
 
-**1. An edit in place is a replay (host).** The latest Move or Reply (nothing but Focus, Linger and the Story closing
+**1. An edit in place is a replay (host).** An edited latest Move is answered again, as the player chose on the phone:
+it is written beside the original with the records that hung off it, the head moves to it, and the turn runs, so
+the Reply after the old words is left off the Path as a redone Reply is. The latest Reply (nothing but Focus, Linger and the Story closing
 the Scene come after it) is edited by writing the edited entry beside the original, with the same parent, then
 writing a copy of every entry that came after the original on the Path, in order, onto it, together with a copy of
 every record that hung off them, and moving the head to the last copy. This is Redo's pattern carried through the

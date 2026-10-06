@@ -33,7 +33,8 @@ internal data class Editing(val entryID: String, val text: String, val isMove: B
             Spacer(Modifier.align(Alignment.CenterHorizontally).size(width = 36.dp, height = 4.dp).background(FantasiaStrongLine, FantasiaShapes.round))
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(if (editing.isMove) "Edit this Move" else "Edit this Reply", style = FantasiaType.sheetTitle)
-                Text(if (editing.latest) "Changes it where it is. Nothing after it changes."
+                Text(if (editing.latest && editing.isMove) "Changes it where it is, and the Story answers it again."
+                    else if (editing.latest) "Changes it where it is. Nothing after it changes."
                     else "Carries the Story on from the edit on a new Path. The Path you are on stays as it was.",
                     style = FantasiaType.caption, color = FantasiaSecondary)
             }

@@ -115,4 +115,25 @@ open class EditingUiChecks : WorldUiChecks() {
         assertEquals("The sheet stays put while its words scroll up", before, sheet())
         compose.onNodeWithText("Edit this Reply").assertIsDisplayed()
     }
+
+    // GIVEN the latest Move reads "I sit at the other end of the sofa" and has its Reply
+    // WHEN the player edits it to "I sit at the far end of the sofa"
+    // THEN the Move reads "I sit at the far end of the sofa", a new Reply answers it, and no new Path exists
+    fun fixingTheLatestMove() {
+        openScene()
+        longPress("I sit beside her.")
+        menu("Editing the latest Move changes it where it is, and the Story answers it again.").assertIsDisplayed()
+        menu("Edit").performClick()
+        compose.onNodeWithText("Edit this Move").assertIsDisplayed()
+        compose.onNodeWithText("Changes it where it is, and the Story answers it again.").assertIsDisplayed()
+        compose.onNodeWithTag("edit-text").performTextReplacement("I sit at the far end of the sofa.")
+        compose.onNodeWithTag("confirm-edit").performClick()
+        compose.runOnIdle {
+            assertEquals(listOf(EditRequest(entry = "move", text = "I sit at the far end of the sofa.", after = "reply")), link.edits)
+            assertEquals("path", link.current.value.pathID)
+        }
+        compose.onNodeWithText("I sit at the far end of the sofa.").assertIsDisplayed()
+        compose.onNodeWithText("She smiles.").assertDoesNotExist()
+        compose.onNodeWithTag("scene-passages").performScrollToNode(hasText("Reply being written"))
+    }
 }

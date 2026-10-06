@@ -97,7 +97,8 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
         val edited = if (isMove) exchange.copy(move = exchange.move!!.copy(text = request.text)) else exchange.copy(reply = exchange.reply!!.copy(text = request.text))
         current.value = view.copy(seq = view.seq + 1, lastEventID = (view.seq + 1).toString(),
             pathID = if (latest) view.pathID else "edited", headEntryID = if (latest) view.headEntryID else request.entry,
-            exchanges = view.exchanges.take(at) + (if (latest || !isMove) edited else edited.copy(reply = null)))
+            // An edited Move is answered again, in place or on its new Path.
+            exchanges = view.exchanges.take(at) + (if (isMove) edited.copy(reply = null) else edited))
         return Accepted(headEntryID = current.value.headEntryID, traceID = "edit")
     }
     override suspend fun paths(storyID: String): PathsView = pathsView

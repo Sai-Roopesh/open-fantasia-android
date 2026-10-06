@@ -20,9 +20,9 @@ On a **Move**, Rewind to here and Try another way from here SHALL act on the mom
 
 ### Requirement: Editing
 
-Editing the latest Move or Reply SHALL change it in place. Editing anything earlier SHALL carry the Story on from
-the edit on a new **Path**, leaving what came after on the Path it was on. No edit SHALL happen while a **Reply** is
-being written.
+Editing the latest Move or Reply SHALL change it in place, and an edited latest **Move** SHALL be answered by a new
+**Reply**. Editing anything earlier SHALL carry the Story on from the edit on a new **Path**, leaving what came after on
+the Path it was on. No edit SHALL happen while a **Reply** is being written.
 
 #### Scenario: Fixing a typo in the latest Reply
 - **WHEN** the player edits "Hermoine" to "Hermione" in the latest Reply
@@ -31,7 +31,7 @@ being written.
 #### Scenario: Fixing the latest Move
 - **GIVEN** the latest Move reads "I sit at the other end of the sofa" and has its Reply
 - **WHEN** the player edits it to "I sit at the far end of the sofa"
-- **THEN** the Move reads "I sit at the far end of the sofa", its Reply is as it was, and no new Path exists
+- **THEN** the Move reads "I sit at the far end of the sofa", a new Reply answers it, and no new Path exists
 
 #### Scenario: Editing an earlier Move
 - **GIVEN** the player is ten exchanges past a Move

@@ -11,6 +11,9 @@ class EditingScreenTest : EditingUiChecks() {
     @Scenario("scenes › Editing › Fixing a typo in the latest Reply")
     @Test fun fixingATypo() = fixingATypoInTheLatestReply()
 
+    @Scenario("scenes › Editing › Fixing the latest Move")
+    @Test fun latestMove() = fixingTheLatestMove()
+
     @Scenario("scenes › Editing › Editing an earlier Move")
     @Test fun earlierMove() = editingAnEarlierMove()
 

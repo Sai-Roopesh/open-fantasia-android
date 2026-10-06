@@ -53,8 +53,9 @@ function remapped(payload: Payload, renamed: Map<string, string>): Payload {
 }
 
 /**
- * Edits the latest Move or Reply in place: writes it beside the original, then a copy of everything that came after
- * the original on the Path, each with the records that hung off it, and moves the head to the last copy. The Path
+ * Edits the latest Move or Reply in place: writes it beside the original with the records that hung off it. A Move is
+ * then answered again; after a Reply, a copy of everything that came after the original follows, each with its
+ * records, and the head moves to the last copy. The Path
  * keeps its id and name, and the World and the Chronicler find their records where they left them (Redo's pattern,
  * carried through the tail).
  */
@@ -70,7 +71,8 @@ export function editInPlace(mac: Mac, path: StoryPath, entry: Entry, words: stri
       return written;
     };
     let head = copy(entry, entry.parentId, reading(entry, words));
-    for (const original of tail) head = copy(original, head.id, original.payload);
+    // An edited latest Move is answered again: what followed the old words is left off the Path, as a redone Reply is.
+    if (entry.payload.kind !== "move") for (const original of tail) head = copy(original, head.id, original.payload);
     if (!mac.tree.moveHead(path.id, path.headEntryId, head.id)) throw new LinkError("stale_head", "The Story has moved on since you last looked. Nothing was changed.");
     return head;
   })();
