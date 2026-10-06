@@ -146,7 +146,8 @@ const EFFORTS = ["low", "medium", "high", "xhigh", "max"];
 
 /**
  * Antigravity's models from `agy models`, one per line, "id<TAB>name". Ids that differ only by an effort suffix
- * ("gemini-3.8-flash-high", "-medium", "-low") are one model with those efforts, lowest first.
+ * ("gemini-3.8-flash-high", "-medium", "-low") are one model with those efforts, lowest first. agy names no default
+ * effort, yet refuses such a model without one, so medium is its default when it has medium, else its highest.
  */
 export function agyModels(listing: string): OfferedModel[] {
   const models = new Map<string, OfferedModel>();
@@ -159,6 +160,6 @@ export function agyModels(listing: string): OfferedModel[] {
     if (suffix) model.efforts = EFFORTS.filter(effort => effort === suffix || model.efforts.includes(effort));
     models.set(base, model);
   }
-  return [...models.values()];
+  return [...models.values()].map(model => ({ ...model, defaultEffort: model.efforts.includes("medium") ? "medium" : model.efforts.at(-1) ?? null }));
 }
 

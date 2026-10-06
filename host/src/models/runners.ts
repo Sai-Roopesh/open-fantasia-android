@@ -42,7 +42,7 @@ export const SCRIPTED_OFFERS: Record<ModelChoice["provider"], OfferedModel[]> = 
     { id: "gpt-6-luna", aliases: [], name: "GPT 6 Luna", efforts: upTo("max"), defaultEffort: "medium" }
   ],
   antigravity: [
-    { id: "gemini-3.8-flash", aliases: [], name: "Gemini 3.8 Flash", efforts: ["low", "medium", "high"], defaultEffort: null }
+    { id: "gemini-3.8-flash", aliases: [], name: "Gemini 3.8 Flash", efforts: ["low", "medium", "high"], defaultEffort: "medium" }
   ]
 };
 

@@ -265,6 +265,6 @@ export function buildLink(options: LinkOptions): FastifyInstance {
 function offered(catalog: Catalog, choice: SetJobModelRequest["model"]): ModelChoice {
   const refusal = catalog.refusal(choice as ModelChoice);
   if (refusal) throw new LinkError("invalid", refusal);
-  return choice.effort ? { provider: choice.provider, model: choice.model, effort: choice.effort } : { provider: choice.provider, model: choice.model };
+  return catalog.complete(choice.effort ? { provider: choice.provider, model: choice.model, effort: choice.effort } : { provider: choice.provider, model: choice.model });
 }
 

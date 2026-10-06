@@ -96,6 +96,16 @@ export class Catalog {
     return this.refusal(choice) === null;
   }
 
+  /**
+   * The choice with its model's default effort when it names none, so a provider that needs an effort (Antigravity)
+   * is never asked without one. A model with no default, or one the catalog has never seen, is left as it is.
+   */
+  complete(choice: ModelChoice): ModelChoice {
+    if (choice.effort) return choice;
+    const effort = this.find(choice)?.defaultEffort;
+    return effort ? { ...choice, effort } : choice;
+  }
+
   /** Why the provider does not offer this choice, in words the player can read; null when it does. */
   refusal(choice: ModelChoice): string | null {
     const known = this.kept[choice.provider];

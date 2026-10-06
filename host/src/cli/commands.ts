@@ -164,7 +164,7 @@ function chosen(catalog: Catalog, [provider, model, effort]: string[], out: Out)
   if (!model) return (out("Name the model, as its provider lists it: fantasia models writer claude claude-sonnet-5-5"), null);
   const choice: ModelChoice = effort ? { provider: provider as ModelChoice["provider"], model, effort } : { provider: provider as ModelChoice["provider"], model };
   const refusal = catalog.refusal(choice);
-  return refusal ? (out(refusal), null) : choice;
+  return refusal ? (out(refusal), null) : catalog.complete(choice);
 }
 
 /**

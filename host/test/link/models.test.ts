@@ -112,5 +112,14 @@ describe("the Models screen over the link", () => {
     expect(await message(await post("retry", { model: null }))).toBe("There is no Move waiting for a Reply.");
     expect(await message(await post("world/retry", { model: { provider: "claude", model: "claude-sonnet-5-5", effort: null } }))).toBe("The World is not waiting on anything.");
   });
+
+  it("asks Antigravity for a model with an effort when the phone sent none", async () => {
+    const { post, view, engine, storyId, mac: home } = await mac();
+    await post("moves", { text: "I sit beside her.", after: (await view()).head_entry_id });
+    await engine.settled(storyId);
+    await post("redo", { after: (await view()).head_entry_id, direction: null, remember: false, model: { provider: "antigravity", model: "gemini-3.8-flash", effort: null } });
+    await engine.settled(storyId);
+    expect(callsFor(home.db, "actor").at(-1)).toEqual({ provider: "antigravity", model: "gemini-3.8-flash", effort: "medium" });
+  });
 });
 

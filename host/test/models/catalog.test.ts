@@ -9,7 +9,8 @@ import { freshHome } from "../support/host.js";
 
 const opus: OfferedModel = { id: "claude-opus-5-5", aliases: ["opus"], name: "Opus 5.5", efforts: ["low", "medium", "high", "xhigh", "max"], defaultEffort: null };
 const sol: OfferedModel = { id: "gpt-6.1-sol", aliases: [], name: "GPT 6.1 Sol", efforts: ["low", "medium", "high", "xhigh", "max", "ultra"], defaultEffort: "low" };
-const flash: OfferedModel = { id: "gemini-3.8-flash", aliases: [], name: "Gemini 3.8 Flash", efforts: ["low", "medium", "high"], defaultEffort: null };
+// agy names no default effort but refuses a Gemini call without one (6 October 2026), so the Mac takes medium.
+const flash: OfferedModel = { id: "gemini-3.8-flash", aliases: [], name: "Gemini 3.8 Flash", efforts: ["low", "medium", "high"], defaultEffort: "medium" };
 
 describe("what each provider offers, as the Models screen shows it", () => {
   it("reads Claude's list as its SDK gives it: the resolved id, the alias kept, the default row left out", () => {
@@ -33,9 +34,23 @@ describe("what each provider offers, as the Models screen shows it", () => {
       "gemini-3.8-flash-high\tGemini 3.8 Flash (High)",
       "gemini-3.8-flash-medium\tGemini 3.8 Flash (Medium)",
       "gemini-3.8-flash-low\tGemini 3.8 Flash (Low)",
+      "gemini-3.1-pro-high\tGemini 3.1 Pro (High)",
+      "gemini-3.1-pro-low\tGemini 3.1 Pro (Low)",
       "claude-opus-4-6-thinking\tClaude Opus 4.6 (Thinking)",
       ""
-    ].join("\n"))).toEqual([flash, { id: "claude-opus-4-6-thinking", aliases: [], name: "Claude Opus 4.6 (Thinking)", efforts: [], defaultEffort: null }]);
+    ].join("\n"))).toEqual([flash, { id: "gemini-3.1-pro", aliases: [], name: "Gemini 3.1 Pro", efforts: ["low", "high"], defaultEffort: "high" }, { id: "claude-opus-4-6-thinking", aliases: [], name: "Claude Opus 4.6 (Thinking)", efforts: [], defaultEffort: null }]);
+  });
+
+  it("gives a choice without an effort its model's default, so a provider that needs one is never asked without it", async () => {
+    const { home } = freshHome();
+    const catalog = new Catalog(home, { claude: async () => [opus], codex: async () => [sol], antigravity: async () => [flash] });
+    await catalog.refresh();
+    expect(catalog.complete({ provider: "antigravity", model: "gemini-3.8-flash" })).toEqual({ provider: "antigravity", model: "gemini-3.8-flash", effort: "medium" });
+    expect(catalog.complete({ provider: "codex", model: "gpt-6.1-sol" })).toEqual({ provider: "codex", model: "gpt-6.1-sol", effort: "low" });
+    // Claude names no default either, and takes none: it is left to Claude.
+    expect(catalog.complete({ provider: "claude", model: "opus" })).toEqual({ provider: "claude", model: "opus" });
+    expect(catalog.complete({ provider: "antigravity", model: "gemini-3.8-flash", effort: "high" })).toEqual({ provider: "antigravity", model: "gemini-3.8-flash", effort: "high" });
+    expect(catalog.complete({ provider: "antigravity", model: "gemini-9" })).toEqual({ provider: "antigravity", model: "gemini-9" });
   });
 
   it("names a choice with its effort, and finds a model by its id or its alias", async () => {
