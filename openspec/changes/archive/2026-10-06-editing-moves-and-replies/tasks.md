@@ -34,4 +34,4 @@ Move); `stories › Claude can edit a Story as the player can` (Claude fixes a t
 ## 4. Together
 
 - [x] 4.1 Run `scripts/scenarios.mjs`, the host suite, the Android JVM and device suites, and `openspec validate --all --strict`, and verify all pass
-- [ ] 4.2 On the phone, with the Mac and the phone installed together at version 10: on the Night Train, fix a word in the latest Reply, edit an earlier Move and see its Reply on a new Path, and run `fantasia edit` on the Mac while the phone shows the Scene; compare with the drawings and check `fantasia trace`
+- [x] 4.2 On the phone, with the Mac and the phone installed together at version 10: on the Night Train, fix a word in the latest Reply, edit an earlier Move and see its Reply on a new Path, and run `fantasia edit` on the Mac while the phone shows the Scene; compare with the drawings and check `fantasia trace`
