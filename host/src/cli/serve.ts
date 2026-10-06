@@ -5,10 +5,10 @@ import { Pairing } from "../link/pairing.js";
 import { buildLink } from "../link/server.js";
 import { ensureCertificate } from "../link/tls.js";
 import type { Mac } from "../mac.js";
-import { ClaudeRunner } from "../models/claude.js";
+import { Catalog } from "../models/catalog.js";
+import { scriptedRunners, subscriptionRunners } from "../models/runners.js";
 import { FakeModels, fakeReply } from "../models/fake.js";
 import { Models } from "../models/model-call.js";
-import { CLAUDE_TOKEN, readSecret } from "../secrets.js";
 import { identity } from "./identity.js";
 
 /** Keeps the Mac awake while work is under way, and lets it sleep again when there is none. */
@@ -28,9 +28,14 @@ export async function serve(mac: Mac, options: { port?: number; fakeModels: bool
   const me = identity(mac.home, options.port);
   const certificate = await ensureCertificate(mac.home);
   // Scripted models play the app without spending quota: the Writer keeps every rule and each Reply quotes its Move.
-  const runners = options.fakeModels ? { claude: new FakeModels({}, fakeReply) } : { claude: new ClaudeRunner(mac.home, () => readSecret(CLAUDE_TOKEN)) };
+  const runners = options.fakeModels ? scriptedRunners(new FakeModels({}, fakeReply)) : subscriptionRunners(mac.home);
   const engine = new Engine(mac, new Models(mac.db, runners), keepAwake());
-  const app = buildLink({ mac, engine, pairing: new Pairing(mac.db), hostId: me.hostId, hostName: me.hostName, https: certificate });
+  // What each provider offers, asked now and every hour; the last list each gave is kept for when it cannot be asked.
+  const catalog = new Catalog(mac.home, {
+    claude: () => runners.claude.listModels(), codex: () => runners.codex.listModels(), antigravity: () => runners.antigravity.listModels()
+  });
+  const stopCataloguing = catalog.start();
+  const app = buildLink({ mac, engine, pairing: new Pairing(mac.db), catalog, hostId: me.hostId, hostName: me.hostName, https: certificate });
   await app.listen({ port: me.port, host: "0.0.0.0" });
   // Whatever the Chronicler and the Weaver owe from before the host last stopped is done now, in the background.
   engine.chronicleAll();
@@ -43,8 +48,9 @@ export async function serve(mac: Mac, options: { port?: number; fakeModels: bool
   const stop = async () => {
     stopAdvertising();
     stopWatching();
+    stopCataloguing();
     await app.close();
-    if ("claude" in runners && runners.claude instanceof ClaudeRunner) runners.claude.close();
+    runners.close();
     process.exit(0);
   };
   process.on("SIGINT", stop);

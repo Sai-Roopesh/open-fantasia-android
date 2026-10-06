@@ -312,6 +312,10 @@
         "trace_id": {
           "description": "When writing or failed: the turn's trace id.",
           "type": "string"
+        },
+        "job": {
+          "$ref": "#/$defs/ModelJob",
+          "description": "When failed: the job that failed."
         }
       }
     },
@@ -1546,6 +1550,17 @@
         "remember": {
           "description": "Keep the Direction as a line of Taste.",
           "type": "boolean"
+        },
+        "model": {
+          "description": "The model for just this Reply; null or absent for the Story's Actor.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/ModelChoice"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     },
@@ -1605,6 +1620,293 @@
         },
         "trace_id": {
           "type": "string"
+        }
+      }
+    },
+    "ModelProvider": {
+      "description": "Who offers a model: each is reached through the player's own subscription (docs/adr/0005).",
+      "type": "string",
+      "enum": [
+        "claude",
+        "codex",
+        "antigravity"
+      ]
+    },
+    "ModelJob": {
+      "description": "A job a model does (CONTEXT.md: Who writes the Story).",
+      "type": "string",
+      "enum": [
+        "actor",
+        "writer",
+        "chronicler",
+        "weaver",
+        "director"
+      ]
+    },
+    "ModelChoice": {
+      "description": "Which model does a job: the provider, the id it lists the model under, and the effort when the model has one.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "model"
+      ],
+      "properties": {
+        "provider": {
+          "$ref": "#/$defs/ModelProvider"
+        },
+        "model": {
+          "type": "string"
+        },
+        "effort": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "ChosenModel": {
+      "description": "A model as the Models screen shows it: the choice, and its name with the effort (\"GPT 6.1 Sol · high\").",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "choice",
+        "label"
+      ],
+      "properties": {
+        "choice": {
+          "$ref": "#/$defs/ModelChoice"
+        },
+        "label": {
+          "type": "string"
+        }
+      }
+    },
+    "StoryActor": {
+      "description": "One Story's Actor on the Models screen.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "story_id",
+        "title",
+        "actor",
+        "own"
+      ],
+      "properties": {
+        "story_id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "actor": {
+          "$ref": "#/$defs/ChosenModel"
+        },
+        "own": {
+          "description": "Set by the player for this Story; otherwise the one its Story File names.",
+          "type": "boolean"
+        }
+      }
+    },
+    "JobModel": {
+      "description": "One job on the Models screen, for every Story.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "job",
+        "title",
+        "does",
+        "model"
+      ],
+      "properties": {
+        "job": {
+          "$ref": "#/$defs/ModelJob"
+        },
+        "title": {
+          "type": "string"
+        },
+        "does": {
+          "description": "What the job does, in one line: \"Plans each Reply before it starts\".",
+          "type": "string"
+        },
+        "model": {
+          "$ref": "#/$defs/ChosenModel"
+        }
+      }
+    },
+    "ModelOption": {
+      "description": "A model a provider offers.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "efforts",
+        "default_effort"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "description": "As the phone shows it: \"GPT 6.1 Sol\".",
+          "type": "string"
+        },
+        "efforts": {
+          "description": "The efforts it supports, lowest first; empty when it has none.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "default_effort": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "ProviderModels": {
+      "description": "What one provider offers, as last asked.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "label",
+        "reachable",
+        "reason",
+        "models"
+      ],
+      "properties": {
+        "provider": {
+          "$ref": "#/$defs/ModelProvider"
+        },
+        "label": {
+          "description": "\"CLAUDE\", \"CODEX\", \"ANTIGRAVITY\".",
+          "type": "string"
+        },
+        "reachable": {
+          "description": "Whether the provider answered the last time it was asked.",
+          "type": "boolean"
+        },
+        "reason": {
+          "description": "When not reachable: why, in words the player can read.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "models": {
+          "description": "What it offers; when not reachable, what it last offered.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ModelOption"
+          }
+        }
+      }
+    },
+    "ModelsView": {
+      "description": "The Models screen (openspec outside-the-scene: One Models screen).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stories",
+        "jobs",
+        "providers",
+        "trace_id"
+      ],
+      "properties": {
+        "stories": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StoryActor"
+          }
+        },
+        "jobs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/JobModel"
+          }
+        },
+        "providers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProviderModels"
+          }
+        },
+        "trace_id": {
+          "type": "string"
+        }
+      }
+    },
+    "SetJobModelRequest": {
+      "description": "Sets the model for a job, from its next work.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model"
+      ],
+      "properties": {
+        "model": {
+          "$ref": "#/$defs/ModelChoice"
+        }
+      }
+    },
+    "SetActorRequest": {
+      "description": "Sets a Story's own Actor; null goes back to the one its Story File names.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model"
+      ],
+      "properties": {
+        "model": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/ModelChoice"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "RetryRequest": {
+      "description": "Writes the failed Reply again; with a model, the job that failed runs on it for this one try.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "model": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/ModelChoice"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "RetryWorldRequest": {
+      "description": "Moves the World on again; with a model, the Weaver runs on it for this one try.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "model": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/ModelChoice"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     }

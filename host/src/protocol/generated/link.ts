@@ -20,6 +20,20 @@ export type SceneCall = "continue" | "land" | "end";
  * via the `definition` "BeatStatus".
  */
 export type BeatStatus = "pending" | "in_play" | "done" | "skipped";
+/**
+ * Who offers a model: each is reached through the player's own subscription (docs/adr/0005).
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "ModelProvider".
+ */
+export type ModelProvider = "claude" | "codex" | "antigravity";
+/**
+ * A job a model does (CONTEXT.md: Who writes the Story).
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "ModelJob".
+ */
+export type ModelJob = "actor" | "writer" | "chronicler" | "weaver" | "director";
 
 /**
  * Everything the phone and the Mac say to each other (openspec/specs/mac-link). Every request carries the Fantasia-Contract header with the contract version; every response carries a trace id. Unions are flat objects with a kind field, so the Kotlin side stays plain data classes.
@@ -177,6 +191,10 @@ export interface TurnState {
    * When writing or failed: the turn's trace id.
    */
   trace_id?: string;
+  /**
+   * When failed: the job that failed.
+   */
+  job?: "actor" | "writer" | "chronicler" | "weaver" | "director";
 }
 /**
  * The Scene screen as the Mac sees it on the Story's current Path.
@@ -943,6 +961,21 @@ export interface RedoRequest {
    * Keep the Direction as a line of Taste.
    */
   remember: boolean;
+  /**
+   * The model for just this Reply; null or absent for the Story's Actor.
+   */
+  model?: ModelChoice | null;
+}
+/**
+ * Which model does a job: the provider, the id it lists the model under, and the effort when the model has one.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "ModelChoice".
+ */
+export interface ModelChoice {
+  provider: ModelProvider;
+  model: string;
+  effort?: string | null;
 }
 /**
  * A change to the Story that is done when it is answered.
@@ -974,4 +1007,135 @@ export interface PastScene {
   summary: string;
   exchanges: Exchange[];
   trace_id: string;
+}
+/**
+ * A model as the Models screen shows it: the choice, and its name with the effort ("GPT 6.1 Sol · high").
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "ChosenModel".
+ */
+export interface ChosenModel {
+  choice: ModelChoice;
+  label: string;
+}
+/**
+ * One Story's Actor on the Models screen.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "StoryActor".
+ */
+export interface StoryActor {
+  story_id: string;
+  title: string;
+  actor: ChosenModel;
+  /**
+   * Set by the player for this Story; otherwise the one its Story File names.
+   */
+  own: boolean;
+}
+/**
+ * One job on the Models screen, for every Story.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "JobModel".
+ */
+export interface JobModel {
+  job: ModelJob;
+  title: string;
+  /**
+   * What the job does, in one line: "Plans each Reply before it starts".
+   */
+  does: string;
+  model: ChosenModel;
+}
+/**
+ * A model a provider offers.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "ModelOption".
+ */
+export interface ModelOption {
+  id: string;
+  /**
+   * As the phone shows it: "GPT 6.1 Sol".
+   */
+  name: string;
+  /**
+   * The efforts it supports, lowest first; empty when it has none.
+   */
+  efforts: string[];
+  default_effort: string | null;
+}
+/**
+ * What one provider offers, as last asked.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "ProviderModels".
+ */
+export interface ProviderModels {
+  provider: ModelProvider;
+  /**
+   * "CLAUDE", "CODEX", "ANTIGRAVITY".
+   */
+  label: string;
+  /**
+   * Whether the provider answered the last time it was asked.
+   */
+  reachable: boolean;
+  /**
+   * When not reachable: why, in words the player can read.
+   */
+  reason: string | null;
+  /**
+   * What it offers; when not reachable, what it last offered.
+   */
+  models: ModelOption[];
+}
+/**
+ * The Models screen (openspec outside-the-scene: One Models screen).
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "ModelsView".
+ */
+export interface ModelsView {
+  stories: StoryActor[];
+  jobs: JobModel[];
+  providers: ProviderModels[];
+  trace_id: string;
+}
+/**
+ * Sets the model for a job, from its next work.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "SetJobModelRequest".
+ */
+export interface SetJobModelRequest {
+  model: ModelChoice;
+}
+/**
+ * Sets a Story's own Actor; null goes back to the one its Story File names.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "SetActorRequest".
+ */
+export interface SetActorRequest {
+  model: ModelChoice | null;
+}
+/**
+ * Writes the failed Reply again; with a model, the job that failed runs on it for this one try.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "RetryRequest".
+ */
+export interface RetryRequest {
+  model?: ModelChoice | null;
+}
+/**
+ * Moves the World on again; with a model, the Weaver runs on it for this one try.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "RetryWorldRequest".
+ */
+export interface RetryWorldRequest {
+  model?: ModelChoice | null;
 }

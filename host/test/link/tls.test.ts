@@ -10,6 +10,7 @@ import { buildLink } from "../../src/link/server.js";
 import { ensureCertificate } from "../../src/link/tls.js";
 import { Models } from "../../src/models/model-call.js";
 import { freshHome } from "../support/host.js";
+import { offeredCatalog } from "../support/link.js";
 
 /** Connects the way the phone does: trusting exactly the certificate with [pinned] as its fingerprint. */
 function pinnedConnect(port: number, pinned: string): Promise<"trusted" | "refused"> {
@@ -40,7 +41,7 @@ describe("the Mac's certificate", () => {
   it("is trusted by a client pinned to its fingerprint and refused by one pinned to another", async () => {
     const mac = freshHome();
     const certificate = await ensureCertificate(mac.home);
-    const app = buildLink({ mac, engine: new Engine(mac, new Models(mac.db, {})), pairing: new Pairing(mac.db), hostId: "mac-1", hostName: "Test Mac", https: certificate });
+    const app = buildLink({ mac, engine: new Engine(mac, new Models(mac.db, {})), pairing: new Pairing(mac.db), catalog: await offeredCatalog(mac.home), hostId: "mac-1", hostName: "Test Mac", https: certificate });
     await app.listen({ port: 0, host: "127.0.0.1" });
     closers.push(() => app.close());
     const port = (app.server.address() as AddressInfo).port;

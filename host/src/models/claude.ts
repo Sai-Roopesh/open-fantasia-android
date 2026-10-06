@@ -1,6 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { startup, type Options, type SDKMessage, type WarmQuery } from "@anthropic-ai/claude-agent-sdk";
+import { query, startup, type ModelInfo, type Options, type SDKMessage, type WarmQuery } from "@anthropic-ai/claude-agent-sdk";
+import type { OfferedModel } from "./catalog.js";
 import type { ModelRequest, ModelRunner } from "./model-call.js";
 
 /** How many warm processes may wait at once; more than this and the least recently wanted is closed. */
@@ -48,6 +49,16 @@ export class ClaudeRunner implements ModelRunner {
     return result ?? streamed;
   }
 
+  /** What Claude offers this subscription, from the SDK itself (models-screen design decision 4). */
+  async listModels(): Promise<OfferedModel[]> {
+    const listing = query({ prompt: never(), options: { cwd: this.workdir, settingSources: [], persistSession: false, tools: [], env: this.environment() } });
+    try {
+      return claudeModels(await listing.supportedModels());
+    } finally {
+      listing.close();
+    }
+  }
+
   /** Closes every warm process, for shutting the host down. */
   close(): void {
     for (const handle of this.warm.values()) void handle.then(warm => warm.close(), () => {});
@@ -72,9 +83,20 @@ export class ClaudeRunner implements ModelRunner {
     return startup({ options: this.options(request) });
   }
 
-  private options(request: ModelRequest): Options {
+  /** Only what the CLI needs: an API key in the environment would outrank the subscription token. */
+  private environment(): Record<string, string> {
     const token = this.token();
     if (!token) throw new Error("No Claude token is stored on this Mac. Run `fantasia claude-token` once.");
+    return {
+      PATH: process.env.PATH ?? "/usr/bin:/bin",
+      HOME: process.env.HOME ?? "",
+      CLAUDE_CODE_OAUTH_TOKEN: token,
+      CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1",
+      CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1"
+    };
+  }
+
+  private options(request: ModelRequest): Options {
     const options: Options = {
       model: request.model.model,
       systemPrompt: request.system,
@@ -86,14 +108,7 @@ export class ClaudeRunner implements ModelRunner {
       settingSources: [],
       includePartialMessages: true,
       cwd: this.workdir,
-      // Only what the CLI needs: an API key in the environment would outrank the subscription token.
-      env: {
-        PATH: process.env.PATH ?? "/usr/bin:/bin",
-        HOME: process.env.HOME ?? "",
-        CLAUDE_CODE_OAUTH_TOKEN: token,
-        CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1",
-        CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1"
-      }
+      env: this.environment()
     };
     if (request.schema) options.outputFormat = { type: "json_schema", schema: request.schema };
     if (request.model.effort) options.effort = request.model.effort as NonNullable<Options["effort"]>;
@@ -113,3 +128,34 @@ function failureOf(message: Extract<SDKMessage, { type: "result" }>): string {
   if (message.subtype === "success") return message.result || "Claude reported an error";
   return `Claude stopped: ${message.subtype}`;
 }
+
+/** A prompt that never comes: the listing asks the SDK what it offers and is closed before any turn. */
+async function* never(): AsyncGenerator<never> {
+  await new Promise(() => {});
+}
+
+/**
+ * Claude's models as its SDK lists them: the id it resolves to, its alias kept so an older setting still matches, and
+ * the "Default (recommended)" row left out, since it is one of the others.
+ */
+export function claudeModels(infos: readonly ModelInfo[]): OfferedModel[] {
+  const models = new Map<string, OfferedModel>();
+  for (const info of infos) {
+    if (info.value === "default") continue;
+    const id = info.resolvedModel ?? info.value;
+    const known = models.get(id);
+    if (known) {
+      if (!known.aliases.includes(info.value) && info.value !== id) known.aliases.push(info.value);
+      continue;
+    }
+    models.set(id, {
+      id,
+      aliases: info.value === id ? [] : [info.value],
+      name: info.displayName.replace(/^Claude\s+/, ""),
+      efforts: info.supportsEffort ? [...(info.supportedEffortLevels ?? [])] : [],
+      defaultEffort: null
+    });
+  }
+  return [...models.values()];
+}
+

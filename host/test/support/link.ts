@@ -1,3 +1,5 @@
+import { Catalog } from "../../src/models/catalog.js";
+import { SCRIPTED_OFFERS } from "../../src/models/runners.js";
 import type { AddressInfo } from "node:net";
 import { Engine } from "../../src/engine/engine.js";
 import { buildLink } from "../../src/link/server.js";
@@ -80,7 +82,8 @@ export async function runningMac(actor: ModelRunner = new ScriptedRunner(), writ
   if (!imported.ok) throw new Error("import failed");
   const engine = new Engine(mac, new Models(mac.db, { claude: withWriter(actor, writer) }));
   const pairing = new Pairing(mac.db);
-  const app = buildLink({ mac, engine, pairing, hostId: "mac-1", hostName: "Test Mac" });
+  const catalog = await offeredCatalog(mac.home);
+  const app = buildLink({ mac, engine, pairing, catalog, hostId: "mac-1", hostName: "Test Mac" });
   await app.listen({ port: 0, host: "127.0.0.1" });
   const base = `http://127.0.0.1:${(app.server.address() as AddressInfo).port}`;
   const invite = pairing.invite({ hostId: "mac-1", hostName: "Test Mac", addresses: ["127.0.0.1"], port: 0, fingerprint: "test" });
@@ -88,7 +91,7 @@ export async function runningMac(actor: ModelRunner = new ScriptedRunner(), writ
   const { device_token: token } = await paired.json() as { device_token: string };
   const headers = { "content-type": "application/json", "fantasia-contract": String(CONTRACT_VERSION), authorization: `Bearer ${token}` };
   const call = (path: string, init: RequestInit = {}) => fetch(`${base}${path}`, { ...init, headers: { ...headers, ...(init.headers as Record<string, string> | undefined) } });
-  return { mac, engine, pairing, app, base, token, headers, call, storyId: imported.storyId, close: () => app.close() };
+  return { mac, engine, pairing, catalog, app, base, token, headers, call, storyId: imported.storyId, close: () => app.close() };
 }
 
 export interface ReceivedEvent {
@@ -137,3 +140,14 @@ export function openStream(base: string, storyId: string, headers: Record<string
     }
   };
 }
+
+/** What the three providers offer in the tests. */
+export const OFFERED = SCRIPTED_OFFERS;
+
+/** A catalog that has asked every provider and been given [OFFERED]. */
+export async function offeredCatalog(home: string): Promise<Catalog> {
+  const catalog = new Catalog(home, { claude: async () => OFFERED.claude, codex: async () => OFFERED.codex, antigravity: async () => OFFERED.antigravity });
+  await catalog.refresh();
+  return catalog;
+}
+

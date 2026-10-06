@@ -275,11 +275,14 @@ describe("mac-link", () => {
   });
 
   it("lets every field a request may leave out also be null, since the phone writes every field it has", () => {
-    const defs = (linkSchema as { $defs: Record<string, { type?: string; required?: string[]; properties?: Record<string, { type?: string | string[] }> }> }).$defs;
+    type Property = { type?: string | string[]; oneOf?: Property[] };
+    const defs = (linkSchema as { $defs: Record<string, { type?: string; required?: string[]; properties?: Record<string, Property> }> }).$defs;
+    // Null is allowed by the field's own type, or as one of the shapes it may take.
+    const nullable = (property: Property): boolean => [property.type].flat().includes("null") || (property.oneOf ?? []).some(nullable);
     const strict = Object.entries(defs)
       .filter(([name, def]) => name.endsWith("Request") && def.type === "object")
       .flatMap(([name, def]) => Object.entries(def.properties ?? {})
-        .filter(([field, property]) => !(def.required ?? []).includes(field) && ![property.type].flat().includes("null"))
+        .filter(([field, property]) => !(def.required ?? []).includes(field) && !nullable(property))
         .map(([field]) => `${name}.${field}`));
     expect(strict).toEqual([]);
   });

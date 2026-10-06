@@ -57,6 +57,19 @@
 // val redoRequest          = json.parse(RedoRequest.serializer(), jsonString)
 // val accepted             = json.parse(Accepted.serializer(), jsonString)
 // val pastScene            = json.parse(PastScene.serializer(), jsonString)
+// val modelProvider        = json.parse(ModelProvider.serializer(), jsonString)
+// val modelJob             = json.parse(ModelJob.serializer(), jsonString)
+// val modelChoice          = json.parse(ModelChoice.serializer(), jsonString)
+// val chosenModel          = json.parse(ChosenModel.serializer(), jsonString)
+// val storyActor           = json.parse(StoryActor.serializer(), jsonString)
+// val jobModel             = json.parse(JobModel.serializer(), jsonString)
+// val modelOption          = json.parse(ModelOption.serializer(), jsonString)
+// val providerModels       = json.parse(ProviderModels.serializer(), jsonString)
+// val modelsView           = json.parse(ModelsView.serializer(), jsonString)
+// val setJobModelRequest   = json.parse(SetJobModelRequest.serializer(), jsonString)
+// val setActorRequest      = json.parse(SetActorRequest.serializer(), jsonString)
+// val retryRequest         = json.parse(RetryRequest.serializer(), jsonString)
+// val retryWorldRequest    = json.parse(RetryWorldRequest.serializer(), jsonString)
 
 package com.openfantasia.protocol
 
@@ -594,6 +607,11 @@ data class PersonCard (
  */
 @Serializable
 data class TurnState (
+    /**
+     * When failed: the job that failed.
+     */
+    val job: ModelJob? = null,
+
     val kind: TurnStateKind,
 
     /**
@@ -613,6 +631,20 @@ data class TurnState (
     @SerialName("trace_id")
     val traceID: String? = null
 )
+
+/**
+ * When failed: the job that failed.
+ *
+ * A job a model does (CONTEXT.md: Who writes the Story).
+ */
+@Serializable
+enum class ModelJob(val value: String) {
+    @SerialName("actor") Actor("actor"),
+    @SerialName("chronicler") Chronicler("chronicler"),
+    @SerialName("director") Director("director"),
+    @SerialName("weaver") Weaver("weaver"),
+    @SerialName("writer") Writer("writer");
+}
 
 @Serializable
 enum class TurnStateKind(val value: String) {
@@ -1146,10 +1178,36 @@ data class RedoRequest (
     val direction: String? = null,
 
     /**
+     * The model for just this Reply; null or absent for the Story's Actor.
+     */
+    val model: ModelChoice? = null,
+
+    /**
      * Keep the Direction as a line of Taste.
      */
     val remember: Boolean
 )
+
+/**
+ * Which model does a job: the provider, the id it lists the model under, and the effort
+ * when the model has one.
+ */
+@Serializable
+data class ModelChoice (
+    val effort: String? = null,
+    val model: String,
+    val provider: ModelProvider
+)
+
+/**
+ * Who offers a model: each is reached through the player's own subscription (docs/adr/0005).
+ */
+@Serializable
+enum class ModelProvider(val value: String) {
+    @SerialName("antigravity") Antigravity("antigravity"),
+    @SerialName("claude") Claude("claude"),
+    @SerialName("codex") Codex("codex");
+}
 
 /**
  * A change to the Story that is done when it is answered.
@@ -1188,4 +1246,142 @@ data class PastScene (
 
     @SerialName("trace_id")
     val traceID: String
+)
+
+/**
+ * The Models screen (openspec outside-the-scene: One Models screen).
+ */
+@Serializable
+data class ModelsView (
+    val jobs: List<JobModel>,
+    val providers: List<ProviderModels>,
+    val stories: List<StoryActor>,
+
+    @SerialName("trace_id")
+    val traceID: String
+)
+
+/**
+ * One job on the Models screen, for every Story.
+ */
+@Serializable
+data class JobModel (
+    /**
+     * What the job does, in one line: "Plans each Reply before it starts".
+     */
+    val does: String,
+
+    val job: ModelJob,
+    val model: ChosenModel,
+    val title: String
+)
+
+/**
+ * A model as the Models screen shows it: the choice, and its name with the effort ("GPT 6.1
+ * Sol · high").
+ */
+@Serializable
+data class ChosenModel (
+    val choice: ModelChoice,
+    val label: String
+)
+
+/**
+ * What one provider offers, as last asked.
+ */
+@Serializable
+data class ProviderModels (
+    /**
+     * "CLAUDE", "CODEX", "ANTIGRAVITY".
+     */
+    val label: String,
+
+    /**
+     * What it offers; when not reachable, what it last offered.
+     */
+    val models: List<ModelOption>,
+
+    val provider: ModelProvider,
+
+    /**
+     * Whether the provider answered the last time it was asked.
+     */
+    val reachable: Boolean,
+
+    /**
+     * When not reachable: why, in words the player can read.
+     */
+    val reason: String? = null
+)
+
+/**
+ * A model a provider offers.
+ */
+@Serializable
+data class ModelOption (
+    @SerialName("default_effort")
+    val defaultEffort: String? = null,
+
+    /**
+     * The efforts it supports, lowest first; empty when it has none.
+     */
+    val efforts: List<String>,
+
+    val id: String,
+
+    /**
+     * As the phone shows it: "GPT 6.1 Sol".
+     */
+    val name: String
+)
+
+/**
+ * One Story's Actor on the Models screen.
+ */
+@Serializable
+data class StoryActor (
+    val actor: ChosenModel,
+
+    /**
+     * Set by the player for this Story; otherwise the one its Story File names.
+     */
+    val own: Boolean,
+
+    @SerialName("story_id")
+    val storyID: String,
+
+    val title: String
+)
+
+/**
+ * Sets the model for a job, from its next work.
+ */
+@Serializable
+data class SetJobModelRequest (
+    val model: ModelChoice
+)
+
+/**
+ * Sets a Story's own Actor; null goes back to the one its Story File names.
+ */
+@Serializable
+data class SetActorRequest (
+    val model: ModelChoice? = null
+)
+
+/**
+ * Writes the failed Reply again; with a model, the job that failed runs on it for this one
+ * try.
+ */
+@Serializable
+data class RetryRequest (
+    val model: ModelChoice? = null
+)
+
+/**
+ * Moves the World on again; with a model, the Weaver runs on it for this one try.
+ */
+@Serializable
+data class RetryWorldRequest (
+    val model: ModelChoice? = null
 )

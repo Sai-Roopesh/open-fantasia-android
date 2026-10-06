@@ -3,9 +3,8 @@ import { Command } from "commander";
 import { fantasiaHome } from "../home.js";
 import { openMac } from "../mac.js";
 import { Engine } from "../engine/engine.js";
-import { ClaudeRunner } from "../models/claude.js";
+import { subscriptionRunners } from "../models/runners.js";
 import { Models } from "../models/model-call.js";
-import { CLAUDE_TOKEN, readSecret } from "../secrets.js";
 import { claudeToken, doctor, edit, importCommand, install, models, moments, pair, show, stories, trace, world } from "./commands.js";
 import { serve } from "./serve.js";
 
@@ -49,10 +48,10 @@ program.command("edit").argument("<story>", "a Story's id").argument("<entry>", 
   .argument("<words...>", "what it should read").description("Edit a Move or a Reply as the player can: the latest in place, anything earlier on a new Path")
   .action(async (story: string, entry: string, words: string[]) => {
     const home = mac();
-    const runner = new ClaudeRunner(home.home, () => readSecret(CLAUDE_TOKEN));
+    const runners = subscriptionRunners(home.home);
     let ok = false;
-    try { ok = await edit(home, new Engine(home, new Models(home.db, { claude: runner })), story, entry, words.join(" "), out);
-    } finally { runner.close(); }
+    try { ok = await edit(home, new Engine(home, new Models(home.db, runners)), story, entry, words.join(" "), out);
+    } finally { runners.close(); }
     exitWith(ok);
   });
 

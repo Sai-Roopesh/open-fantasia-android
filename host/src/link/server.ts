@@ -7,14 +7,18 @@ import { Ajv2020 } from "ajv/dist/2020.js";
 import linkSchema from "../../../protocol/schemas/link.schema.json" with { type: "json" };
 import type { Engine } from "../engine/engine.js";
 import type { Mac } from "../mac.js";
+import type { ModelChoice } from "../story/state.js";
 import { CONTRACT_VERSION } from "../protocol/generated/contract.js";
-import type { ChooseRequest, EditRequest, EndSceneRequest, ErrorBody, FocusRequest, LingerRequest, MoveRequest, PairRequest, RedoRequest, RemoveTasteRequest, RenamePathRequest, RewindRequest, TryAnotherWayRequest } from "../protocol/generated/link.js";
+import type { ChooseRequest, EditRequest, SetActorRequest, SetJobModelRequest, EndSceneRequest, ErrorBody, FocusRequest, LingerRequest, MoveRequest, PairRequest, RedoRequest, RemoveTasteRequest, RenamePathRequest, RewindRequest, TryAnotherWayRequest } from "../protocol/generated/link.js";
 import { newTraceId, Traces } from "../trace.js";
 import { backstageView } from "../views/backstage.js";
 import { journalView } from "../views/journal.js";
 import { pathsView } from "../views/paths.js";
 import { pastScene, sceneView } from "../views/scene.js";
+import { modelsView } from "../views/models.js";
 import { listStories } from "../views/stories.js";
+import type { Catalog } from "../models/catalog.js";
+import { JOBS, setJobModel, setStoryActor, type Job } from "../models/jobs.js";
 import { LinkError, STATUS } from "./errors.js";
 import type { Pairing } from "./pairing.js";
 
@@ -38,6 +42,8 @@ const validRewind = ajv.compile<RewindRequest>({ $ref: "link#/$defs/RewindReques
 const validRename = ajv.compile<RenamePathRequest>({ $ref: "link#/$defs/RenamePathRequest" });
 const validEdit = ajv.compile<EditRequest>({ $ref: "link#/$defs/EditRequest" });
 const validRemoveTaste = ajv.compile<RemoveTasteRequest>({ $ref: "link#/$defs/RemoveTasteRequest" });
+const validSetJobModel = ajv.compile<SetJobModelRequest>({ $ref: "link#/$defs/SetJobModelRequest" });
+const validSetActor = ajv.compile<SetActorRequest>({ $ref: "link#/$defs/SetActorRequest" });
 
 const IMAGE_TYPES: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp" };
 
@@ -45,6 +51,8 @@ export interface LinkOptions {
   mac: Mac;
   engine: Engine;
   pairing: Pairing;
+  /** What each provider offers, for the Models screen and for checking a choice. */
+  catalog: Catalog;
   hostId: string;
   hostName: string;
   https?: { key: string; cert: string };
@@ -109,6 +117,24 @@ export function buildLink(options: LinkOptions): FastifyInstance {
   });
 
   app.get("/stories", async request => ({ stories: listStories(mac), trace_id: request.traceId }));
+
+  // The Models screen (openspec outside-the-scene: One Models screen): settings of the Mac, not of a Story (docs/adr/0008).
+  app.get("/models", async request => modelsView(mac, options.catalog, request.traceId));
+
+  app.put<{ Params: { job: string } }>("/models/jobs/:job", async request => {
+    const job = request.params.job;
+    if (!(JOBS as readonly string[]).includes(job)) throw new LinkError("invalid", job === "actor" ? "There is no job \"actor\" for every Story; the Actor is set per Story." : `There is no job "${job}".`);
+    if (!validSetJobModel(request.body)) throw new LinkError("invalid", "A job's model needs its provider and the model's id, and an effort or null.");
+    setJobModel(mac.home, job as Job, offered(options.catalog, request.body.model));
+    return modelsView(mac, options.catalog, request.traceId);
+  });
+
+  app.put<{ Params: { id: string } }>("/stories/:id/actor", async request => {
+    if (!mac.tree.currentPath(request.params.id)) throw new LinkError("not_found", "There is no such Story on this Mac.");
+    if (!validSetActor(request.body)) throw new LinkError("invalid", "A Story's Actor needs its provider and the model's id, and an effort or null; or null for its Story File's.");
+    setStoryActor(mac.home, request.params.id, request.body.model ? offered(options.catalog, request.body.model) : null);
+    return modelsView(mac, options.catalog, request.traceId);
+  });
 
   app.get<{ Params: { id: string } }>("/stories/:id/scene", async request => sceneView(mac, engine, request.params.id, request.traceId));
 
@@ -222,3 +248,11 @@ export function buildLink(options: LinkOptions): FastifyInstance {
 
   return app;
 }
+
+/** A choice from the phone as the Mac keeps it, once the provider is known to offer it. */
+function offered(catalog: Catalog, choice: SetJobModelRequest["model"]): ModelChoice {
+  const refusal = catalog.refusal(choice as ModelChoice);
+  if (refusal) throw new LinkError("invalid", refusal);
+  return choice.effort ? { provider: choice.provider, model: choice.model, effort: choice.effort } : { provider: choice.provider, model: choice.model };
+}
+
