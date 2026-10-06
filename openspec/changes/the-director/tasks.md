@@ -45,7 +45,7 @@ Scenarios this change builds:
 
 ## 5. Backstage
 
-- [ ] 5.1 Test first, then build: `long-run › The Director shapes the long run around Arcs and Landmarks › The plan
+- [x] 5.1 Test first, then build: `long-run › The Director shapes the long run around Arcs and Landmarks › The plan
   stays Backstage`: the plan is in `GET /stories/{id}/backstage` and absent from the Scene view, the Day View, the
   World and the Journal; a link test
 - [ ] 5.2 Test first, then build: `outside-the-scene › Backstage shows everything else, only when visited › What the

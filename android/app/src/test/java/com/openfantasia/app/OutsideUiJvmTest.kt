@@ -17,4 +17,10 @@ class OutsideUiJvmTest : OutsideUiChecks() {
 
     @Scenario("long-run › Taste is short, readable and the player's › Deleting a lesson")
     @Test fun taste() = deletingALesson()
+
+    @Scenario("outside-the-scene › Backstage shows everything else, only when visited › What the Director is building toward")
+    @Test fun director() = whatTheDirectorIsBuildingToward()
+
+    @Test fun noDirectorYet() = noDirectorBeforeHePlans()
 }
+

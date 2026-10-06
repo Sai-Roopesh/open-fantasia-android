@@ -70,4 +70,25 @@ open class OutsideUiChecks : WorldUiChecks() {
         compose.onNodeWithText("Keep Ron in the background unless he's needed.").assertDoesNotExist()
         compose.onNodeWithText("Keep school procedure to a line.").assertIsDisplayed()
     }
+
+    // GIVEN the Director's plan builds toward the flying test on Wednesday
+    // WHEN the player opens Backstage
+    // THEN it says the Story is building toward the flying test on Wednesday, and that rest comes after it
+    fun whatTheDirectorIsBuildingToward() {
+        link.backstageView = FakeFantasiaLink.backstageFixture().copy(director = DirectorLine(toward = "the flying test on Wednesday",
+            phase = DirectorPhase.Build, line = "Building toward the flying test on Wednesday. This stretch builds; rest comes after it."))
+        openScene()
+        compose.onNodeWithText("Backstage").performClick()
+        backstage("THE DIRECTOR").assertIsDisplayed()
+        backstage("Building toward the flying test on Wednesday. This stretch builds; rest comes after it.").assertIsDisplayed()
+        compose.preview("BackstageDirector")
+    }
+
+    fun noDirectorBeforeHePlans() {
+        openScene()
+        compose.onNodeWithText("Backstage").performClick()
+        backstage("TASTE · WHAT THE STORY HAS LEARNED").assertIsDisplayed()
+        compose.onNodeWithText("THE DIRECTOR").assertDoesNotExist()
+    }
 }
+

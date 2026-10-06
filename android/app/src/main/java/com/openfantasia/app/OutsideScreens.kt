@@ -102,7 +102,7 @@ private val FantasiaRumourGround = Color(0xFF30261A)
 /**
  * Backstage as drawn in Backstage.dc.html (openspec outside-the-scene: Backstage shows everything else, only when
  * visited): what the Player Character does not know. Off-screen one day at a time, the Threads and where each stands,
- * the Lives, the Writer's plan for this Scene, and Taste, each lesson with a ✕. The Director's part comes with him.
+ * the Lives, what the Director is building toward, the Writer's plan for this Scene, and Taste, each lesson with a ✕.
  */
 @Composable fun BackstageScreen(backstage: BackstageView?, playerCharacter: String, enabled: Boolean, back: () -> Unit,
     removeTaste: (String) -> Unit, modifier: Modifier = Modifier) {
@@ -147,6 +147,7 @@ private val FantasiaRumourGround = Color(0xFF30261A)
                     backstage.lives.forEach { life -> Named(life.who, listOfNotNull(life.doing, life.where?.let { "In $it." }).joinToString(" ").ifEmpty { "Doing what they do." }) }
                 }
             }
+            backstage.director?.let { director -> item(key = "director") { DirectorCard(director) } }
             backstage.writer?.let { plan -> item(key = "writer") { WriterCard(plan) } }
             item(key = "taste") {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -187,6 +188,15 @@ private val FantasiaRumourGround = Color(0xFF30261A)
 }
 
 /** The Writer's plan for this Scene: its call, what the Scene is for, its beats as they stand, and its way out. */
+/** What the Director is building toward, in one line (Backstage.dc.html: THE DIRECTOR); his working stays in his call. */
+@Composable private fun DirectorCard(director: DirectorLine) {
+    Column(Modifier.fillMaxWidth().background(BackstageCard, RoundedCornerShape(16.dp)).padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SectionLabel("THE DIRECTOR")
+        Text(director.line, style = FantasiaType.metadata.copy(lineHeight = 21.sp), color = FantasiaProse)
+    }
+}
+
 @Composable private fun WriterCard(plan: WriterPlan) {
     Column(Modifier.fillMaxWidth().background(BackstageCard, RoundedCornerShape(16.dp)).padding(horizontal = 16.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)) {
