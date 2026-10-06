@@ -23,6 +23,9 @@ interface FantasiaLink {
     suspend fun deletePath(storyID: String, pathID: String): Accepted = throw LinkFailure("Paths are not on this link")
     suspend fun clearPaths(storyID: String): Accepted = throw LinkFailure("Paths are not on this link")
     suspend fun edit(storyID: String, request: EditRequest): Accepted = throw LinkFailure("Editing is not on this link")
+    suspend fun journal(storyID: String): JournalView = throw LinkFailure("The Journal is not on this link")
+    suspend fun backstage(storyID: String): BackstageView = throw LinkFailure("Backstage is not on this link")
+    suspend fun removeTaste(storyID: String, request: RemoveTasteRequest): Accepted = throw LinkFailure("Taste is not on this link")
     suspend fun retryWorld(storyID: String): Accepted
     suspend fun retry(storyID: String): TurnAccepted
     suspend fun endScene(storyID: String, request: EndSceneRequest): Accepted

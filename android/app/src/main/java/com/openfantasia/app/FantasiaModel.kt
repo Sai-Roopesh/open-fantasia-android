@@ -25,6 +25,11 @@ data class FantasiaState(
     /** The Paths screen, while it is open (openspec paths: The Paths screen). */
     val showingPaths: Boolean = false,
     val paths: PathsView? = null,
+    /** The Journal and Backstage, while open (openspec outside-the-scene). */
+    val showingJournal: Boolean = false,
+    val journal: JournalView? = null,
+    val showingBackstage: Boolean = false,
+    val backstage: BackstageView? = null,
     val draft: String = "",
     val sending: Boolean = false,
     val waiting: Boolean = false,
@@ -68,6 +73,8 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
         stream?.cancel()
         closePastScene()
         closePaths()
+        closeJournal()
+        closeBackstage()
         viewModelScope.launch {
             mutable.update { it.copy(scene = null, loading = true, problem = null) }
             try {
@@ -143,6 +150,40 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
     }
 
     fun closePaths() { mutable.update { it.copy(showingPaths = false, paths = null) } }
+
+    fun openJournal() = openOutside({ it.copy(showingJournal = true, journal = null) }) { id -> link.journal(id).let { view -> { s: FantasiaState -> s.copy(journal = view) } } }
+    fun closeJournal() { mutable.update { it.copy(showingJournal = false, journal = null) } }
+    fun openBackstage() = openOutside({ it.copy(showingBackstage = true, backstage = null) }) { id -> link.backstage(id).let { view -> { s: FantasiaState -> s.copy(backstage = view) } } }
+    fun closeBackstage() { mutable.update { it.copy(showingBackstage = false, backstage = null) } }
+
+    /** Opens a screen outside the Scene and reads it from the Mac, only now that it is visited. */
+    private fun openOutside(open: (FantasiaState) -> FantasiaState, read: suspend (String) -> (FantasiaState) -> FantasiaState) {
+        val scene = mutable.value.scene ?: return
+        mutable.update { open(it).copy(problem = null) }
+        viewModelScope.launch {
+            try { val apply = read(scene.storyID); mutable.update(apply)
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) { showProblem(e) }
+        }
+    }
+
+    /** Deletes a lesson from Taste on this Path (openspec long-run), then reads Backstage again. */
+    fun removeTaste(line: String) {
+        val state = mutable.value
+        val scene = state.scene ?: return
+        if (!state.canChangePath) return
+        mutable.update { it.copy(sending = true, problem = null) }
+        viewModelScope.launch {
+            try {
+                link.removeTaste(scene.storyID, RemoveTasteRequest(line = line, after = scene.headEntryID))
+                val fresh = link.scene(scene.storyID)
+                val backstage = link.backstage(scene.storyID)
+                mutable.update { it.copy(scene = visibleScene(fresh), backstage = backstage) }
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) { showProblem(e)
+            } finally { mutable.update { it.copy(sending = false) } }
+        }
+    }
 
     fun tryAnotherWay(from: String?) = changePath { link.tryAnotherWay(it.storyID, TryAnotherWayRequest(from = from, after = it.headEntryID)) }
     fun rewind(to: String) = changePath { link.rewind(it.storyID, RewindRequest(to = to, after = it.headEntryID)) }

@@ -48,6 +48,7 @@
 // val backstageLife        = json.parse(BackstageLife.serializer(), jsonString)
 // val writerPlan           = json.parse(WriterPlan.serializer(), jsonString)
 // val sceneCall            = json.parse(SceneCall.serializer(), jsonString)
+// val beatStatus           = json.parse(BeatStatus.serializer(), jsonString)
 // val writerBeat           = json.parse(WriterBeat.serializer(), jsonString)
 // val removeTasteRequest   = json.parse(RemoveTasteRequest.serializer(), jsonString)
 // val endSceneRequest      = json.parse(EndSceneRequest.serializer(), jsonString)
@@ -1066,12 +1067,15 @@ data class WriterPlan (
 
 @Serializable
 data class WriterBeat (
-    val status: Status,
+    val status: BeatStatus,
     val text: String
 )
 
+/**
+ * Where a beat stands: to come, under way, done, or passed over.
+ */
 @Serializable
-enum class Status(val value: String) {
+enum class BeatStatus(val value: String) {
     @SerialName("done") Done("done"),
     @SerialName("in_play") InPlay("in_play"),
     @SerialName("pending") Pending("pending"),

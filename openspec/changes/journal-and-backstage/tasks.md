@@ -19,10 +19,10 @@ Scenarios this change builds: `outside-the-scene › The Journal reads the Story
 
 ## 3. On the phone
 
-- [ ] 3.1 Test first, then build: `outside-the-scene › The Journal reads the Story back › Reading back` on the phone, built to `docs/design/Journal.dc.html`; tapping Scene 3 shows it in full; shared check on the JVM and the device
-- [ ] 3.2 Test first, then build: `outside-the-scene › Backstage shows everything else, only when visited › Quirrell's nights, Backstage` on the phone, built to `docs/design/Backstage.dc.html`; shared check on the JVM and the device
-- [ ] 3.3 Test first, then build: `long-run › Taste is short, readable and the player's › Deleting a lesson` on the phone: the ✕ deletes the line once the Mac takes it; shared check
-- [ ] 3.4 The header's Journal, Paths and Backstage; render with `-PfantasiaPreviews` and compare with `Journal.dc.html` and `Backstage.dc.html`; fix what differs
+- [x] 3.1 Test first, then build: `outside-the-scene › The Journal reads the Story back › Reading back` on the phone, built to `docs/design/Journal.dc.html`; tapping Scene 3 shows it in full; shared check on the JVM and the device
+- [x] 3.2 Test first, then build: `outside-the-scene › Backstage shows everything else, only when visited › Quirrell's nights, Backstage` on the phone, built to `docs/design/Backstage.dc.html`; shared check on the JVM and the device
+- [x] 3.3 Test first, then build: `long-run › Taste is short, readable and the player's › Deleting a lesson` on the phone: the ✕ deletes the line once the Mac takes it; shared check
+- [x] 3.4 The header's Journal, Paths and Backstage; render with `-PfantasiaPreviews` and compare with `Journal.dc.html` and `Backstage.dc.html`; fix what differs
 
 ## 4. Together
 

@@ -22,6 +22,9 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
     val deleted = mutableListOf<String>()
     var clears = 0
     val edits = mutableListOf<EditRequest>()
+    var journalView = journalFixture()
+    var backstageView = backstageFixture()
+    val tasteRemovals = mutableListOf<RemoveTasteRequest>()
     var retries = 0
     val worldRetries = mutableListOf<String>()
     var endedDayView = dayView(ClosedBy.Player)
@@ -102,6 +105,14 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
         return Accepted(headEntryID = current.value.headEntryID, traceID = "edit")
     }
     override suspend fun paths(storyID: String): PathsView = pathsView
+    override suspend fun journal(storyID: String): JournalView = journalView
+    override suspend fun backstage(storyID: String): BackstageView = backstageView
+    override suspend fun removeTaste(storyID: String, request: RemoveTasteRequest): Accepted {
+        tasteRemovals += request
+        backstageView = backstageView.copy(taste = backstageView.taste - request.line)
+        current.value = current.value.copy(headEntryID = "taste", seq = current.value.seq + 1, lastEventID = (current.value.seq + 1).toString())
+        return Accepted(headEntryID = "taste", traceID = "taste")
+    }
     /** The Scene as the Mac would show it with its head at [entryID]: what came after is not on this Path. */
     private fun backTo(entryID: String, pathID: String) {
         val view = current.value
@@ -159,6 +170,28 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
             world = World.Ready, sceneSpan = "Friday 9:40 pm – 11:05 pm", meanwhile = emptyList(), failure = null,
             countdowns = listOf(Countdown(linkSchemaWhen = "3 days", landmark = "Draconia's flying test", label = "3 days to Draconia's flying test"),
                 Countdown(linkSchemaWhen = "9 weeks", landmark = "Slytherin v Gryffindor", label = "9 weeks to Slytherin v Gryffindor")))
+        // The Journal as drawn in Journal.dc.html.
+        fun journalFixture() = JournalView(storyID = "story", traceID = "journal", days = listOf(JournalDay(day = "Friday", rows = listOf(
+            JournalRow(kind = JournalRowKind.Scene, meanwhile = null, scene = JournalScene(number = 12, label = "Scene 12 · 6:10 pm · The Three Broomsticks",
+                title = "The insult", summary = "Draconia calls him Stray in front of the whole pub, and Crabbe laughs a beat late.", now = false)),
+            JournalRow(kind = JournalRowKind.Meanwhile, scene = null, meanwhile = MeanwhileItem(how = How.Told, text = "Ron says a troll got into the dungeons during the feast.")),
+            JournalRow(kind = JournalRowKind.Scene, meanwhile = null, scene = JournalScene(number = 13, label = "Scene 13 · 8:05 pm · The girls' bathroom",
+                title = "The troll", summary = "He gets Hermione out before the club comes down. Neither of them says how he moved that fast.", now = false)),
+            JournalRow(kind = JournalRowKind.Scene, meanwhile = null, scene = JournalScene(number = 14, label = "Scene 14 · 9:40 pm · now",
+                title = "After curfew", summary = "Hermione waited up, and wants a reason for the inkwell.", now = true))))))
+        // Backstage as drawn in Backstage.dc.html.
+        fun backstageFixture() = BackstageView(storyID = "story", traceID = "backstage",
+            offscreen = listOf(BackstageDay(day = "Saturday", items = listOf(
+                BackstageItem(time = "11:50 pm", what = "Quirrell tests the wards on the third-floor door. Nobody sees him.", knownTo = listOf("Quirinus Quirrell")),
+                BackstageItem(time = "6:20 am", what = "Draconia writes to her mother about the bed Snape gave away. She leaves out the cuffs.", knownTo = listOf("Draconia Malfoy")))),
+                BackstageDay(day = "Friday", items = listOf(BackstageItem(time = "10:00 pm", what = "Hagrid's lantern stops at the edge of the forest.", knownTo = listOf("Rubeus Hagrid"))))),
+            threads = listOf(BackstageThread(name = "The third-floor door", now = "Quirrell has tried the wards twice and scorched the door")),
+            lives = listOf(BackstageLife(who = "Quirinus Quirrell", where = "the third-floor corridor", doing = "After the Stone. Tonight: the wards again.")),
+            writer = WriterPlan(call = SceneCall.Land, purpose = "Hermione decides whether to ask what he is, before she finds out what she feels.",
+                beats = listOf(WriterBeat(text = "She stops pretending to read.", status = BeatStatus.Done),
+                    WriterBeat(text = "The lantern goes into the forest.", status = BeatStatus.InPlay)),
+                exit = "she goes up to bed, or asks him to come and look."),
+            taste = listOf("Keep school procedure to a line.", "Keep Ron in the background unless he's needed."))
         // The Paths screen as drawn in Paths.dc.html: Main, and the lantern tried from Scene 13 two days ago.
         fun pathsFixture() = PathsView(storyID = "story", traceID = "paths", clearable = 1, rows = listOf(
             PathRow(kind = PathRowKind.Scenes, depth = 0, label = "Scenes 1 – 12 · Friday 6:10 pm", title = null, path = null),

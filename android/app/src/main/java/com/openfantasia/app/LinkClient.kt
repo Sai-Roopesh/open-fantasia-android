@@ -57,6 +57,10 @@ class LinkClient(val address: HttpUrl, fingerprint: String, private val deviceTo
         command(listOf("stories", storyID, "paths", pathID, "rename"), commandJson.encodeToString(request))
     suspend fun deletePath(storyID: String, pathID: String): Accepted = command(listOf("stories", storyID, "paths", pathID), delete = true)
     suspend fun clearPaths(storyID: String): Accepted = command(listOf("stories", storyID, "paths", "clear"), "{}")
+    suspend fun journal(storyID: String): JournalView = command(listOf("stories", storyID, "journal"))
+    suspend fun backstage(storyID: String): BackstageView = command(listOf("stories", storyID, "backstage"))
+    suspend fun removeTaste(storyID: String, request: RemoveTasteRequest): Accepted =
+        command(listOf("stories", storyID, "taste", "remove"), commandJson.encodeToString(request))
     suspend fun edit(storyID: String, request: EditRequest): Accepted =
         command(listOf("stories", storyID, "edit"), commandJson.encodeToString(request))
 

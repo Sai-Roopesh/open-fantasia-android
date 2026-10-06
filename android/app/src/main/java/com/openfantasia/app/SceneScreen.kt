@@ -66,6 +66,8 @@ class SceneScrollState(val list: LazyListState) {
     choose: (ChooseRequest) -> Unit = {},
     problem: String? = null,
     openPaths: () -> Unit = {},
+    openJournal: () -> Unit = {},
+    openBackstage: () -> Unit = {},
     pathsEnabled: Boolean = false,
     rewind: (String) -> Unit = {},
     tryAnotherWay: (String) -> Unit = {},
@@ -108,7 +110,7 @@ class SceneScrollState(val list: LazyListState) {
         pathsEnabled = pathsEnabled, copy = { copy(passage.text) }, rewind = { rewind(passage.entryID) }, tryAnotherWay = { tryAnotherWay(passage.entryID) },
         edit = { editing = Editing(passage.entryID, passage.text, isMove, passage.entryID == (if (isMove) latestMove else latestReplyID)) })
     Column(modifier) {
-        SceneHeader(scene, storyTitle, back, scene.dayView == null && scene.opening == null && (replyComing || scene.turn.kind == TurnStateKind.Failed || imeBottom > 0), openPaths)
+        SceneHeader(scene, storyTitle, back, scene.dayView == null && scene.opening == null && (replyComing || scene.turn.kind == TurnStateKind.Failed || imeBottom > 0), openPaths, openJournal, openBackstage)
         LazyColumn(state = list, modifier = Modifier.weight(1f).onSizeChanged { viewportSize = it }.testTag("scene-passages"),
             verticalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 8.dp)) {
             itemsIndexed(scene.earlierScenes, key = { _, scene -> "earlier-${scene.number}" }) { index, earlier ->
@@ -265,7 +267,8 @@ class SceneScrollState(val list: LazyListState) {
     }
 }
 
-@Composable private fun SceneHeader(scene: SceneView, storyTitle: String, back: () -> Unit, compact: Boolean, openPaths: () -> Unit) {
+@Composable private fun SceneHeader(scene: SceneView, storyTitle: String, back: () -> Unit, compact: Boolean, openPaths: () -> Unit,
+    openJournal: () -> Unit, openBackstage: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(2.dp)) {
         IconButton(onClick = back, modifier = Modifier.size(44.dp).semantics { contentDescription = "Stories" }) {
@@ -275,9 +278,13 @@ class SceneScrollState(val list: LazyListState) {
             Text(if (compact) scene.scene.title else storyTitle, modifier = Modifier.testTag("scene-header-title"), style = FantasiaType.header, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (compact) Text("Scene ${scene.scene.number} · ${scene.scene.atLabel}", modifier = Modifier.testTag("scene-header-time"), style = FantasiaType.small, color = FantasiaCaption)
         }
-        // The header gains each screen as it is built (docs/design/README.md); Paths is the first.
-        TextButton(onClick = openPaths, modifier = Modifier.height(44.dp), contentPadding = PaddingValues(horizontal = 12.dp)) {
-            Text("Paths", style = FantasiaType.meta, color = FantasiaSecondary)
+        // The header gains each screen as it is built (docs/design/README.md); the Story's title gives way first.
+        CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
+            for ((label, open) in listOf("Journal" to openJournal, "Paths" to openPaths, "Backstage" to openBackstage)) {
+                TextButton(onClick = open, modifier = Modifier.height(44.dp), contentPadding = PaddingValues(horizontal = 7.dp)) {
+                    Text(label, style = FantasiaType.meta, color = FantasiaSecondary)
+                }
+            }
         }
     }
     HorizontalDivider(color = FantasiaHeaderLine)

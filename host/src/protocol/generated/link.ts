@@ -13,6 +13,13 @@ export type ErrorCode =
  * via the `definition` "SceneCall".
  */
 export type SceneCall = "continue" | "land" | "end";
+/**
+ * Where a beat stands: to come, under way, done, or passed over.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "BeatStatus".
+ */
+export type BeatStatus = "pending" | "in_play" | "done" | "skipped";
 
 /**
  * Everything the phone and the Mac say to each other (openspec/specs/mac-link). Every request carries the Fantasia-Contract header with the contract version; every response carries a trace id. Unions are flat objects with a kind field, so the Kotlin side stays plain data classes.
@@ -873,7 +880,7 @@ export interface WriterPlan {
  */
 export interface WriterBeat {
   text: string;
-  status: "pending" | "in_play" | "done" | "skipped";
+  status: BeatStatus;
 }
 /**
  * Delete a lesson from Taste on the Path the player is on (openspec long-run: Taste is short, readable and the player's).

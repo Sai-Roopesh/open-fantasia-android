@@ -1429,6 +1429,16 @@
         "end"
       ]
     },
+    "BeatStatus": {
+      "description": "Where a beat stands: to come, under way, done, or passed over.",
+      "type": "string",
+      "enum": [
+        "pending",
+        "in_play",
+        "done",
+        "skipped"
+      ]
+    },
     "WriterBeat": {
       "type": "object",
       "additionalProperties": false,
@@ -1441,13 +1451,7 @@
           "type": "string"
         },
         "status": {
-          "type": "string",
-          "enum": [
-            "pending",
-            "in_play",
-            "done",
-            "skipped"
-          ]
+          "$ref": "#/$defs/BeatStatus"
         }
       }
     },
