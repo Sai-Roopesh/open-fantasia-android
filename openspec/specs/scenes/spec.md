@@ -168,9 +168,10 @@ On a **Move**, Rewind to here and Try another way from here SHALL act on the mom
 
 ### Requirement: Redo, with a Direction and another model if wanted
 
-**Redo** SHALL write the latest Reply again, optionally with a **Direction** and optionally on a different model
-for that one Reply. A Direction SHALL shape what comes next and SHALL never appear in the Story. A Direction that
-recurs, or that the player asks to remember, SHALL become a line of **Taste**.
+**Redo** SHALL write the latest **Reply** again, optionally with a **Direction** and optionally on a different model
+for that one **Reply**, chosen from the models the Models screen offers. A **Direction** SHALL shape what comes next
+and SHALL never appear in the **Story**. A **Direction** that recurs, or that the player asks to remember, SHALL become
+a line of **Taste**.
 
 #### Scenario: A Direction that is not remembered
 - **WHEN** the player Redoes with the Direction "you're leaning too much into Ron, move on"

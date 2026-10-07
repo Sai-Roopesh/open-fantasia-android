@@ -91,7 +91,7 @@ Scenarios this change builds:
 
 - [x] 6.1 Run `scripts/scenarios.mjs`, the host suite, the Android JVM and device suites, `npm run test:real -- test/real/providers.test.ts` and
   `openspec validate --all --strict`, and verify all pass
-- [ ] 6.2 On the phone:
+- [x] 6.2 On the phone:
   1. Set the Weaver to GPT 6.1 Sol and end a Scene; see the Day View.
   2. Redo a Reply on Gemini 3.8 Flash; see the next Reply back on the Actor.
   3. Set the Night Train's Actor to another model and send a Move.

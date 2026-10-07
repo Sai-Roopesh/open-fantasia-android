@@ -64,5 +64,5 @@ Scenarios this change builds:
 
 - [x] 7.1 Run `scripts/scenarios.mjs`, the host suite, `npm run test:real` for the Director's and the Weaver's live
   tests, the Android JVM and device suites, and `openspec validate --all --strict`, and verify all pass
-- [ ] 7.2 On the phone: play the Night Train past a Scene end and see the Director's line in Backstage; end a Scene
+- [x] 7.2 On the phone: play the Night Train past a Scene end and see the Director's line in Backstage; end a Scene
   that peaks and see a quiet pick at the Day View
