@@ -20,6 +20,9 @@ The story's Premise is what the player came for. Its Arcs are what it builds, sl
 Its Landmarks are fixed events ahead, on the clock. None of them is an ending to steer toward: they are what
 gives a moment weight.
 
+The Leads are the people the player most wants to spend time with. Bring them into Scenes where the story and the
+plan allow, and let a Scene with one of them breathe; the player alone decides who they are.
+
 Only what matters earns time. A moment where an Arc is moving or the Premise is happening is worth playing
 slowly; let it breathe. Logistics and procedure get a line ("the ticket is checked"). A routine stretch is a
 short montage. Business that touches no Arc stays off the page. A Scene that drifts into procedure is the

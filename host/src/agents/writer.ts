@@ -312,7 +312,9 @@ function storyPrompt(state: State): string {
       state.world.summary ? `World: ${state.world.summary}` : ""
     ].filter(Boolean).join("\n")),
     section(`player_character name="${pc}"`, state.people[pc]?.whoTheyAre ?? ""),
-    section("people", people.join("\n"))
+    section("people", people.join("\n")),
+    // The people the player most wants to spend time with; theirs to choose (openspec stories: Leads).
+    section("leads", state.leads.join(", "))
   ].filter(part => part !== null).join("\n\n");
 }
 

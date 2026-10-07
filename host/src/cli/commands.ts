@@ -93,6 +93,10 @@ function describe(payload: Payload): string {
     case "linger_set": return payload.on ? "Linger on" : "Linger off";
     case "taste_set": return `Taste: ${payload.lines.join(" / ") || "nothing"}`;
     case "known_set": return `Known of ${payload.person}: ${payload.text}`;
+    case "person_set": return `${payload.person.name}: ${payload.person.whoTheyAre}`;
+    case "lead_set": return `${payload.person} ${payload.lead ? "is" : "is no longer"} a Lead`;
+    case "group_set": return `The Group ${payload.group}: ${payload.description}`;
+    case "portrait_set": return `${payload.person}'s Portrait is ${payload.file}`;
     case "chronicle": return `${payload.moments.length} Moments${payload.summary ? `: ${payload.summary}` : ""}`;
     case "world_moved": return `The World moved on to ${payload.until}: ${payload.lives.length} Lives, ${payload.happened.length} happened, ${payload.meanwhile.length} in Meanwhile`;
     case "director_plan": return `The Director: ${payload.phase} toward ${payload.toward}, ${payload.scenes} Scenes`;

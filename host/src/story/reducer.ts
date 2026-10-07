@@ -47,6 +47,20 @@ export function apply(state: State | null, entry: Entry): State {
       return state.scene?.goes.length ? { ...state, scene: leave(state.scene) } : state;
     case "taste_set":
       return { ...state, taste: payload.lines };
+    case "person_set": {
+      const portrait = state.people[payload.person.name]?.portrait ?? null;
+      return { ...state, people: { ...state.people, [payload.person.name]: { ...payload.person, portrait } } };
+    }
+    case "lead_set":
+      return { ...state, leads: payload.lead ? [...state.leads.filter(name => name !== payload.person), payload.person] : state.leads.filter(name => name !== payload.person) };
+    case "group_set":
+      return { ...state, groups: state.groups.some(group => group.name === payload.group)
+        ? state.groups.map(group => group.name === payload.group ? { name: payload.group, description: payload.description } : group)
+        : [...state.groups, { name: payload.group, description: payload.description }] };
+    case "portrait_set": {
+      const person = state.people[payload.person];
+      return person ? { ...state, people: { ...state.people, [payload.person]: { ...person, portrait: payload.file } } } : state;
+    }
     case "known_set": {
       const person = state.people[payload.person];
       return person ? { ...state, people: { ...state.people, [payload.person]: { ...person, known: payload.text } } } : state;

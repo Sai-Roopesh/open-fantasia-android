@@ -11,11 +11,12 @@ import { actorOf, jobModels } from "../models/jobs.js";
 import { nameIndex } from "../agents/names.js";
 import { writePlan } from "../agents/director.js";
 import { directionDue, planForWriter } from "./directing.js";
+import { checkPerson } from "./people.js";
 import type { Models } from "../models/model-call.js";
 import type { Accepted, ChooseRequest, StoryEvent, TurnAccepted, TurnState } from "../protocol/generated/link.js";
 import type { StoryPath } from "../store/tree.js";
 import type { Entry, EntryKind } from "../story/entries.js";
-import type { ModelChoice } from "../story/state.js";
+import type { ModelChoice, Person } from "../story/state.js";
 import { entryEvent, sceneEntries } from "../views/scene.js";
 import { chronicleAsk, dueChronicle, STEPPED_AWAY_MS } from "./chronicling.js";
 import { dueWeave, gapAsk, weaveAsk } from "./weaving.js";
@@ -228,6 +229,37 @@ export class Engine {
     if (name === state.playerCharacter) throw new LinkError("invalid", `${name} is the Player Character; what he knows of himself is not kept.`);
     if (!text.trim()) throw new LinkError("invalid", `Say what he knows of ${name}.`);
     const entry = this.write(storyId, path, { kind: "known_set", person: name, text: text.trim() });
+    return { head_entry_id: entry.id, trace_id: traceId };
+  }
+
+  /**
+   * Creates someone, or changes them whole, from this moment onward on the current Path (openspec stories: Anything
+   * can be edited or created in the app), between Replies, against the head the phone saw.
+   */
+  setPerson(storyId: string, person: Omit<Person, "portrait">, after: string, traceId: string, creating: boolean): Accepted {
+    const path = this.pathHead(storyId, after);
+    const checked = checkPerson(this.mac.states.at(path.headEntryId), person, creating);
+    if (!checked.ok) throw new LinkError("invalid", checked.reason);
+    const entry = this.write(storyId, path, { kind: "person_set", person: checked.person });
+    return { head_entry_id: entry.id, trace_id: traceId };
+  }
+
+  /** Makes someone a Lead or stops them being one: only the player or Claude ever does (openspec stories: Leads). */
+  setLead(storyId: string, person: string, lead: boolean, after: string, traceId: string): Accepted {
+    const path = this.pathHead(storyId, after);
+    const state = this.mac.states.at(path.headEntryId);
+    const name = nameIndex(Object.values(state.people)).get(person.trim().toLocaleLowerCase());
+    if (!name) throw new LinkError("invalid", `${person.trim()} is not in the Story.`);
+    if (name === state.playerCharacter) throw new LinkError("invalid", `${name} is the Player Character, not a Lead.`);
+    const entry = this.write(storyId, path, { kind: "lead_set", person: name, lead });
+    return { head_entry_id: entry.id, trace_id: traceId };
+  }
+
+  /** Creates a Group, or changes its description (openspec stories: Groups are the player's to arrange). */
+  setGroup(storyId: string, group: string, description: string, after: string, traceId: string): Accepted {
+    const path = this.pathHead(storyId, after);
+    if (!group.trim()) throw new LinkError("invalid", "Give the Group a name.");
+    const entry = this.write(storyId, path, { kind: "group_set", group: group.trim(), description: description.trim() });
     return { head_entry_id: entry.id, trace_id: traceId };
   }
 
