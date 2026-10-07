@@ -12,4 +12,6 @@ class WorldScreenScreenTest : WorldScreenUiChecks() {
     @Test fun grows() = whatHeKnowsGrows()
 
     @Test fun placesAndCalendar() = placesAndTheCalendar()
+
+    @Test fun nobodyKnown() = nobodyKnownYet()
 }

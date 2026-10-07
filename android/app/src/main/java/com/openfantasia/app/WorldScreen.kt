@@ -105,6 +105,10 @@ private enum class WorldTab(val label: String) { People("People"), Places("Place
 @Composable private fun People(people: List<WorldPerson>, portrait: (String) -> PortraitSource?, modifier: Modifier, open: (String) -> Unit) {
     val leads = people.filter { it.lead }
     val others = people.filterNot { it.lead }
+    if (people.isEmpty()) {
+        Box(modifier.fillMaxWidth().padding(24.dp)) { Text("Nobody yet that you know of.", style = FantasiaType.meta, color = FantasiaCaption) }
+        return
+    }
     LazyColumn(modifier.testTag("world-people"), contentPadding = PaddingValues(bottom = 16.dp)) {
         if (leads.isNotEmpty()) {
             item(key = "leads") { Label("LEADS", Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 6.dp)) }

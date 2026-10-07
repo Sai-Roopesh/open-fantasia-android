@@ -44,6 +44,14 @@ open class WorldScreenUiChecks : WorldUiChecks() {
         compose.onNodeWithText("LEADS").assertIsDisplayed()
     }
 
+    // A Path that branched before the Player Character knew anyone: the People tab says so, and Add a person is still there.
+    fun nobodyKnownYet() {
+        link.worldView = link.worldView.copy(people = emptyList())
+        openWorld()
+        compose.onNodeWithText("Nobody yet that you know of.").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Add a person").assertIsDisplayed()
+    }
+
     fun placesAndTheCalendar() {
         openWorld()
         compose.onNodeWithText("Places").performClick()
