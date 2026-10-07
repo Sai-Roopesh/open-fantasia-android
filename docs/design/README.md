@@ -16,6 +16,8 @@ placeholders; the app shows the real images (openspec stories: Portraits are rea
 - Things that change the Story are words, not icons alone: End scene, Linger, Copy, Redo, Edit, Try another way.
 - An entry point appears only once what it opens exists: the Scene's header gains World, Journal, Paths and
   Backstage as those screens are built.
+- The Story opens from the Story's title in the Scene's header, marked with a chevron: the header has no room for a
+  fifth word, and the title names what opens (7 October 2026, drawn for the player's approval).
 
 ## Look
 
@@ -47,3 +49,4 @@ placeholders; the app shows the real images (openspec stories: Portraits are rea
 | `Backstage.dc.html` | Backstage, Taste included | Backstage |
 | `Paths.dc.html` | Paths | Paths |
 | `Models.dc.html` | Models | the Models screen |
+| `Story.dc.html`, `StoryEdit.dc.html` | The Story: its Premise, Style and reply length, Arcs, Landmarks, World, places and institutions, and the time; and the sheet that edits each, Taste's lines included | editing the Story |

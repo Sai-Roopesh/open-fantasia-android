@@ -116,9 +116,23 @@
     },
     "World.dc.html": {
       "h": 844,
-      "title": "World \u00b7 People",
+      "title": "World · People",
       "w": 390,
       "x": 0,
+      "y": 3480
+    },
+    "Story.dc.html": {
+      "h": 1900,
+      "title": "The Story",
+      "w": 390,
+      "x": 3290,
+      "y": 3480
+    },
+    "StoryEdit.dc.html": {
+      "h": 844,
+      "title": "Editing the Story",
+      "w": 390,
+      "x": 3760,
       "y": 3480
     }
   },
@@ -149,7 +163,7 @@
     },
     "row3": {
       "kind": "title1",
-      "maxW": 3210,
+      "maxW": 4150,
       "text": "Outside the Scene",
       "w": 240,
       "x": 0,
@@ -173,7 +187,9 @@
     "Backstage.dc.html",
     "Paths.dc.html",
     "Models.dc.html",
-    "Pair.dc.html"
+    "Pair.dc.html",
+    "Story.dc.html",
+    "StoryEdit.dc.html"
   ],
   "pages": [],
   "title": "Open Fantasia screens"
