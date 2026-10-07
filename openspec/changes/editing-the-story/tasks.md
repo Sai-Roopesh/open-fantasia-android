@@ -96,7 +96,7 @@ Scenarios this change builds:
 
 - [x] 4.1 Run `scripts/scenarios.mjs`, the host suite and lint, the Android JVM and device suites, and `openspec
   validate --all --strict`. Verify all pass, with no scenario of this change untested.
-- [ ] 4.2 On the phone, over adb, on a separate Path of the Night Train, switched back and deleted afterwards:
+- [x] 4.2 On the phone, over adb, on a separate Path of the Night Train, switched back and deleted afterwards:
   - change the Style;
   - set the reply length to Short;
   - move a Landmark;

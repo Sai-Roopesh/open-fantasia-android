@@ -293,7 +293,8 @@ class SceneScrollState(val list: LazyListState) {
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             Column(Modifier.weight(1f, fill = false)) {
                 Text(if (compact) scene.scene.title else storyTitle, modifier = Modifier.testTag("scene-header-title"), style = FantasiaType.header, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (compact) Text("Scene ${scene.scene.number} · ${scene.scene.atLabel}", modifier = Modifier.testTag("scene-header-time"), style = FantasiaType.small, color = FantasiaCaption)
+                if (compact) Text("Scene ${scene.scene.number} · ${scene.scene.atLabel}", modifier = Modifier.testTag("scene-header-time"), style = FantasiaType.small,
+                    color = FantasiaCaption, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             FantasiaIcon(FantasiaIconKind.ChevronRight, Modifier.size(14.dp), FantasiaCaption)
         }
