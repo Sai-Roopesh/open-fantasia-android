@@ -69,8 +69,8 @@ on each line. Places and Calendar are tabs in World.dc.html, with no content dra
 - A line woven before `about` existed counts as about everyone it names.
 
 **4. Who is listed (host).** Anyone he knows something of: a `known` line from any source, or a Meanwhile line about
-them. The Leads come first, in the Story's order; then everyone else, by name. The members of a Group are one entry,
-under the Group's name, with its description, when none of them is known on their own.
+them. The Leads come first, in the Story's order; then everyone else, by name. Each Group is one entry, under its
+name, with its description, which is public as a place's is; a member he knows on their own is listed as well.
 
 **5. Places and the Calendar (host).**
 - **Places** are the Story File's places and institutions, with their descriptions, each marked when a Scene on the
@@ -111,6 +111,7 @@ under the Group's name, with its description, when none of them is known on thei
   (`chroniclerPrompt`), so it can know only what the Scene shows. CHRONICLER.md says the line comes from the Scene and
   the earlier line, and a live test plays a Scene with Quirrell and has a judge look for his secret in the line.
 - [Lines grow long over many Scenes] → At most three sentences; the Chronicler rewrites the line, never appends to it.
-- [A Group known as one] → Shown as one until any member becomes known on their own; then that member is listed too.
+- [A Group known as one] → Its description is the Story File's, so it must be what anyone would know, like a place's;
+  a member he comes to know on their own is listed as well.
 - [Old Meanwhile lines without `about`] → Read by the names in them, which can miss a line said with "she". New lines
   say who they are about.

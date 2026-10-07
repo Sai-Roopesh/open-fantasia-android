@@ -41,6 +41,11 @@ export type ModelProvider = "claude" | "codex" | "antigravity";
  * via the `definition` "ModelJob".
  */
 export type ModelJob = "actor" | "writer" | "chronicler" | "weaver" | "director";
+/**
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "CalendarKind".
+ */
+export type CalendarKind = "landmark" | "happening";
 
 /**
  * Everything the phone and the Mac say to each other (openspec/specs/mac-link). Every request carries the Fantasia-Contract header with the contract version; every response carries a trace id. Unions are flat objects with a kind field, so the Kotlin side stays plain data classes.
@@ -1166,4 +1171,98 @@ export interface RetryRequest {
  */
 export interface RetryWorldRequest {
   model?: ModelChoice | null;
+}
+/**
+ * A Scene by its number and title.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "SceneRef".
+ */
+export interface SceneRef {
+  number: number;
+  title: string;
+}
+/**
+ * Someone on the World screen, as the Player Character knows them (openspec outside-the-scene: The World screen shows what the Player Character knows).
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "WorldPerson".
+ */
+export interface WorldPerson {
+  name: string;
+  aliases: string[];
+  portrait_url: string | null;
+  lead: boolean;
+  /**
+   * The Group they are in, if any.
+   */
+  group: string | null;
+  /**
+   * This entry is a Group, standing for members not known on their own.
+   */
+  is_group: boolean;
+  /**
+   * What the Player Character knows of them; null when it is only what he has heard.
+   */
+  known: string | null;
+  /**
+   * The Scene that last added to what he knows; null for what he knew from the start, or was set on the Mac.
+   */
+  known_from: SceneRef | null;
+  /**
+   * What he has heard of them, newest first.
+   */
+  heard: MeanwhileItem[];
+}
+/**
+ * A place in the Story, as anyone there would know it.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "WorldPlace".
+ */
+export interface WorldPlace {
+  name: string;
+  description: string;
+  /**
+   * A Scene on this Path was there.
+   */
+  been: boolean;
+}
+/**
+ * A Landmark, or a Happening he knows of, still ahead.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "CalendarItem".
+ */
+export interface CalendarItem {
+  kind: CalendarKind;
+  name: string;
+  what: string;
+  /**
+   * When, as people say it: "Wednesday 9:00 am".
+   */
+  at_label: string;
+  /**
+   * How long to go: "3 days", "Tomorrow", "Today at 8:30 pm".
+   */
+  when: string;
+}
+/**
+ * The World screen: People, Places and the Calendar, only as the Player Character knows them.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "WorldView".
+ */
+export interface WorldView {
+  story_id: string;
+  /**
+   * The Leads first, in the Story's order, then everyone else he knows of, by name.
+   */
+  people: WorldPerson[];
+  places: WorldPlace[];
+  /**
+   * Ordered by time.
+   */
+  calendar: CalendarItem[];
+  trace_id: string;
 }

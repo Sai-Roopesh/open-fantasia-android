@@ -16,7 +16,7 @@ export function portraitUrl(storyId: string, file: string): string {
   return `/stories/${encodeURIComponent(storyId)}/portraits/${encodeURIComponent(file)}`;
 }
 
-function say(state: State, at: string): string {
+export function say(state: State, at: string): string {
   const time = parseStoryTime(at);
   return time ? sayStoryTime(time, state.dayOneWeekday) : at;
 }
@@ -56,7 +56,7 @@ export function sceneCard(storyId: string, state: State): SceneCard {
 }
 
 /** How long to go, and the whole line: "3 days" ("3 days to …"), "Tomorrow" ("Tomorrow: …"), "Today at 6:00 pm". */
-function countdown(now: StoryTime, at: StoryTime, name: string): Countdown {
+export function countdown(now: StoryTime, at: StoryTime, name: string): Countdown {
   const days = at.day - now.day;
   if (days >= 2) return { landmark: name, when: `${days} days`, label: `${days} days to ${name}` };
   if (days === 1) return { landmark: name, when: "Tomorrow", label: `Tomorrow: ${name}` };

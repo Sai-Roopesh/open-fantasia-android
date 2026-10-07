@@ -11,7 +11,7 @@ import { momentsOn } from "../../src/story/memory.js";
 import { importStoryFile } from "../../src/storyfile/import.js";
 import { sceneView } from "../../src/views/scene.js";
 import { freshHome } from "../support/host.js";
-import { hogwartsStoryFile, writeStoryFile } from "../support/story-files.js";
+import { hogwartsStoryFile, hogwartsWorldStoryFile, writeStoryFile } from "../support/story-files.js";
 
 // These call real models through the player's Claude subscription: the Chronicler and the Writer on their default
 // models, the Actor on the Story's, and a judge. They run only with `npm run test:real`.
@@ -168,4 +168,35 @@ describe.skipIf(!token)("the Chronicler on Claude", () => {
       expect(knows.yes, `run ${run + 1}: ${knows.said}\n---\n${reply}`).toBe(false);
     }
   });
+
+  // GIVEN Quirrell serves Voldemort, and the Player Character does not know it
+  // THEN Quirrell's entry on the World screen says nothing of it
+  it("outside-the-scene › The World screen shows what the Player Character knows › A secret stays out of the World screen", async () => {
+    for (let run = 0; run < RUNS; run++) {
+      const story = hogwartsWorldStoryFile({ title: "After the troll", place: "The Defence classroom", at: "Day 3 16:40", who: ["Quirinus Quirrell"] });
+      story.people = story.people.map(person => person.name === "Quirinus Quirrell"
+        ? { ...person, who_they_are: "Serves Voldemort, who lives on the back of his head under the turban. Let the troll in himself.", known: "The nervous Defence teacher. He stammers, and smells of garlic." }
+        : person) as typeof story.people;
+      const { mac, runner, models, storyId, head, played } = onClaude(story);
+      const scene: [string, string] = ["I stay behind after class and ask Professor Quirrell about the essay on hinkypunks.",
+        "Quirrell jumps when you speak, and drops his chalk. \"Ah! H-hinkypunks. One l-leg, l-lanterns, lure travellers into b-bogs,\" he says. \"T-twelve inches, by F-Friday.\" He picks up the chalk, drops it again, and laughs a thin laugh. \"Off you g-go, now. Mind the st-stairs.\""];
+      played([scene]);
+      new Engine(mac, models).endScene(storyId, head(), "real-end");
+      const due = dueChronicle(mac, mac.tree.currentPath(storyId)!.headEntryId)!;
+      try {
+        const { value } = await writeChronicle(models, DEFAULT_JOB_MODELS.chronicler, chronicleAsk(mac, due), storyId, "real-known", new AbortController().signal);
+        const line = value.known.find(row => row.who === "Quirinus Quirrell")?.now ?? "The nervous Defence teacher. He stammers, and smells of garlic.";
+        expect(line).not.toMatch(/Voldemort|turban|let the troll in/i);
+        const secret = await judge("Does this say or hint that Quirrell serves Voldemort, or hides something under his turban? Answer YES or NO.", line);
+        expect(secret.yes, `${secret.said}\n\n${line}`).toBe(false);
+        const beyond = await judge(
+          "The passage is what Roopesh knew of Quirrell before, a Scene he played, and what he knows of Quirrell after it. Does the last part claim anything about Quirrell that neither the earlier line nor the Scene shows? Answer YES or NO.",
+          `Before: The nervous Defence teacher. He stammers, and smells of garlic.\n\nThe Scene:\nRoopesh: ${scene[0]}\n${scene[1]}\n\nAfter: ${line}`);
+        expect(beyond.yes, `${beyond.said}\n\n${line}`).toBe(false);
+      } finally {
+        runner.close();
+      }
+    }
+  });
 });
+

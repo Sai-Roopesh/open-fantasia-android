@@ -28,16 +28,16 @@ Scenarios this change builds:
 
 ## 2. The World on the Mac
 
-- [ ] 2.1 Contract 14: `WorldView` in `link.schema.json` and `contract.json`; regenerate and verify both sides compile
-- [ ] 2.2 Test first, then build: `outside-the-scene › The World screen shows what the Player Character knows › What he
+- [x] 2.1 Contract 14: `WorldView` in `link.schema.json` and `contract.json`; regenerate and verify both sides compile
+- [x] 2.2 Test first, then build: `outside-the-scene › The World screen shows what the Player Character knows › What he
   knows grows with a Scene`:
   - `views/world.ts` (decisions 1, 4 and 5) and `GET /stories/{id}/world`;
   - an engine test where a scripted Chronicler adds the inkwell, and the line shows it "From Scene N".
-- [ ] 2.3 Test first, then build: `outside-the-scene › The World screen shows what the Player Character knows › A
+- [x] 2.3 Test first, then build: `outside-the-scene › The World screen shows what the Player Character knows › A
   secret stays out of the World screen`:
   - a link test where Quirrell's `whoTheyAre` holds the secret, and nothing in `GET /world` says it;
   - a live Chronicler test: a Scene with Quirrell in it, and a judge looking for the secret in his line.
-- [ ] 2.4 Places marked where he has been, the Calendar's Landmarks and Happenings with countdowns, the Leads first, a
+- [x] 2.4 Places marked where he has been, the Calendar's Landmarks and Happenings with countdowns, the Leads first, a
   Group as one, people he knows nothing of left out; view tests
 
 ## 3. The phone

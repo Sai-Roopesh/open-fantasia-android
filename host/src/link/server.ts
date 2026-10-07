@@ -13,6 +13,7 @@ import type { ChooseRequest, EditRequest, RetryRequest, RetryWorldRequest, SetAc
 import { newTraceId, Traces } from "../trace.js";
 import { backstageView } from "../views/backstage.js";
 import { journalView } from "../views/journal.js";
+import { worldView } from "../views/world.js";
 import { pathsView } from "../views/paths.js";
 import { pastScene, sceneView } from "../views/scene.js";
 import { modelsView } from "../views/models.js";
@@ -170,6 +171,7 @@ export function buildLink(options: LinkOptions): FastifyInstance {
   });
 
   // Outside the Scene (openspec outside-the-scene): the Journal, what he saw and heard; Backstage, everything else.
+  app.get<{ Params: { id: string } }>("/stories/:id/world", async request => worldView(mac, request.params.id, request.traceId));
   app.get<{ Params: { id: string } }>("/stories/:id/journal", async request => journalView(mac, request.params.id, request.traceId));
   app.get<{ Params: { id: string } }>("/stories/:id/backstage", async request => backstageView(mac, request.params.id, request.traceId));
   app.post<{ Params: { id: string } }>("/stories/:id/taste/remove", async request => {
