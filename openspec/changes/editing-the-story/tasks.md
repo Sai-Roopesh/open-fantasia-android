@@ -22,7 +22,7 @@ Scenarios this change builds:
 
 ## 1. Edits on the Path
 
-- [ ] 1.1 The nine entries and the reducer (design decision 1), and the checks in `engine/story.ts` (decision 2):
+- [x] 1.1 The nine entries and the reducer (design decision 1), and the checks in `engine/story.ts` (decision 2):
   - an engine test for each refusal;
   - a reducer test that each entry changes only its own part of the State.
 - [ ] 1.2 Test first, then build: `long-run › Style is the player's own words › Changing the Style mid-Story` and

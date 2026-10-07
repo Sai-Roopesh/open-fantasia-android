@@ -1,11 +1,12 @@
 import type { StoryFile } from "../protocol/generated/story-file.js";
-import type { Beat, ModelChoice, Person, SceneCall } from "./state.js";
+import type { Beat, Landmark, ModelChoice, Person, Place, SceneCall, State } from "./state.js";
+import type { Weekday } from "../time.js";
 
 /**
  * What can be written to a Story's tree (docs/adr/0003). Each kind is something that happened; the State on a
  * Path is what all of them add up to, worked out by the reducer.
  */
-export type Payload = StorySetUp | SceneOpened | MoveWritten | Redo | BeatNote | ReplyWritten | SceneClosed | FocusSet | LingerSet | TasteSet | KnownSet | PersonSet | LeadSet | GroupSet | PortraitSet | Chronicle | WorldMoved | DirectorPlan;
+export type Payload = StorySetUp | SceneOpened | MoveWritten | Redo | BeatNote | ReplyWritten | SceneClosed | FocusSet | LingerSet | TasteSet | KnownSet | PersonSet | LeadSet | GroupSet | PortraitSet | StoryEdit | Chronicle | WorldMoved | DirectorPlan;
 
 /** The kinds written beside play, hanging off the Path and never on it (docs/adr/0007). */
 export const RECORD_KINDS = ["chronicle", "world_moved", "director_plan"] as const;
@@ -325,6 +326,65 @@ export interface PortraitSet {
   person: string;
   /** The file in the Story's Portraits on the Mac. */
   file: string;
+}
+
+/**
+ * The player's, or Claude's, edits to the rest of the Story (openspec stories: Anything can be edited or created in
+ * the app; editing-the-story design decision 1). On the Path, from that moment onward, like the edits to its people.
+ */
+export type StoryEdit = PremiseSet | StyleSet | ReplyLengthSet | ArcsSet | LandmarkSet | LandmarkDropped | PlaceSet | WorldSet | ClockSet;
+
+export interface PremiseSet {
+  kind: "premise_set";
+  premise: string;
+}
+
+export interface StyleSet {
+  kind: "style_set";
+  style: string;
+}
+
+export interface ReplyLengthSet {
+  kind: "reply_length_set";
+  length: State["replyLength"];
+}
+
+/** The Arcs whole: an Arc has no name of its own, so adding, rewording and dropping are each a new list. */
+export interface ArcsSet {
+  kind: "arcs_set";
+  arcs: string[];
+}
+
+/** A Landmark created, moved or rewritten, by its name. */
+export interface LandmarkSet {
+  kind: "landmark_set";
+  landmark: Landmark;
+}
+
+export interface LandmarkDropped {
+  kind: "landmark_dropped";
+  name: string;
+}
+
+/** A place or an institution created or rewritten, by its name. */
+export interface PlaceSet {
+  kind: "place_set";
+  place: Place;
+  institution: boolean;
+}
+
+/** What the World is, and its history. */
+export interface WorldSet {
+  kind: "world_set";
+  summary: string;
+  history: string;
+}
+
+/** The clock moved on, never back, and which weekday Day 1 was. */
+export interface ClockSet {
+  kind: "clock_set";
+  clock: string;
+  dayOneWeekday: Weekday | null;
 }
 
 /** A Reply, word for word, and the model call that wrote it. */

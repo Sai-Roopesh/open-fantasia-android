@@ -99,6 +99,15 @@ function describe(payload: Payload): string {
     case "lead_set": return `${payload.person} ${payload.lead ? "is" : "is no longer"} a Lead`;
     case "group_set": return `The Group ${payload.group}: ${payload.description}`;
     case "portrait_set": return `${payload.person}'s Portrait is ${payload.file}`;
+    case "premise_set": return `Premise: ${payload.premise}`;
+    case "style_set": return `Style: ${payload.style}`;
+    case "reply_length_set": return `Reply length: ${payload.length}`;
+    case "arcs_set": return `Arcs: ${payload.arcs.join(" / ") || "none"}`;
+    case "landmark_set": return `The Landmark ${payload.landmark.name}, ${payload.landmark.at}: ${payload.landmark.what}`;
+    case "landmark_dropped": return `The Landmark ${payload.name} dropped`;
+    case "place_set": return `The ${payload.institution ? "institution" : "place"} ${payload.place.name}: ${payload.place.description}`;
+    case "world_set": return `The World: ${payload.summary}`;
+    case "clock_set": return `The clock moved on to ${payload.clock}${payload.dayOneWeekday ? `, Day 1 a ${payload.dayOneWeekday}` : ""}`;
     case "chronicle": return `${payload.moments.length} Moments${payload.summary ? `: ${payload.summary}` : ""}`;
     case "world_moved": return `The World moved on to ${payload.until}: ${payload.lives.length} Lives, ${payload.happened.length} happened, ${payload.meanwhile.length} in Meanwhile`;
     case "director_plan": return `The Director: ${payload.phase} toward ${payload.toward}, ${payload.scenes} Scenes`;

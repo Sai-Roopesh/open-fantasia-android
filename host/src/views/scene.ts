@@ -264,6 +264,15 @@ export function entryEvent(mac: Mac, storyId: string, entry: Entry): StoryEvent 
     case "lead_set":
     case "group_set":
     case "portrait_set":
+    case "premise_set":
+    case "style_set":
+    case "reply_length_set":
+    case "arcs_set":
+    case "landmark_set":
+    case "landmark_dropped":
+    case "place_set":
+    case "world_set":
+    case "clock_set":
       return { kind: "path_changed", seq: entry.seq };
     case "beat_note":
     case "chronicle":

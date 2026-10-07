@@ -14,11 +14,12 @@ import { nameIndex } from "../agents/names.js";
 import { writePlan } from "../agents/director.js";
 import { directionDue, planForWriter } from "./directing.js";
 import { checkPerson, portraitExtension } from "./people.js";
+import { arcsSet, clockSet, landmarkDropped, landmarkSet, placeSet, premiseSet, replyLengthSet, styleSet, tasteReworded, worldSet, worldStands } from "./story.js";
 import type { Models } from "../models/model-call.js";
 import type { Accepted, ChooseRequest, StoryEvent, TurnAccepted, TurnState } from "../protocol/generated/link.js";
 import type { StoryPath } from "../store/tree.js";
-import type { Entry, EntryKind } from "../story/entries.js";
-import type { ModelChoice, Person } from "../story/state.js";
+import type { Entry, EntryKind, Payload } from "../story/entries.js";
+import type { ModelChoice, Person, State } from "../story/state.js";
 import { entryEvent, sceneEntries } from "../views/scene.js";
 import { chronicleAsk, dueChronicle, STEPPED_AWAY_MS } from "./chronicling.js";
 import { dueWeave, gapAsk, weaveAsk } from "./weaving.js";
@@ -281,6 +282,57 @@ export class Engine {
     const path = this.pathHead(storyId, after);
     if (!group.trim()) throw new LinkError("invalid", "Give the Group a name.");
     const entry = this.write(storyId, path, { kind: "group_set", group: group.trim(), description: description.trim() });
+    return { head_entry_id: entry.id, trace_id: traceId };
+  }
+
+  // The rest of the Story (editing-the-story): each edit lands from this moment onward on the current Path, between
+  // Replies, against the head the phone saw, once engine/story.ts has checked it.
+
+  setPremise(storyId: string, premise: string, after: string, traceId: string): Accepted {
+    return this.edited(storyId, after, traceId, () => premiseSet(premise));
+  }
+
+  setStyle(storyId: string, style: string, after: string, traceId: string): Accepted {
+    return this.edited(storyId, after, traceId, () => styleSet(style));
+  }
+
+  setReplyLength(storyId: string, length: string, after: string, traceId: string): Accepted {
+    return this.edited(storyId, after, traceId, () => replyLengthSet(length));
+  }
+
+  setArcs(storyId: string, arcs: string[], after: string, traceId: string): Accepted {
+    return this.edited(storyId, after, traceId, () => arcsSet(arcs));
+  }
+
+  /** Creates, moves or rewrites a Landmark; one the World has passed on this Path stays as it was. */
+  setLandmark(storyId: string, landmark: { name: string; at: string; what: string }, creating: boolean, after: string, traceId: string): Accepted {
+    return this.edited(storyId, after, traceId, (state, head) => landmarkSet(state, worldStands(state, worldOn(this.mac, head).until), landmark, creating));
+  }
+
+  dropLandmark(storyId: string, name: string, after: string, traceId: string): Accepted {
+    return this.edited(storyId, after, traceId, (state, head) => landmarkDropped(state, worldStands(state, worldOn(this.mac, head).until), name));
+  }
+
+  setPlace(storyId: string, place: { name: string; description: string }, institution: boolean, creating: boolean, after: string, traceId: string): Accepted {
+    return this.edited(storyId, after, traceId, state => placeSet(state, place, institution, creating));
+  }
+
+  setWorld(storyId: string, summary: string, history: string, after: string, traceId: string): Accepted {
+    return this.edited(storyId, after, traceId, () => worldSet(summary, history));
+  }
+
+  /** Moves the clock on, never back; the World catches up over the time passed when it next moves, as over a Gap. */
+  setClock(storyId: string, at: string, weekday: string | null | undefined, after: string, traceId: string): Accepted {
+    return this.edited(storyId, after, traceId, state => clockSet(state, at, weekday));
+  }
+
+  rewordTaste(storyId: string, line: string, text: string, after: string, traceId: string): Accepted {
+    return this.edited(storyId, after, traceId, state => tasteReworded(state, line, text));
+  }
+
+  private edited(storyId: string, after: string, traceId: string, edit: (state: State, head: string) => Payload): Accepted {
+    const path = this.pathHead(storyId, after);
+    const entry = this.write(storyId, path, edit(this.mac.states.at(path.headEntryId), path.headEntryId));
     return { head_entry_id: entry.id, trace_id: traceId };
   }
 

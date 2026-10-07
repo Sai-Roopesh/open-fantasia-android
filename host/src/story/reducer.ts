@@ -65,6 +65,31 @@ export function apply(state: State | null, entry: Entry): State {
       const person = state.people[payload.person];
       return person ? { ...state, people: { ...state.people, [payload.person]: { ...person, known: payload.text } } } : state;
     }
+    case "premise_set":
+      return { ...state, premise: payload.premise };
+    case "style_set":
+      return { ...state, style: payload.style };
+    case "reply_length_set":
+      return { ...state, replyLength: payload.length };
+    case "arcs_set":
+      return { ...state, arcs: payload.arcs };
+    case "landmark_set":
+      return { ...state, landmarks: state.landmarks.some(landmark => landmark.name === payload.landmark.name)
+        ? state.landmarks.map(landmark => landmark.name === payload.landmark.name ? payload.landmark : landmark)
+        : [...state.landmarks, payload.landmark] };
+    case "landmark_dropped":
+      return { ...state, landmarks: state.landmarks.filter(landmark => landmark.name !== payload.name) };
+    case "place_set": {
+      const list = payload.institution ? "institutions" : "places";
+      const places = state.world[list];
+      return { ...state, world: { ...state.world, [list]: places.some(place => place.name === payload.place.name)
+        ? places.map(place => place.name === payload.place.name ? payload.place : place)
+        : [...places, payload.place] } };
+    }
+    case "world_set":
+      return { ...state, world: { ...state.world, summary: payload.summary, history: payload.history } };
+    case "clock_set":
+      return { ...state, clock: payload.clock, dayOneWeekday: payload.dayOneWeekday };
     case "move":
       // A Move changes the Story through what it says, which the Writer and the Chronicler read; in the State it only
       // lengthens the Scene, which is read from the Path.
