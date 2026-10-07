@@ -2430,6 +2430,415 @@
           "type": "string"
         }
       }
+    },
+    "StoryPlace": {
+      "description": "A place or an institution: its name and what it is.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "description"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "StoryLandmark": {
+      "description": "A Landmark as The Story screen shows it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "at",
+        "at_label",
+        "what",
+        "passed"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "at": {
+          "type": "string",
+          "description": "Its time on the Story Clock, \"Day N HH:MM\"."
+        },
+        "at_label": {
+          "type": "string",
+          "description": "Its time as the player reads it: \"Wednesday 10:00 am · Day 66\"."
+        },
+        "when": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "How far off it is, as the Day View's countdowns say it; null once it has passed."
+        },
+        "what": {
+          "type": "string"
+        },
+        "passed": {
+          "type": "boolean",
+          "description": "True when the World has reached its time on this Path: it has happened, and stays as it was."
+        }
+      }
+    },
+    "StoryClock": {
+      "description": "The time on the current Path.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "at",
+        "at_label",
+        "day_one_weekday"
+      ],
+      "properties": {
+        "at": {
+          "type": "string",
+          "description": "\"Day N HH:MM\"."
+        },
+        "at_label": {
+          "type": "string",
+          "description": "\"Saturday 9:40 pm\"."
+        },
+        "day_one_weekday": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "monday",
+            "tuesday",
+            "wednesday",
+            "thursday",
+            "friday",
+            "saturday",
+            "sunday",
+            null
+          ]
+        }
+      }
+    },
+    "StoryView": {
+      "description": "Everything The Story screen shows, as it stands on the current Path (editing-the-story design decision 4).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "story_id",
+        "title",
+        "premise",
+        "style",
+        "reply_length",
+        "arcs",
+        "landmarks",
+        "world_summary",
+        "world_history",
+        "places",
+        "institutions",
+        "clock",
+        "world_stands",
+        "head_entry_id",
+        "trace_id"
+      ],
+      "properties": {
+        "story_id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "premise": {
+          "type": "string"
+        },
+        "style": {
+          "type": "string"
+        },
+        "reply_length": {
+          "type": "string",
+          "enum": [
+            "short",
+            "medium",
+            "full"
+          ]
+        },
+        "arcs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "landmarks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StoryLandmark"
+          },
+          "description": "In the order of their times."
+        },
+        "world_summary": {
+          "type": "string"
+        },
+        "world_history": {
+          "type": "string"
+        },
+        "places": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StoryPlace"
+          }
+        },
+        "institutions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StoryPlace"
+          }
+        },
+        "clock": {
+          "$ref": "#/$defs/StoryClock"
+        },
+        "world_stands": {
+          "type": "string",
+          "description": "Where the World stands, \"Day N HH:MM\": a Landmark may only be set after it, and the clock only moved past the clock."
+        },
+        "head_entry_id": {
+          "type": "string"
+        },
+        "trace_id": {
+          "type": "string"
+        }
+      }
+    },
+    "PremiseRequest": {
+      "description": "Sets the Premise.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after",
+        "premise"
+      ],
+      "properties": {
+        "after": {
+          "type": "string",
+          "description": "The head the phone saw."
+        },
+        "premise": {
+          "type": "string"
+        }
+      }
+    },
+    "StyleRequest": {
+      "description": "Sets the Style.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after",
+        "style"
+      ],
+      "properties": {
+        "after": {
+          "type": "string",
+          "description": "The head the phone saw."
+        },
+        "style": {
+          "type": "string"
+        }
+      }
+    },
+    "ReplyLengthRequest": {
+      "description": "Sets the reply length.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after",
+        "length"
+      ],
+      "properties": {
+        "after": {
+          "type": "string",
+          "description": "The head the phone saw."
+        },
+        "length": {
+          "type": "string",
+          "enum": [
+            "short",
+            "medium",
+            "full"
+          ]
+        }
+      }
+    },
+    "ArcsRequest": {
+      "description": "Sets the Arcs whole: adding, rewording and dropping are each a new list.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after",
+        "arcs"
+      ],
+      "properties": {
+        "after": {
+          "type": "string",
+          "description": "The head the phone saw."
+        },
+        "arcs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "LandmarkRequest": {
+      "description": "Creates, moves or rewrites a Landmark, named in the path.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after",
+        "at",
+        "what",
+        "create"
+      ],
+      "properties": {
+        "after": {
+          "type": "string",
+          "description": "The head the phone saw."
+        },
+        "at": {
+          "type": "string",
+          "description": "\"Day N HH:MM\"."
+        },
+        "what": {
+          "type": "string"
+        },
+        "create": {
+          "type": "boolean",
+          "description": "True for a new Landmark; refused if one has the name."
+        }
+      }
+    },
+    "DropLandmarkRequest": {
+      "description": "Drops a Landmark, named in the path.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after"
+      ],
+      "properties": {
+        "after": {
+          "type": "string",
+          "description": "The head the phone saw."
+        }
+      }
+    },
+    "PlaceRequest": {
+      "description": "Creates or rewrites a place or an institution, named in the path.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after",
+        "description",
+        "institution",
+        "create"
+      ],
+      "properties": {
+        "after": {
+          "type": "string",
+          "description": "The head the phone saw."
+        },
+        "description": {
+          "type": "string"
+        },
+        "institution": {
+          "type": "boolean"
+        },
+        "create": {
+          "type": "boolean"
+        }
+      }
+    },
+    "WorldRequest": {
+      "description": "Sets what the World is, and its history.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after",
+        "summary",
+        "history"
+      ],
+      "properties": {
+        "after": {
+          "type": "string",
+          "description": "The head the phone saw."
+        },
+        "summary": {
+          "type": "string"
+        },
+        "history": {
+          "type": "string"
+        }
+      }
+    },
+    "ClockRequest": {
+      "description": "Moves the clock on, and says which weekday Day 1 was.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after",
+        "at",
+        "day_one_weekday"
+      ],
+      "properties": {
+        "after": {
+          "type": "string",
+          "description": "The head the phone saw."
+        },
+        "at": {
+          "type": "string",
+          "description": "\"Day N HH:MM\", later than the clock."
+        },
+        "day_one_weekday": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "monday",
+            "tuesday",
+            "wednesday",
+            "thursday",
+            "friday",
+            "saturday",
+            "sunday",
+            null
+          ]
+        }
+      }
+    },
+    "RewordTasteRequest": {
+      "description": "Rewords a lesson in Taste, in its place.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after",
+        "line",
+        "text"
+      ],
+      "properties": {
+        "after": {
+          "type": "string",
+          "description": "The head the phone saw."
+        },
+        "line": {
+          "type": "string",
+          "description": "The lesson as Taste reads it now."
+        },
+        "text": {
+          "type": "string"
+        }
+      }
     }
   }
 }

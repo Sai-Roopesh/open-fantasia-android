@@ -85,6 +85,20 @@
 // val personEdit           = json.parse(PersonEdit.serializer(), jsonString)
 // val leadRequest          = json.parse(LeadRequest.serializer(), jsonString)
 // val groupRequest         = json.parse(GroupRequest.serializer(), jsonString)
+// val storyPlace           = json.parse(StoryPlace.serializer(), jsonString)
+// val storyLandmark        = json.parse(StoryLandmark.serializer(), jsonString)
+// val storyClock           = json.parse(StoryClock.serializer(), jsonString)
+// val storyView            = json.parse(StoryView.serializer(), jsonString)
+// val premiseRequest       = json.parse(PremiseRequest.serializer(), jsonString)
+// val styleRequest         = json.parse(StyleRequest.serializer(), jsonString)
+// val replyLengthRequest   = json.parse(ReplyLengthRequest.serializer(), jsonString)
+// val arcsRequest          = json.parse(ArcsRequest.serializer(), jsonString)
+// val landmarkRequest      = json.parse(LandmarkRequest.serializer(), jsonString)
+// val dropLandmarkRequest  = json.parse(DropLandmarkRequest.serializer(), jsonString)
+// val placeRequest         = json.parse(PlaceRequest.serializer(), jsonString)
+// val worldRequest         = json.parse(WorldRequest.serializer(), jsonString)
+// val clockRequest         = json.parse(ClockRequest.serializer(), jsonString)
+// val rewordTasteRequest   = json.parse(RewordTasteRequest.serializer(), jsonString)
 
 package com.openfantasia.protocol
 
@@ -1730,4 +1744,284 @@ data class GroupRequest (
     val after: String,
 
     val description: String
+)
+
+/**
+ * Everything The Story screen shows, as it stands on the current Path (editing-the-story
+ * design decision 4).
+ */
+@Serializable
+data class StoryView (
+    val arcs: List<String>,
+    val clock: StoryClock,
+
+    @SerialName("head_entry_id")
+    val headEntryID: String,
+
+    val institutions: List<StoryPlace>,
+
+    /**
+     * In the order of their times.
+     */
+    val landmarks: List<StoryLandmark>,
+
+    val places: List<StoryPlace>,
+    val premise: String,
+
+    @SerialName("reply_length")
+    val replyLength: Length,
+
+    @SerialName("story_id")
+    val storyID: String,
+
+    val style: String,
+    val title: String,
+
+    @SerialName("trace_id")
+    val traceID: String,
+
+    @SerialName("world_history")
+    val worldHistory: String,
+
+    /**
+     * Where the World stands, "Day N HH:MM": a Landmark may only be set after it, and the clock
+     * only moved past the clock.
+     */
+    @SerialName("world_stands")
+    val worldStands: String,
+
+    @SerialName("world_summary")
+    val worldSummary: String
+)
+
+/**
+ * The time on the current Path.
+ */
+@Serializable
+data class StoryClock (
+    /**
+     * "Day N HH:MM".
+     */
+    val at: String,
+
+    /**
+     * "Saturday 9:40 pm".
+     */
+    @SerialName("at_label")
+    val atLabel: String,
+
+    @SerialName("day_one_weekday")
+    val dayOneWeekday: DayOneWeekday? = null
+)
+
+@Serializable
+enum class DayOneWeekday(val value: String) {
+    @SerialName("friday") Friday("friday"),
+    @SerialName("monday") Monday("monday"),
+    @SerialName("saturday") Saturday("saturday"),
+    @SerialName("sunday") Sunday("sunday"),
+    @SerialName("thursday") Thursday("thursday"),
+    @SerialName("tuesday") Tuesday("tuesday"),
+    @SerialName("wednesday") Wednesday("wednesday");
+}
+
+/**
+ * A place or an institution: its name and what it is.
+ */
+@Serializable
+data class StoryPlace (
+    val description: String,
+    val name: String
+)
+
+/**
+ * A Landmark as The Story screen shows it.
+ */
+@Serializable
+data class StoryLandmark (
+    /**
+     * Its time on the Story Clock, "Day N HH:MM".
+     */
+    val at: String,
+
+    /**
+     * Its time as the player reads it: "Wednesday 10:00 am · Day 66".
+     */
+    @SerialName("at_label")
+    val atLabel: String,
+
+    val name: String,
+
+    /**
+     * True when the World has reached its time on this Path: it has happened, and stays as it
+     * was.
+     */
+    val passed: Boolean,
+
+    val what: String,
+
+    /**
+     * How far off it is, as the Day View's countdowns say it; null once it has passed.
+     */
+    @SerialName("when")
+    val storyLandmarkWhen: String? = null
+)
+
+@Serializable
+enum class Length(val value: String) {
+    @SerialName("full") Full("full"),
+    @SerialName("short") LengthShort("short"),
+    @SerialName("medium") Medium("medium");
+}
+
+/**
+ * Sets the Premise.
+ */
+@Serializable
+data class PremiseRequest (
+    /**
+     * The head the phone saw.
+     */
+    val after: String,
+
+    val premise: String
+)
+
+/**
+ * Sets the Style.
+ */
+@Serializable
+data class StyleRequest (
+    /**
+     * The head the phone saw.
+     */
+    val after: String,
+
+    val style: String
+)
+
+/**
+ * Sets the reply length.
+ */
+@Serializable
+data class ReplyLengthRequest (
+    /**
+     * The head the phone saw.
+     */
+    val after: String,
+
+    val length: Length
+)
+
+/**
+ * Sets the Arcs whole: adding, rewording and dropping are each a new list.
+ */
+@Serializable
+data class ArcsRequest (
+    /**
+     * The head the phone saw.
+     */
+    val after: String,
+
+    val arcs: List<String>
+)
+
+/**
+ * Creates, moves or rewrites a Landmark, named in the path.
+ */
+@Serializable
+data class LandmarkRequest (
+    /**
+     * The head the phone saw.
+     */
+    val after: String,
+
+    /**
+     * "Day N HH:MM".
+     */
+    val at: String,
+
+    /**
+     * True for a new Landmark; refused if one has the name.
+     */
+    val create: Boolean,
+
+    val what: String
+)
+
+/**
+ * Drops a Landmark, named in the path.
+ */
+@Serializable
+data class DropLandmarkRequest (
+    /**
+     * The head the phone saw.
+     */
+    val after: String
+)
+
+/**
+ * Creates or rewrites a place or an institution, named in the path.
+ */
+@Serializable
+data class PlaceRequest (
+    /**
+     * The head the phone saw.
+     */
+    val after: String,
+
+    val create: Boolean,
+    val description: String,
+    val institution: Boolean
+)
+
+/**
+ * Sets what the World is, and its history.
+ */
+@Serializable
+data class WorldRequest (
+    /**
+     * The head the phone saw.
+     */
+    val after: String,
+
+    val history: String,
+    val summary: String
+)
+
+/**
+ * Moves the clock on, and says which weekday Day 1 was.
+ */
+@Serializable
+data class ClockRequest (
+    /**
+     * The head the phone saw.
+     */
+    val after: String,
+
+    /**
+     * "Day N HH:MM", later than the clock.
+     */
+    val at: String,
+
+    @SerialName("day_one_weekday")
+    val dayOneWeekday: DayOneWeekday? = null
+)
+
+/**
+ * Rewords a lesson in Taste, in its place.
+ */
+@Serializable
+data class RewordTasteRequest (
+    /**
+     * The head the phone saw.
+     */
+    val after: String,
+
+    /**
+     * The lesson as Taste reads it now.
+     */
+    val line: String,
+
+    val text: String
 )

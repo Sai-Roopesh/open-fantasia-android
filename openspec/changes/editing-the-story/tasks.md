@@ -65,7 +65,7 @@ Scenarios this change builds:
 
 ## 2. The link and the Mac's commands
 
-- [ ] 2.1 Contract 16 (design decision 4) in `link.schema.json` and `contract.json`. Regenerate, and verify both
+- [x] 2.1 Contract 16 (design decision 4) in `link.schema.json` and `contract.json`. Regenerate, and verify both
   sides compile.
 - [ ] 2.2 `views/story.ts` and the routes:
   - link tests for `GET /stories/{id}/story`, including a Landmark marked passed and `world_stands`;

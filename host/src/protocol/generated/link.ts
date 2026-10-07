@@ -1413,3 +1413,233 @@ export interface GroupRequest {
   after: string;
   description: string;
 }
+/**
+ * A place or an institution: its name and what it is.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "StoryPlace".
+ */
+export interface StoryPlace {
+  name: string;
+  description: string;
+}
+/**
+ * A Landmark as The Story screen shows it.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "StoryLandmark".
+ */
+export interface StoryLandmark {
+  name: string;
+  /**
+   * Its time on the Story Clock, "Day N HH:MM".
+   */
+  at: string;
+  /**
+   * Its time as the player reads it: "Wednesday 10:00 am · Day 66".
+   */
+  at_label: string;
+  /**
+   * How far off it is, as the Day View's countdowns say it; null once it has passed.
+   */
+  when?: string | null;
+  what: string;
+  /**
+   * True when the World has reached its time on this Path: it has happened, and stays as it was.
+   */
+  passed: boolean;
+}
+/**
+ * The time on the current Path.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "StoryClock".
+ */
+export interface StoryClock {
+  /**
+   * "Day N HH:MM".
+   */
+  at: string;
+  /**
+   * "Saturday 9:40 pm".
+   */
+  at_label: string;
+  day_one_weekday: "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday" | null;
+}
+/**
+ * Everything The Story screen shows, as it stands on the current Path (editing-the-story design decision 4).
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "StoryView".
+ */
+export interface StoryView {
+  story_id: string;
+  title: string;
+  premise: string;
+  style: string;
+  reply_length: "short" | "medium" | "full";
+  arcs: string[];
+  /**
+   * In the order of their times.
+   */
+  landmarks: StoryLandmark[];
+  world_summary: string;
+  world_history: string;
+  places: StoryPlace[];
+  institutions: StoryPlace[];
+  clock: StoryClock;
+  /**
+   * Where the World stands, "Day N HH:MM": a Landmark may only be set after it, and the clock only moved past the clock.
+   */
+  world_stands: string;
+  head_entry_id: string;
+  trace_id: string;
+}
+/**
+ * Sets the Premise.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "PremiseRequest".
+ */
+export interface PremiseRequest {
+  /**
+   * The head the phone saw.
+   */
+  after: string;
+  premise: string;
+}
+/**
+ * Sets the Style.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "StyleRequest".
+ */
+export interface StyleRequest {
+  /**
+   * The head the phone saw.
+   */
+  after: string;
+  style: string;
+}
+/**
+ * Sets the reply length.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "ReplyLengthRequest".
+ */
+export interface ReplyLengthRequest {
+  /**
+   * The head the phone saw.
+   */
+  after: string;
+  length: "short" | "medium" | "full";
+}
+/**
+ * Sets the Arcs whole: adding, rewording and dropping are each a new list.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "ArcsRequest".
+ */
+export interface ArcsRequest {
+  /**
+   * The head the phone saw.
+   */
+  after: string;
+  arcs: string[];
+}
+/**
+ * Creates, moves or rewrites a Landmark, named in the path.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "LandmarkRequest".
+ */
+export interface LandmarkRequest {
+  /**
+   * The head the phone saw.
+   */
+  after: string;
+  /**
+   * "Day N HH:MM".
+   */
+  at: string;
+  what: string;
+  /**
+   * True for a new Landmark; refused if one has the name.
+   */
+  create: boolean;
+}
+/**
+ * Drops a Landmark, named in the path.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "DropLandmarkRequest".
+ */
+export interface DropLandmarkRequest {
+  /**
+   * The head the phone saw.
+   */
+  after: string;
+}
+/**
+ * Creates or rewrites a place or an institution, named in the path.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "PlaceRequest".
+ */
+export interface PlaceRequest {
+  /**
+   * The head the phone saw.
+   */
+  after: string;
+  description: string;
+  institution: boolean;
+  create: boolean;
+}
+/**
+ * Sets what the World is, and its history.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "WorldRequest".
+ */
+export interface WorldRequest {
+  /**
+   * The head the phone saw.
+   */
+  after: string;
+  summary: string;
+  history: string;
+}
+/**
+ * Moves the clock on, and says which weekday Day 1 was.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "ClockRequest".
+ */
+export interface ClockRequest {
+  /**
+   * The head the phone saw.
+   */
+  after: string;
+  /**
+   * "Day N HH:MM", later than the clock.
+   */
+  at: string;
+  day_one_weekday: "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday" | null;
+}
+/**
+ * Rewords a lesson in Taste, in its place.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "RewordTasteRequest".
+ */
+export interface RewordTasteRequest {
+  /**
+   * The head the phone saw.
+   */
+  after: string;
+  /**
+   * The lesson as Taste reads it now.
+   */
+  line: string;
+  text: string;
+}
