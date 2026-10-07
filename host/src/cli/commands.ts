@@ -1,7 +1,9 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { extname, join, resolve } from "node:path";
+import { nameIndex, storyName } from "../agents/names.js";
+import { knownOn } from "../story/known.js";
 import qrcode from "qrcode-terminal";
 import { localAddresses } from "../link/bonjour.js";
 import { Pairing, PAIRING_MINUTES } from "../link/pairing.js";
@@ -335,5 +337,85 @@ export function known(mac: Mac, engine: Engine, storyId: string, person: string,
     out(error.message);
     return false;
   }
+}
+
+/** What `fantasia person` may set; anything left out is kept as it is. */
+export interface PersonOptions {
+  who?: string;
+  known?: string;
+  appearance?: string;
+  after?: string;
+  alias?: string[];
+  voice?: string[];
+  group?: string;
+  portrait?: string;
+}
+
+/** Runs an edit on the Story's current Path from its head, saying the refusal's reason when there is one. */
+function onPath(mac: Mac, storyId: string, out: Out, edit: (head: string) => void): boolean {
+  const path = mac.tree.currentPath(storyId);
+  if (!path) return (out(`No Story ${storyId} on this Mac.`), false);
+  try {
+    edit(path.headEntryId);
+    return true;
+  } catch (error) {
+    if (!(error instanceof LinkError)) throw error;
+    out(error.message);
+    return false;
+  }
+}
+
+const IMAGE_TYPES_BY_EXTENSION: Record<string, string> = { ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp" };
+
+/**
+ * `fantasia person`: adds someone to the Story, or changes only what is given, from here on the current Path
+ * (editing-people design decision 6), with their Portrait when `--portrait` names an image on the Mac.
+ */
+export async function person(mac: Mac, engine: Engine, storyId: string, name: string, options: PersonOptions, out: Out): Promise<boolean> {
+  const path = mac.tree.currentPath(storyId);
+  if (!path) return (out(`No Story ${storyId} on this Mac.`), false);
+  const state = mac.states.at(path.headEntryId);
+  const found = nameIndex(Object.values(state.people)).get(name.trim().toLocaleLowerCase());
+  const existing = found ? state.people[found] : undefined;
+  if (!existing && !options.who) return (out(`Say who ${name.trim()} is with --who: they are not in the Story yet.`), false);
+  const base = existing ?? { name: name.trim(), aliases: [], whoTheyAre: "", known: null, appearance: "", after: "", knows: [], voice: [], group: null };
+  const edited = {
+    name: base.name, aliases: options.alias ?? base.aliases, whoTheyAre: options.who ?? base.whoTheyAre,
+    known: options.known ?? (existing ? knownOn(mac, path.headEntryId).get(base.name)?.text ?? null : null),
+    appearance: options.appearance ?? base.appearance, after: options.after ?? base.after, knows: base.knows,
+    voice: options.voice ?? base.voice, group: options.group === undefined ? base.group : options.group || null
+  };
+  const changed = onPath(mac, storyId, out, head => { engine.setPerson(storyId, edited, head, `person-${randomUUID().slice(0, 8)}`, !existing); });
+  if (!changed) return false;
+  out(existing ? `${base.name} is changed, from here on this Path.` : `${base.name} is in the Story now, from here on this Path.`);
+  return options.portrait ? portrait(mac, engine, storyId, base.name, options.portrait, out) : true;
+}
+
+/** `fantasia portrait`: replaces someone's Portrait with an image on the Mac, from here on the current Path. */
+export function portrait(mac: Mac, engine: Engine, storyId: string, name: string, file: string, out: Out): boolean {
+  if (!existsSync(file)) return (out(`There is no file ${file}.`), false);
+  const type = IMAGE_TYPES_BY_EXTENSION[extname(file).toLowerCase()] ?? "application/octet-stream";
+  const ok = onPath(mac, storyId, out, head => { engine.setPortrait(storyId, name, readFileSync(file), type, head, `portrait-${randomUUID().slice(0, 8)}`); });
+  if (ok) out(`${storyName(nameIndex(Object.values(mac.states.at(mac.tree.currentPath(storyId)!.headEntryId).people)), name) ?? name}'s Portrait is set.`);
+  return ok;
+}
+
+/** `fantasia lead`: makes someone a Lead, or stops them being one. */
+export function lead(mac: Mac, engine: Engine, storyId: string, name: string, onOff: string, out: Out): boolean {
+  if (onOff !== "on" && onOff !== "off") return (out("Say on or off."), false);
+  const ok = onPath(mac, storyId, out, head => { engine.setLead(storyId, name, onOff === "on", head, `lead-${randomUUID().slice(0, 8)}`); });
+  if (ok) {
+    const state = mac.states.at(mac.tree.currentPath(storyId)!.headEntryId);
+    const full = storyName(nameIndex(Object.values(state.people)), name) ?? name;
+    out(onOff === "on" ? `${full} is a Lead now.` : `${full} is not a Lead now.`);
+  }
+  return ok;
+}
+
+/** `fantasia group`: creates a Group, or changes its description. */
+export function group(mac: Mac, engine: Engine, storyId: string, name: string, description: string, out: Out): boolean {
+  const ok = onPath(mac, storyId, out, head => { engine.setGroup(storyId, name, description, head, `group-${randomUUID().slice(0, 8)}`); });
+  if (ok) out(`The Group ${name.trim()} is set.`);
+  return ok;
 }
 

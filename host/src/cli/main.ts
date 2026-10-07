@@ -5,7 +5,7 @@ import { openMac } from "../mac.js";
 import { Engine } from "../engine/engine.js";
 import { subscriptionRunners } from "../models/runners.js";
 import { Models } from "../models/model-call.js";
-import { claudeToken, doctor, edit, importCommand, install, known, models, moments, pair, show, stories, trace, world } from "./commands.js";
+import { claudeToken, doctor, edit, group, importCommand, install, known, lead, models, moments, pair, person, portrait, show, stories, trace, world, type PersonOptions } from "./commands.js";
 import { serve } from "./serve.js";
 
 /**
@@ -44,6 +44,27 @@ program.command("moments").argument("<story>", "a Story's id").description("List
   .action((story: string) => exitWith(moments(mac(), story, out)));
 program.command("world").argument("<story>", "a Story's id").description("Show the World off-screen: Lives, Threads, and what happened with who knows it")
   .action((story: string) => exitWith(world(mac(), story, out)));
+
+const repeated = (value: string, earlier: string[] = []) => [...earlier, value];
+program.command("person").argument("<story>", "a Story's id").argument("<name>", "the person, by any name they answer to")
+  .option("--who <words>", "who they are, and the backstory they come with").option("--known <words>", "what the Player Character knows of them")
+  .option("--appearance <words>").option("--after <words>", "what they are after").option("--alias <name>", "another name they answer to (repeat for more)", repeated)
+  .option("--voice <line>", "a line they have said (repeat for more)", repeated).option("--group <name>", "their Group; an empty name takes them out")
+  .option("--portrait <file>", "an image for their Portrait")
+  .description("Add someone to a Story, or change only what is given, from here on its current Path")
+  .action(async (story: string, name: string, options: PersonOptions) => {
+    const home = mac();
+    exitWith(await person(home, new Engine(home, new Models(home.db, {})), story, name, options, out));
+  });
+program.command("lead").argument("<story>", "a Story's id").argument("<name>", "the person").argument("<on-or-off>")
+  .description("Make someone a Lead, or stop them being one")
+  .action((story: string, name: string, onOff: string) => { const home = mac(); exitWith(lead(home, new Engine(home, new Models(home.db, {})), story, name, onOff, out)); });
+program.command("group").argument("<story>", "a Story's id").argument("<name>", "the Group").argument("<description...>")
+  .description("Create a Group, or change its description")
+  .action((story: string, name: string, words: string[]) => { const home = mac(); exitWith(group(home, new Engine(home, new Models(home.db, {})), story, name, words.join(" "), out)); });
+program.command("portrait").argument("<story>", "a Story's id").argument("<name>", "the person").argument("<file>", "a JPEG, PNG or WebP image")
+  .description("Replace someone's Portrait with an image on the Mac")
+  .action((story: string, name: string, file: string) => { const home = mac(); exitWith(portrait(home, new Engine(home, new Models(home.db, {})), story, name, file, out)); });
 
 program.command("known").argument("<story>", "a Story's id").argument("<person>", "someone in the Story, by any name they answer to")
   .argument("<words...>", "what the Player Character knows of them").description("Set what the Player Character knows of someone, as the World screen shows it")

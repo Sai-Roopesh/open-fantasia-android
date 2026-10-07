@@ -1266,3 +1266,150 @@ export interface WorldView {
   calendar: CalendarItem[];
   trace_id: string;
 }
+/**
+ * A Group and what it is, as anyone would know it.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "GroupInfo".
+ */
+export interface GroupInfo {
+  name: string;
+  description: string;
+}
+/**
+ * Someone in Everyone in the Story: no one's description, only who they are to the Story.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "PersonSummary".
+ */
+export interface PersonSummary {
+  name: string;
+  lead: boolean;
+  group: string | null;
+  portrait_url: string | null;
+  player_character: boolean;
+}
+/**
+ * Everyone in the Story, for editing (editing-people design decision 5): the Leads first, then by name.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "PeopleView".
+ */
+export interface PeopleView {
+  story_id: string;
+  people: PersonSummary[];
+  groups: GroupInfo[];
+  trace_id: string;
+}
+/**
+ * A person as the Story keeps them, for the person editor: shown only on Edit.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "PersonDetail".
+ */
+export interface PersonDetail {
+  story_id: string;
+  name: string;
+  /**
+   * Other names they answer to.
+   */
+  aliases: string[];
+  /**
+   * Who they are and the backstory they come with, what nobody knows included.
+   */
+  who_they_are: string;
+  /**
+   * What the Player Character knows of them.
+   */
+  known: string | null;
+  appearance: string;
+  /**
+   * What they are after.
+   */
+  wants: string;
+  /**
+   * Lines they have said, in their own words.
+   */
+  voice: string[];
+  /**
+   * What they know, beyond their own backstory.
+   */
+  knows: string[];
+  group: string | null;
+  lead: boolean;
+  portrait_url: string | null;
+  player_character: boolean;
+  /**
+   * Every Group, for the picker.
+   */
+  groups: GroupInfo[];
+  trace_id: string;
+}
+/**
+ * A person created or changed whole, from that moment onward on the current Path.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "PersonEdit".
+ */
+export interface PersonEdit {
+  /**
+   * The head the phone saw.
+   */
+  after: string;
+  /**
+   * A new person; false changes someone already in the Story.
+   */
+  create: boolean;
+  /**
+   * Other names they answer to.
+   */
+  aliases: string[];
+  /**
+   * Who they are and the backstory they come with, what nobody knows included.
+   */
+  who_they_are: string;
+  /**
+   * What the Player Character knows of them.
+   */
+  known: string | null;
+  appearance: string;
+  /**
+   * What they are after.
+   */
+  wants: string;
+  /**
+   * Lines they have said, in their own words.
+   */
+  voice: string[];
+  /**
+   * What they know, beyond their own backstory.
+   */
+  knows: string[];
+  group: string | null;
+}
+/**
+ * Makes someone a Lead, or stops them being one.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "LeadRequest".
+ */
+export interface LeadRequest {
+  /**
+   * The head the phone saw.
+   */
+  after: string;
+  lead: boolean;
+}
+/**
+ * Creates a Group, or changes its description.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "GroupRequest".
+ */
+export interface GroupRequest {
+  /**
+   * The head the phone saw.
+   */
+  after: string;
+  description: string;
+}

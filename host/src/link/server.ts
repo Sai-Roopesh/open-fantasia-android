@@ -9,11 +9,12 @@ import type { Engine } from "../engine/engine.js";
 import type { Mac } from "../mac.js";
 import type { ModelChoice } from "../story/state.js";
 import { CONTRACT_VERSION } from "../protocol/generated/contract.js";
-import type { ChooseRequest, EditRequest, RetryRequest, RetryWorldRequest, SetActorRequest, SetJobModelRequest, EndSceneRequest, ErrorBody, FocusRequest, LingerRequest, MoveRequest, PairRequest, RedoRequest, RemoveTasteRequest, RenamePathRequest, RewindRequest, TryAnotherWayRequest } from "../protocol/generated/link.js";
+import type { ChooseRequest, EditRequest, GroupRequest, LeadRequest, PersonEdit, RetryRequest, RetryWorldRequest, SetActorRequest, SetJobModelRequest, EndSceneRequest, ErrorBody, FocusRequest, LingerRequest, MoveRequest, PairRequest, RedoRequest, RemoveTasteRequest, RenamePathRequest, RewindRequest, TryAnotherWayRequest } from "../protocol/generated/link.js";
 import { newTraceId, Traces } from "../trace.js";
 import { backstageView } from "../views/backstage.js";
 import { journalView } from "../views/journal.js";
 import { worldView } from "../views/world.js";
+import { peopleView, personDetail } from "../views/people.js";
 import { pathsView } from "../views/paths.js";
 import { pastScene, sceneView } from "../views/scene.js";
 import { modelsView } from "../views/models.js";
@@ -46,6 +47,9 @@ const validEdit = ajv.compile<EditRequest>({ $ref: "link#/$defs/EditRequest" });
 const validRemoveTaste = ajv.compile<RemoveTasteRequest>({ $ref: "link#/$defs/RemoveTasteRequest" });
 const validSetJobModel = ajv.compile<SetJobModelRequest>({ $ref: "link#/$defs/SetJobModelRequest" });
 const validSetActor = ajv.compile<SetActorRequest>({ $ref: "link#/$defs/SetActorRequest" });
+const validPersonEdit = ajv.compile<PersonEdit>({ $ref: "link#/$defs/PersonEdit" });
+const validLead = ajv.compile<LeadRequest>({ $ref: "link#/$defs/LeadRequest" });
+const validGroup = ajv.compile<GroupRequest>({ $ref: "link#/$defs/GroupRequest" });
 const validRetry = ajv.compile<RetryRequest>({ $ref: "link#/$defs/RetryRequest" });
 const validRetryWorld = ajv.compile<RetryWorldRequest>({ $ref: "link#/$defs/RetryWorldRequest" });
 
@@ -230,6 +234,26 @@ export function buildLink(options: LinkOptions): FastifyInstance {
     if (!validRedo(request.body)) throw new LinkError("invalid", "Redo needs the entry the phone last saw, a Direction or null, and whether to remember it.");
     const model = request.body.model ? offered(options.catalog, request.body.model) : null;
     return engine.redo(request.params.id, request.body.after, request.body.direction, request.body.remember, request.traceId, model);
+  });
+
+  // Editing people (openspec stories: Anything can be edited or created in the app; editing-people decision 5).
+  app.get<{ Params: { id: string } }>("/stories/:id/people", async request => peopleView(mac, request.params.id, request.traceId));
+  app.get<{ Params: { id: string; name: string } }>("/stories/:id/people/:name", async request => personDetail(mac, request.params.id, request.params.name, request.traceId));
+  app.put<{ Params: { id: string; name: string } }>("/stories/:id/people/:name", async request => {
+    if (!validPersonEdit(request.body)) throw new LinkError("invalid", "A person needs who they are, their other names, appearance, what they want, how they talk, what they know, their Group, and the entry the phone last saw.");
+    const edit = request.body;
+    return engine.setPerson(request.params.id, {
+      name: request.params.name, aliases: edit.aliases, whoTheyAre: edit.who_they_are, known: edit.known ?? null, appearance: edit.appearance,
+      after: edit.wants, knows: edit.knows, voice: edit.voice, group: edit.group ?? null
+    }, edit.after, request.traceId, edit.create);
+  });
+  app.put<{ Params: { id: string; name: string } }>("/stories/:id/people/:name/lead", async request => {
+    if (!validLead(request.body)) throw new LinkError("invalid", "A Lead is on or off, with the entry the phone last saw.");
+    return engine.setLead(request.params.id, request.params.name, request.body.lead, request.body.after, request.traceId);
+  });
+  app.put<{ Params: { id: string; name: string } }>("/stories/:id/groups/:name", async request => {
+    if (!validGroup(request.body)) throw new LinkError("invalid", "A Group needs its description, and the entry the phone last saw.");
+    return engine.setGroup(request.params.id, request.params.name, request.body.description, request.body.after, request.traceId);
   });
 
   // A Portrait uploaded from the phone: the image itself, its type as sent (openspec stories: Portraits are real images).

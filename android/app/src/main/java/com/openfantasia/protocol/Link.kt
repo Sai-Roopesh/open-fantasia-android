@@ -78,6 +78,13 @@
 // val calendarKind         = json.parse(CalendarKind.serializer(), jsonString)
 // val calendarItem         = json.parse(CalendarItem.serializer(), jsonString)
 // val worldView            = json.parse(WorldView.serializer(), jsonString)
+// val groupInfo            = json.parse(GroupInfo.serializer(), jsonString)
+// val personSummary        = json.parse(PersonSummary.serializer(), jsonString)
+// val peopleView           = json.parse(PeopleView.serializer(), jsonString)
+// val personDetail         = json.parse(PersonDetail.serializer(), jsonString)
+// val personEdit           = json.parse(PersonEdit.serializer(), jsonString)
+// val leadRequest          = json.parse(LeadRequest.serializer(), jsonString)
+// val groupRequest         = json.parse(GroupRequest.serializer(), jsonString)
 
 package com.openfantasia.protocol
 
@@ -1545,4 +1552,182 @@ data class WorldPlace (
 
     val description: String,
     val name: String
+)
+
+/**
+ * Everyone in the Story, for editing (editing-people design decision 5): the Leads first,
+ * then by name.
+ */
+@Serializable
+data class PeopleView (
+    val groups: List<GroupInfo>,
+    val people: List<PersonSummary>,
+
+    @SerialName("story_id")
+    val storyID: String,
+
+    @SerialName("trace_id")
+    val traceID: String
+)
+
+/**
+ * A Group and what it is, as anyone would know it.
+ */
+@Serializable
+data class GroupInfo (
+    val description: String,
+    val name: String
+)
+
+/**
+ * Someone in Everyone in the Story: no one's description, only who they are to the Story.
+ */
+@Serializable
+data class PersonSummary (
+    val group: String? = null,
+    val lead: Boolean,
+    val name: String,
+
+    @SerialName("player_character")
+    val playerCharacter: Boolean,
+
+    @SerialName("portrait_url")
+    val portraitURL: String? = null
+)
+
+/**
+ * A person as the Story keeps them, for the person editor: shown only on Edit.
+ */
+@Serializable
+data class PersonDetail (
+    /**
+     * Other names they answer to.
+     */
+    val aliases: List<String>,
+
+    val appearance: String,
+    val group: String? = null,
+
+    /**
+     * Every Group, for the picker.
+     */
+    val groups: List<GroupInfo>,
+
+    /**
+     * What the Player Character knows of them.
+     */
+    val known: String? = null,
+
+    /**
+     * What they know, beyond their own backstory.
+     */
+    val knows: List<String>,
+
+    val lead: Boolean,
+    val name: String,
+
+    @SerialName("player_character")
+    val playerCharacter: Boolean,
+
+    @SerialName("portrait_url")
+    val portraitURL: String? = null,
+
+    @SerialName("story_id")
+    val storyID: String,
+
+    @SerialName("trace_id")
+    val traceID: String,
+
+    /**
+     * Lines they have said, in their own words.
+     */
+    val voice: List<String>,
+
+    /**
+     * What they are after.
+     */
+    val wants: String,
+
+    /**
+     * Who they are and the backstory they come with, what nobody knows included.
+     */
+    @SerialName("who_they_are")
+    val whoTheyAre: String
+)
+
+/**
+ * A person created or changed whole, from that moment onward on the current Path.
+ */
+@Serializable
+data class PersonEdit (
+    /**
+     * The head the phone saw.
+     */
+    val after: String,
+
+    /**
+     * Other names they answer to.
+     */
+    val aliases: List<String>,
+
+    val appearance: String,
+
+    /**
+     * A new person; false changes someone already in the Story.
+     */
+    val create: Boolean,
+
+    val group: String? = null,
+
+    /**
+     * What the Player Character knows of them.
+     */
+    val known: String? = null,
+
+    /**
+     * What they know, beyond their own backstory.
+     */
+    val knows: List<String>,
+
+    /**
+     * Lines they have said, in their own words.
+     */
+    val voice: List<String>,
+
+    /**
+     * What they are after.
+     */
+    val wants: String,
+
+    /**
+     * Who they are and the backstory they come with, what nobody knows included.
+     */
+    @SerialName("who_they_are")
+    val whoTheyAre: String
+)
+
+/**
+ * Makes someone a Lead, or stops them being one.
+ */
+@Serializable
+data class LeadRequest (
+    /**
+     * The head the phone saw.
+     */
+    val after: String,
+
+    val lead: Boolean
+)
+
+/**
+ * Creates a Group, or changes its description.
+ */
+@Serializable
+data class GroupRequest (
+    /**
+     * The head the phone saw.
+     */
+    val after: String,
+
+    val description: String
 )

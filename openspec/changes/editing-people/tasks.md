@@ -37,10 +37,10 @@ Scenarios this change builds, all in `stories`:
 
 ## 3. The link and the Mac's commands
 
-- [ ] 3.1 Contract 15 (decision 5) in `link.schema.json` and `contract.json`; regenerate, and verify both sides compile
-- [ ] 3.2 `views/people.ts`, the people and group routes; link tests, including a refusal with its reason and a
+- [x] 3.1 Contract 15 (decision 5) in `link.schema.json` and `contract.json`; regenerate, and verify both sides compile
+- [x] 3.2 `views/people.ts`, the people and group routes; link tests, including a refusal with its reason and a
   stale head
-- [ ] 3.3 Test first, then build: `stories › Claude can edit a Story as the player can › Claude adds a person
+- [x] 3.3 Test first, then build: `stories › Claude can edit a Story as the player can › Claude adds a person
   mid-Story`:
   - `fantasia person` with `--portrait` in Scene 20;
   - she is in the people from then on, on that Path;

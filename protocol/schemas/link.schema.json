@@ -1953,6 +1953,483 @@
           "type": "string"
         }
       }
+    },
+    "SceneRef": {
+      "description": "A Scene by its number and title.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "number",
+        "title"
+      ],
+      "properties": {
+        "number": {
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        }
+      }
+    },
+    "WorldPerson": {
+      "description": "Someone on the World screen, as the Player Character knows them (openspec outside-the-scene: The World screen shows what the Player Character knows).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "aliases",
+        "portrait_url",
+        "lead",
+        "group",
+        "is_group",
+        "known",
+        "known_from",
+        "heard"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "portrait_url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lead": {
+          "type": "boolean"
+        },
+        "group": {
+          "description": "The Group they are in, if any.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "is_group": {
+          "description": "This entry is a Group, standing for members not known on their own.",
+          "type": "boolean"
+        },
+        "known": {
+          "description": "What the Player Character knows of them; null when it is only what he has heard.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "known_from": {
+          "description": "The Scene that last added to what he knows; null for what he knew from the start, or was set on the Mac.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/SceneRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "heard": {
+          "description": "What he has heard of them, newest first.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MeanwhileItem"
+          }
+        }
+      }
+    },
+    "WorldPlace": {
+      "description": "A place in the Story, as anyone there would know it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "description",
+        "been"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "been": {
+          "description": "A Scene on this Path was there.",
+          "type": "boolean"
+        }
+      }
+    },
+    "CalendarKind": {
+      "type": "string",
+      "enum": [
+        "landmark",
+        "happening"
+      ]
+    },
+    "CalendarItem": {
+      "description": "A Landmark, or a Happening he knows of, still ahead.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "name",
+        "what",
+        "at_label",
+        "when"
+      ],
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/CalendarKind"
+        },
+        "name": {
+          "type": "string"
+        },
+        "what": {
+          "type": "string"
+        },
+        "at_label": {
+          "description": "When, as people say it: \"Wednesday 9:00 am\".",
+          "type": "string"
+        },
+        "when": {
+          "description": "How long to go: \"3 days\", \"Tomorrow\", \"Today at 8:30 pm\".",
+          "type": "string"
+        }
+      }
+    },
+    "WorldView": {
+      "description": "The World screen: People, Places and the Calendar, only as the Player Character knows them.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "story_id",
+        "people",
+        "places",
+        "calendar",
+        "trace_id"
+      ],
+      "properties": {
+        "story_id": {
+          "type": "string"
+        },
+        "people": {
+          "description": "The Leads first, in the Story's order, then everyone else he knows of, by name.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldPerson"
+          }
+        },
+        "places": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldPlace"
+          }
+        },
+        "calendar": {
+          "description": "Ordered by time.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CalendarItem"
+          }
+        },
+        "trace_id": {
+          "type": "string"
+        }
+      }
+    },
+    "GroupInfo": {
+      "description": "A Group and what it is, as anyone would know it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "description"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "PersonSummary": {
+      "description": "Someone in Everyone in the Story: no one's description, only who they are to the Story.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "lead",
+        "group",
+        "portrait_url",
+        "player_character"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "lead": {
+          "type": "boolean"
+        },
+        "group": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "portrait_url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "player_character": {
+          "type": "boolean"
+        }
+      }
+    },
+    "PeopleView": {
+      "description": "Everyone in the Story, for editing (editing-people design decision 5): the Leads first, then by name.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "story_id",
+        "people",
+        "groups",
+        "trace_id"
+      ],
+      "properties": {
+        "story_id": {
+          "type": "string"
+        },
+        "people": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PersonSummary"
+          }
+        },
+        "groups": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GroupInfo"
+          }
+        },
+        "trace_id": {
+          "type": "string"
+        }
+      }
+    },
+    "PersonDetail": {
+      "description": "A person as the Story keeps them, for the person editor: shown only on Edit.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "story_id",
+        "name",
+        "lead",
+        "portrait_url",
+        "player_character",
+        "groups",
+        "trace_id",
+        "aliases",
+        "who_they_are",
+        "known",
+        "appearance",
+        "wants",
+        "voice",
+        "knows",
+        "group"
+      ],
+      "properties": {
+        "story_id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "aliases": {
+          "description": "Other names they answer to.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "who_they_are": {
+          "type": "string",
+          "description": "Who they are and the backstory they come with, what nobody knows included."
+        },
+        "known": {
+          "description": "What the Player Character knows of them.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "appearance": {
+          "type": "string"
+        },
+        "wants": {
+          "type": "string",
+          "description": "What they are after."
+        },
+        "voice": {
+          "description": "Lines they have said, in their own words.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "knows": {
+          "description": "What they know, beyond their own backstory.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "group": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lead": {
+          "type": "boolean"
+        },
+        "portrait_url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "player_character": {
+          "type": "boolean"
+        },
+        "groups": {
+          "description": "Every Group, for the picker.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GroupInfo"
+          }
+        },
+        "trace_id": {
+          "type": "string"
+        }
+      }
+    },
+    "PersonEdit": {
+      "description": "A person created or changed whole, from that moment onward on the current Path.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after",
+        "create",
+        "aliases",
+        "who_they_are",
+        "known",
+        "appearance",
+        "wants",
+        "voice",
+        "knows",
+        "group"
+      ],
+      "properties": {
+        "after": {
+          "type": "string",
+          "description": "The head the phone saw."
+        },
+        "create": {
+          "description": "A new person; false changes someone already in the Story.",
+          "type": "boolean"
+        },
+        "aliases": {
+          "description": "Other names they answer to.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "who_they_are": {
+          "type": "string",
+          "description": "Who they are and the backstory they come with, what nobody knows included."
+        },
+        "known": {
+          "description": "What the Player Character knows of them.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "appearance": {
+          "type": "string"
+        },
+        "wants": {
+          "type": "string",
+          "description": "What they are after."
+        },
+        "voice": {
+          "description": "Lines they have said, in their own words.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "knows": {
+          "description": "What they know, beyond their own backstory.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "group": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "LeadRequest": {
+      "description": "Makes someone a Lead, or stops them being one.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after",
+        "lead"
+      ],
+      "properties": {
+        "after": {
+          "type": "string",
+          "description": "The head the phone saw."
+        },
+        "lead": {
+          "type": "boolean"
+        }
+      }
+    },
+    "GroupRequest": {
+      "description": "Creates a Group, or changes its description.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after",
+        "description"
+      ],
+      "properties": {
+        "after": {
+          "type": "string",
+          "description": "The head the phone saw."
+        },
+        "description": {
+          "type": "string"
+        }
+      }
     }
   }
 }
