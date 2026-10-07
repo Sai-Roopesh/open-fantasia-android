@@ -77,7 +77,7 @@ Scenarios this change builds:
 
 ## 3. The phone
 
-- [ ] 3.1 The Story screen, built to `Story.dc.html`, opened from the header title's chevron:
+- [x] 3.1 The Story screen, built to `Story.dc.html`, opened from the header title's chevron:
   - `StoryScreen.kt`;
   - `FantasiaModel` state and loading, and `FantasiaLink`, `LinkClient` and `MacConnection` calls;
   - edits are off while a Reply is written or the Mac is unreachable;
@@ -89,7 +89,7 @@ Scenarios this change builds:
   - a check that "Moving the clock on" shows the Day View at the new time.
 - [ ] 3.3 Backstage: tapping a Taste line opens the sheet holding it. A shared check for "Rewording a lesson" as the
   phone does it.
-- [ ] 3.4 Previews of The Story and the sheet, compared side by side with `Story.dc.html` and `StoryEdit.dc.html`.
+- [x] 3.4 Previews of The Story and the sheet, compared side by side with `Story.dc.html` and `StoryEdit.dc.html`.
   Fix what differs.
 
 ## 4. Together

@@ -125,6 +125,17 @@ class MacConnection(
     override suspend fun setPerson(storyID: String, name: String, request: PersonEdit): Accepted = command { it.setPerson(storyID, name, request) }
     override suspend fun setLead(storyID: String, name: String, request: LeadRequest): Accepted = command { it.setLead(storyID, name, request) }
     override suspend fun setGroup(storyID: String, name: String, request: GroupRequest): Accepted = command { it.setGroup(storyID, name, request) }
+    override suspend fun story(storyID: String): StoryView = read { it.story(storyID) }
+    override suspend fun setPremise(storyID: String, request: PremiseRequest): StoryView = command { it.setPremise(storyID, request) }
+    override suspend fun setStyle(storyID: String, request: StyleRequest): StoryView = command { it.setStyle(storyID, request) }
+    override suspend fun setReplyLength(storyID: String, request: ReplyLengthRequest): StoryView = command { it.setReplyLength(storyID, request) }
+    override suspend fun setArcs(storyID: String, request: ArcsRequest): StoryView = command { it.setArcs(storyID, request) }
+    override suspend fun setLandmark(storyID: String, name: String, request: LandmarkRequest): StoryView = command { it.setLandmark(storyID, name, request) }
+    override suspend fun dropLandmark(storyID: String, name: String, request: DropLandmarkRequest): StoryView = command { it.dropLandmark(storyID, name, request) }
+    override suspend fun setPlace(storyID: String, name: String, request: PlaceRequest): StoryView = command { it.setPlace(storyID, name, request) }
+    override suspend fun setWorld(storyID: String, request: WorldRequest): StoryView = command { it.setWorld(storyID, request) }
+    override suspend fun setClock(storyID: String, request: ClockRequest): StoryView = command { it.setClock(storyID, request) }
+    override suspend fun rewordTaste(storyID: String, request: RewordTasteRequest): StoryView = command { it.rewordTaste(storyID, request) }
     override suspend fun uploadPortrait(storyID: String, name: String, image: ByteArray, type: String, after: String): Accepted =
         command { it.uploadPortrait(storyID, name, image, type, after) }
     override suspend fun backstage(storyID: String): BackstageView = read { it.backstage(storyID) }

@@ -105,7 +105,7 @@ private val FantasiaRumourGround = Color(0xFF30261A)
  * the Lives, what the Director is building toward, the Writer's plan for this Scene, and Taste, each lesson with a ✕.
  */
 @Composable fun BackstageScreen(backstage: BackstageView?, playerCharacter: String, enabled: Boolean, back: () -> Unit,
-    removeTaste: (String) -> Unit, modifier: Modifier = Modifier) {
+    removeTaste: (String) -> Unit, modifier: Modifier = Modifier, reword: (String) -> Unit = {}) {
     Column(modifier.background(BackstageGround)) {
         OutsideHeader("Backstage", back, BackstageLine)
         if (backstage == null) { Loading(Modifier.weight(1f)); return@Column }
@@ -155,7 +155,9 @@ private val FantasiaRumourGround = Color(0xFF30261A)
                     if (backstage.taste.isEmpty()) Text("Nothing yet. A Redo you ask it to remember becomes a line here.", style = FantasiaType.meta, color = FantasiaCaption)
                     backstage.taste.forEach { lesson ->
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(lesson, modifier = Modifier.weight(1f), style = FantasiaType.metadata.copy(lineHeight = 20.sp), color = FantasiaText)
+                            // Tapping a lesson rewords it (editing-the-story design decision 6).
+                            Text(lesson, modifier = Modifier.weight(1f).clickable(enabled = enabled, role = Role.Button, onClickLabel = "Reword this line") { reword(lesson) },
+                                style = FantasiaType.metadata.copy(lineHeight = 20.sp), color = FantasiaText)
                             IconButton(onClick = { removeTaste(lesson) }, enabled = enabled, modifier = Modifier.size(40.dp).semantics { contentDescription = "Delete this line" }) {
                                 FantasiaIcon(FantasiaIconKind.Dismiss, Modifier.size(14.dp), if (enabled) FantasiaCaption else FantasiaDisabled)
                             }

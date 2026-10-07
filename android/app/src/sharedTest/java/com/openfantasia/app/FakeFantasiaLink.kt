@@ -36,6 +36,9 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
     val groupSets = mutableListOf<Pair<String, GroupRequest>>()
     val portraitUploads = mutableListOf<Triple<String, String, ByteArray>>()
     var personFailure: LinkFailure? = null
+    var storyView = storyFixture()
+    /** Every edit to the Story as sent: its route and its request. */
+    val storyEdits = mutableListOf<Pair<String, Any>>()
     var worldRequests = 0
     val jobModelSets = mutableListOf<Pair<ModelJob, ModelChoice>>()
     val actorSets = mutableListOf<Pair<String, ModelChoice?>>()
@@ -162,6 +165,50 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
     }
     override suspend fun journal(storyID: String): JournalView = journalView
     override suspend fun backstage(storyID: String): BackstageView = backstageView
+    override suspend fun story(storyID: String): StoryView = storyView.copy(headEntryID = current.value.headEntryID)
+    override suspend fun setPremise(storyID: String, request: PremiseRequest) = storyEdit("premise", request, request.after) { it.copy(premise = request.premise) }
+    override suspend fun setStyle(storyID: String, request: StyleRequest) = storyEdit("style", request, request.after) { it.copy(style = request.style) }
+    override suspend fun setReplyLength(storyID: String, request: ReplyLengthRequest) = storyEdit("reply-length", request, request.after) { it.copy(replyLength = request.length) }
+    override suspend fun setArcs(storyID: String, request: ArcsRequest) = storyEdit("arcs", request, request.after) { it.copy(arcs = request.arcs) }
+    override suspend fun setWorld(storyID: String, request: WorldRequest) = storyEdit("world", request, request.after) { it.copy(worldSummary = request.summary, worldHistory = request.history) }
+    override suspend fun setPlace(storyID: String, name: String, request: PlaceRequest) = storyEdit("places/$name", request, request.after) { story ->
+        val place = StoryPlace(name = name, description = request.description)
+        val list = if (request.institution) story.institutions else story.places
+        val next = if (list.any { it.name == name }) list.map { if (it.name == name) place else it } else list + place
+        if (request.institution) story.copy(institutions = next) else story.copy(places = next)
+    }
+    override suspend fun setLandmark(storyID: String, name: String, request: LandmarkRequest) = storyEdit("landmarks/$name", request, request.after) { story ->
+        if (story.landmarks.firstOrNull { it.name == name }?.passed == true) throw LinkFailure("$name has already happened on this Path.")
+        if (minutes(request.at) <= minutes(story.worldStands)) throw LinkFailure("That time has passed on this Path.")
+        val landmark = StoryLandmark(name = name, at = request.at, atLabel = "${request.at} label", what = request.what, passed = false)
+        story.copy(landmarks = (story.landmarks.filter { it.name != name } + landmark).sortedBy { minutes(it.at) })
+    }
+    override suspend fun dropLandmark(storyID: String, name: String, request: DropLandmarkRequest) =
+        storyEdit("landmarks/$name/drop", request, request.after) { it.copy(landmarks = it.landmarks.filter { landmark -> landmark.name != name }) }
+    override suspend fun setClock(storyID: String, request: ClockRequest) = storyEdit("clock", request, request.after) { story ->
+        if (minutes(request.at) <= minutes(story.clock.at)) throw LinkFailure("The clock only moves on.")
+        val day = dayOf(request.at)
+        val weekday = weekdayOf(day, request.dayOneWeekday) ?: ""
+        val time = sayMinute(minuteOf(request.at) ?: 0)
+        current.value.dayView?.let { dayView -> current.value = current.value.copy(dayView = dayView.copy(at = request.at, atLabel = "$weekday $time", day = weekday, time = time)) }
+        story.copy(clock = StoryClock(at = request.at, atLabel = "$weekday $time", dayOneWeekday = request.dayOneWeekday), worldStands = request.at)
+    }
+    override suspend fun rewordTaste(storyID: String, request: RewordTasteRequest) = storyEdit("taste/reword", request, request.after) { story ->
+        if (request.line !in backstageView.taste) throw LinkFailure("Taste has no such line.")
+        backstageView = backstageView.copy(taste = backstageView.taste.map { if (it == request.line) request.text else it })
+        story
+    }
+    /** An edit as the Mac takes it: against the head the phone saw, moving the head on, answering with The Story. */
+    private fun storyEdit(route: String, request: Any, after: String, change: (StoryView) -> StoryView): StoryView {
+        if (after != current.value.headEntryID) throw LinkFailure("The Story has moved on since you last looked. Nothing was changed.")
+        val changed = change(storyView)
+        storyEdits += route to request
+        val head = "story-${storyEdits.size}"
+        current.value = current.value.copy(headEntryID = head, seq = current.value.seq + 1, lastEventID = (current.value.seq + 1).toString())
+        storyView = changed.copy(headEntryID = head)
+        return storyView
+    }
+    private fun minutes(at: String) = ((dayOf(at) ?: 0) - 1) * 24 * 60 + (minuteOf(at) ?: 0)
     override suspend fun removeTaste(storyID: String, request: RemoveTasteRequest): Accepted {
         tasteRemovals += request
         backstageView = backstageView.copy(taste = backstageView.taste - request.line)
@@ -246,6 +293,25 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
             "Quirinus Quirrell" to "Serves Voldemort, who lives on the back of his head.",
             "Roopesh Gantasala" to "A Muggle-born from Bangalore with powers he hides.")
         /** A person as the Story keeps them, for the editor: who they really are included. */
+        /** The Story as Story.dc.html draws it, at the fixture Scene's time: Friday 9:40 pm on Day 1. */
+        fun storyFixture() = StoryView(storyID = "story", traceID = "story", title = "The Malfoy Problem",
+            premise = "An enemies-to-lovers romance with Draconia Malfoy, from the first week at Hogwarts.",
+            style = "Close third person, past tense. The slow burn is slow: weeks of insults before a slip.",
+            replyLength = Length.Medium,
+            arcs = listOf("Draconia comes round to Roopesh, slowly, against everything she was raised to be", "Harry and Roopesh become friends"),
+            landmarks = listOf(
+                StoryLandmark(name = "The welcome feast", at = "Day 1 19:00", atLabel = "Friday 7:00 pm · Day 1", what = "The Sorting, and the first dinner.", passed = true),
+                StoryLandmark(name = "Draconia's flying test", at = "Day 4 10:00", atLabel = "Monday 10:00 am · Day 4", storyLandmarkWhen = "in 3 days",
+                    what = "Madam Hooch tests the first-years. Her father is watching.", passed = false),
+                StoryLandmark(name = "The betrothal", at = "Day 760 12:00", atLabel = "Monday 12:00 pm · Day 760", storyLandmarkWhen = "in 2 years",
+                    what = "Lucius announces Draconia's engagement to a pure-blood heir.", passed = false)),
+            worldSummary = "Hogwarts, 1991. The war is ten years over and nobody talks about who fought on which side.",
+            worldHistory = "Voldemort fell at Godric's Hollow.",
+            places = listOf(StoryPlace(name = "The Gryffindor common room", description = "Red and gold, a fire that never goes out."),
+                StoryPlace(name = "The owlery", description = "Cold stone, straw, and every owl in the school.")),
+            institutions = listOf(StoryPlace(name = "The Ministry of Magic", description = "Fudge's Ministry: slow, proud, and easily bought.")),
+            clock = StoryClock(at = "Day 1 21:40", atLabel = "Friday 9:40 pm", dayOneWeekday = DayOneWeekday.Friday),
+            worldStands = "Day 1 21:40", headEntryID = "reply")
         fun personDetail(name: String, people: PeopleView = peopleFixture()): PersonDetail {
             val summary = people.people.first { it.name == name }
             return PersonDetail(storyID = "story", traceID = "person", name = name, aliases = emptyList(), whoTheyAre = WHO.getValue(name),

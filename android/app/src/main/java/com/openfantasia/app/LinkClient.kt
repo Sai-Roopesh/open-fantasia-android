@@ -76,6 +76,27 @@ class LinkClient(val address: HttpUrl, fingerprint: String, private val deviceTo
         command(listOf("stories", storyID, "people", name, "lead"), commandJson.encodeToString(request), put = true)
     suspend fun setGroup(storyID: String, name: String, request: GroupRequest): Accepted =
         command(listOf("stories", storyID, "groups", name), commandJson.encodeToString(request), put = true)
+    suspend fun story(storyID: String): StoryView = command(listOf("stories", storyID, "story"))
+    suspend fun setPremise(storyID: String, request: PremiseRequest): StoryView =
+        command(listOf("stories", storyID, "premise"), commandJson.encodeToString(request), put = true)
+    suspend fun setStyle(storyID: String, request: StyleRequest): StoryView =
+        command(listOf("stories", storyID, "style"), commandJson.encodeToString(request), put = true)
+    suspend fun setReplyLength(storyID: String, request: ReplyLengthRequest): StoryView =
+        command(listOf("stories", storyID, "reply-length"), commandJson.encodeToString(request), put = true)
+    suspend fun setArcs(storyID: String, request: ArcsRequest): StoryView =
+        command(listOf("stories", storyID, "arcs"), commandJson.encodeToString(request), put = true)
+    suspend fun setLandmark(storyID: String, name: String, request: LandmarkRequest): StoryView =
+        command(listOf("stories", storyID, "landmarks", name), commandJson.encodeToString(request), put = true)
+    suspend fun dropLandmark(storyID: String, name: String, request: DropLandmarkRequest): StoryView =
+        command(listOf("stories", storyID, "landmarks", name, "drop"), commandJson.encodeToString(request))
+    suspend fun setPlace(storyID: String, name: String, request: PlaceRequest): StoryView =
+        command(listOf("stories", storyID, "places", name), commandJson.encodeToString(request), put = true)
+    suspend fun setWorld(storyID: String, request: WorldRequest): StoryView =
+        command(listOf("stories", storyID, "world"), commandJson.encodeToString(request), put = true)
+    suspend fun setClock(storyID: String, request: ClockRequest): StoryView =
+        command(listOf("stories", storyID, "clock"), commandJson.encodeToString(request), put = true)
+    suspend fun rewordTaste(storyID: String, request: RewordTasteRequest): StoryView =
+        command(listOf("stories", storyID, "taste", "reword"), commandJson.encodeToString(request))
 
     /** A Portrait from the phone: the image itself, as its type, with the head the phone saw (openspec stories: Portraits). */
     suspend fun uploadPortrait(storyID: String, name: String, image: ByteArray, type: String, after: String): Accepted {

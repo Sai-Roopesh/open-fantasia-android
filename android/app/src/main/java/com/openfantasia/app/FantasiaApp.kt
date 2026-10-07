@@ -19,12 +19,16 @@ import kotlinx.coroutines.launch
     val personActions = PersonActions(enabled = state.canChangePath, groups = state.people?.groups, loadGroups = model::loadPeople,
         edit = model::editPerson, setLead = model::setLead, setGroup = model::setPersonGroup, newGroup = model::newGroup,
         replacePortrait = { name -> scope.launch { portraitPicker.pick()?.let { model.replacePortrait(name, it) } } })
+    val storyActions = StoryActions(premise = model::savePremise, style = model::saveStyle, world = model::saveWorld, clock = model::saveClock,
+        arc = model::saveArc, dropArc = model::dropArc, landmark = model::saveLandmark, dropLandmark = model::dropLandmark, place = model::savePlace,
+        taste = model::rewordTaste)
     BackHandler(enabled = state.scene == null && state.showingModels) { model.closeModels() }
     BackHandler(enabled = state.scene != null) {
         when {
             state.readingScene != null -> model.closePastScene()
             state.showingPaths -> model.closePaths()
             state.showingJournal -> model.closeJournal()
+            state.showingStory -> model.closeStoryScreen()
             state.showingWorld -> model.closeWorld()
             state.showingBackstage -> model.closeBackstage()
             else -> model.home()
@@ -73,13 +77,16 @@ import kotlinx.coroutines.launch
                         })
                     } else if (state.showingBackstage) {
                         BackstageScreen(state.backstage, firstName(scene.playerCharacter), state.canChangePath, back = model::closeBackstage,
-                            removeTaste = model::removeTaste, modifier = Modifier.weight(1f))
+                            removeTaste = model::removeTaste, modifier = Modifier.weight(1f), reword = { model.openStoryEditor(StoryEdit.Taste(it)) })
+                    } else if (state.showingStory) {
+                        StoryScreen(state.story, state.canChangePath, back = model::closeStoryScreen, edit = model::openStoryEditor,
+                            setLength = model::setReplyLength, modifier = Modifier.weight(1f))
                     } else if (state.showingPaths) {
                         PathsScreen(state.paths, state.canChangePath, model::closePaths, model::openPath, model::renamePath,
                             model::deletePath, model::clearPaths, startAgain = { model.tryAnotherWay(null) }, modifier = Modifier.weight(1f))
                     } else {
                         SceneScreen(scene, portrait, Modifier.weight(1f), controlsEnabled = state.canChangeScene,
-                            openPaths = model::openPaths, openWorld = model::openWorld, openJournal = model::openJournal, openBackstage = model::openBackstage, pathsEnabled = state.canChangePath, rewind = model::rewind, tryAnotherWay = model::tryAnotherWay,
+                            openPaths = model::openPaths, openWorld = model::openWorld, openJournal = model::openJournal, openBackstage = model::openBackstage, openStory = model::openStoryScreen, pathsEnabled = state.canChangePath, rewind = model::rewind, tryAnotherWay = model::tryAnotherWay,
                             edit = model::edit,
                             focus = model::focus, redo = model::redo, models = state.models, loadModels = model::loadModels, choose = model::choose, problem = state.problem?.reason, dismissPreviously = model::dismissPreviously, back = model::home, awaitingReply = state.replyComing,
                             openPastScene = { focusManager.clearFocus(); model.openPastScene(it) }, scrollState = scrollState,
@@ -101,6 +108,9 @@ import kotlinx.coroutines.launch
                 }
                 else {
                     HomeScreen(state, model::openStory, Modifier.weight(1f), openModels = model::openModels)
+                }
+                state.storyEditing?.let { editing ->
+                    StoryEditor(editing, state.story, state.canChangePath, storyActions, dismiss = model::closeStoryEditor)
                 }
                 if (state.loading) CircularProgressIndicator()
             }

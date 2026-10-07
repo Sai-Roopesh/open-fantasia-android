@@ -17,6 +17,21 @@ import kotlinx.serialization.SerializationException
 data class WaitingMove(val storyID: String, val after: String, val text: String)
 /** The person editor while it is open: whom it edits (null for someone new), and why a save was refused. */
 data class PersonEditing(val person: PersonDetail?, val problem: String? = null, val saving: Boolean = false)
+/** What The Story's editor sheet is editing (editing-the-story design decision 6). */
+sealed interface StoryEdit {
+    data object Premise : StoryEdit
+    data object Style : StoryEdit
+    data object World : StoryEdit
+    data object Clock : StoryEdit
+    /** An Arc by its place in the list, or a new one. */
+    data class Arc(val index: Int?) : StoryEdit
+    /** A Landmark by name, or a new one. */
+    data class Landmark(val name: String?) : StoryEdit
+    data class Place(val name: String?, val institution: Boolean) : StoryEdit
+    /** A lesson in Taste, from Backstage. */
+    data class Taste(val line: String) : StoryEdit
+}
+data class StoryEditing(val target: StoryEdit, val problem: String? = null, val saving: Boolean = false)
 data class AppProblem(val reason: String, val traceID: String? = null, val needsUpdate: Boolean = false)
 data class FantasiaState(
     val paired: Boolean,
@@ -42,6 +57,10 @@ data class FantasiaState(
     val people: PeopleView? = null,
     val personPage: PersonDetail? = null,
     val editing: PersonEditing? = null,
+    /** The Story screen, while it is open, and its editor sheet (editing-the-story design decision 6). */
+    val showingStory: Boolean = false,
+    val story: StoryView? = null,
+    val storyEditing: StoryEditing? = null,
     /** The Models screen while it is open; the Models view also feeds the model for one Reply (openspec presence, scenes). */
     val showingModels: Boolean = false,
     val models: ModelsView? = null,
@@ -276,7 +295,61 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
         if (state.showingWorld) link.world(storyID).let { world -> mutable.update { it.copy(world = world) } }
         if (state.showingEveryone) link.people(storyID).let { people -> mutable.update { it.copy(people = people) } }
         state.personPage?.let { page -> link.person(storyID, page.name).let { person -> mutable.update { it.copy(personPage = person) } } }
+        if (state.showingBackstage) link.backstage(storyID).let { backstage -> mutable.update { it.copy(backstage = backstage) } }
     }
+    fun openStoryScreen() = openOutside({ it.copy(showingStory = true, story = null) }) { id -> link.story(id).let { view -> { s: FantasiaState -> s.copy(story = view) } } }
+    fun closeStoryScreen() { mutable.update { it.copy(showingStory = false, story = null, storyEditing = null) } }
+    fun openStoryEditor(target: StoryEdit) { mutable.update { it.copy(storyEditing = StoryEditing(target)) } }
+    fun closeStoryEditor() { mutable.update { it.copy(storyEditing = null) } }
+
+    /** The reply length, sent as soon as a chip is tapped. */
+    fun setReplyLength(length: Length) = storyChange(inSheet = false) { link.setReplyLength(it.storyID, ReplyLengthRequest(after = it.headEntryID, length = length)) }
+    fun savePremise(premise: String) = storyChange { link.setPremise(it.storyID, PremiseRequest(after = it.headEntryID, premise = premise)) }
+    fun saveStyle(style: String) = storyChange { link.setStyle(it.storyID, StyleRequest(after = it.headEntryID, style = style)) }
+    fun saveWorld(summary: String, history: String) = storyChange { link.setWorld(it.storyID, WorldRequest(after = it.headEntryID, summary = summary, history = history)) }
+    fun saveClock(at: String, weekday: DayOneWeekday?) = storyChange { link.setClock(it.storyID, ClockRequest(after = it.headEntryID, at = at, dayOneWeekday = weekday)) }
+    fun saveLandmark(name: String, creating: Boolean, at: String, what: String) =
+        storyChange { link.setLandmark(it.storyID, name, LandmarkRequest(after = it.headEntryID, at = at, what = what, create = creating)) }
+    fun dropLandmark(name: String) = storyChange { link.dropLandmark(it.storyID, name, DropLandmarkRequest(after = it.headEntryID)) }
+    fun savePlace(name: String, institution: Boolean, creating: Boolean, description: String) =
+        storyChange { link.setPlace(it.storyID, name, PlaceRequest(after = it.headEntryID, description = description, institution = institution, create = creating)) }
+    fun rewordTaste(line: String, text: String) = storyChange { link.rewordTaste(it.storyID, RewordTasteRequest(after = it.headEntryID, line = line, text = text)) }
+
+    /** Adds an Arc, or rewords the one at [index]; the Arcs are sent whole. */
+    fun saveArc(index: Int?, words: String) {
+        val arcs = mutable.value.story?.arcs ?: return
+        storyChange { link.setArcs(it.storyID, ArcsRequest(after = it.headEntryID, arcs = if (index == null) arcs + words else arcs.mapIndexed { at, arc -> if (at == index) words else arc })) }
+    }
+    fun dropArc(index: Int) {
+        val arcs = mutable.value.story?.arcs ?: return
+        storyChange { link.setArcs(it.storyID, ArcsRequest(after = it.headEntryID, arcs = arcs.filterIndexed { at, _ -> at != index })) }
+    }
+
+    /**
+     * Sends an edit to the Story from the head the phone saw. The answer is The Story as it now stands; the Scene and
+     * whatever else is open are read again. A refusal stays in the sheet with what was written, or, for a chip, shows
+     * as the screen's problem.
+     */
+    private fun storyChange(inSheet: Boolean = true, change: suspend (SceneView) -> StoryView) {
+        val state = mutable.value
+        val scene = state.scene ?: return
+        if (!state.canChangePath) return
+        mutable.update { it.copy(sending = true, problem = null, storyEditing = it.storyEditing?.copy(problem = null, saving = true)) }
+        viewModelScope.launch {
+            try {
+                val story = change(scene)
+                mutable.update { it.copy(story = if (it.showingStory) story else it.story, storyEditing = null) }
+                afterEdit(scene.storyID)
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) {
+                if (inSheet && mutable.value.storyEditing != null) {
+                    val reason = (e as? LinkFailure)?.reason ?: "The Mac is unreachable. Nothing was saved."
+                    mutable.update { it.copy(storyEditing = it.storyEditing?.copy(problem = reason, saving = false)) }
+                } else showProblem(e)
+            } finally { mutable.update { it.copy(sending = false) } }
+        }
+    }
+
     fun openJournal() = openOutside({ it.copy(showingJournal = true, journal = null) }) { id -> link.journal(id).let { view -> { s: FantasiaState -> s.copy(journal = view) } } }
     fun closeJournal() { mutable.update { it.copy(showingJournal = false, journal = null) } }
     fun openBackstage() = openOutside({ it.copy(showingBackstage = true, backstage = null) }) { id -> link.backstage(id).let { view -> { s: FantasiaState -> s.copy(backstage = view) } } }
