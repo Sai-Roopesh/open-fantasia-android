@@ -26,11 +26,11 @@ Scenarios this change builds, all in `stories`:
   - five scripted Scenes with Neville leave the Leads as they were, and no view offers to change them.
 - [x] 1.4 Test first, then build: `stories › Groups are the player's to arrange › Goyle starts to matter`
   (`engine.setGroup`; a Scene where Goyle saves him leaves him in the Group)
-- [ ] 1.5 What the Player Character knows, set through `person_set` (decision 3); `story/known.ts` tests
+- [x] 1.5 What the Player Character knows, set through `person_set` (decision 3); `story/known.ts` tests
 
 ## 2. Portraits
 
-- [ ] 2.1 Test first, then build: `stories › Portraits are real images › Uploading a Portrait`:
+- [x] 2.1 Test first, then build: `stories › Portraits are real images › Uploading a Portrait`:
   - the image route, the store and `portrait_set`;
   - link tests: the Portrait everywhere she appears from then on, the earlier Portrait at an earlier moment, and a
     refusal for the wrong type, too large, or bytes that are not the type they say.

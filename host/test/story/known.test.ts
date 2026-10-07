@@ -48,3 +48,18 @@ describe("what he knows of someone", () => {
     expect(knownOn(mac, head()).has("Vincent Crabbe")).toBe(false);
   });
 });
+
+describe("what he knows, set in the person editor (editing-people design decision 3)", () => {
+  it("counts a changed line from an edit, and leaves a line the edit did not change where it came from", async () => {
+    const { mac, engine, storyId, head, play, state } = playable(hogwartsWorldStoryFile());
+    await play("I sit beside her.");
+    const scene = mac.tree.pathTo(head()).find(entry => entry.payload.kind === "scene_opened")!;
+    mac.tree.append(storyId, head(), { kind: "chronicle", scene: scene.id, summary: null, sceneEnded: false, moments: [], told: [], known: [{ who: "Hermione Granger", now: "She noticed the inkwell." }], callId: "c", model });
+    const hermione = state().people["Hermione Granger"]!;
+    // An edit to something else, sending the line he knows as it stands.
+    engine.setPerson(storyId, { ...hermione, known: "She noticed the inkwell.", after: "The truth about him." }, head(), "t", false);
+    expect(knownOn(mac, head()).get("Hermione Granger")!.from).not.toBeNull();
+    engine.setPerson(storyId, { ...hermione, known: "She noticed the inkwell, and lied to Ron about it." }, head(), "t", false);
+    expect(knownOn(mac, head()).get("Hermione Granger")).toEqual({ text: "She noticed the inkwell, and lied to Ron about it.", from: null });
+  });
+});

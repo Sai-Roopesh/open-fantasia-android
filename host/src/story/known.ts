@@ -16,13 +16,15 @@ export interface Knowing {
  */
 export function knownOn(mac: Mac, head: string): Map<string, Knowing> {
   const path = mac.tree.pathTo(head);
-  const lines: { seq: number; who: string; knowing: Knowing }[] = [];
+  // Each line in the order it was written: an edit's line counts only where it changed what he knew.
+  const lines: { seq: number; who: string; knowing: Knowing; ifChanged?: boolean }[] = [];
   const scenes = new Map<string, SceneOpened>();
   for (const entry of path) {
     const payload = entry.payload;
     if (payload.kind === "story_set_up") {
       for (const person of payload.storyFile.people) if (person.known) lines.push({ seq: entry.seq, who: person.name, knowing: { text: person.known, from: null } });
     } else if (payload.kind === "known_set") lines.push({ seq: entry.seq, who: payload.person, knowing: { text: payload.text, from: null } });
+    else if (payload.kind === "person_set" && payload.person.known) lines.push({ seq: entry.seq, who: payload.person.name, knowing: { text: payload.person.known, from: null }, ifChanged: true });
     else if (payload.kind === "scene_opened") scenes.set(entry.id, payload);
   }
   for (const record of mac.tree.recordsOn(head, "chronicle") as Entry<Chronicle>[]) {
@@ -32,7 +34,10 @@ export function knownOn(mac: Mac, head: string): Map<string, Knowing> {
     }
   }
   const known = new Map<string, Knowing>();
-  for (const line of lines.sort((left, right) => left.seq - right.seq)) known.set(line.who, line.knowing);
+  for (const line of lines.sort((left, right) => left.seq - right.seq)) {
+    if (line.ifChanged && known.get(line.who)?.text === line.knowing.text) continue;
+    known.set(line.who, line.knowing);
+  }
   return known;
 }
 

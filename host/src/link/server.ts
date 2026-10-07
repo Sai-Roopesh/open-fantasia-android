@@ -20,6 +20,7 @@ import { modelsView } from "../views/models.js";
 import { listStories } from "../views/stories.js";
 import type { Catalog } from "../models/catalog.js";
 import { JOBS, setJobModel, setStoryActor, type Job } from "../models/jobs.js";
+import { MAX_PORTRAIT_BYTES } from "../engine/people.js";
 import { LinkError, STATUS } from "./errors.js";
 import type { Pairing } from "./pairing.js";
 
@@ -230,6 +231,15 @@ export function buildLink(options: LinkOptions): FastifyInstance {
     const model = request.body.model ? offered(options.catalog, request.body.model) : null;
     return engine.redo(request.params.id, request.body.after, request.body.direction, request.body.remember, request.traceId, model);
   });
+
+  // A Portrait uploaded from the phone: the image itself, its type as sent (openspec stories: Portraits are real images).
+  // The body may run a little past the limit so the refusal can say why, rather than the link cutting it off.
+  app.addContentTypeParser(/^image\//, { parseAs: "buffer", bodyLimit: MAX_PORTRAIT_BYTES + 1024 * 1024 }, (_request, body, done) => done(null, body));
+  app.put<{ Params: { id: string; name: string }; Querystring: { after?: string } }>("/stories/:id/people/:name/portrait",
+    { bodyLimit: MAX_PORTRAIT_BYTES + 1024 * 1024 }, async request => {
+      if (!Buffer.isBuffer(request.body)) throw new LinkError("invalid", "A Portrait is a JPEG, PNG or WebP image.");
+      return engine.setPortrait(request.params.id, request.params.name, request.body, request.headers["content-type"] ?? "", request.query.after ?? "", request.traceId);
+    });
 
   app.get<{ Params: { id: string; file: string } }>("/stories/:id/portraits/:file", async (request, reply) => {
     const file = join(mac.home, "portraits", basename(request.params.id), basename(request.params.file));

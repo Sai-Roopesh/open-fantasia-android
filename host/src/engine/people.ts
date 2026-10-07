@@ -1,3 +1,4 @@
+import { LinkError } from "../link/errors.js";
 import { nameIndex } from "../agents/names.js";
 import type { Person, State } from "../story/state.js";
 
@@ -33,3 +34,22 @@ export function checkPerson(state: State, person: Edited, creating: boolean): { 
     }
   };
 }
+
+/** An uploaded Portrait's largest size (openspec stories: Portraits are real images). */
+export const MAX_PORTRAIT_BYTES = 10 * 1024 * 1024;
+
+const IMAGE_TYPES: Record<string, { extension: string; name: string; is: (bytes: Buffer) => boolean }> = {
+  "image/jpeg": { extension: ".jpg", name: "JPEG", is: bytes => bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff },
+  "image/png": { extension: ".png", name: "PNG", is: bytes => bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) },
+  "image/webp": { extension: ".webp", name: "WebP", is: bytes => bytes.subarray(0, 4).toString("latin1") === "RIFF" && bytes.subarray(8, 12).toString("latin1") === "WEBP" }
+};
+
+/** The file extension for an uploaded image, once it is the type it says and small enough; refuses it otherwise. */
+export function portraitExtension(image: Buffer, type: string): string {
+  const kind = IMAGE_TYPES[type.split(";")[0]!.trim().toLowerCase()];
+  if (!kind) throw new LinkError("invalid", "A Portrait is a JPEG, PNG or WebP image.");
+  if (image.length > MAX_PORTRAIT_BYTES) throw new LinkError("invalid", "A Portrait can be at most 10 MB.");
+  if (!kind.is(image)) throw new LinkError("invalid", `That file is not the ${kind.name} image it says it is.`);
+  return kind.extension;
+}
+

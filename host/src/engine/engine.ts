@@ -1,3 +1,5 @@
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { writeReply } from "../agents/actor.js";
@@ -11,7 +13,7 @@ import { actorOf, jobModels } from "../models/jobs.js";
 import { nameIndex } from "../agents/names.js";
 import { writePlan } from "../agents/director.js";
 import { directionDue, planForWriter } from "./directing.js";
-import { checkPerson } from "./people.js";
+import { checkPerson, portraitExtension } from "./people.js";
 import type { Models } from "../models/model-call.js";
 import type { Accepted, ChooseRequest, StoryEvent, TurnAccepted, TurnState } from "../protocol/generated/link.js";
 import type { StoryPath } from "../store/tree.js";
@@ -252,6 +254,25 @@ export class Engine {
     if (!name) throw new LinkError("invalid", `${person.trim()} is not in the Story.`);
     if (name === state.playerCharacter) throw new LinkError("invalid", `${name} is the Player Character, not a Lead.`);
     const entry = this.write(storyId, path, { kind: "lead_set", person: name, lead });
+    return { head_entry_id: entry.id, trace_id: traceId };
+  }
+
+  /**
+   * Replaces someone's Portrait with an uploaded image, from this moment onward on the current Path (openspec stories:
+   * Portraits are real images). The file is kept beside the Story's other Portraits; earlier ones stay, since
+   * earlier moments and other Paths still show them.
+   */
+  setPortrait(storyId: string, person: string, image: Buffer, type: string, after: string, traceId: string): Accepted {
+    const path = this.pathHead(storyId, after);
+    const state = this.mac.states.at(path.headEntryId);
+    const name = nameIndex(Object.values(state.people)).get(person.trim().toLocaleLowerCase());
+    if (!name) throw new LinkError("invalid", `${person.trim()} is not in the Story.`);
+    const extension = portraitExtension(image, type);
+    const file = `${randomUUID()}${extension}`;
+    const folder = join(this.mac.home, "portraits", storyId);
+    mkdirSync(folder, { recursive: true });
+    writeFileSync(join(folder, file), image);
+    const entry = this.write(storyId, path, { kind: "portrait_set", person: name, file });
     return { head_entry_id: entry.id, trace_id: traceId };
   }
 
