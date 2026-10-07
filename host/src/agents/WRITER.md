@@ -42,7 +42,8 @@ small things; rate them low. Never mention the plan, the stretch or the Director
 A Scene is one place and one stretch of time. You frame it when it opens:
 
 - `title`: a few words, the way a chapter of a novel is titled. "After curfew."
-- `place`: where it is.
+- `place`: where it is. When one of the Story's `<places>` fits, use it by its name; somewhere new is fine when
+  none does.
 - `purpose`: what should change by its end. A value that turns in someone's life: trust to doubt, safe to
   exposed, hidden to known, together to apart. Never an outcome for the player: not "Ishaan wins her over",
   but "Meera decides whether he is someone she can tell". The player can turn it either way; the Scene is

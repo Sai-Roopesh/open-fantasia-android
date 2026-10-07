@@ -70,7 +70,7 @@ for Meanwhile.
 `happenings` is what is going on that the player's character could go to, from the end of the span on: at most
 four, each `{ id, at, place, what, who, expected, pick }`. `id` is `P1`, `P2` and on; `at` a story time at or after
 the end of the span, today, or tomorrow morning when the day is nearly done; `what` one line of what is going on and
-why it matters to him now; `who` everyone who will be there, by their names in the story, never his.
+why it matters to him now; `place` one of the Story's `<places>` by its name when one fits; `who` everyone who will be there, by their names in the story, never his.
 
 Offer what grows out of the World: where the people who matter to him will be (the Leads first), a Thread coming to
 a head, a Landmark, a summons. Mark `expected` when he is expected there and knows it (a summons, a lesson, a

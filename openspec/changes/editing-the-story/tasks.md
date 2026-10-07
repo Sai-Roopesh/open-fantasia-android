@@ -25,29 +25,29 @@ Scenarios this change builds:
 - [x] 1.1 The nine entries and the reducer (design decision 1), and the checks in `engine/story.ts` (decision 2):
   - an engine test for each refusal;
   - a reducer test that each entry changes only its own part of the State.
-- [ ] 1.2 Test first, then build: `long-run › Style is the player's own words › Changing the Style mid-Story` and
+- [x] 1.2 Test first, then build: `long-run › Style is the player's own words › Changing the Style mid-Story` and
   `› Changing the reply length`:
   - `engine.setStyle` and `engine.setReplyLength`;
   - the Actor's and the Writer's next calls carry the new Style and length;
   - calls for the Reply before the edit carried the old ones;
   - another Path keeps the old ones.
-- [ ] 1.3 A live check, with the real Actor: after the Style gains "keep the humour dry and British", a Reply judged
+- [x] 1.3 A live check, with the real Actor: after the Style gains "keep the humour dry and British", a Reply judged
   by a second model reads as dry and British, beside the same Move's Reply before the change. Run it with the other
   live checks, and keep it out of the default suite.
-- [ ] 1.4 Test first, then build: `stories › Anything can be edited or created in the app › A Landmark is moved on one
+- [x] 1.4 Test first, then build: `stories › Anything can be edited or created in the app › A Landmark is moved on one
   Path` and `› A Landmark the World has passed`:
   - `engine.setLandmark` and `dropLandmark`;
   - a betrothal at Day 760 on two Paths is moved to Day 700 on one;
   - with fake models, a span over Day 700 brings it about on that Path, and the other Path's Calendar still has it at
     Day 760;
   - moving the Halloween feast after the Weaver has passed it is refused with the reason, and nothing is written.
-- [ ] 1.5 Test first, then build: `› Moving the clock on` and `› The clock never goes back`:
+- [x] 1.5 Test first, then build: `› Moving the clock on` and `› The clock never goes back`:
   - `engine.setClock`;
   - at a Day View on Saturday 7:40 am, moving to Sunday 9:00 am makes the Day View's time Sunday 9:00 am and drops
     the Happenings before it from its choices;
   - after a choice, the Weaver's record covers Saturday to Sunday and shows in Backstage;
   - setting Friday 8:00 pm in a Scene on Friday 9:40 pm is refused, and the head does not move.
-- [ ] 1.6 Test first, then build: `› A place is added mid-Story`:
+- [x] 1.6 Test first, then build: `› A place is added mid-Story`:
   - `engine.setPlace`;
   - the World view's places include the Room of Requirement from Scene 12 on that Path;
   - the Writer's next call names it among the places;

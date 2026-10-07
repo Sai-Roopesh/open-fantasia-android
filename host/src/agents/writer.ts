@@ -311,6 +311,9 @@ function storyPrompt(state: State): string {
       `Style: ${state.style}`,
       state.world.summary ? `World: ${state.world.summary}` : ""
     ].filter(Boolean).join("\n")),
+    // Where Scenes can be set and what runs the World, as the Story File or the player last set them.
+    section("places", state.world.places.map(place => `- ${place.name}${place.description ? `: ${place.description}` : ""}`).join("\n")),
+    section("institutions", state.world.institutions.map(place => `- ${place.name}${place.description ? `: ${place.description}` : ""}`).join("\n")),
     section(`player_character name="${pc}"`, state.people[pc]?.whoTheyAre ?? ""),
     section("people", people.join("\n")),
     // The people the player most wants to spend time with; theirs to choose (openspec stories: Leads).
