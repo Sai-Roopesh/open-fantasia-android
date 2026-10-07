@@ -51,18 +51,18 @@ Scenarios this change builds, all in `stories`:
 
 ## 4. The phone
 
-- [ ] 4.1 Everyone in the Story from the World screen's "+", and the person page's Edit, Lead switch and Group picker
+- [x] 4.1 Everyone in the Story from the World screen's "+", and the person page's Edit, Lead switch and Group picker
   (decision 7). Shared checks on the JVM and the device for "A newcomer becomes a Lead" and "Goyle starts to matter"
   as the phone does them
-- [ ] 4.2 Test first, then build: `stories › Anything can be edited or created in the app › A new person is created in
+- [x] 4.2 Test first, then build: `stories › Anything can be edited or created in the app › A new person is created in
   the app` on the phone: Add a person, the editor, and a Portrait from `PortraitPicker`. A shared check, and a JVM
   test that the upload sends the image's bytes and type
-- [ ] 4.3 Replace Portrait on the person page; a shared check for "Uploading a Portrait" as the phone does it;
+- [x] 4.3 Replace Portrait on the person page; a shared check for "Uploading a Portrait" as the phone does it;
   previews compared with Person.dc.html and World.dc.html
 
 ## 5. Together
 
-- [ ] 5.1 Run `scripts/scenarios.mjs`, the host suite, the Android JVM and device suites, and `openspec validate --all
+- [x] 5.1 Run `scripts/scenarios.mjs`, the host suite, the Android JVM and device suites, and `openspec validate --all
   --strict`, and verify all pass
 - [ ] 5.2 On the phone, over adb, on a separate Path of the Night Train switched back afterwards:
   - add a person with a Portrait, make them a Lead, and put Uncle Bhalla in a new Group;

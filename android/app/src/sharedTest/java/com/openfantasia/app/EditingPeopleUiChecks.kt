@@ -54,8 +54,9 @@ open class EditingPeopleUiChecks : WorldUiChecks() {
         compose.onNodeWithTag("person-name").performTextInput("Theodore Nott")
         compose.onNodeWithTag("person-who").performTextInput("A quiet Slytherin who reads in the library.")
         compose.onNodeWithTag("person-known").performTextInput("A Slytherin who is always reading.")
-        compose.onNodeWithText("Choose a Portrait").performClick()
-        compose.onNodeWithText("Portrait chosen").assertIsDisplayed()
+        // On a phone the keyboard is open and the editor has scrolled: the Portrait's row is above it.
+        compose.onNodeWithText("Choose a Portrait").performScrollTo().performClick()
+        compose.onNodeWithText("Portrait chosen").performScrollTo().assertIsDisplayed()
         compose.preview("PersonEditor")
         compose.onNodeWithText("Add to the Story").performClick()
         compose.waitUntil(3000) { link.portraitUploads.isNotEmpty() }
