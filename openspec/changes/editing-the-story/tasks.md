@@ -82,19 +82,19 @@ Scenarios this change builds:
   - `FantasiaModel` state and loading, and `FantasiaLink`, `LinkClient` and `MacConnection` calls;
   - edits are off while a Reply is written or the Mac is unreachable;
   - a JVM test that each call sends the head the phone saw.
-- [ ] 3.2 The editor sheet, built to `StoryEdit.dc.html`, for each kind of edit:
+- [x] 3.2 The editor sheet, built to `StoryEdit.dc.html`, for each kind of edit:
   - shared checks on the JVM and the device for "A Landmark is moved on one Path", "Changing the Style mid-Story",
     "Changing the reply length", "An Arc is dropped" and "A place is added mid-Story", as the phone does them;
   - a check that a refusal ("That time has passed on this Path.") shows in the sheet with the words kept;
   - a check that "Moving the clock on" shows the Day View at the new time.
-- [ ] 3.3 Backstage: tapping a Taste line opens the sheet holding it. A shared check for "Rewording a lesson" as the
+- [x] 3.3 Backstage: tapping a Taste line opens the sheet holding it. A shared check for "Rewording a lesson" as the
   phone does it.
 - [x] 3.4 Previews of The Story and the sheet, compared side by side with `Story.dc.html` and `StoryEdit.dc.html`.
   Fix what differs.
 
 ## 4. Together
 
-- [ ] 4.1 Run `scripts/scenarios.mjs`, the host suite and lint, the Android JVM and device suites, and `openspec
+- [x] 4.1 Run `scripts/scenarios.mjs`, the host suite and lint, the Android JVM and device suites, and `openspec
   validate --all --strict`. Verify all pass, with no scenario of this change untested.
 - [ ] 4.2 On the phone, over adb, on a separate Path of the Night Train, switched back and deleted afterwards:
   - change the Style;
