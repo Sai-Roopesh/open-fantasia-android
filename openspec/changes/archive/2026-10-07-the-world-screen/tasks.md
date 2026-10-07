@@ -58,5 +58,5 @@ Scenarios this change builds:
 
 - [x] 5.1 Run `scripts/scenarios.mjs`, the host suite, the Chronicler's live tests, the Android JVM and device suites,
   and `openspec validate --all --strict`, and verify all pass
-- [ ] 5.2 On the phone: open the World screen from the Night Train and read Meera's page; play a Scene with her and see
+- [x] 5.2 On the phone: open the World screen from the Night Train and read Meera's page; play a Scene with her and see
   what Ishaan knows grow
