@@ -32,6 +32,9 @@ data class FantasiaState(
     val journal: JournalView? = null,
     val showingBackstage: Boolean = false,
     val backstage: BackstageView? = null,
+    /** The World screen, while it is open (openspec outside-the-scene: The World screen shows what the Player Character knows). */
+    val showingWorld: Boolean = false,
+    val world: WorldView? = null,
     /** The Models screen while it is open; the Models view also feeds the model for one Reply (openspec presence, scenes). */
     val showingModels: Boolean = false,
     val models: ModelsView? = null,
@@ -85,6 +88,7 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
         closePaths()
         closeJournal()
         closeBackstage()
+        closeWorld()
         viewModelScope.launch {
             mutable.update { it.copy(scene = null, loading = true, problem = null) }
             try {
@@ -162,6 +166,8 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
 
     fun closePaths() { mutable.update { it.copy(showingPaths = false, paths = null) } }
 
+    fun openWorld() = openOutside({ it.copy(showingWorld = true, world = null) }) { id -> link.world(id).let { view -> { s: FantasiaState -> s.copy(world = view) } } }
+    fun closeWorld() { mutable.update { it.copy(showingWorld = false, world = null) } }
     fun openJournal() = openOutside({ it.copy(showingJournal = true, journal = null) }) { id -> link.journal(id).let { view -> { s: FantasiaState -> s.copy(journal = view) } } }
     fun closeJournal() { mutable.update { it.copy(showingJournal = false, journal = null) } }
     fun openBackstage() = openOutside({ it.copy(showingBackstage = true, backstage = null) }) { id -> link.backstage(id).let { view -> { s: FantasiaState -> s.copy(backstage = view) } } }

@@ -72,6 +72,12 @@
 // val retryWorldRequest    = json.parse(RetryWorldRequest.serializer(), jsonString)
 // val directorPhase        = json.parse(DirectorPhase.serializer(), jsonString)
 // val directorLine         = json.parse(DirectorLine.serializer(), jsonString)
+// val sceneRef             = json.parse(SceneRef.serializer(), jsonString)
+// val worldPerson          = json.parse(WorldPerson.serializer(), jsonString)
+// val worldPlace           = json.parse(WorldPlace.serializer(), jsonString)
+// val calendarKind         = json.parse(CalendarKind.serializer(), jsonString)
+// val calendarItem         = json.parse(CalendarItem.serializer(), jsonString)
+// val worldView            = json.parse(WorldView.serializer(), jsonString)
 
 package com.openfantasia.protocol
 
@@ -1420,4 +1426,123 @@ data class RetryRequest (
 @Serializable
 data class RetryWorldRequest (
     val model: ModelChoice? = null
+)
+
+/**
+ * The World screen: People, Places and the Calendar, only as the Player Character knows
+ * them.
+ */
+@Serializable
+data class WorldView (
+    /**
+     * Ordered by time.
+     */
+    val calendar: List<CalendarItem>,
+
+    /**
+     * The Leads first, in the Story's order, then everyone else he knows of, by name.
+     */
+    val people: List<WorldPerson>,
+
+    val places: List<WorldPlace>,
+
+    @SerialName("story_id")
+    val storyID: String,
+
+    @SerialName("trace_id")
+    val traceID: String
+)
+
+/**
+ * A Landmark, or a Happening he knows of, still ahead.
+ */
+@Serializable
+data class CalendarItem (
+    /**
+     * When, as people say it: "Wednesday 9:00 am".
+     */
+    @SerialName("at_label")
+    val atLabel: String,
+
+    val kind: CalendarKind,
+    val name: String,
+    val what: String,
+
+    /**
+     * How long to go: "3 days", "Tomorrow", "Today at 8:30 pm".
+     */
+    @SerialName("when")
+    val calendarItemWhen: String
+)
+
+@Serializable
+enum class CalendarKind(val value: String) {
+    @SerialName("happening") Happening("happening"),
+    @SerialName("landmark") Landmark("landmark");
+}
+
+/**
+ * Someone on the World screen, as the Player Character knows them (openspec
+ * outside-the-scene: The World screen shows what the Player Character knows).
+ */
+@Serializable
+data class WorldPerson (
+    val aliases: List<String>,
+
+    /**
+     * The Group they are in, if any.
+     */
+    val group: String? = null,
+
+    /**
+     * What he has heard of them, newest first.
+     */
+    val heard: List<MeanwhileItem>,
+
+    /**
+     * This entry is a Group, standing for members not known on their own.
+     */
+    @SerialName("is_group")
+    val isGroup: Boolean,
+
+    /**
+     * What the Player Character knows of them; null when it is only what he has heard.
+     */
+    val known: String? = null,
+
+    /**
+     * The Scene that last added to what he knows; null for what he knew from the start, or was
+     * set on the Mac.
+     */
+    @SerialName("known_from")
+    val knownFrom: SceneRef? = null,
+
+    val lead: Boolean,
+    val name: String,
+
+    @SerialName("portrait_url")
+    val portraitURL: String? = null
+)
+
+/**
+ * A Scene by its number and title.
+ */
+@Serializable
+data class SceneRef (
+    val number: Long,
+    val title: String
+)
+
+/**
+ * A place in the Story, as anyone there would know it.
+ */
+@Serializable
+data class WorldPlace (
+    /**
+     * A Scene on this Path was there.
+     */
+    val been: Boolean,
+
+    val description: String,
+    val name: String
 )

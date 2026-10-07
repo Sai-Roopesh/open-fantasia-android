@@ -27,10 +27,12 @@ class KeptCopyTest {
         mac.enqueue(MockResponse().setBody(linkJson.encodeToString(sceneFixture())))
         mac.enqueue(MockResponse().setBody(linkJson.encodeToString(FakeFantasiaLink.pastSceneFixture())))
         mac.enqueue(MockResponse().setBody(linkJson.encodeToString(FakeFantasiaLink.journalFixture())))
+        mac.enqueue(MockResponse().setBody(linkJson.encodeToString(FakeFantasiaLink.worldFixture())))
         assertEquals(stories, connection.stories())
         assertEquals(sceneFixture(), connection.scene("story"))
         assertEquals(FakeFantasiaLink.pastSceneFixture(), connection.pastScene("story", 13))
         assertEquals(FakeFantasiaLink.journalFixture(), connection.journal("story"))
+        assertEquals(FakeFantasiaLink.worldFixture(), connection.world("story"))
         assertTrue(connection.reachable.value)
 
         mac.close()
@@ -39,6 +41,7 @@ class KeptCopyTest {
         assertEquals(sceneFixture(), asleep.scene("story"))
         assertEquals(FakeFantasiaLink.pastSceneFixture(), asleep.pastScene("story", 13))
         assertEquals(FakeFantasiaLink.journalFixture(), asleep.journal("story"))
+        assertEquals(FakeFantasiaLink.worldFixture(), asleep.world("story"))
         assertFalse(asleep.reachable.value)
         // What was never read is not there to read.
         assertTrue(runCatching { asleep.pastScene("story", 12) }.isFailure)

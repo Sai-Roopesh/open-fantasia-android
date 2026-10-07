@@ -118,6 +118,7 @@ class MacConnection(
     override suspend fun clearPaths(storyID: String): Accepted = command { it.clearPaths(storyID) }
     override suspend fun edit(storyID: String, request: EditRequest): Accepted = command { it.edit(storyID, request) }
     override suspend fun journal(storyID: String): JournalView = keptRead(storyID, "journal") { it.journal(storyID) }
+    override suspend fun world(storyID: String): WorldView = keptRead(storyID, "world") { it.world(storyID) }
     override suspend fun backstage(storyID: String): BackstageView = read { it.backstage(storyID) }
     override suspend fun removeTaste(storyID: String, request: RemoveTasteRequest): Accepted = command { it.removeTaste(storyID, request) }
     override fun watch(initial: SceneView): Flow<SceneView> = StoryStream(

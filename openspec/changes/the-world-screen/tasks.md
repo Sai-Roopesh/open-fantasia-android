@@ -45,7 +45,7 @@ Scenarios this change builds:
 - [ ] 3.1 The World screen to World.dc.html and the person page to Person.dc.html (decision 7), and World in the
   Scene's header. Shared checks on the JVM and the device for both scenarios as the phone shows them, and previews
   compared with the designs
-- [ ] 3.2 The World kept for reading without the Mac; the kept-copy test extended, and the shared "The Mac is asleep"
+- [x] 3.2 The World kept for reading without the Mac; the kept-copy test extended, and the shared "The Mac is asleep"
   check opens the World screen
 
 ## 4. The Night Train

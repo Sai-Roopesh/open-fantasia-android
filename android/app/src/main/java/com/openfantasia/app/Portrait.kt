@@ -24,23 +24,37 @@ data class PortraitSource(val url: String, val http: OkHttpClient)
 
 @Composable fun Portrait(person: PersonCard, source: PortraitSource?, modifier: Modifier = Modifier, focused: Boolean = false) {
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        val description = "${person.name}'s Portrait"
         val imageModifier = Modifier.size(56.dp).testTag("portrait-${person.name}").clip(FantasiaShapes.round)
             .then(if (focused) Modifier.background(FantasiaBackground, FantasiaShapes.round).border(2.dp, FantasiaLabel, FantasiaShapes.round) else Modifier)
             .padding(if (focused) 5.dp else 0.dp).clip(FantasiaShapes.round)
-        if (source != null) {
-            val context = LocalContext.current
-            val loader = remember(source.http) {
-                ImageLoader.Builder(context).components {
-                    add(OkHttpNetworkFetcherFactory(callFactory = { source.http }))
-                }.build()
-            }
-            AsyncImage(source.url, description, loader, imageModifier, contentScale = ContentScale.Crop)
-        } else {
-            Surface(imageModifier.semantics { contentDescription = description }, shape = FantasiaShapes.round, color = FantasiaRaised) {
-                Box(contentAlignment = Alignment.Center) { Text(person.name.split(" ").filter { it.isNotBlank() }.take(2).joinToString("") { it.take(1) }, color = FantasiaText, style = FantasiaType.portraitLetter) }
-            }
-        }
+        PortraitImage(person.name, source, imageModifier)
         Text(firstName(person.name), color = if (focused) FantasiaText else FantasiaSecondary, style = FantasiaType.small)
     }
 }
+
+/** Someone's Portrait, or their letters on a plain ground while it has none, in whatever shape [modifier] gives it. */
+@Composable fun PortraitImage(name: String, source: PortraitSource?, modifier: Modifier, shape: androidx.compose.ui.graphics.Shape = FantasiaShapes.round,
+    letters: androidx.compose.ui.text.TextStyle = FantasiaType.portraitLetter, alignment: Alignment = Alignment.Center) {
+    val description = "$name's Portrait"
+    if (source != null) {
+        val context = LocalContext.current
+        val loader = remember(source.http) {
+            ImageLoader.Builder(context).components {
+                add(OkHttpNetworkFetcherFactory(callFactory = { source.http }))
+            }.build()
+        }
+        AsyncImage(source.url, description, loader, modifier.clip(shape), contentScale = ContentScale.Crop)
+    } else {
+        Surface(modifier.semantics { contentDescription = description }, shape = shape, color = FantasiaRaised) {
+            Box(contentAlignment = alignment) { Text(portraitLetters(name), color = FantasiaText, style = letters) }
+        }
+    }
+}
+
+/** The letters a Portrait shows while it has none: the first of the first two words that start with a capital ("CG" for Crabbe and Goyle). */
+internal fun portraitLetters(name: String): String {
+    val words = name.split(" ").filter { it.isNotBlank() }
+    val named = words.filter { it.first().isUpperCase() }.ifEmpty { words }
+    return named.take(2).joinToString("") { it.take(1) }
+}
+

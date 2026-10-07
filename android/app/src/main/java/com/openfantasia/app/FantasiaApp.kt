@@ -19,6 +19,7 @@ import androidx.lifecycle.Lifecycle
             state.readingScene != null -> model.closePastScene()
             state.showingPaths -> model.closePaths()
             state.showingJournal -> model.closeJournal()
+            state.showingWorld -> model.closeWorld()
             state.showingBackstage -> model.closeBackstage()
             else -> model.home()
         }
@@ -42,6 +43,8 @@ import androidx.lifecycle.Lifecycle
                             scene.scene.number, model::closePastScene, Modifier.weight(1f), pathsEnabled = state.canChangePath,
                             rewind = model::rewind, tryAnotherWay = model::tryAnotherWay, edit = model::edit)
                         if (state.pastSceneLoading) CircularProgressIndicator()
+                    } else if (state.showingWorld) {
+                        WorldScreen(state.world, portrait, back = model::closeWorld, modifier = Modifier.weight(1f))
                     } else if (state.showingJournal) {
                         JournalScreen(state.journal, back = model::closeJournal, modifier = Modifier.weight(1f), open = { number ->
                             if (number == scene.scene.number) model.closeJournal() else model.openPastScene(number)
@@ -54,7 +57,7 @@ import androidx.lifecycle.Lifecycle
                             model::deletePath, model::clearPaths, startAgain = { model.tryAnotherWay(null) }, modifier = Modifier.weight(1f))
                     } else {
                         SceneScreen(scene, portrait, Modifier.weight(1f), controlsEnabled = state.canChangeScene,
-                            openPaths = model::openPaths, openJournal = model::openJournal, openBackstage = model::openBackstage, pathsEnabled = state.canChangePath, rewind = model::rewind, tryAnotherWay = model::tryAnotherWay,
+                            openPaths = model::openPaths, openWorld = model::openWorld, openJournal = model::openJournal, openBackstage = model::openBackstage, pathsEnabled = state.canChangePath, rewind = model::rewind, tryAnotherWay = model::tryAnotherWay,
                             edit = model::edit,
                             focus = model::focus, redo = model::redo, models = state.models, loadModels = model::loadModels, choose = model::choose, problem = state.problem?.reason, dismissPreviously = model::dismissPreviously, back = model::home, awaitingReply = state.replyComing,
                             openPastScene = { focusManager.clearFocus(); model.openPastScene(it) }, scrollState = scrollState,

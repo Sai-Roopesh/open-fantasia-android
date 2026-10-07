@@ -29,6 +29,8 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
     val retryRequests = mutableListOf<RetryRequest>()
     val worldRetryRequests = mutableListOf<RetryWorldRequest>()
     var modelsView = modelsFixture()
+    var worldView = worldFixture()
+    var worldRequests = 0
     val jobModelSets = mutableListOf<Pair<ModelJob, ModelChoice>>()
     val actorSets = mutableListOf<Pair<String, ModelChoice?>>()
     val worldRetries = mutableListOf<String>()
@@ -113,6 +115,7 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
     }
     override suspend fun paths(storyID: String): PathsView = pathsView
     override suspend fun models(): ModelsView = modelsView
+    override suspend fun world(storyID: String): WorldView { worldRequests++; return worldView }
     override suspend fun setJobModel(job: ModelJob, request: SetJobModelRequest): ModelsView {
         jobModelSets += job to request.model
         modelsView = modelsView.copy(jobs = modelsView.jobs.map { if (it.job == job) it.copy(model = chosenOf(request.model)) else it })
@@ -180,6 +183,24 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
     override fun watch(initial: SceneView): Flow<SceneView> = current
 
     companion object {
+        // The World screen as drawn in World.dc.html and Person.dc.html: only what Roopesh knows.
+        fun worldFixture() = WorldView(storyID = "story", traceID = "world",
+            people = listOf(
+                WorldPerson(name = "Draconia Malfoy", aliases = listOf("Connie"), portraitURL = null, lead = true, group = null, isGroup = false,
+                    known = "Slytherin. Calls you Stray. You owe her nothing; she owes you.", knownFrom = SceneRef(number = 3, title = "The station"), heard = emptyList()),
+                WorldPerson(name = "Hermione Granger", aliases = emptyList(), portraitURL = null, lead = true, group = null, isGroup = false,
+                    known = "Gryffindor. Noticed the inkwell. Wants a reason, not circumstances.", knownFrom = SceneRef(number = 14, title = "After curfew"),
+                    heard = listOf(MeanwhileItem(text = "Lavender says she cried in the girls' bathroom after Charms.", how = How.Rumour))),
+                WorldPerson(name = "Crabbe and Goyle", aliases = emptyList(), portraitURL = null, lead = false, group = null, isGroup = true,
+                    known = "Draconia's shadows. Usually somewhere behind her.", knownFrom = null, heard = emptyList()),
+                WorldPerson(name = "Minerva McGonagall", aliases = emptyList(), portraitURL = null, lead = false, group = null, isGroup = false,
+                    known = "Head of Gryffindor. Wants your account of the troll at nine.", knownFrom = null, heard = emptyList()),
+                WorldPerson(name = "Quirinus Quirrell", aliases = emptyList(), portraitURL = null, lead = false, group = null, isGroup = false,
+                    known = "The nervous Defence teacher. He stammers, and smells of garlic.", knownFrom = null, heard = emptyList())),
+            places = listOf(WorldPlace(name = "The Gryffindor common room", description = "Red and gold, a fire that never goes out.", been = true),
+                WorldPlace(name = "The Owlery", description = "Cold, and full of owls.", been = false)),
+            calendar = listOf(CalendarItem(kind = CalendarKind.Landmark, name = "Draconia's flying test", what = "Madam Hooch tests the first-years on brooms.",
+                atLabel = "Wednesday 10:00 am", calendarItemWhen = "3 days")))
         fun chosen(provider: ModelProvider, model: String, label: String, effort: String? = null) =
             ChosenModel(choice = ModelChoice(provider = provider, model = model, effort = effort), label = label)
         private val UP_TO_MAX = listOf("low", "medium", "high", "xhigh", "max")

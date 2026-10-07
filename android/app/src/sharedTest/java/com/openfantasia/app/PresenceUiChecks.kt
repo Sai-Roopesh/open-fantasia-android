@@ -16,6 +16,9 @@ open class PresenceUiChecks : WorldUiChecks() {
         compose.onNodeWithText("She smiles.").assertIsDisplayed()
         compose.onNodeWithText("Journal").performClick()
         compose.onNodeWithText("The insult").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Back to the Scene").performClick()
+        compose.onNodeWithText("World").performClick()
+        compose.onNodeWithText("Hermione Granger").assertIsDisplayed()
     }
 
     fun aMoveWaitsForTheMac() {
