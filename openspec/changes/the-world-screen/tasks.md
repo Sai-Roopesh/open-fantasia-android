@@ -42,7 +42,7 @@ Scenarios this change builds:
 
 ## 3. The phone
 
-- [ ] 3.1 The World screen to World.dc.html and the person page to Person.dc.html (decision 7), and World in the
+- [x] 3.1 The World screen to World.dc.html and the person page to Person.dc.html (decision 7), and World in the
   Scene's header. Shared checks on the JVM and the device for both scenarios as the phone shows them, and previews
   compared with the designs
 - [x] 3.2 The World kept for reading without the Mac; the kept-copy test extended, and the shared "The Mac is asleep"
@@ -56,7 +56,7 @@ Scenarios this change builds:
 
 ## 5. Together
 
-- [ ] 5.1 Run `scripts/scenarios.mjs`, the host suite, the Chronicler's live tests, the Android JVM and device suites,
+- [x] 5.1 Run `scripts/scenarios.mjs`, the host suite, the Chronicler's live tests, the Android JVM and device suites,
   and `openspec validate --all --strict`, and verify all pass
 - [ ] 5.2 On the phone: open the World screen from the Night Train and read Meera's page; play a Scene with her and see
   what Ishaan knows grow
