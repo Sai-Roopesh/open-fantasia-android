@@ -24,6 +24,19 @@ describe("deciding for the Player Character", () => {
     }
   });
 
+  // The Line allows how he looks to others (openspec scenes: The Reply never writes the Player Character › Others may
+  // describe him): the Writer may plan the remark, but not decide what he feels.
+  it("lets others say how he looks, and still catches what he is made to feel", () => {
+    for (const seen of [
+      "Meera tells Ishaan he looks like he hasn't slept.",
+      "Ishaan looks like he hasn't slept.",
+      "Meera says Ishu looks half asleep on his feet."
+    ]) {
+      expect(decidesForPlayer(seen, names), seen).toBeNull();
+    }
+    expect(decidesForPlayer("Ishaan feels exhausted after the night.", names)).not.toBeNull();
+  });
+
   it("lets circumstances, other people's choices and questions pass", () => {
     for (const circumstance of [
       "Ishaan is offered a seat by the window.",

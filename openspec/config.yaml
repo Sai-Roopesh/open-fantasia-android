@@ -22,6 +22,7 @@ rules:
   tasks:
     - Every scenario gets a task that writes its test first and names the scenario it proves.
     - A test is never changed to make code pass; when a test is wrong, the spec changes first, then the test.
+    - The last task runs scripts/scenarios.mjs --strict, so a scenario whose test went missing fails by name.
 
 operations:
   apply:

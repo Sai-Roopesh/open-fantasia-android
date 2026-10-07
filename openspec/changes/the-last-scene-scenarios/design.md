@@ -33,12 +33,13 @@ present, not for people, keeps a later change to editing people from rewriting i
 
 **2. Others may describe him, proved twice (host).**
 - **Mechanically,** in `test/agents/deciding.test.ts`:
-  - notes where others say how he looks pass `decidesForPlayer`: "Hermione tells Roopesh he looks like he hasn't
-    slept", "Roopesh looks like he hasn't slept";
-  - one that decides how he feels does not: "Roopesh feels exhausted".
+  - notes where others say how he looks pass `decidesForPlayer`: "Meera tells Ishaan he looks like he hasn't slept",
+    "Ishaan looks like he hasn't slept" (the file's names are the Night Train's);
+  - one that decides how he feels does not: "Ishaan feels exhausted after the night".
   - This proves the Writer may plan the remark.
 - **Live,** in `test/real/actor.test.ts`, beside "Hermione asks a question":
-  - The Move is "I come down to the common room at six. I haven't slept."
+  - The Move is "I sit down across from her. I haven't slept properly in three days." (the common room Scene is at
+    11:35 pm).
   - The Beat Note has Hermione notice he looks like he hasn't slept, and say so.
   - Two judges per run. First: does someone in the passage remark on how he looks, tired or unslept? It must say
     YES in at least two of three runs: the remark is allowed, and the Actor does not shy away from it. Second:

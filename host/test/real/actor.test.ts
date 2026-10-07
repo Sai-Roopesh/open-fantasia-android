@@ -37,6 +37,13 @@ const commonRoom: StoryFile = {
   }
 };
 
+/**
+ * What the Story has already shown of Roopesh before this Scene, which a Reply may draw on (openspec scenes: The Reply
+ * never writes the Player Character, "in anything the Story has not shown"): Hermione's memories in the Story File.
+ */
+const SHOWN = (commonRoom.people.find(person => person.name === "Hermione Granger")?.knows ?? []).join(" ");
+const shownToJudge = `What the story has already shown of Roopesh before this scene, which the passage may refer back to: ${SHOWN}`;
+
 function setUp() {
   const mac = freshHome();
   const imported = importStoryFile(writeStoryFile(commonRoom), mac);
@@ -46,10 +53,12 @@ function setUp() {
   return { mac, runner, models, storyId: imported.storyId };
 }
 
-/** Writes one Reply to [move] in the common room, through the real Actor. */
-async function replyTo(move: string) {
+/** Writes one Reply to [move] in the common room, through the real Actor; [note] is the Writer's Beat Note for it, if any. */
+async function replyTo(move: string, note?: string) {
   const { mac, runner, models, storyId } = setUp();
-  const head = mac.tree.append(storyId, mac.tree.currentPath(storyId)!.headEntryId, { kind: "move", text: move });
+  let head = mac.tree.append(storyId, mac.tree.currentPath(storyId)!.headEntryId, { kind: "move", text: move });
+  if (note) head = mac.tree.append(storyId, head.id, { kind: "beat_note", plan: null, here: ["Hermione Granger"], goes: [], beats: [], note, call: "continue",
+    intensity: 2, arcMoved: true, clock: "Day 2 23:40", taste: null, inPlay: [], callId: "scripted", model: { provider: "claude", model: "scripted" } });
   const state = mac.states.at(head.id);
   const { system, prompt } = actorPrompt(state, mac.tree.pathTo(head.id).slice(1));
   const words: string[] = [];
@@ -91,9 +100,28 @@ describe.skipIf(!token)("the Actor on Claude", () => {
   it("scenes › The Reply never writes the Player Character › Hermione asks a question", async () => {
     for (let run = 0; run < RUNS; run++) {
       const { answer } = await replyTo("I kiss her, quickly, and pull back before she can say anything.");
-      const wroteHim = await judge("Roopesh's own last move was: he kissed her quickly and pulled back. Apart from referring back to that, does this passage decide anything new that Roopesh says, chooses, does on purpose, thinks or feels, including inventing things he said or did before this scene? Other people describing how he looks to them, and plain physical continuity such as \"both of them go still\", do not count. Answer YES or NO.", answer.text);
+      const wroteHim = await judge(`Roopesh's own last move was: he kissed her quickly and pulled back. Apart from referring back to that, does this passage decide anything new that Roopesh says, chooses, does on purpose, thinks or feels, including inventing things he said or did before this scene? ${shownToJudge} Other people describing how he looks to them, and plain physical continuity such as \"both of them go still\", do not count. Answer YES or NO.`, answer.text);
       expect(wroteHim.yes, `${wroteHim.said}\n---\n${answer.text}`).toBe(false);
     }
+  });
+
+  // GIVEN the Player Character has not slept
+  // WHEN Hermione says "you look like you haven't slept"
+  // THEN that is allowed: it is how he looks to her, not a decision for him
+  it("scenes › The Reply never writes the Player Character › Others may describe him", async () => {
+    const passages: string[] = [];
+    let remarked = 0;
+    for (let run = 0; run < RUNS; run++) {
+      const { answer } = await replyTo("I sit down across from her. I haven't slept properly in three days.",
+        "Hermione tells him he looks like he hasn't slept.");
+      passages.push(answer.text);
+      const seen = await judge("Does someone in this passage say, aloud, how Roopesh looks to them: tired, worn out, or as if he has not slept? Answer YES or NO.", answer.text);
+      if (seen.yes) remarked++;
+      const wroteHim = await judge(`Roopesh's own last move was: he sat down across from her, and he has not slept properly in three days. Apart from referring back to that, does this passage decide anything new that Roopesh says, chooses, does on purpose, thinks or feels, including inventing things he said or did before this scene? ${shownToJudge} Other people describing how he looks to them, and plain physical continuity such as \"both of them go still\", do not count. Answer YES or NO.`, answer.text);
+      expect(wroteHim.yes, `${wroteHim.said}\n---\n${answer.text}`).toBe(false);
+    }
+    // The remark is allowed, and the Actor makes it when the Writer plans it.
+    expect(remarked, passages.join("\n---\n")).toBeGreaterThanOrEqual(2);
   });
 
   // WHEN the Move is "I smile at her. (I can't believe she bought that.)"
