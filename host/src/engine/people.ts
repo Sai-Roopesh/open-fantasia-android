@@ -46,7 +46,7 @@ const IMAGE_TYPES: Record<string, { extension: string; name: string; is: (bytes:
 
 /** The file extension for an uploaded image, once it is the type it says and small enough; refuses it otherwise. */
 export function portraitExtension(image: Buffer, type: string): string {
-  const kind = IMAGE_TYPES[type.split(";")[0]!.trim().toLowerCase()];
+  const kind = IMAGE_TYPES[(type.split(";")[0] ?? "").trim().toLowerCase()];
   if (!kind) throw new LinkError("invalid", "A Portrait is a JPEG, PNG or WebP image.");
   if (image.length > MAX_PORTRAIT_BYTES) throw new LinkError("invalid", "A Portrait can be at most 10 MB.");
   if (!kind.is(image)) throw new LinkError("invalid", `That file is not the ${kind.name} image it says it is.`);
