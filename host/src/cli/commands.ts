@@ -391,12 +391,18 @@ export async function person(mac: Mac, engine: Engine, storyId: string, name: st
   return options.portrait ? portrait(mac, engine, storyId, base.name, options.portrait, out) : true;
 }
 
+/** Someone's name as the Story has it now on the current Path, however [name] was typed. */
+function nameNow(mac: Mac, storyId: string, name: string): string {
+  const path = mac.tree.currentPath(storyId);
+  return (path && storyName(nameIndex(Object.values(mac.states.at(path.headEntryId).people)), name)) ?? name;
+}
+
 /** `fantasia portrait`: replaces someone's Portrait with an image on the Mac, from here on the current Path. */
 export function portrait(mac: Mac, engine: Engine, storyId: string, name: string, file: string, out: Out): boolean {
   if (!existsSync(file)) return (out(`There is no file ${file}.`), false);
   const type = IMAGE_TYPES_BY_EXTENSION[extname(file).toLowerCase()] ?? "application/octet-stream";
   const ok = onPath(mac, storyId, out, head => { engine.setPortrait(storyId, name, readFileSync(file), type, head, `portrait-${randomUUID().slice(0, 8)}`); });
-  if (ok) out(`${storyName(nameIndex(Object.values(mac.states.at(mac.tree.currentPath(storyId)!.headEntryId).people)), name) ?? name}'s Portrait is set.`);
+  if (ok) out(`${nameNow(mac, storyId, name)}'s Portrait is set.`);
   return ok;
 }
 
@@ -405,8 +411,7 @@ export function lead(mac: Mac, engine: Engine, storyId: string, name: string, on
   if (onOff !== "on" && onOff !== "off") return (out("Say on or off."), false);
   const ok = onPath(mac, storyId, out, head => { engine.setLead(storyId, name, onOff === "on", head, `lead-${randomUUID().slice(0, 8)}`); });
   if (ok) {
-    const state = mac.states.at(mac.tree.currentPath(storyId)!.headEntryId);
-    const full = storyName(nameIndex(Object.values(state.people)), name) ?? name;
+    const full = nameNow(mac, storyId, name);
     out(onOff === "on" ? `${full} is a Lead now.` : `${full} is not a Lead now.`);
   }
   return ok;

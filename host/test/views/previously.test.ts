@@ -61,6 +61,15 @@ describe("the Previously card", () => {
     expect(view.previously).toEqual({ summary: "The Scene was played to its end.", since: lastPlayed });
   });
 
+  // The card says how long ago they last played: editing the Story is not playing it.
+  it("counts from when the player last played, not from an edit made since", async () => {
+    const played = await leftMidScene();
+    played.engine.setKnown(played.storyId, "Hermione Granger", "Reads in the common room until late.", played.head(), "trace-known");
+    played.engine.setLead(played.storyId, "Hermione Granger", false, played.head(), "trace-lead");
+    const view = openedAfter(played, played.lastPlayed, 30);
+    expect(view.previously).toEqual({ summary: "The Scene so far.", since: played.lastPlayed });
+  });
+
   it("has no card when the Scene has no summary yet, however long the player was away", async () => {
     const played = playable(hogwartsStoryFile({ who: ["Hermione Granger"] }));
     await played.play("I sit at the other end of the sofa.");

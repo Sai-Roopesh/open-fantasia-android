@@ -14,12 +14,12 @@ function current(mac: Mac, storyId: string) {
 /** Everyone in the Story, for editing (editing-people design decision 5): no one's description, the Leads first. */
 export function peopleView(mac: Mac, storyId: string, traceId: string): PeopleView {
   const { state } = current(mac, storyId);
-  const leads = state.leads.filter(name => state.people[name]);
-  const others = Object.keys(state.people).filter(name => !state.leads.includes(name)).sort();
+  const leads = state.leads.flatMap(name => state.people[name] ?? []);
+  const others = Object.values(state.people).filter(person => !state.leads.includes(person.name)).sort((a, b) => a.name.localeCompare(b.name));
   return {
     story_id: storyId,
-    people: [...leads, ...others].map(name => {
-      const person = state.people[name]!;
+    people: [...leads, ...others].map(person => {
+      const name = person.name;
       return { name, lead: state.leads.includes(name), group: person.group, portrait_url: person.portrait ? portraitUrl(storyId, person.portrait) : null, player_character: name === state.playerCharacter };
     }),
     groups: state.groups.map(group => ({ name: group.name, description: group.description })),
