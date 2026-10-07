@@ -5,6 +5,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -90,13 +91,15 @@ class PersonActions(
             if (person.playerCharacter) Text("You play them. They are no Lead, and in no Group.", style = FantasiaType.meta, color = FantasiaCaption)
             else Surface(shape = FantasiaShapes.card, color = FantasiaSurface, border = BorderStroke(1.dp, FantasiaLine)) {
                 Column {
-                    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    // The whole row is the switch, so its words toggle it too.
+                    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).testTag("lead-switch")
+                        .toggleable(person.lead, enabled = actions.enabled, role = Role.Switch) { actions.setLead(person.name, it) }
+                        .padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text("Lead", style = FantasiaType.plain)
                             Text("The Story builds toward them", style = FantasiaType.small, color = FantasiaCaption)
                         }
-                        Switch(checked = person.lead, onCheckedChange = { actions.setLead(person.name, it) }, enabled = actions.enabled,
-                            modifier = Modifier.testTag("lead-switch"),
+                        Switch(checked = person.lead, onCheckedChange = null, enabled = actions.enabled,
                             colors = SwitchDefaults.colors(checkedTrackColor = FantasiaAccent, checkedThumbColor = Color.White))
                     }
                     HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = FantasiaLine)

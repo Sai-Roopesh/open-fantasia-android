@@ -64,7 +64,7 @@ Scenarios this change builds, all in `stories`:
 
 - [x] 5.1 Run `scripts/scenarios.mjs`, the host suite, the Android JVM and device suites, and `openspec validate --all
   --strict`, and verify all pass
-- [ ] 5.2 On the phone, over adb, on a separate Path of the Night Train switched back afterwards:
+- [x] 5.2 On the phone, over adb, on a separate Path of the Night Train switched back afterwards:
   - add a person with a Portrait, make them a Lead, and put Uncle Bhalla in a new Group;
   - see each on the World screen and Everyone;
   - send the screenshots.

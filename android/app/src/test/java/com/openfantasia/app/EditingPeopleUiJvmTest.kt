@@ -12,6 +12,8 @@ class EditingPeopleUiJvmTest : EditingPeopleUiChecks() {
     @Scenario("stories › Leads are the player's to choose › A newcomer becomes a Lead")
     @Test fun lead() = aNewcomerBecomesALead()
 
+    @Test fun leadRow() = theLeadRowToggles()
+
     @Scenario("stories › Groups are the player's to arrange › Goyle starts to matter")
     @Test fun goyle() = goyleStartsToMatter()
 

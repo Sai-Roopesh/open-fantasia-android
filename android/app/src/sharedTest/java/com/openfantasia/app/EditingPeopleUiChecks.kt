@@ -24,6 +24,18 @@ open class EditingPeopleUiChecks : WorldUiChecks() {
         compose.onNodeWithTag("lead-switch").assertIsOn()
     }
 
+    // The whole Lead row is the switch: tapping its words toggles it, as on the phone over adb on 7 October 2026.
+    fun theLeadRowToggles() {
+        openWorld()
+        compose.onNodeWithTag("world-people").performScrollToNode(hasText("Minerva McGonagall"))
+        compose.onNodeWithText("Minerva McGonagall").performClick()
+        compose.onNodeWithText("The Story builds toward them").performClick()
+        compose.onNodeWithTag("lead-switch").assertIsOn()
+        compose.onNodeWithText("Lead").performClick()
+        compose.onNodeWithTag("lead-switch").assertIsOff()
+        compose.runOnIdle { assertEquals(listOf(true, false), link.leadSets.map { it.second.lead }) }
+    }
+
     // GIVEN Goyle is in the "Crabbe and Goyle" Group
     // WHEN Goyle saves the Player Character's life in a Scene
     // THEN Goyle is still in the Group until the player takes him out
