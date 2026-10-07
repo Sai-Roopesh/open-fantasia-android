@@ -45,6 +45,6 @@ describe("what he knows of someone", () => {
     expect(knownOn(mac, head()).get("Hermione Granger")).toEqual({ text: "A Gryffindor first-year. She noticed the inkwell.", from: { number: 1, title: (scene.payload as { title: string }).title } });
     engine.setKnown(storyId, "Hermione Granger", "Set by hand.", head(), "t");
     expect(knownOn(mac, head()).get("Hermione Granger")).toEqual({ text: "Set by hand.", from: null });
-    expect(knownOn(mac, head()).has("Quirinus Quirrell")).toBe(false);
+    expect(knownOn(mac, head()).has("Vincent Crabbe")).toBe(false);
   });
 });

@@ -50,7 +50,7 @@ Scenarios this change builds:
 
 ## 4. The Night Train
 
-- [ ] 4.1 `known` for each person in `examples/night-train/story.yaml`, as Ishaan knows them at the start; the test
+- [x] 4.1 `known` for each person in `examples/night-train/story.yaml`, as Ishaan knows them at the start; the test
   Story Files' people get theirs
 - [ ] 4.2 With the player's OK, `fantasia known` for each person on the Night Train being played on this Mac
 

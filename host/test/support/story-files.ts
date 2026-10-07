@@ -38,9 +38,9 @@ export function minimalStoryFile(): StoryFile {
  */
 export function malfoyProblemStoryFile(): StoryFile {
   const named = [
-    { name: "Draconia Malfoy", who_they_are: "Pure-blood heir, Slytherin, sharp-tongued and proud.", portrait: "portraits/draconia.png", aliases: ["Connie"] },
-    { name: "Hermione Granger", who_they_are: "Muggle-born, Gryffindor, top of every class.", portrait: "portraits/hermione.png" },
-    { name: "Harry Potter", who_they_are: "The Boy Who Lived, Gryffindor.", portrait: "portraits/harry.png" },
+    { name: "Draconia Malfoy", who_they_are: "Pure-blood heir, Slytherin, sharp-tongued and proud.", known: "Slytherin, and a Malfoy. Calls him Stray.", portrait: "portraits/draconia.png", aliases: ["Connie"] },
+    { name: "Hermione Granger", who_they_are: "Muggle-born, Gryffindor, top of every class.", known: "A Gryffindor who knows every answer.", portrait: "portraits/hermione.png" },
+    { name: "Harry Potter", who_they_are: "The Boy Who Lived, Gryffindor.", known: "The Boy Who Lived. Everyone knows who he is.", portrait: "portraits/harry.png" },
     { name: "Roopesh Gantasala", who_they_are: "A Muggle-born from Bangalore with powers he hides.", portrait: "portraits/roopesh.png" },
     { name: "Crabbe", who_they_are: "Draconia's shadow.", group: "Crabbe and Goyle" },
     { name: "Goyle", who_they_are: "Draconia's other shadow.", group: "Crabbe and Goyle" }
@@ -127,8 +127,8 @@ export function hogwartsWorldStoryFile(opening: Partial<StoryFile["opening"]> = 
   story.people.push(
     { name: "Vincent Crabbe", who_they_are: "Draconia's bodyguard, large and slow.", group: "Crabbe and Goyle" },
     { name: "Gregory Goyle", who_they_are: "Draconia's other bodyguard, larger and slower.", group: "Crabbe and Goyle" },
-    { name: "Quirinus Quirrell", who_they_are: "The nervous Defence teacher, who is not what he seems.", after: "The Stone on the third floor." },
-    { name: "Minerva McGonagall", who_they_are: "Deputy Headmistress, Head of Gryffindor." },
+    { name: "Quirinus Quirrell", who_they_are: "The nervous Defence teacher, who is not what he seems.", known: "The Defence teacher. Stammers, and smells of garlic.", after: "The Stone on the third floor." },
+    { name: "Minerva McGonagall", who_they_are: "Deputy Headmistress, Head of Gryffindor.", known: "Deputy Headmistress, Head of Gryffindor." },
     { name: "Lavender Brown", who_they_are: "A Gryffindor who hears everything first and tells it louder." },
     { name: "Cedric Diggory", who_they_are: "Hufflepuff's Seeker and captain.", group: "The Hufflepuff Quidditch team" }
   );

@@ -79,7 +79,8 @@ describe("who and what the World screen lists", () => {
   function story() {
     const file = hogwartsWorldStoryFile({ title: "After curfew", place: "The Gryffindor common room", at: "Day 3 21:40", who: ["Hermione Granger"] });
     const knownAs: Record<string, string> = { "Hermione Granger": "A Gryffindor.", "Vincent Crabbe": "Draconia's bodyguard.", "Lavender Brown": "Hears everything first." };
-    file.people = file.people.map(person => knownAs[person.name] ? { ...person, known: knownAs[person.name] } : person) as typeof file.people;
+    // Exactly these, whatever the test Story says he knows.
+    file.people = file.people.map(({ known: _known, ...person }) => knownAs[person.name] ? { ...person, known: knownAs[person.name] } : person) as typeof file.people;
     file.leads = ["Draconia Malfoy", "Hermione Granger"];
     file.world = { summary: "Hogwarts.", places: [{ name: "The Gryffindor common room", description: "Red and gold, a fire that never goes out." }, { name: "The Owlery", description: "Cold, and full of owls." }] };
     file.landmarks = [{ name: "The flying test", at: "Day 5 09:00", what: "First-years fly for the first time." }, { name: "Halloween", at: "Day 1 18:00", what: "Long past." }];
