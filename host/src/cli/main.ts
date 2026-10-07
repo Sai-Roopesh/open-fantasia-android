@@ -5,7 +5,7 @@ import { openMac } from "../mac.js";
 import { Engine } from "../engine/engine.js";
 import { subscriptionRunners } from "../models/runners.js";
 import { Models } from "../models/model-call.js";
-import { claudeToken, doctor, edit, group, importCommand, install, known, lead, models, moments, pair, person, portrait, show, stories, trace, world, type PersonOptions } from "./commands.js";
+import { arc, claudeToken, clock, doctor, edit, group, importCommand, install, known, landmark, lead, length, models, moments, pair, person, place, portrait, premise, show, stories, style, taste, trace, world, worldIs, type LandmarkOptions, type PersonOptions } from "./commands.js";
 import { serve } from "./serve.js";
 
 /**
@@ -42,8 +42,14 @@ program.command("models").argument("[setting...]", "a job, a provider, a model a
 
 program.command("moments").argument("<story>", "a Story's id").description("List the Moments a Story remembers, with who knows each")
   .action((story: string) => exitWith(moments(mac(), story, out)));
-program.command("world").argument("<story>", "a Story's id").description("Show the World off-screen: Lives, Threads, and what happened with who knows it")
-  .action((story: string) => exitWith(world(mac(), story, out)));
+program.command("world").argument("<story>", "a Story's id")
+  .option("--summary <words>", "what the World is: set it from here on the current Path").option("--history <words>", "the World's history: set it likewise")
+  .description("Show the World off-screen: Lives, Threads, and what happened with who knows it; or with --summary or --history, set what the World is")
+  .action((story: string, options: { summary?: string; history?: string }) => {
+    if (options.summary === undefined && options.history === undefined) return exitWith(world(mac(), story, out));
+    const home = mac();
+    exitWith(worldIs(home, new Engine(home, new Models(home.db, {})), story, options.summary, options.history, out));
+  });
 
 const repeated = (value: string, earlier: string[] = []) => [...earlier, value];
 program.command("person").argument("<story>", "a Story's id").argument("<name>", "the person, by any name they answer to")
@@ -65,6 +71,35 @@ program.command("group").argument("<story>", "a Story's id").argument("<name>", 
 program.command("portrait").argument("<story>", "a Story's id").argument("<name>", "the person").argument("<file>", "a JPEG, PNG or WebP image")
   .description("Replace someone's Portrait with an image on the Mac")
   .action((story: string, name: string, file: string) => { const home = mac(); exitWith(portrait(home, new Engine(home, new Models(home.db, {})), story, name, file, out)); });
+
+// The rest of the Story (editing-the-story design decision 5).
+const editing = () => { const home = mac(); return { home, engine: new Engine(home, new Models(home.db, {})) }; };
+program.command("premise").argument("<story>", "a Story's id").argument("<words...>", "what the Story is for")
+  .description("Set the Premise, from here on the current Path")
+  .action((story: string, words: string[]) => { const { home, engine } = editing(); exitWith(premise(home, engine, story, words.join(" "), out)); });
+program.command("style").argument("<story>", "a Story's id").argument("[words...]", "the Style whole").option("--add <line>", "a line to add to the end of the Style")
+  .description("Set the Style, or add a line to it, from here on the current Path")
+  .action((story: string, words: string[], options: { add?: string }) => { const { home, engine } = editing(); exitWith(style(home, engine, story, words.join(" "), options.add, out)); });
+program.command("length").argument("<story>", "a Story's id").argument("<length>", "short, medium or full")
+  .description("Set how long Replies are, from here on the current Path")
+  .action((story: string, words: string) => { const { home, engine } = editing(); exitWith(length(home, engine, story, words, out)); });
+program.command("arc").argument("<story>", "a Story's id").argument("[change...]", "add <words>, rewrite <n> <words>, or drop <n>")
+  .description("List the Arcs numbered, or add, rewrite or drop one, from here on the current Path")
+  .action((story: string, change: string[]) => { const { home, engine } = editing(); exitWith(arc(home, engine, story, change, out)); });
+program.command("landmark").argument("<story>", "a Story's id").argument("<name>", "the Landmark")
+  .option("--at <time>", "when it is, \"Day N HH:MM\"").option("--what <words>", "what happens").option("--drop", "take it out of the Story")
+  .description("Create, move, rewrite or drop a Landmark, from here on the current Path; one the World has passed stays as it was")
+  .action((story: string, name: string, options: LandmarkOptions) => { const { home, engine } = editing(); exitWith(landmark(home, engine, story, name, options, out)); });
+program.command("place").argument("<story>", "a Story's id").argument("<name>", "the place").argument("<description...>", "what it is")
+  .option("--institution", "an institution, rather than a place")
+  .description("Create a place or an institution, or rewrite what it is, from here on the current Path")
+  .action((story: string, name: string, words: string[], options: { institution?: boolean }) => { const { home, engine } = editing(); exitWith(place(home, engine, story, name, words.join(" "), options.institution ?? false, out)); });
+program.command("clock").argument("<story>", "a Story's id").argument("<time>", "\"Day N HH:MM\", later than now").option("--weekday <day>", "which weekday Day 1 was")
+  .description("Move the clock on, never back; the World catches up when it next moves")
+  .action((story: string, time: string, options: { weekday?: string }) => { const { home, engine } = editing(); exitWith(clock(home, engine, story, time, options.weekday, out)); });
+program.command("taste").argument("<story>", "a Story's id").argument("[change...]", "reword <n> <words>, or drop <n>")
+  .description("List Taste's lessons numbered, or reword or delete one, from here on the current Path")
+  .action((story: string, change: string[]) => { const { home, engine } = editing(); exitWith(taste(home, engine, story, change, out)); });
 
 program.command("known").argument("<story>", "a Story's id").argument("<person>", "someone in the Story, by any name they answer to")
   .argument("<words...>", "what the Player Character knows of them").description("Set what the Player Character knows of someone, as the World screen shows it")

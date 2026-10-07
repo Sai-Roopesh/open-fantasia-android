@@ -132,7 +132,8 @@ engine, says what changed in a sentence, and refuses with the engine's reason. P
 - `fantasia arc <story>`: list them numbered; then `add <words…>`, `rewrite <n> <words…>`, or `drop <n>`
 - `fantasia landmark <story> <name> [--at "Day N HH:MM"] [--what <words>] [--drop]`
 - `fantasia place <story> <name> <description…> [--institution]`
-- `fantasia world <story> [--summary <words>] [--history <words>]`
+- `fantasia world <story> [--summary <words>] [--history <words>]`: the existing command, which shows the World
+  off-screen, sets what the World is when given either option; a part left out stays as it is
 - `fantasia clock <story> "Day N HH:MM" [--weekday <day>]`
 - `fantasia taste <story>`: list the lines numbered; then `reword <n> <words…>` or `drop <n>`. This also gives
   deleting a lesson the Mac command it lacked, as the parity requirement asks.

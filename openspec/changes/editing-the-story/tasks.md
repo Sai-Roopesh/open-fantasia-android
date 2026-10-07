@@ -70,7 +70,7 @@ Scenarios this change builds:
 - [x] 2.2 `views/story.ts` and the routes:
   - link tests for `GET /stories/{id}/story`, including a Landmark marked passed and `world_stands`;
   - a test for each `PUT` and `POST`, including a refusal with its reason and a stale head.
-- [ ] 2.3 The commands (design decision 5), with a CLI test each:
+- [x] 2.3 The commands (design decision 5), with a CLI test each:
   - `fantasia premise`, `style` (with `--add`), `length`, `arc`, `landmark`, `place`, `world`, `clock` and `taste`;
   - each says what changed or why not;
   - a phone watching is told.

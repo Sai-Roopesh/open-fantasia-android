@@ -94,7 +94,6 @@ describe("editing the Story on the Path (editing-the-story design decisions 1 an
     expect(refused(() => engine.setPlace(storyId, { name: "The Ministry of Magic", description: "x" }, false, true, head(), "t"))).toBe("The Ministry of Magic is already an institution.");
     expect(refused(() => engine.setPlace(storyId, { name: "The kitchens", description: "x" }, false, false, head(), "t"))).toBe("The Story has no place called The kitchens.");
     expect(refused(() => engine.setPlace(storyId, { name: "The kitchens", description: " " }, false, true, head(), "t"))).toBe("Say what The kitchens is.");
-    expect(refused(() => engine.setWorld(storyId, " ", "History.", head(), "t"))).toBe("Say what the World is.");
 
     expect(refused(() => engine.setClock(storyId, "tomorrow", undefined, head(), "t"))).toBe("\"tomorrow\" is not a time like \"Day 40 10:00\".");
     expect(refused(() => engine.setClock(storyId, "Day 3 21:40", undefined, head(), "t"))).toBe("The clock only moves on.");

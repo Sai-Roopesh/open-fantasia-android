@@ -83,8 +83,9 @@ export function placeSet(state: State, edit: { name: string; description: string
   return { kind: "place_set", place: { name, description }, institution };
 }
 
+/** What the World is, and its history; either may be left blank, as a Story File may leave them out. */
 export function worldSet(summary: string, history: string): WorldSet {
-  return { kind: "world_set", summary: summary.trim() || refuse("Say what the World is."), history: history.trim() };
+  return { kind: "world_set", summary: summary.trim(), history: history.trim() };
 }
 
 /** Moves the clock on; [weekday] left out keeps which weekday Day 1 was, and null says the Story does not say. */

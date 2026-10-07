@@ -23,6 +23,7 @@ import { parseStoryTime, sayStoryTime } from "../time.js";
 import { momentsOn } from "../story/memory.js";
 import { importStoryFile } from "../storyfile/import.js";
 import { Traces } from "../trace.js";
+import { say } from "../views/scene.js";
 import { listStories } from "../views/stories.js";
 import { identity } from "./identity.js";
 
@@ -433,3 +434,149 @@ export function group(mac: Mac, engine: Engine, storyId: string, name: string, d
   return ok;
 }
 
+
+// The rest of the Story through the Mac's commands (editing-the-story design decision 5): each writes on the current
+// Path through the engine, as the phone does, and says what changed or why not.
+
+const traceFor = (command: string) => `${command}-${randomUUID().slice(0, 8)}`;
+
+/** `fantasia premise`: replaces the Premise. */
+export function premise(mac: Mac, engine: Engine, storyId: string, words: string, out: Out): boolean {
+  const ok = onPath(mac, storyId, out, head => { engine.setPremise(storyId, words, head, traceFor("premise")); });
+  if (ok) out("The Premise is set, from here on this Path.");
+  return ok;
+}
+
+/** `fantasia style`: replaces the Style, or with [add] adds a line to the end of it. */
+export function style(mac: Mac, engine: Engine, storyId: string, words: string, add: string | undefined, out: Out): boolean {
+  if (!words.trim() && !add?.trim()) return (out("Say the Style, or a line to add with --add."), false);
+  const ok = onPath(mac, storyId, out, head => {
+    const now = mac.states.at(head).style;
+    const written = add?.trim() ? `${(words.trim() || now).replace(/\s+$/, "")} ${add.trim()}` : words;
+    engine.setStyle(storyId, written, head, traceFor("style"));
+  });
+  if (ok) out("The Style is set, from here on this Path.");
+  return ok;
+}
+
+/** `fantasia length`: Short, Medium or Full. */
+export function length(mac: Mac, engine: Engine, storyId: string, words: string, out: Out): boolean {
+  const ok = onPath(mac, storyId, out, head => { engine.setReplyLength(storyId, words, head, traceFor("length")); });
+  if (ok) out(`Replies are ${words.trim().toLowerCase()} from here on this Path.`);
+  return ok;
+}
+
+/** `fantasia arc`: lists the Arcs numbered; `add`, `rewrite <n>` or `drop <n>` changes them. */
+export function arc(mac: Mac, engine: Engine, storyId: string, args: string[], out: Out): boolean {
+  const path = mac.tree.currentPath(storyId);
+  if (!path) return (out(`No Story ${storyId} on this Mac.`), false);
+  const arcs = mac.states.at(path.headEntryId).arcs;
+  const [action, ...rest] = args;
+  if (!action) {
+    if (!arcs.length) out("The Story has no Arcs.");
+    arcs.forEach((line, index) => out(`${index + 1}. ${line}`));
+    return true;
+  }
+  const numbered = (word: string | undefined) => {
+    const index = Number(word) - 1;
+    return Number.isInteger(index) && index >= 0 && index < arcs.length ? index : null;
+  };
+  let next: string[];
+  let said: string;
+  if (action === "add") {
+    next = [...arcs, rest.join(" ")];
+    said = "The Arc is added";
+  } else if (action === "rewrite" || action === "drop") {
+    const index = numbered(rest[0]);
+    if (index === null) return (out(`Say which Arc by its number, 1 to ${arcs.length}.`), false);
+    next = action === "drop" ? arcs.filter((_, at) => at !== index) : arcs.map((line, at) => at === index ? rest.slice(1).join(" ") : line);
+    said = action === "drop" ? "The Arc is dropped" : "The Arc is rewritten";
+  } else {
+    return (out("Say add, rewrite or drop."), false);
+  }
+  const ok = onPath(mac, storyId, out, head => { engine.setArcs(storyId, next, head, traceFor("arc")); });
+  if (ok) out(`${said}, from here on this Path.`);
+  return ok;
+}
+
+export interface LandmarkOptions {
+  at?: string;
+  what?: string;
+  drop?: boolean;
+}
+
+/** `fantasia landmark`: creates a Landmark, moves or rewrites one, or drops it; the World's past stays as it was. */
+export function landmark(mac: Mac, engine: Engine, storyId: string, name: string, options: LandmarkOptions, out: Out): boolean {
+  const path = mac.tree.currentPath(storyId);
+  if (!path) return (out(`No Story ${storyId} on this Mac.`), false);
+  const existing = mac.states.at(path.headEntryId).landmarks.find(item => item.name === name.trim());
+  if (options.drop) {
+    const ok = onPath(mac, storyId, out, head => { engine.dropLandmark(storyId, name, head, traceFor("landmark")); });
+    if (ok) out(`${name.trim()} is dropped, from here on this Path.`);
+    return ok;
+  }
+  if (!existing && (!options.at || !options.what)) return (out(`Say when ${name.trim()} is with --at, and what happens with --what: it is not a Landmark yet.`), false);
+  const ok = onPath(mac, storyId, out, head => {
+    engine.setLandmark(storyId, { name, at: options.at ?? existing?.at ?? "", what: options.what ?? existing?.what ?? "" }, !existing, head, traceFor("landmark"));
+  });
+  if (ok) out(existing ? `${name.trim()} is set, from here on this Path.` : `${name.trim()} is a Landmark now, from here on this Path.`);
+  return ok;
+}
+
+/** `fantasia place`: creates a place or an institution, or rewrites what it is. */
+export function place(mac: Mac, engine: Engine, storyId: string, name: string, description: string, institution: boolean, out: Out): boolean {
+  const path = mac.tree.currentPath(storyId);
+  if (!path) return (out(`No Story ${storyId} on this Mac.`), false);
+  const list = mac.states.at(path.headEntryId).world[institution ? "institutions" : "places"];
+  const exists = list.some(item => item.name.toLocaleLowerCase() === name.trim().toLocaleLowerCase());
+  const ok = onPath(mac, storyId, out, head => { engine.setPlace(storyId, { name, description }, institution, !exists, head, traceFor("place")); });
+  if (ok) out(`${name.trim()} is ${exists ? "set" : `${institution ? "an institution" : "a place"} in the Story now`}, from here on this Path.`);
+  return ok;
+}
+
+/** `fantasia world --summary/--history`: what the World is, and its history; a part left out stays as it is. */
+export function worldIs(mac: Mac, engine: Engine, storyId: string, summary: string | undefined, history: string | undefined, out: Out): boolean {
+  const ok = onPath(mac, storyId, out, head => {
+    const now = mac.states.at(head).world;
+    engine.setWorld(storyId, summary ?? now.summary, history ?? now.history, head, traceFor("world"));
+  });
+  if (ok) out("The World is set, from here on this Path.");
+  return ok;
+}
+
+/** `fantasia clock`: moves the clock on, never back; [weekday] says which weekday Day 1 was. */
+export function clock(mac: Mac, engine: Engine, storyId: string, at: string, weekday: string | undefined, out: Out): boolean {
+  const ok = onPath(mac, storyId, out, head => { engine.setClock(storyId, at, weekday, head, traceFor("clock")); });
+  if (ok) {
+    const path = mac.tree.currentPath(storyId);
+    const state = path ? mac.states.at(path.headEntryId) : null;
+    out(`It is ${state ? say(state, state.clock) : at.trim()} now on this Path. The World catches up when it next moves.`);
+  }
+  return ok;
+}
+
+/** `fantasia taste`: lists the lessons numbered; `reword <n>` or `drop <n>` changes one. */
+export function taste(mac: Mac, engine: Engine, storyId: string, args: string[], out: Out): boolean {
+  const path = mac.tree.currentPath(storyId);
+  if (!path) return (out(`No Story ${storyId} on this Mac.`), false);
+  const lines = mac.states.at(path.headEntryId).taste;
+  const [action, which, ...words] = args;
+  if (!action) {
+    if (!lines.length) out("Taste has no lessons yet.");
+    lines.forEach((line, index) => out(`${index + 1}. ${line}`));
+    return true;
+  }
+  const line = lines[Number(which) - 1];
+  if (!line) return (out(lines.length ? `Say which lesson by its number, 1 to ${lines.length}.` : "Taste has no lessons yet."), false);
+  if (action === "reword") {
+    const ok = onPath(mac, storyId, out, head => { engine.rewordTaste(storyId, line, words.join(" "), head, traceFor("taste")); });
+    if (ok) out("The lesson is reworded, from here on this Path.");
+    return ok;
+  }
+  if (action === "drop") {
+    const ok = onPath(mac, storyId, out, head => { engine.removeTaste(storyId, line, head, traceFor("taste")); });
+    if (ok) out("The lesson is deleted, from here on this Path.");
+    return ok;
+  }
+  return (out("Say reword or drop."), false);
+}
