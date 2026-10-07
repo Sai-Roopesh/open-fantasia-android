@@ -52,14 +52,14 @@ Scenarios this change builds:
   - the World view's places include the Room of Requirement from Scene 12 on that Path;
   - the Writer's next call names it among the places;
   - it is absent at Scene 11 and on another Path.
-- [ ] 1.7 Test first, then build: `long-run › Arcs are built toward, never resolved on a schedule › An Arc is dropped`:
+- [x] 1.7 Test first, then build: `long-run › Arcs are built toward, never resolved on a schedule › An Arc is dropped`:
   - `engine.setArcs`;
   - the Writer's, Weaver's and Director's next calls no longer list the dropped Arc;
   - the State at Scene 14, and another Path, still have it.
-- [ ] 1.8 Test first, then build: `long-run › Taste is short, readable and the player's › Rewording a lesson`:
+- [x] 1.8 Test first, then build: `long-run › Taste is short, readable and the player's › Rewording a lesson`:
   - `engine.rewordTaste`;
   - the Writer's next call reads the new words in the line's place, and Taste no longer has the old ones.
-- [ ] 1.9 `engine.setPremise` and `engine.setWorld`:
+- [x] 1.9 `engine.setPremise` and `engine.setWorld`:
   - a test that every agent's next call reads the new words;
   - each of the nine entries tells phones `path_changed` (`views/scene.ts`), with a test.
 

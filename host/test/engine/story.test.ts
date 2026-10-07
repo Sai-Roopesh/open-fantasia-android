@@ -266,3 +266,87 @@ describe("stories › Anything can be edited or created in the app: places", () 
     expect(mac.states.at(other.headEntryId).world.places.map(place => place.name)).not.toContain("The Room of Requirement");
   });
 });
+
+describe("long-run › Arcs are built toward, never resolved on a schedule", () => {
+  // GIVEN the Arcs include "Harry and Roopesh become friends"
+  // WHEN the player drops it during Scene 15
+  // THEN the Scenes from then on on that Path no longer build toward it
+  // AND the Arcs at Scene 14, and on other Paths, still include it
+  it("long-run › Arcs are built toward, never resolved on a schedule › An Arc is dropped", async () => {
+    const { mac, engine, storyId, head, state, play, models } = playable(storyFile());
+    await play("I sit at the other end of the sofa.");
+    const before = head();
+    const other = mac.tree.createPath(storyId, "With it", before, false);
+    expect(models.writer.requests.at(-1)!.system).toContain("Harry and Roopesh become friends.");
+    engine.setArcs(storyId, state().arcs.filter(arc => arc !== "Harry and Roopesh become friends."), head(), "drop");
+    await play("I ask what she is reading.");
+    engine.endScene(storyId, head(), "end");
+    await engine.woven(storyId);
+    await engine.directed(storyId);
+    for (const job of [models.writer, models.weaver, models.director]) {
+      expect(job.requests.length).toBeGreaterThan(0);
+      expect(job.requests.at(-1)!.system).not.toContain("Harry and Roopesh become friends.");
+      expect(job.requests.at(-1)!.system).toContain("Draconia comes round to Roopesh, slowly.");
+    }
+    expect(mac.states.at(before).arcs).toContain("Harry and Roopesh become friends.");
+    expect(mac.states.at(other.headEntryId).arcs).toContain("Harry and Roopesh become friends.");
+  });
+});
+
+describe("long-run › Taste is short, readable and the player's", () => {
+  // GIVEN Taste has the line "keep Ron in the background"
+  // WHEN the player rewords it to "keep Ron in the background unless he's needed"
+  // THEN later Scenes read the new words, and the old ones are gone from Taste
+  it("long-run › Taste is short, readable and the player's › Rewording a lesson", async () => {
+    const { mac, engine, storyId, head, state, play, models } = playable(storyFile());
+    const path = mac.tree.currentPath(storyId)!;
+    const taste = mac.tree.append(storyId, head(), { kind: "taste_set", lines: ["keep Ron in the background"] });
+    mac.tree.moveHead(path.id, path.headEntryId, taste.id);
+    engine.rewordTaste(storyId, "keep Ron in the background", "keep Ron in the background unless he's needed", head(), "reword");
+    expect(state().taste).toEqual(["keep Ron in the background unless he's needed"]);
+    await play("I sit at the other end of the sofa.");
+    // The Writer and the Actor read Taste with the Move, in their message.
+    for (const job of [models.writer, models.actor]) {
+      const asked = job.requests.at(-1)!.prompt;
+      expect(asked).toContain("- keep Ron in the background unless he's needed");
+      expect(asked.split("keep Ron in the background").length - 1).toBe(1);
+    }
+  });
+});
+
+describe("the Premise and the World, and phones told of every edit", () => {
+  it("has every agent that reads the Premise or the World read the new words on its next call", async () => {
+    const { engine, storyId, head, play, models } = playable(storyFile());
+    engine.setPremise(storyId, "A rivalry that turns, slowly, into something else.", head(), "premise");
+    engine.setWorld(storyId, "Hogwarts in 1991, cold and candlelit.", "The war ended in a truce nobody trusts.", head(), "world");
+    await play("I sit at the other end of the sofa.");
+    engine.endScene(storyId, head(), "end");
+    await engine.woven(storyId);
+    await engine.directed(storyId);
+    for (const job of [models.writer, models.weaver, models.director]) {
+      expect(job.requests.at(-1)!.system).toContain("Premise: A rivalry that turns, slowly, into something else.");
+      expect(job.requests.at(-1)!.system).toContain("World: Hogwarts in 1991, cold and candlelit.");
+    }
+    expect(models.actor.requests.at(-1)!.system).toContain("Hogwarts in 1991, cold and candlelit.\n\nThe war ended in a truce nobody trusts.");
+  });
+
+  it("tells a phone watching that the Story changed, for each of the nine edits", () => {
+    const { engine, storyId, head, events } = playable(storyFile());
+    const edits: [string, () => unknown][] = [
+      ["premise_set", () => engine.setPremise(storyId, "A romance.", head(), "t")],
+      ["style_set", () => engine.setStyle(storyId, "Dry.", head(), "t")],
+      ["reply_length_set", () => engine.setReplyLength(storyId, "short", head(), "t")],
+      ["arcs_set", () => engine.setArcs(storyId, ["One."], head(), "t")],
+      ["landmark_set", () => engine.setLandmark(storyId, { name: "The Yule Ball", at: "Day 100 19:00", what: "A dance." }, true, head(), "t")],
+      ["landmark_dropped", () => engine.dropLandmark(storyId, "The Yule Ball", head(), "t")],
+      ["place_set", () => engine.setPlace(storyId, { name: "The kitchens", description: "Elves and warmth." }, false, true, head(), "t")],
+      ["world_set", () => engine.setWorld(storyId, "Hogwarts.", "", head(), "t")],
+      ["clock_set", () => engine.setClock(storyId, "Day 4 09:00", undefined, head(), "t")]
+    ];
+    for (const [kind, edit] of edits) {
+      const told = events.length;
+      edit();
+      expect(events.slice(told).map(event => event.event.kind), kind).toEqual(["path_changed"]);
+    }
+  });
+});
