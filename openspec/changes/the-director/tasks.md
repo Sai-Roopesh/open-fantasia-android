@@ -48,7 +48,7 @@ Scenarios this change builds:
 - [x] 5.1 Test first, then build: `long-run › The Director shapes the long run around Arcs and Landmarks › The plan
   stays Backstage`: the plan is in `GET /stories/{id}/backstage` and absent from the Scene view, the Day View, the
   World and the Journal; a link test
-- [ ] 5.2 Test first, then build: `outside-the-scene › Backstage shows everything else, only when visited › What the
+- [x] 5.2 Test first, then build: `outside-the-scene › Backstage shows everything else, only when visited › What the
   Director is building toward`: Backstage's Director section on the phone as drawn in Backstage.dc.html; shared
   checks on the JVM and the device, and a preview compared with the design
 
@@ -62,7 +62,7 @@ Scenarios this change builds:
 
 ## 7. Together
 
-- [ ] 7.1 Run `scripts/scenarios.mjs`, the host suite, `npm run test:real` for the Director's and the Weaver's live
+- [x] 7.1 Run `scripts/scenarios.mjs`, the host suite, `npm run test:real` for the Director's and the Weaver's live
   tests, the Android JVM and device suites, and `openspec validate --all --strict`, and verify all pass
 - [ ] 7.2 On the phone: play the Night Train past a Scene end and see the Director's line in Backstage; end a Scene
   that peaks and see a quiet pick at the Day View

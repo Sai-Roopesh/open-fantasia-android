@@ -89,7 +89,7 @@ Scenarios this change builds:
 
 ## 6. Together
 
-- [ ] 6.1 Run `scripts/scenarios.mjs`, the host suite, the Android JVM and device suites, `npm run test:real -- test/real/providers.test.ts` and
+- [x] 6.1 Run `scripts/scenarios.mjs`, the host suite, the Android JVM and device suites, `npm run test:real -- test/real/providers.test.ts` and
   `openspec validate --all --strict`, and verify all pass
 - [ ] 6.2 On the phone:
   1. Set the Weaver to GPT 6.1 Sol and end a Scene; see the Day View.
