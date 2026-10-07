@@ -25,6 +25,13 @@ interface FantasiaLink {
     suspend fun edit(storyID: String, request: EditRequest): Accepted = throw LinkFailure("Editing is not on this link")
     suspend fun journal(storyID: String): JournalView = throw LinkFailure("The Journal is not on this link")
     suspend fun world(storyID: String): WorldView = throw LinkFailure("The World screen is not on this link")
+    // Editing people (openspec stories: Anything can be edited or created in the app).
+    suspend fun people(storyID: String): PeopleView = throw LinkFailure("Editing is not on this link")
+    suspend fun person(storyID: String, name: String): PersonDetail = throw LinkFailure("Editing is not on this link")
+    suspend fun setPerson(storyID: String, name: String, request: PersonEdit): Accepted = throw LinkFailure("Editing is not on this link")
+    suspend fun setLead(storyID: String, name: String, request: LeadRequest): Accepted = throw LinkFailure("Editing is not on this link")
+    suspend fun setGroup(storyID: String, name: String, request: GroupRequest): Accepted = throw LinkFailure("Editing is not on this link")
+    suspend fun uploadPortrait(storyID: String, name: String, image: ByteArray, type: String, after: String): Accepted = throw LinkFailure("Editing is not on this link")
     suspend fun backstage(storyID: String): BackstageView = throw LinkFailure("Backstage is not on this link")
     suspend fun removeTaste(storyID: String, request: RemoveTasteRequest): Accepted = throw LinkFailure("Taste is not on this link")
     suspend fun retryWorld(storyID: String, request: RetryWorldRequest): Accepted

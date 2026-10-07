@@ -119,6 +119,14 @@ class MacConnection(
     override suspend fun edit(storyID: String, request: EditRequest): Accepted = command { it.edit(storyID, request) }
     override suspend fun journal(storyID: String): JournalView = keptRead(storyID, "journal") { it.journal(storyID) }
     override suspend fun world(storyID: String): WorldView = keptRead(storyID, "world") { it.world(storyID) }
+    // Editing needs the Mac: none of it is kept.
+    override suspend fun people(storyID: String): PeopleView = read { it.people(storyID) }
+    override suspend fun person(storyID: String, name: String): PersonDetail = read { it.person(storyID, name) }
+    override suspend fun setPerson(storyID: String, name: String, request: PersonEdit): Accepted = command { it.setPerson(storyID, name, request) }
+    override suspend fun setLead(storyID: String, name: String, request: LeadRequest): Accepted = command { it.setLead(storyID, name, request) }
+    override suspend fun setGroup(storyID: String, name: String, request: GroupRequest): Accepted = command { it.setGroup(storyID, name, request) }
+    override suspend fun uploadPortrait(storyID: String, name: String, image: ByteArray, type: String, after: String): Accepted =
+        command { it.uploadPortrait(storyID, name, image, type, after) }
     override suspend fun backstage(storyID: String): BackstageView = read { it.backstage(storyID) }
     override suspend fun removeTaste(storyID: String, request: RemoveTasteRequest): Accepted = command { it.removeTaste(storyID, request) }
     override fun watch(initial: SceneView): Flow<SceneView> = StoryStream(

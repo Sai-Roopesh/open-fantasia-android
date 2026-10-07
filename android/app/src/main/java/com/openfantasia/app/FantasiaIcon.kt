@@ -12,7 +12,7 @@ import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.material3.LocalContentColor
 
-internal enum class FantasiaIconKind { Back, Send, Scan, Linger, Dismiss, Copy, Rewind, TryAnotherWay, Edit, Models, ChevronRight, ChevronDown }
+internal enum class FantasiaIconKind { Back, Send, Scan, Linger, Dismiss, Copy, Rewind, TryAnotherWay, Edit, Models, ChevronRight, ChevronDown, Add }
 
 // The strokes and viewboxes of the approved HTML icons, without a platform icon font.
 @Composable internal fun FantasiaIcon(kind: FantasiaIconKind, modifier: Modifier, color: Color = LocalContentColor.current) {
@@ -38,6 +38,7 @@ internal enum class FantasiaIconKind { Back, Send, Scan, Linger, Dismiss, Copy, 
             FantasiaIconKind.Edit -> svg(color, sx, sy, "M4 20h4L19 9l-4-4L4 16z")
             FantasiaIconKind.TryAnotherWay -> svg(color, sx, sy, "M6 3a2 2 0 1 0 0 4a2 2 0 1 0 0-4z", "M6 17a2 2 0 1 0 0 4a2 2 0 1 0 0-4z",
                 "M18 7a2 2 0 1 0 0 4a2 2 0 1 0 0-4z", "M6 7v10", "M18 11c0 4-6 3-12 6")
+            FantasiaIconKind.Add -> { line(12f, 5f, 12f, 19f); line(5f, 12f, 19f, 12f) }
             FantasiaIconKind.ChevronRight -> { line(9f, 6f, 15f, 12f, 2f); line(15f, 12f, 9f, 18f, 2f) }
             FantasiaIconKind.ChevronDown -> { line(6f, 9f, 12f, 15f, 2f); line(12f, 15f, 18f, 9f, 2f) }
             // Main.dc.html's Models button: a gear.

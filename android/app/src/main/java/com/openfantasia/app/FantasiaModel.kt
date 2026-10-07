@@ -15,6 +15,8 @@ import kotlinx.serialization.SerializationException
 
 /** A Move written while the Mac was away, sent once it is back (openspec presence). */
 data class WaitingMove(val storyID: String, val after: String, val text: String)
+/** The person editor while it is open: whom it edits (null for someone new), and why a save was refused. */
+data class PersonEditing(val person: PersonDetail?, val problem: String? = null, val saving: Boolean = false)
 data class AppProblem(val reason: String, val traceID: String? = null, val needsUpdate: Boolean = false)
 data class FantasiaState(
     val paired: Boolean,
@@ -35,6 +37,11 @@ data class FantasiaState(
     /** The World screen, while it is open (openspec outside-the-scene: The World screen shows what the Player Character knows). */
     val showingWorld: Boolean = false,
     val world: WorldView? = null,
+    /** Everyone in the Story, for editing, and the person opened from it (openspec stories; editing-people decision 7). */
+    val showingEveryone: Boolean = false,
+    val people: PeopleView? = null,
+    val personPage: PersonDetail? = null,
+    val editing: PersonEditing? = null,
     /** The Models screen while it is open; the Models view also feeds the model for one Reply (openspec presence, scenes). */
     val showingModels: Boolean = false,
     val models: ModelsView? = null,
@@ -167,7 +174,109 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
     fun closePaths() { mutable.update { it.copy(showingPaths = false, paths = null) } }
 
     fun openWorld() = openOutside({ it.copy(showingWorld = true, world = null) }) { id -> link.world(id).let { view -> { s: FantasiaState -> s.copy(world = view) } } }
-    fun closeWorld() { mutable.update { it.copy(showingWorld = false, world = null) } }
+    fun closeWorld() { mutable.update { it.copy(showingWorld = false, world = null, showingEveryone = false, people = null, personPage = null, editing = null) } }
+
+    fun openEveryone() {
+        mutable.update { it.copy(showingEveryone = true, problem = null) }
+        loadPeople()
+    }
+    fun closeEveryone() { mutable.update { it.copy(showingEveryone = false, people = null, personPage = null) } }
+
+    /** Reads everyone in the Story, for the list and the Group picker. */
+    fun loadPeople() {
+        val scene = mutable.value.scene ?: return
+        viewModelScope.launch {
+            try { val people = link.people(scene.storyID); mutable.update { it.copy(people = people) }
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) { showProblem(e) }
+        }
+    }
+
+    /** Opens someone's page from Everyone in the Story. */
+    fun openPersonPage(name: String) {
+        val scene = mutable.value.scene ?: return
+        viewModelScope.launch {
+            try { val person = link.person(scene.storyID, name); mutable.update { it.copy(personPage = person) }
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) { showProblem(e) }
+        }
+    }
+    fun closePersonPage() { mutable.update { it.copy(personPage = null) } }
+
+    /** Opens the editor on someone, as the Story keeps them, who they really are included. */
+    fun editPerson(name: String) {
+        val scene = mutable.value.scene ?: return
+        viewModelScope.launch {
+            try { val person = link.person(scene.storyID, name); mutable.update { it.copy(editing = PersonEditing(person)) }
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) { showProblem(e) }
+        }
+    }
+    fun newPerson() { mutable.update { it.copy(editing = PersonEditing(null)) } }
+    fun closeEditor() { mutable.update { it.copy(editing = null) } }
+
+    /**
+     * Saves the editor: the person whole, then the Portrait chosen for someone new, each from the head the last edit
+     * left. A refusal stays in the editor with what was written; the screens read the Story again afterwards.
+     */
+    fun savePerson(name: String, edit: PersonEdit, portrait: PickedImage?) {
+        val state = mutable.value
+        val scene = state.scene ?: return
+        if (!state.canChangePath) return
+        mutable.update { it.copy(editing = it.editing?.copy(problem = null, saving = true)) }
+        viewModelScope.launch {
+            try {
+                val accepted = link.setPerson(scene.storyID, name, edit.copy(after = scene.headEntryID))
+                if (portrait != null) link.uploadPortrait(scene.storyID, name, portrait.bytes, portrait.type, accepted.headEntryID)
+                mutable.update { it.copy(editing = null) }
+                afterEdit(scene.storyID)
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) {
+                val reason = (e as? LinkFailure)?.reason ?: "The Mac is unreachable. Nothing was saved."
+                mutable.update { it.copy(editing = it.editing?.copy(problem = reason, saving = false)) }
+            }
+        }
+    }
+
+    fun setLead(name: String, lead: Boolean) = edit { scene -> link.setLead(scene.storyID, name, LeadRequest(after = scene.headEntryID, lead = lead)) }
+
+    fun replacePortrait(name: String, image: PickedImage) = edit { scene -> link.uploadPortrait(scene.storyID, name, image.bytes, image.type, scene.headEntryID) }
+
+    /** Puts someone in a Group, or none, changing nothing else about them. */
+    fun setPersonGroup(name: String, group: String?) = edit { scene ->
+        val person = link.person(scene.storyID, name)
+        link.setPerson(scene.storyID, name, person.asEdit(after = scene.headEntryID, group = group))
+    }
+
+    /** Creates a Group, and puts [person] in it when there is one. */
+    fun newGroup(group: String, description: String, person: String?) = edit { scene ->
+        val accepted = link.setGroup(scene.storyID, group, GroupRequest(after = scene.headEntryID, description = description))
+        if (person != null) link.setPerson(scene.storyID, person, link.person(scene.storyID, person).asEdit(after = accepted.headEntryID, group = group))
+        else accepted
+    }
+
+    private fun edit(change: suspend (SceneView) -> Accepted) {
+        val state = mutable.value
+        val scene = state.scene ?: return
+        if (!state.canChangePath) return
+        mutable.update { it.copy(sending = true, problem = null) }
+        viewModelScope.launch {
+            try { change(scene); afterEdit(scene.storyID)
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) { showProblem(e)
+            } finally { mutable.update { it.copy(sending = false) } }
+        }
+    }
+
+    /** Reads again what an edit changed: the Scene's head, and whichever of the World, Everyone and a page is open. */
+    private suspend fun afterEdit(storyID: String) {
+        val fresh = link.scene(storyID)
+        mutable.update { it.copy(scene = visibleScene(fresh)) }
+        val state = mutable.value
+        if (state.showingWorld) link.world(storyID).let { world -> mutable.update { it.copy(world = world) } }
+        if (state.showingEveryone) link.people(storyID).let { people -> mutable.update { it.copy(people = people) } }
+        state.personPage?.let { page -> link.person(storyID, page.name).let { person -> mutable.update { it.copy(personPage = person) } } }
+    }
     fun openJournal() = openOutside({ it.copy(showingJournal = true, journal = null) }) { id -> link.journal(id).let { view -> { s: FantasiaState -> s.copy(journal = view) } } }
     fun closeJournal() { mutable.update { it.copy(showingJournal = false, journal = null) } }
     fun openBackstage() = openOutside({ it.copy(showingBackstage = true, backstage = null) }) { id -> link.backstage(id).let { view -> { s: FantasiaState -> s.copy(backstage = view) } } }
@@ -485,3 +594,8 @@ private const val MOVED_ON = "The Story moved on while the Mac was away. Your Mo
 
 internal val FantasiaState.worldReady: Boolean
     get() = scene?.dayView?.world?.let { it == World.Ready } ?: true
+
+/** A person as the editor sends them back, with what it changes. */
+internal fun PersonDetail.asEdit(after: String, group: String? = this.group) = PersonEdit(after = after, create = false, aliases = aliases,
+    whoTheyAre = whoTheyAre, known = known, appearance = appearance, wants = wants, voice = voice, knows = knows, group = group)
+

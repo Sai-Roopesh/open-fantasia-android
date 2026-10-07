@@ -18,6 +18,18 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 class MainActivity : ComponentActivity() {
     private lateinit var model: FantasiaModel
     private val askPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    // The system photo picker: no permission, and only the image the player chooses reaches the app.
+    private var picking: kotlinx.coroutines.CompletableDeferred<android.net.Uri?>? = null
+    private val pickImage = registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> picking?.complete(uri) }
+    private val portraitPicker = PortraitPicker {
+        val wait = kotlinx.coroutines.CompletableDeferred<android.net.Uri?>().also { picking = it }
+        pickImage.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+        val uri = wait.await() ?: return@PortraitPicker null
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val type = contentResolver.getType(uri) ?: "image/jpeg"
+            contentResolver.openInputStream(uri)?.use { PickedImage(it.readBytes(), type) }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -37,7 +49,7 @@ class MainActivity : ComponentActivity() {
             request = { askPermission.launch(Manifest.permission.POST_NOTIFICATIONS) })
         pairFromDebugIntent(intent)
         openFromNotification(intent)
-        setContent { FantasiaApp(model, scanner, model::portrait, moveSent = notifications::moveSent) }
+        setContent { FantasiaApp(model, scanner, model::portrait, moveSent = notifications::moveSent, portraitPicker = portraitPicker) }
     }
 
     override fun onNewIntent(intent: Intent) {

@@ -17,9 +17,9 @@ open class WorldUiChecks {
     protected val link = FakeFantasiaLink()
     private val status = "Recording the Scene. The World is moving on."
 
-    protected fun openScene() {
+    protected fun openScene(portraitPicker: PortraitPicker = PortraitPicker { null }) {
         val model = FantasiaModel(link)
-        compose.setContent { FantasiaApp(model, PairingScanner { error("Already paired") }) }
+        compose.setContent { FantasiaApp(model, PairingScanner { error("Already paired") }, portraitPicker = portraitPicker) }
         compose.onNodeWithText("The Malfoy Problem").performClick()
     }
 

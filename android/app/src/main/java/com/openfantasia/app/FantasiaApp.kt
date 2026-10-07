@@ -10,9 +10,15 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.Lifecycle
+import kotlinx.coroutines.launch
 
-@Composable fun FantasiaApp(model: FantasiaModel, scanner: PairingScanner, portrait: (String) -> PortraitSource? = { null }, moveSent: () -> Unit = {}) {
+@Composable fun FantasiaApp(model: FantasiaModel, scanner: PairingScanner, portrait: (String) -> PortraitSource? = { null }, moveSent: () -> Unit = {},
+    portraitPicker: PortraitPicker = PortraitPicker { null }) {
     val state by model.state.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
+    val personActions = PersonActions(enabled = state.canChangePath, groups = state.people?.groups, loadGroups = model::loadPeople,
+        edit = model::editPerson, setLead = model::setLead, setGroup = model::setPersonGroup, newGroup = model::newGroup,
+        replacePortrait = { name -> scope.launch { portraitPicker.pick()?.let { model.replacePortrait(name, it) } } })
     BackHandler(enabled = state.scene == null && state.showingModels) { model.closeModels() }
     BackHandler(enabled = state.scene != null) {
         when {
@@ -44,7 +50,23 @@ import androidx.lifecycle.Lifecycle
                             rewind = model::rewind, tryAnotherWay = model::tryAnotherWay, edit = model::edit)
                         if (state.pastSceneLoading) CircularProgressIndicator()
                     } else if (state.showingWorld) {
-                        WorldScreen(state.world, portrait, back = model::closeWorld, modifier = Modifier.weight(1f))
+                        val editing = state.editing
+                        val page = state.personPage
+                        when {
+                            editing != null -> PersonEditor(editing, scene.playerCharacter, state.canChangePath, portraitPicker::pick, cancel = model::closeEditor,
+                                save = model::savePerson, modifier = Modifier.weight(1f))
+                            page != null -> {
+                                BackHandler { model.closePersonPage() }
+                                PersonPage(page.page(), portrait, personActions, back = model::closePersonPage, backLabel = "Back to everyone", modifier = Modifier.weight(1f))
+                            }
+                            state.showingEveryone -> {
+                                BackHandler { model.closeEveryone() }
+                                EveryoneScreen(state.people, portrait, state.canChangePath, back = model::closeEveryone, add = model::newPerson,
+                                    open = model::openPersonPage, modifier = Modifier.weight(1f))
+                            }
+                            else -> WorldScreen(state.world, portrait, back = model::closeWorld, actions = personActions, add = model::newPerson,
+                                everyone = model::openEveryone, modifier = Modifier.weight(1f))
+                        }
                     } else if (state.showingJournal) {
                         JournalScreen(state.journal, back = model::closeJournal, modifier = Modifier.weight(1f), open = { number ->
                             if (number == scene.scene.number) model.closeJournal() else model.openPastScene(number)

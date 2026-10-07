@@ -68,6 +68,25 @@ class LinkClient(val address: HttpUrl, fingerprint: String, private val deviceTo
     suspend fun clearPaths(storyID: String): Accepted = command(listOf("stories", storyID, "paths", "clear"), "{}")
     suspend fun journal(storyID: String): JournalView = command(listOf("stories", storyID, "journal"))
     suspend fun world(storyID: String): WorldView = command(listOf("stories", storyID, "world"))
+    suspend fun people(storyID: String): PeopleView = command(listOf("stories", storyID, "people"))
+    suspend fun person(storyID: String, name: String): PersonDetail = command(listOf("stories", storyID, "people", name))
+    suspend fun setPerson(storyID: String, name: String, request: PersonEdit): Accepted =
+        command(listOf("stories", storyID, "people", name), commandJson.encodeToString(request), put = true)
+    suspend fun setLead(storyID: String, name: String, request: LeadRequest): Accepted =
+        command(listOf("stories", storyID, "people", name, "lead"), commandJson.encodeToString(request), put = true)
+    suspend fun setGroup(storyID: String, name: String, request: GroupRequest): Accepted =
+        command(listOf("stories", storyID, "groups", name), commandJson.encodeToString(request), put = true)
+
+    /** A Portrait from the phone: the image itself, as its type, with the head the phone saw (openspec stories: Portraits). */
+    suspend fun uploadPortrait(storyID: String, name: String, image: ByteArray, type: String, after: String): Accepted {
+        val url = address.newBuilder().apply { listOf("stories", storyID, "people", name, "portrait").forEach { addPathSegment(it) } }
+            .addQueryParameter("after", after).build()
+        val request = Request.Builder().url(url)
+            .header("Fantasia-Contract", CONTRACT_VERSION.toString())
+            .header("Authorization", "Bearer ${requireNotNull(deviceToken)}")
+            .put(image.toRequestBody(type.toMediaType())).build()
+        return answer(execute(request))
+    }
     suspend fun backstage(storyID: String): BackstageView = command(listOf("stories", storyID, "backstage"))
     suspend fun removeTaste(storyID: String, request: RemoveTasteRequest): Accepted =
         command(listOf("stories", storyID, "taste", "remove"), commandJson.encodeToString(request))
@@ -89,8 +108,12 @@ class LinkClient(val address: HttpUrl, fingerprint: String, private val deviceTo
         return command(listOf(path), body, paired)
     }
 
-    private suspend inline fun <reified T> command(path: List<String>, body: String? = null, paired: Boolean = true, delete: Boolean = false, put: Boolean = false): T {
-        val (response, text) = execute(request(path, body, paired, delete, put))
+    private suspend inline fun <reified T> command(path: List<String>, body: String? = null, paired: Boolean = true, delete: Boolean = false, put: Boolean = false): T =
+        answer(execute(request(path, body, paired, delete, put)))
+
+    /** Reads the Mac's answer to a request: its contract checked, a refusal thrown with its reason. */
+    private inline fun <reified T> answer(sent: Pair<Response, String>): T {
+        val (response, text) = sent
         requireContract(response, text)
         if (!response.isSuccessful || runCatching { linkJson.decodeFromString<ErrorBody>(text) }.isSuccess) throw failure(response.code, text)
         return linkJson.decodeFromString<T>(text)

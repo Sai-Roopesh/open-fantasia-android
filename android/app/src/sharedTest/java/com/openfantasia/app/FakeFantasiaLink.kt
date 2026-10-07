@@ -30,6 +30,12 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
     val worldRetryRequests = mutableListOf<RetryWorldRequest>()
     var modelsView = modelsFixture()
     var worldView = worldFixture()
+    var peopleView = peopleFixture()
+    val leadSets = mutableListOf<Pair<String, LeadRequest>>()
+    val personEdits = mutableListOf<Pair<String, PersonEdit>>()
+    val groupSets = mutableListOf<Pair<String, GroupRequest>>()
+    val portraitUploads = mutableListOf<Triple<String, String, ByteArray>>()
+    var personFailure: LinkFailure? = null
     var worldRequests = 0
     val jobModelSets = mutableListOf<Pair<ModelJob, ModelChoice>>()
     val actorSets = mutableListOf<Pair<String, ModelChoice?>>()
@@ -116,6 +122,27 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
     override suspend fun paths(storyID: String): PathsView = pathsView
     override suspend fun models(): ModelsView = modelsView
     override suspend fun world(storyID: String): WorldView { worldRequests++; return worldView }
+    override suspend fun people(storyID: String): PeopleView = peopleView
+    override suspend fun person(storyID: String, name: String): PersonDetail = personDetail(name, peopleView)
+    override suspend fun setPerson(storyID: String, name: String, request: PersonEdit): Accepted {
+        personFailure?.let { throw it }
+        personEdits += name to request
+        return Accepted(headEntryID = current.value.headEntryID, traceID = "person")
+    }
+    override suspend fun setLead(storyID: String, name: String, request: LeadRequest): Accepted {
+        leadSets += name to request
+        worldView = worldView.copy(people = worldView.people.map { if (it.name == name) it.copy(lead = request.lead) else it })
+        peopleView = peopleView.copy(people = peopleView.people.map { if (it.name == name) it.copy(lead = request.lead) else it })
+        return Accepted(headEntryID = current.value.headEntryID, traceID = "lead")
+    }
+    override suspend fun setGroup(storyID: String, name: String, request: GroupRequest): Accepted {
+        groupSets += name to request
+        return Accepted(headEntryID = current.value.headEntryID, traceID = "group")
+    }
+    override suspend fun uploadPortrait(storyID: String, name: String, image: ByteArray, type: String, after: String): Accepted {
+        portraitUploads += Triple(name, type, image)
+        return Accepted(headEntryID = current.value.headEntryID, traceID = "portrait")
+    }
     override suspend fun setJobModel(job: ModelJob, request: SetJobModelRequest): ModelsView {
         jobModelSets += job to request.model
         modelsView = modelsView.copy(jobs = modelsView.jobs.map { if (it.job == job) it.copy(model = chosenOf(request.model)) else it })
@@ -201,6 +228,30 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
                 WorldPlace(name = "The Owlery", description = "Cold, and full of owls.", been = false)),
             calendar = listOf(CalendarItem(kind = CalendarKind.Landmark, name = "Draconia's flying test", what = "Madam Hooch tests the first-years on brooms.",
                 atLabel = "Wednesday 10:00 am", calendarItemWhen = "3 days")))
+        // Everyone in the Malfoy Problem, for editing: no one's description.
+        fun peopleFixture() = PeopleView(storyID = "story", traceID = "people",
+            groups = listOf(GroupInfo(name = "Crabbe and Goyle", description = "Draconia's shadows. Usually somewhere behind her.")),
+            people = listOf(
+                PersonSummary(name = "Draconia Malfoy", lead = true, group = null, portraitURL = null, playerCharacter = false),
+                PersonSummary(name = "Hermione Granger", lead = true, group = null, portraitURL = null, playerCharacter = false),
+                PersonSummary(name = "Gregory Goyle", lead = false, group = "Crabbe and Goyle", portraitURL = null, playerCharacter = false),
+                PersonSummary(name = "Minerva McGonagall", lead = false, group = null, portraitURL = null, playerCharacter = false),
+                PersonSummary(name = "Quirinus Quirrell", lead = false, group = null, portraitURL = null, playerCharacter = false),
+                PersonSummary(name = "Roopesh Gantasala", lead = false, group = null, portraitURL = null, playerCharacter = true)))
+        private val WHO = mapOf(
+            "Draconia Malfoy" to "Pure-blood heir, Slytherin, sharp-tongued and proud.",
+            "Hermione Granger" to "Muggle-born, Gryffindor, top of every class.",
+            "Gregory Goyle" to "Draconia's other bodyguard, larger and slower.",
+            "Minerva McGonagall" to "Deputy Headmistress, Head of Gryffindor.",
+            "Quirinus Quirrell" to "Serves Voldemort, who lives on the back of his head.",
+            "Roopesh Gantasala" to "A Muggle-born from Bangalore with powers he hides.")
+        /** A person as the Story keeps them, for the editor: who they really are included. */
+        fun personDetail(name: String, people: PeopleView = peopleFixture()): PersonDetail {
+            val summary = people.people.first { it.name == name }
+            return PersonDetail(storyID = "story", traceID = "person", name = name, aliases = emptyList(), whoTheyAre = WHO.getValue(name),
+                known = worldFixture().people.firstOrNull { it.name == name }?.known, appearance = "", wants = "", voice = emptyList(), knows = emptyList(),
+                group = summary.group, lead = summary.lead, portraitURL = null, playerCharacter = summary.playerCharacter, groups = people.groups)
+        }
         fun chosen(provider: ModelProvider, model: String, label: String, effort: String? = null) =
             ChosenModel(choice = ModelChoice(provider = provider, model = model, effort = effort), label = label)
         private val UP_TO_MAX = listOf("low", "medium", "high", "xhigh", "max")
