@@ -67,7 +67,7 @@ Scenarios this change builds:
 
 - [x] 2.1 Contract 16 (design decision 4) in `link.schema.json` and `contract.json`. Regenerate, and verify both
   sides compile.
-- [ ] 2.2 `views/story.ts` and the routes:
+- [x] 2.2 `views/story.ts` and the routes:
   - link tests for `GET /stories/{id}/story`, including a Landmark marked passed and `world_stands`;
   - a test for each `PUT` and `POST`, including a refusal with its reason and a stale head.
 - [ ] 2.3 The commands (design decision 5), with a CLI test each:

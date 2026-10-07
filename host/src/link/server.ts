@@ -9,12 +9,13 @@ import type { Engine } from "../engine/engine.js";
 import type { Mac } from "../mac.js";
 import type { ModelChoice } from "../story/state.js";
 import { CONTRACT_VERSION } from "../protocol/generated/contract.js";
-import type { ChooseRequest, EditRequest, GroupRequest, LeadRequest, PersonEdit, RetryRequest, RetryWorldRequest, SetActorRequest, SetJobModelRequest, EndSceneRequest, ErrorBody, FocusRequest, LingerRequest, MoveRequest, PairRequest, RedoRequest, RemoveTasteRequest, RenamePathRequest, RewindRequest, TryAnotherWayRequest } from "../protocol/generated/link.js";
+import type { ArcsRequest, ChooseRequest, ClockRequest, DropLandmarkRequest, LandmarkRequest, PlaceRequest, PremiseRequest, ReplyLengthRequest, RewordTasteRequest, StyleRequest, WorldRequest, EditRequest, GroupRequest, LeadRequest, PersonEdit, RetryRequest, RetryWorldRequest, SetActorRequest, SetJobModelRequest, EndSceneRequest, ErrorBody, FocusRequest, LingerRequest, MoveRequest, PairRequest, RedoRequest, RemoveTasteRequest, RenamePathRequest, RewindRequest, TryAnotherWayRequest } from "../protocol/generated/link.js";
 import { newTraceId, Traces } from "../trace.js";
 import { backstageView } from "../views/backstage.js";
 import { journalView } from "../views/journal.js";
 import { worldView } from "../views/world.js";
 import { peopleView, personDetail } from "../views/people.js";
+import { storyView } from "../views/story.js";
 import { pathsView } from "../views/paths.js";
 import { pastScene, sceneView } from "../views/scene.js";
 import { modelsView } from "../views/models.js";
@@ -50,6 +51,16 @@ const validSetActor = ajv.compile<SetActorRequest>({ $ref: "link#/$defs/SetActor
 const validPersonEdit = ajv.compile<PersonEdit>({ $ref: "link#/$defs/PersonEdit" });
 const validLead = ajv.compile<LeadRequest>({ $ref: "link#/$defs/LeadRequest" });
 const validGroup = ajv.compile<GroupRequest>({ $ref: "link#/$defs/GroupRequest" });
+const validPremise = ajv.compile<PremiseRequest>({ $ref: "link#/$defs/PremiseRequest" });
+const validStyle = ajv.compile<StyleRequest>({ $ref: "link#/$defs/StyleRequest" });
+const validReplyLength = ajv.compile<ReplyLengthRequest>({ $ref: "link#/$defs/ReplyLengthRequest" });
+const validArcs = ajv.compile<ArcsRequest>({ $ref: "link#/$defs/ArcsRequest" });
+const validLandmark = ajv.compile<LandmarkRequest>({ $ref: "link#/$defs/LandmarkRequest" });
+const validDropLandmark = ajv.compile<DropLandmarkRequest>({ $ref: "link#/$defs/DropLandmarkRequest" });
+const validPlace = ajv.compile<PlaceRequest>({ $ref: "link#/$defs/PlaceRequest" });
+const validWorld = ajv.compile<WorldRequest>({ $ref: "link#/$defs/WorldRequest" });
+const validClock = ajv.compile<ClockRequest>({ $ref: "link#/$defs/ClockRequest" });
+const validRewordTaste = ajv.compile<RewordTasteRequest>({ $ref: "link#/$defs/RewordTasteRequest" });
 const validRetry = ajv.compile<RetryRequest>({ $ref: "link#/$defs/RetryRequest" });
 const validRetryWorld = ajv.compile<RetryWorldRequest>({ $ref: "link#/$defs/RetryWorldRequest" });
 
@@ -254,6 +265,61 @@ export function buildLink(options: LinkOptions): FastifyInstance {
   app.put<{ Params: { id: string; name: string } }>("/stories/:id/groups/:name", async request => {
     if (!validGroup(request.body)) throw new LinkError("invalid", "A Group needs its description, and the entry the phone last saw.");
     return engine.setGroup(request.params.id, request.params.name, request.body.description, request.body.after, request.traceId);
+  });
+
+  // The rest of the Story (editing-the-story design decision 4): each edit, against the head the phone saw, answers
+  // with The Story screen as it now stands.
+  app.get<{ Params: { id: string } }>("/stories/:id/story", async request => storyView(mac, request.params.id, request.traceId));
+  const edited = (storyId: string, traceId: string, edit: () => unknown) => { edit(); return storyView(mac, storyId, traceId); };
+  app.put<{ Params: { id: string } }>("/stories/:id/premise", async request => {
+    if (!validPremise(request.body)) throw new LinkError("invalid", "The Premise needs its words, and the entry the phone last saw.");
+    const { premise, after } = request.body;
+    return edited(request.params.id, request.traceId, () => engine.setPremise(request.params.id, premise, after, request.traceId));
+  });
+  app.put<{ Params: { id: string } }>("/stories/:id/style", async request => {
+    if (!validStyle(request.body)) throw new LinkError("invalid", "The Style needs its words, and the entry the phone last saw.");
+    const { style, after } = request.body;
+    return edited(request.params.id, request.traceId, () => engine.setStyle(request.params.id, style, after, request.traceId));
+  });
+  app.put<{ Params: { id: string } }>("/stories/:id/reply-length", async request => {
+    if (!validReplyLength(request.body)) throw new LinkError("invalid", "Say Short, Medium or Full, and the entry the phone last saw.");
+    const { length, after } = request.body;
+    return edited(request.params.id, request.traceId, () => engine.setReplyLength(request.params.id, length, after, request.traceId));
+  });
+  app.put<{ Params: { id: string } }>("/stories/:id/arcs", async request => {
+    if (!validArcs(request.body)) throw new LinkError("invalid", "The Arcs need their words, and the entry the phone last saw.");
+    const { arcs, after } = request.body;
+    return edited(request.params.id, request.traceId, () => engine.setArcs(request.params.id, arcs, after, request.traceId));
+  });
+  app.put<{ Params: { id: string; name: string } }>("/stories/:id/landmarks/:name", async request => {
+    if (!validLandmark(request.body)) throw new LinkError("invalid", "A Landmark needs when it is, what happens, and the entry the phone last saw.");
+    const { at, what, create, after } = request.body;
+    return edited(request.params.id, request.traceId, () => engine.setLandmark(request.params.id, { name: request.params.name, at, what }, create, after, request.traceId));
+  });
+  app.post<{ Params: { id: string; name: string } }>("/stories/:id/landmarks/:name/drop", async request => {
+    if (!validDropLandmark(request.body)) throw new LinkError("invalid", "Dropping a Landmark needs the entry the phone last saw.");
+    const { after } = request.body;
+    return edited(request.params.id, request.traceId, () => engine.dropLandmark(request.params.id, request.params.name, after, request.traceId));
+  });
+  app.put<{ Params: { id: string; name: string } }>("/stories/:id/places/:name", async request => {
+    if (!validPlace(request.body)) throw new LinkError("invalid", "A place needs what it is, whether it is an institution, and the entry the phone last saw.");
+    const { description, institution, create, after } = request.body;
+    return edited(request.params.id, request.traceId, () => engine.setPlace(request.params.id, { name: request.params.name, description }, institution, create, after, request.traceId));
+  });
+  app.put<{ Params: { id: string } }>("/stories/:id/world", async request => {
+    if (!validWorld(request.body)) throw new LinkError("invalid", "The World needs what it is, its history, and the entry the phone last saw.");
+    const { summary, history, after } = request.body;
+    return edited(request.params.id, request.traceId, () => engine.setWorld(request.params.id, summary, history, after, request.traceId));
+  });
+  app.put<{ Params: { id: string } }>("/stories/:id/clock", async request => {
+    if (!validClock(request.body)) throw new LinkError("invalid", "Moving the clock needs the time, which weekday Day 1 was, and the entry the phone last saw.");
+    const { at, day_one_weekday: weekday, after } = request.body;
+    return edited(request.params.id, request.traceId, () => engine.setClock(request.params.id, at, weekday ?? null, after, request.traceId));
+  });
+  app.post<{ Params: { id: string } }>("/stories/:id/taste/reword", async request => {
+    if (!validRewordTaste(request.body)) throw new LinkError("invalid", "Rewording a lesson needs the line, its new words, and the entry the phone last saw.");
+    const { line, text, after } = request.body;
+    return edited(request.params.id, request.traceId, () => engine.rewordTaste(request.params.id, line, text, after, request.traceId));
   });
 
   // A Portrait uploaded from the phone: the image itself, its type as sent (openspec stories: Portraits are real images).
