@@ -75,7 +75,10 @@ async function drier(changed: string, unchanged: string): Promise<{ changedWins:
 }
 
 describe.skipIf(!token)("the Style changed mid-Story, with the real Actor", () => {
-  it("long-run › Style is the player's own words › Changing the Style mid-Story: the Replies after read as the new Style says", async () => {
+  // WHEN the player adds "keep the humour dry and British" to the Style
+  // THEN the Replies from then on are written that way: a second model, shown both in shuffled order, picks the
+  // Reply after the change as the drier and more British at least twice in three.
+  it("long-run › Style is the player's own words › Changing the Style mid-Story", async () => {
     const move = "I tell her the inkwell probably just likes me.";
     const verdicts: { changedWins: boolean; said: string }[] = [];
     for (let run = 0; run < RUNS; run++) verdicts.push(await drier(await replyTo(move, true), await replyTo(move, false)));
