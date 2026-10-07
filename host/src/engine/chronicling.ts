@@ -1,3 +1,4 @@
+import { knownOn } from "../story/known.js";
 import type { ChronicleAsk } from "../agents/chronicler.js";
 import type { Mac } from "../mac.js";
 import type { Entry, SceneOpened } from "../story/entries.js";
@@ -66,6 +67,7 @@ export function chronicleAsk(mac: Mac, due: DueChronicle): ChronicleAsk {
     ...due.scene.payload.who,
     ...due.entries.flatMap(entry => (entry.payload.kind === "beat_note" ? entry.payload.here : []))
   ])];
+  const knownNow = knownOn(mac, due.through.id);
   const known = momentsOn(mac, due.through.id)
     .filter(remembered => remembered.knownTo.some(name => inScene.includes(name)))
     .sort((left, right) => right.moment.weight - left.moment.weight || right.scene.number - left.scene.number)
@@ -78,6 +80,7 @@ export function chronicleAsk(mac: Mac, due: DueChronicle): ChronicleAsk {
     recordFrom: due.recordFrom,
     sceneEnded: due.sceneEnded,
     inScene,
-    known
+    known,
+    knownBefore: Object.fromEntries(inScene.map(name => [name, knownNow.get(name)?.text ?? null]))
   };
 }

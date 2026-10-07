@@ -11,6 +11,8 @@ export interface Person {
   name: string;
   aliases: string[];
   whoTheyAre: string;
+  /** What the Player Character knows of them, as the Story File or `fantasia known` last set it; null when nothing. */
+  known: string | null;
   appearance: string;
   after: string;
   /** What they knew when the Story began, beyond their own backstory. */

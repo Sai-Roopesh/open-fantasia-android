@@ -113,6 +113,10 @@ export interface PersonSetup {
    * Who they are and the backstory they come with.
    */
   who_they_are: string;
+  /**
+   * What the Player Character knows of them when the Story begins: what he, not the Story, would say of them. Who they are may hold what nobody knows; this never does.
+   */
+  known?: string;
   appearance?: string;
   /**
    * What they are after.

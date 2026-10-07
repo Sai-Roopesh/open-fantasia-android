@@ -68,6 +68,23 @@ describe("story-file", () => {
     expect(world.threads).toEqual([{ name: "the dragon egg in Hagrid's hut", now: "Hagrid is keeping it warm in the fire" }]);
   });
 
+  // What the Player Character knows of someone is kept apart from who they really are (openspec story-file); the World
+  // screen's half of this scenario is proved with the World screen.
+  it("keeps who someone is and what the Player Character knows of them apart", () => {
+    const mac = freshHome();
+    const story = minimalStoryFile();
+    story.people = story.people.map((person, index) => index === 1
+      ? { ...person, who_they_are: "Serves Voldemort, who lives on the back of his head.", known: "The nervous Defence teacher, who stammers and smells of garlic." }
+      : person) as typeof story.people;
+    const result = importStoryFile(writeStoryFile(story), mac);
+    if (!result.ok) throw new Error(result.problems.map(problem => problem.message).join("; "));
+    const person = mac.states.at(mac.tree.currentPath(result.storyId)!.headEntryId).people[story.people[1]!.name]!;
+    expect(person.whoTheyAre).toBe("Serves Voldemort, who lives on the back of his head.");
+    expect(person.known).toBe("The nervous Defence teacher, who stammers and smells of garlic.");
+    // Someone the Story File says nothing of is known for nothing yet.
+    expect(mac.states.at(mac.tree.currentPath(result.storyId)!.headEntryId).people[story.people[0]!.name]!.known).toBeNull();
+  });
+
   // WHEN a Story File has two people named "Weasley"
   // THEN the import is refused, naming the duplicated name
   it("story-file › People are referred to by name › Two people with one name", () => {

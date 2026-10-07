@@ -249,6 +249,7 @@ export function entryEvent(mac: Mac, storyId: string, entry: Entry): StoryEvent 
       return { kind: "redo", seq: entry.seq };
     // A lesson deleted from Taste changes the Scene's head and nothing a phone shows: it reads the Scene again.
     case "taste_set":
+    case "known_set":
       return { kind: "path_changed", seq: entry.seq };
     case "beat_note":
     case "chronicle":

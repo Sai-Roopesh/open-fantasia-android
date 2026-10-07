@@ -47,6 +47,10 @@ export function apply(state: State | null, entry: Entry): State {
       return state.scene?.goes.length ? { ...state, scene: leave(state.scene) } : state;
     case "taste_set":
       return { ...state, taste: payload.lines };
+    case "known_set": {
+      const person = state.people[payload.person];
+      return person ? { ...state, people: { ...state.people, [payload.person]: { ...person, known: payload.text } } } : state;
+    }
     case "move":
       // A Move changes the Story through what it says, which the Writer and the Chronicler read; in the State it only
       // lengthens the Scene, which is read from the Path.
@@ -101,6 +105,7 @@ function setUp({ storyFile, portraits }: StorySetUp): State {
       name: person.name,
       aliases: person.aliases ?? [],
       whoTheyAre: person.who_they_are,
+      known: person.known ?? null,
       appearance: person.appearance ?? "",
       after: person.after ?? "",
       knows: person.knows ?? [],

@@ -5,7 +5,7 @@ import { openMac } from "../mac.js";
 import { Engine } from "../engine/engine.js";
 import { subscriptionRunners } from "../models/runners.js";
 import { Models } from "../models/model-call.js";
-import { claudeToken, doctor, edit, importCommand, install, models, moments, pair, show, stories, trace, world } from "./commands.js";
+import { claudeToken, doctor, edit, importCommand, install, known, models, moments, pair, show, stories, trace, world } from "./commands.js";
 import { serve } from "./serve.js";
 
 /**
@@ -44,6 +44,13 @@ program.command("moments").argument("<story>", "a Story's id").description("List
   .action((story: string) => exitWith(moments(mac(), story, out)));
 program.command("world").argument("<story>", "a Story's id").description("Show the World off-screen: Lives, Threads, and what happened with who knows it")
   .action((story: string) => exitWith(world(mac(), story, out)));
+
+program.command("known").argument("<story>", "a Story's id").argument("<person>", "someone in the Story, by any name they answer to")
+  .argument("<words...>", "what the Player Character knows of them").description("Set what the Player Character knows of someone, as the World screen shows it")
+  .action((story: string, person: string, words: string[]) => {
+    const home = mac();
+    exitWith(known(home, new Engine(home, new Models(home.db, {})), story, person, words.join(" "), out));
+  });
 
 program.command("edit").argument("<story>", "a Story's id").argument("<entry>", "the Move or Reply, by its entry id")
   .argument("<words...>", "what it should read").description("Edit a Move or a Reply as the player can: the latest in place, anything earlier on a new Path")

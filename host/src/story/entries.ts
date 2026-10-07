@@ -5,7 +5,7 @@ import type { Beat, ModelChoice, SceneCall } from "./state.js";
  * What can be written to a Story's tree (docs/adr/0003). Each kind is something that happened; the State on a
  * Path is what all of them add up to, worked out by the reducer.
  */
-export type Payload = StorySetUp | SceneOpened | MoveWritten | Redo | BeatNote | ReplyWritten | SceneClosed | FocusSet | LingerSet | TasteSet | Chronicle | WorldMoved | DirectorPlan;
+export type Payload = StorySetUp | SceneOpened | MoveWritten | Redo | BeatNote | ReplyWritten | SceneClosed | FocusSet | LingerSet | TasteSet | KnownSet | Chronicle | WorldMoved | DirectorPlan;
 
 /** The kinds written beside play, hanging off the Path and never on it (docs/adr/0007). */
 export const RECORD_KINDS = ["chronicle", "world_moved", "director_plan"] as const;
@@ -173,8 +173,16 @@ export interface Chronicle {
   sceneEnded: boolean;
   moments: Moment[];
   told: Told[];
+  /** What the Player Character now knows of the people this Scene changed it for; absent from Chronicles before it was asked. */
+  known?: KnownLine[];
   callId: string;
   model: ModelChoice;
+}
+
+/** What the Player Character knows of someone, as the Chronicler wrote it after a Scene they were in. */
+export interface KnownLine {
+  who: string;
+  now: string;
 }
 
 /** Where a person or Group is, what they are doing and what they are after: none of it set until the Weaver moves them. */
@@ -210,6 +218,8 @@ export interface MeanwhileItem {
   happened: string;
   /** Who told him, for what he was told. */
   toldBy: string | null;
+  /** Who the line is about; absent from lines woven before it was asked, which are about whoever they name. */
+  about?: string[];
 }
 
 /** Something going on that the Player Character could go to (openspec day-view: Up to four Happenings). */
@@ -275,6 +285,17 @@ export interface DirectorPlan {
   premise: string;
   callId: string;
   model: ModelChoice;
+}
+
+/**
+ * What the Player Character knows of someone, set on a Story already being played (`fantasia known`; openspec
+ * outside-the-scene: The World screen shows what the Player Character knows). On the Path, like any change the player
+ * can make.
+ */
+export interface KnownSet {
+  kind: "known_set";
+  person: string;
+  text: string;
 }
 
 /** A Reply, word for word, and the model call that wrote it. */

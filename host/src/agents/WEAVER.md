@@ -48,7 +48,8 @@ set to its name. A Landmark does not wait for anyone to be ready.
 ## Meanwhile: what he learned
 
 `meanwhile` is what the player's character learned while he was elsewhere, as he would learn it: at most six lines,
-each `{ text, how, happened, told_by }`.
+each `{ text, how, happened, told_by, about }`. `about` is who the line is about, by their names in the story: the
+people the player would look up to find it, never his own character.
 
 Mark each by how he knows the thing itself, not by how he came to hear of it:
 

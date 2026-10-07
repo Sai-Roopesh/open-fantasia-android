@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import type { Models } from "../models/model-call.js";
-import type { Entry, Moment, Quote, Told } from "../story/entries.js";
+import type { Entry, KnownLine, Moment, Quote, Told } from "../story/entries.js";
 import type { ModelChoice, State } from "../story/state.js";
 import { parseStoryTime, sayStoryTime } from "../time.js";
 import { claimsAboutPlayer, decidesForPlayer, playerNames } from "./deciding.js";
@@ -23,6 +23,8 @@ const MAX_MOMENTS = 5;
 const MAX_QUOTES = 3;
 /** Asked for in thirty words; refused only when far past it, since no model counts words exactly. */
 const MAX_SUMMARY_WORDS = 45;
+/** What he knows of someone, asked for in three sentences. */
+const MAX_KNOWN_WORDS = 80;
 
 const text = { type: "string", minLength: 1 } as const;
 
@@ -57,6 +59,11 @@ export const CHRONICLER_SCHEMA = {
         required: ["moment", "to", "entry"],
         properties: { moment: text, to: { type: "array", items: { type: "string" } }, entry: text }
       }
+    },
+    known: {
+      type: "array",
+      description: "For each person in the Scene whose line it changes: what the player's character now knows of them.",
+      items: { type: "object", additionalProperties: false, required: ["who", "now"], properties: { who: text, now: text } }
     }
   }
 } as const;
@@ -65,6 +72,7 @@ interface RawChronicle {
   summary: string | null;
   moments: { what: string; quotes: { entry: string; text: string }[]; there: string[]; weight: number }[];
   told: { moment: string; to: string[]; entry: string }[];
+  known?: { who: string; now: string }[];
 }
 
 const ajv = new Ajv2020({ strict: false, allErrors: true });
@@ -89,6 +97,8 @@ export interface ChronicleAsk {
   /** Everyone who was in the Scene at some point, besides the Player Character. */
   inScene: string[];
   known: KnownMoment[];
+  /** What the Player Character knew of each person in the Scene before it, or null for nothing yet. */
+  knownBefore?: Record<string, string | null>;
 }
 
 /** What the Chronicler recorded, checked, with every quote as its entry has it and every name as the Story keeps it. */
@@ -96,6 +106,7 @@ export interface ChronicleRecord {
   summary: string | null;
   moments: Moment[];
   told: Told[];
+  known: KnownLine[];
 }
 
 /** The Chronicler could not give a record the Story can use. */
@@ -224,8 +235,20 @@ export function checkChronicle(ask: ChronicleAsk, raw: unknown): Checked<Chronic
     return at && to.length ? [{ moment: known.id, to, entry: at.entry.id }] : [];
   });
 
+  // What he now knows of the people in the Scene: one line each, for those this Scene changed.
+  const seen = new Set<string>();
+  const known: KnownLine[] = (raw.known ?? []).flatMap(row => {
+    const who = person("known", row.who);
+    if (!who) return [];
+    if (seen.has(who)) return (problems.push(`known: two lines for ${who}; write one`), []);
+    seen.add(who);
+    const now = row.now.trim();
+    if (wordCount(now) > MAX_KNOWN_WORDS) problems.push(`known: the line for ${who} is ${wordCount(now)} words; say it in three sentences at most`);
+    return [{ who, now }];
+  });
+
   if (problems.length) return { ok: false, problems };
-  return { ok: true, value: { summary, moments, told } };
+  return { ok: true, value: { summary, moments, told, known } };
 }
 
 function section(tag: string, body: string): string | null {
@@ -255,8 +278,11 @@ export function chroniclerPrompt(ask: ChronicleAsk): { system: string; prompt: s
   });
   const known = ask.known.map((moment, position) =>
     `<moment id="M${position + 1}">\n${moment.what}\n${moment.quotes.map(quote => `"${quote.text}"`).join("\n")}\n</moment>`);
+  const knownBefore = ask.knownBefore ?? {};
+  const whatHeKnows = ask.inScene.map(name => `- ${name}: ${knownBefore[name] ?? "nothing yet"}`);
   const task = [
     ask.sceneEnded ? "The Scene has ended: write its summary." : "The Scene goes on: write where it stands so far.",
+    ask.inScene.length ? `For each person in the Scene whose line it changes, write in known what ${pc} now knows of them: the line above, with what this Scene showed him, in three sentences at most.` : "",
     ask.recordFrom > 0 ? "Entries marked recorded were recorded already: record Moments only from the entries after them." : "",
     "Return only the JSON object."
   ].filter(Boolean).join("\n");
@@ -264,6 +290,7 @@ export function chroniclerPrompt(ask: ChronicleAsk): { system: string; prompt: s
     section(`scene title="${ask.scene.title}" place="${ask.scene.place}" when="${when}"`, entries.join("\n\n")),
     section("people_in_the_scene", ask.inScene.join(", ") || "Nobody besides " + pc),
     section("known_moments", known.join("\n\n")),
+    section("what_he_knows", whatHeKnows.join("\n")),
     section("task", task)
   ].filter(part => part !== null).join("\n\n");
 

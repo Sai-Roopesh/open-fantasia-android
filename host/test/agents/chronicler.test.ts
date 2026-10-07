@@ -132,3 +132,35 @@ describe("the Chronicler's call", () => {
     expect(failure).toBeInstanceOf(ChroniclerFailed);
   });
 });
+
+describe("what the Player Character knows of the people in the Scene (openspec outside-the-scene)", () => {
+  const knownBefore = { "Meera Kulkarni": "A biologist going to Kalka; she wanted the window seat.", "Uncle Bhalla": null };
+
+  it("is asked of each person in the Scene, with what he knew of them before", () => {
+    const { prompt } = chroniclerPrompt(ask({ knownBefore }));
+    expect(prompt).toContain("<what_he_knows>");
+    expect(prompt).toContain("- Meera Kulkarni: A biologist going to Kalka; she wanted the window seat.");
+    expect(prompt).toContain("- Uncle Bhalla: nothing yet");
+    expect(prompt).toContain("For each person in the Scene whose line it changes, write in known what Ishaan Mehra now knows of them");
+  });
+
+  it("keeps a line for someone in the Scene, named as the Story names them", () => {
+    const checked = checkChronicle(ask({ knownBefore }), answer({ known: [{ who: "meera", now: "A biologist counting birds near Kalka. She gave up the window seat and pretended not to mind." }] }));
+    expect(checked.ok && checked.value.known).toEqual([{ who: "Meera Kulkarni", now: "A biologist counting birds near Kalka. She gave up the window seat and pretended not to mind." }]);
+  });
+
+  it("takes an answer with no lines: nothing he knows changed", () => {
+    const checked = checkChronicle(ask({ knownBefore }), answer());
+    expect(checked.ok && checked.value.known).toEqual([]);
+  });
+
+  it("refuses a line for someone not in the Scene, for the Player Character, two for one person, or one far too long", () => {
+    const problems = (known: unknown) => { const checked = checkChronicle(ask({ knownBefore }), answer({ known })); return checked.ok ? [] : checked.problems; };
+    expect(problems([{ who: "Ishaan Mehra", now: "Himself." }])).toEqual(["known: Ishaan Mehra is the player's character, who is always there; leave them out"]);
+    expect(problems([{ who: "Meera Kulkarni", now: "A." }, { who: "Meera", now: "B." }])).toEqual(["known: two lines for Meera Kulkarni; write one"]);
+    expect(problems([{ who: "Meera Kulkarni", now: "word ".repeat(100) }])).toEqual(["known: the line for Meera Kulkarni is 100 words; say it in three sentences at most"]);
+    const notThere = ask({ knownBefore, inScene: ["Uncle Bhalla"] });
+    const checked = checkChronicle(notThere, answer({ known: [{ who: "Meera Kulkarni", now: "A." }] }));
+    expect(checked.ok ? [] : checked.problems).toContain("known: Meera Kulkarni was not in this Scene");
+  });
+});

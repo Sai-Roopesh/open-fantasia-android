@@ -8,6 +8,7 @@ import { writeBeat, WriterFailed } from "../agents/writer.js";
 import { LinkError } from "../link/errors.js";
 import type { Mac } from "../mac.js";
 import { actorOf, jobModels } from "../models/jobs.js";
+import { nameIndex } from "../agents/names.js";
 import { writePlan } from "../agents/director.js";
 import { directionDue, planForWriter } from "./directing.js";
 import type { Models } from "../models/model-call.js";
@@ -212,6 +213,21 @@ export class Engine {
     const taste = this.mac.states.at(path.headEntryId).taste;
     if (!taste.includes(line)) throw new LinkError("invalid", "That is not a line of Taste on this Path.");
     const entry = this.write(storyId, path, { kind: "taste_set", lines: taste.filter(lesson => lesson !== line) });
+    return { head_entry_id: entry.id, trace_id: traceId };
+  }
+
+  /**
+   * Sets what the Player Character knows of someone on a Story being played (`fantasia known`), between Replies, on the
+   * Path; the World screen shows it from then on (openspec outside-the-scene).
+   */
+  setKnown(storyId: string, person: string, text: string, after: string, traceId: string): Accepted {
+    const path = this.pathHead(storyId, after);
+    const state = this.mac.states.at(path.headEntryId);
+    const name = nameIndex(Object.values(state.people)).get(person.trim().toLocaleLowerCase());
+    if (!name) throw new LinkError("invalid", `${person.trim()} is not in this Story.`);
+    if (name === state.playerCharacter) throw new LinkError("invalid", `${name} is the Player Character; what he knows of himself is not kept.`);
+    if (!text.trim()) throw new LinkError("invalid", `Say what he knows of ${name}.`);
+    const entry = this.write(storyId, path, { kind: "known_set", person: name, text: text.trim() });
     return { head_entry_id: entry.id, trace_id: traceId };
   }
 
@@ -423,7 +439,7 @@ export class Engine {
       if (!due) return;
       const model = jobModels(this.mac.home).chronicler;
       const { value, callId } = await writeChronicle(this.models, model, chronicleAsk(this.mac, due), storyId, traceId, new AbortController().signal);
-      const record = this.mac.tree.append(storyId, due.through.id, { kind: "chronicle", scene: due.scene.id, summary: value.summary, sceneEnded: due.sceneEnded, moments: value.moments, told: value.told, callId, model });
+      const record = this.mac.tree.append(storyId, due.through.id, { kind: "chronicle", scene: due.scene.id, summary: value.summary, sceneEnded: due.sceneEnded, moments: value.moments, told: value.told, known: value.known, callId, model });
       this.models.attach(callId, record.id);
     }
   }

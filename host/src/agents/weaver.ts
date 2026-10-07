@@ -62,7 +62,10 @@ export const WEAVER_SCHEMA = {
         type: "object",
         additionalProperties: false,
         required: ["text", "how", "happened", "told_by"],
-        properties: { text, how: { type: "string", enum: ["seen", "told", "rumour"] }, happened: text, told_by: { type: ["string", "null"] } }
+        properties: {
+          text, how: { type: "string", enum: ["seen", "told", "rumour"] }, happened: text, told_by: { type: ["string", "null"] },
+          about: { ...names, description: "Who the line is about, by their names in the story; never the player's character." }
+        }
       }
     },
     happenings: {
@@ -85,7 +88,7 @@ interface RawWeave {
   lives: { who: string; where: string; doing: string; after: string }[];
   threads: { name: string; now: string }[];
   happened: { id: string; what: string; at: string; where: string; known_to: string[]; landmark: string | null; missed?: string | null }[];
-  meanwhile: { text: string; how: "seen" | "told" | "rumour"; happened: string; told_by: string | null }[];
+  meanwhile: { text: string; how: "seen" | "told" | "rumour"; happened: string; told_by: string | null; about?: string[] }[];
   happenings: { id: string; at: string; place: string; what: string; who: string[]; expected: boolean; pick: boolean; quiet?: boolean }[];
 }
 
@@ -213,7 +216,13 @@ export function checkWeave(ask: WeaveAsk, raw: unknown): Checked<WeaveRecord> {
       else if (!toldBy) problems.push(`${at} is told by ${item.told_by.trim()}, who is not in the story`);
       else if (!about.knownTo.includes(toldBy)) problems.push(`${at} is told by ${toldBy}, who does not know ${item.happened.trim()}; only someone who knows it can tell him`);
     }
-    return [{ text: item.text.trim(), how: item.how, happened: about.id, toldBy }];
+    const subjects = item.about?.flatMap(name => {
+      const known = named(name);
+      if (!known) return (problems.push(`${at}, about: ${name.trim()} is not in the story`), []);
+      if (known === pc) return (problems.push(`${at}, about: ${pc} is the player's character; say who else it is about`), []);
+      return [known];
+    });
+    return [{ text: item.text.trim(), how: item.how, happened: about.id, toldBy, ...(subjects ? { about: [...new Set(subjects)] } : {}) }];
   });
 
   // What is on: at most four, from the Day View on, the Story's names, one pick and it first.

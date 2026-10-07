@@ -53,6 +53,18 @@ what it meant, and nothing about the player's character that his Moves did not s
   the inkwell in Charms, and wasn't having 'maybe it likes you'." Recorded entries count here too: the summary is of
   the whole Scene so far, not only of what you record now.
 
+## What he knows of them
+
+The player reads, for each person, what his character knows of them. You are given that line for each person in the
+Scene ("nothing yet" when he knows nothing). When this Scene showed him something about someone (what they do, what
+they want, how they treat him, something they let slip), write `known` for them: the line as it should now read, the
+old line with what he learned folded in, in three sentences at most. Rewrite it; never just add to the end.
+
+Write it as he would know it, from what he saw, heard and was told in this Scene and what the old line says, and
+nothing else. You know more about these people than he does: the story keeps their secrets. Nothing goes in his line
+that did not happen in front of him or was not said to him. Say what he saw, not what it meant: "she stopped reading
+when he sat down", not "she likes him". Leave out anyone this Scene showed him nothing new about.
+
 ## What you are given
 
 Some entries may be marked as already recorded: read them for what came before, and record Moments only from the

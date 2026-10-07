@@ -185,3 +185,25 @@ describe("rest after a peak (openspec long-run: Rest is deliberate)", () => {
   });
 });
 
+
+describe("who a line of Meanwhile is about (the-world-screen: what he has heard)", () => {
+  const withAbout = (about: unknown) => answer({ meanwhile: [{ text: "A note under the door: \"My office, nine o'clock.\" M. McGonagall.", how: "seen", happened: "H2", told_by: null, ...(about === undefined ? {} : { about }) }] });
+
+  it("is asked for, and kept with the line in the Story's names", async () => {
+    expect(weaverPrompt(await ask()).system).toContain("`about`");
+    const checked = checkWeave(await ask(), withAbout(["mcgonagall"]));
+    expect(checked.ok && checked.value.meanwhile[0]!.about).toEqual(["Minerva McGonagall"]);
+  });
+
+  it("refuses someone not in the Story, or the Player Character, in about", async () => {
+    const stranger = checkWeave(await ask(), withAbout(["Gilderoy Lockhart"]));
+    expect(stranger.ok ? [] : stranger.problems).toEqual(["meanwhile: item 1, about: Gilderoy Lockhart is not in the story"]);
+    const himself = checkWeave(await ask(), withAbout(["Roopesh Gantasala"]));
+    expect(himself.ok ? [] : himself.problems).toEqual(["meanwhile: item 1, about: Roopesh Gantasala is the player's character; say who else it is about"]);
+  });
+
+  it("takes a line without about, as the Weaver wrote them before", async () => {
+    const checked = checkWeave(await ask(), withAbout(undefined));
+    expect(checked.ok && checked.value.meanwhile[0]!.about).toBeUndefined();
+  });
+});

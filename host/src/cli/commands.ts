@@ -92,6 +92,7 @@ function describe(payload: Payload): string {
     case "focus_set": return payload.on ? `Focus on ${payload.on}` : "Focus cleared";
     case "linger_set": return payload.on ? "Linger on" : "Linger off";
     case "taste_set": return `Taste: ${payload.lines.join(" / ") || "nothing"}`;
+    case "known_set": return `Known of ${payload.person}: ${payload.text}`;
     case "chronicle": return `${payload.moments.length} Moments${payload.summary ? `: ${payload.summary}` : ""}`;
     case "world_moved": return `The World moved on to ${payload.until}: ${payload.lives.length} Lives, ${payload.happened.length} happened, ${payload.meanwhile.length} in Meanwhile`;
     case "director_plan": return `The Director: ${payload.phase} toward ${payload.toward}, ${payload.scenes} Scenes`;
@@ -311,3 +312,24 @@ export async function edit(mac: Mac, engine: Engine, storyId: string, entryId: s
     return false;
   }
 }
+
+/**
+ * `fantasia known`: what the Player Character knows of someone, set on a Story already being played (the-world-screen
+ * design decision 8), between Replies. The World screen shows it from then on.
+ */
+export function known(mac: Mac, engine: Engine, storyId: string, person: string, text: string, out: Out): boolean {
+  const path = mac.tree.currentPath(storyId);
+  if (!path) return (out(`No Story ${storyId} on this Mac.`), false);
+  try {
+    const accepted = engine.setKnown(storyId, person, text, path.headEntryId, `known-${randomUUID().slice(0, 8)}`);
+    const entry = mac.tree.entry(accepted.head_entry_id)?.payload;
+    const state = mac.states.at(accepted.head_entry_id);
+    if (entry?.kind === "known_set") out(`What ${state.playerCharacter} knows of ${entry.person} is now: ${entry.text}`);
+    return true;
+  } catch (error) {
+    if (!(error instanceof LinkError)) throw error;
+    out(error.message);
+    return false;
+  }
+}
+
