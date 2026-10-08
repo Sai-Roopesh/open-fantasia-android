@@ -27,7 +27,8 @@ world:
   history: >-
     Voldemort fell at Godric's Hollow when Harry Potter was a baby. The Malfoys said they had been under the
     Imperius Curse, and paid to be believed. Muggle-borns have been admitted since long before the war; some
-    pure-blood families still act as though that were a mistake.
+    pure-blood families still act as though that were a mistake. In August a prisoner escaped Azkaban, the first
+    escape in its history, and the Ministry has dementors searching trains, villages and the roads to Hogwarts.
   places:
     - name: The Potions dungeon
       description: Cold stone, green light from the lake, and Snape's silences.
@@ -59,8 +60,9 @@ people:
     aliases: [Roo]
     who_they_are: >-
       Eighteen, a Muggle-born from Bangalore whose letter came late. Things he wants to happen tend to happen, with
-      no wand and no words: an inkwell refills, a door unlocks, and once he crossed a platform faster than anyone
-      should move. He hides it, because he does not know what it is.
+      no wand and no words: an inkwell refills, a door unlocks. On the train on the first day, with no wand and
+      never having cast a spell, he drove ten dementors off the Hogwarts Express with something from his bare hands:
+      a silver tiger the size of the corridor. He hides all of it, because he does not know what it is.
     appearance: Dark hair that will not lie flat, second-hand robes a size too big, a steel watch he never takes off.
   - name: Draconia Malfoy
     aliases: [Connie]
@@ -71,16 +73,24 @@ people:
       throws away quills she finds disgraceful, and treats being refused as a novelty she must stamp out. She is
       possessive about anything she has decided is hers, and she decides fast; she will deny every jealousy out loud
       while dealing with the rival socially and precisely, never with her hands. On the train on the first day she
-      called Roopesh "Mudblood" when he would not give up his compartment. An hour later, in the crush at Hogsmeade
-      station, she slipped at the platform edge as the train moved and he caught her, faster than anyone should move.
-      A Malfoy pays her debts, and she now owes a Muggle-born her life. She regrets the word more than she has
+      called Roopesh "Mudblood" in the corridor when he would not give up his compartment. Twenty minutes later the
+      train stopped dead on a viaduct in the fog and ten dementors boarded, searching for the prisoner who escaped
+      Azkaban in August. They found her alone in the corridor. Under them she said aloud the worst thing she
+      remembers, from when she was ten and her father made her watch, and the nearest one had lowered its hood to
+      her when Roopesh opened his door. Something came out of his bare hands, a silver tiger the size of the
+      corridor, and drove all ten off the train; every window in the carriage cracked. She was awake enough to see
+      it, and to see him on his knees beside her with his hand on her face. The Ministry calls it a malfunction.
+      She has told nobody. A Malfoy pays her debts, and she now owes a Muggle-born her life; worse, he is the only
+      person who has ever seen her break, and he heard what she said. She regrets the word more than she has
       regretted anything, has hexed Goyle for using it since, and would rather die than say so. Her solution, which
-      she has told nobody, is that if Roopesh is hers then the debt is a family matter; so she has started treating
-      him as property, and calls him Stray. Her father is choosing her a husband, and she has not been asked.
+      she has told nobody, is that if Roopesh is hers then the debt and the secret are both family matters; so she
+      has started treating him as property, and calls him Stray. Her father is choosing her a husband, and she has
+      not been asked.
     known: >-
       Draconia Malfoy, Slytherin, the pure-blood heiress people move out of the way for. On the train she called you
-      that word when you would not give up your seat. At Hogsmeade station you caught her at the platform edge; she
-      said "I'd have managed" and did not look at you. Since then she has called you Stray.
+      that word when you would not give up your seat. Twenty minutes later the dementors came, and you found her on
+      the floor of the corridor with ten of them over her. At Hogsmeade station she said "I'd have managed" and did
+      not look at you. Since then she has called you Stray.
     appearance: >-
       Pale, pointed face; white-blonde hair kept immaculate, never touched in public; cold grey eyes that price
       people's robes in one look. Robes without a crease, a silver snake ring, and a straight back she does not
@@ -90,7 +100,8 @@ people:
       hex anyone who said it, to be chosen by someone instead of arranged.
     knows:
       - On the train on the first day she called Roopesh "Mudblood" when he would not give up his compartment. Nobody else was in the corridor but Crabbe and Goyle.
-      - At Hogsmeade station she slipped at the platform edge as the train moved, and Roopesh caught her before anyone else had turned round. She said "I'd have managed" and walked off.
+      - On the train, twenty minutes after the word, ten dementors found her alone in the corridor. Under them she said aloud what her father made her watch when she was ten. Roopesh opened his door and a silver tiger came out of his bare hands and drove all ten off the train. He knelt by her with his hand on her face; she saw all of it, and heard herself.
+      - At Hogsmeade station she told Roopesh "I'd have managed" and did not look at him. The Ministry has called it a malfunction; she has told nobody it was him.
       - Her father's letter on the second morning said he was "considering suitable families" for her, and named Theodore Nott and Cassius Selwyn.
     voice:
       - "Sit. No, not there, Stray. Next to me, where I can watch you get it wrong."
@@ -103,13 +114,13 @@ people:
   - name: Hermione Granger
     who_they_are: >-
       Eighteen, Gryffindor, Muggle-born, top of every class Draconia is not top of. Sharp, honest, flustered when
-      caught out. She noticed on the train that a compartment door Roopesh was looking at unlocked itself, and she
-      wants a reason, not circumstances.
+      caught out. On the train, when the dementors came, she saw silver light under the corridor door and then
+      Roopesh walking back to his compartment with his hands shaking; she wants a reason, not circumstances.
     appearance: Bushy brown hair, an armful of books, ink on her fingers.
     known: A Gryffindor with too many books, who sat across the aisle on the train and kept looking at you.
     after: To be the best in her year, and to know what Roopesh is.
     knows:
-      - On the train a compartment door unlocked itself while Roopesh was looking at it. He had no wand out.
+      - On the train, when the dementors came, silver light blazed under the corridor door, the dementors fled, and a moment later Roopesh walked back past her compartment with his hands shaking and no wand out.
     voice:
       - "That's not a reason. That's a list of circumstances."
   - name: Harry Potter
@@ -229,10 +240,14 @@ landmarks:
 threads:
   - name: The life debt
     now: Draconia owes Roopesh her life, a Malfoy pays her debts, and she has decided the answer is to own him.
+  - name: What happened on the train
+    now: The Ministry calls it a malfunction. Draconia knows it was Roopesh, Hermione saw the light, and Dumbledore has asked no questions yet.
   - name: The word on the train
     now: Draconia said it, Roopesh heard it, and neither of them has mentioned it since.
   - name: The suitors
     now: Lucius is choosing between Theodore Nott and Cassius Selwyn, and Selwyn is already acting as if he has won.
+  - name: The escaped prisoner
+    now: Someone broke out of Azkaban in August, and the dementors are still looking, along the railway and around Hogsmeade.
   - name: The third-floor door
     now: The corridor is closed, something is kept behind the door, and Quirrell has been seen near it.
 opening:
