@@ -159,7 +159,18 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
     }
 
     fun pause() { stream?.cancel() }
-    fun resume() { mutable.value.scene?.let { openStory(it.storyID) } }
+    /** Back in front: the Story open is read again, or on Home every Story is, since the Mac may have moved one meanwhile. */
+    fun resume() {
+        val state = mutable.value
+        when {
+            state.scene != null -> openStory(state.scene.storyID)
+            state.paired -> viewModelScope.launch {
+                try { link.stories().stories.let { stories -> mutable.update { it.copy(stories = stories) } }
+                } catch (e: CancellationException) { throw e
+                } catch (_: Exception) { /* Home keeps what it showed; the connection line says the Mac is away. */ }
+            }
+        }
+    }
 
     fun writeMove(text: String) { mutable.update { it.copy(draft = text) } }
 

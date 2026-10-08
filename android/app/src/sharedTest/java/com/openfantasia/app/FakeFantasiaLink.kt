@@ -56,7 +56,7 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
     override suspend fun stories(): StoryList {
         storyRequests++
         return StoryList(stories = listOf(
-        StorySummary(detail = "Friday 9:40 pm · with Hermione", id = "story", standing = "Scene 14 · After curfew", title = "The Malfoy Problem", updatedAt = java.time.Instant.now().minusSeconds(7200).toString()),
+        StorySummary(detail = "Friday 9:40 pm · with Hermione", id = "story", standing = "Scene 14 · After curfew", title = "The Malfoy Problem", updatedAt = java.time.Instant.now().minusSeconds(7200 + 300).toString()),
         StorySummary(detail = "3 Scenes played", id = "other", standing = "Sunday 7:40 am · choosing where to go", title = "The coast", updatedAt = java.time.Instant.now().minusSeconds(86400).toString())
     ), traceID = "list")
     }
