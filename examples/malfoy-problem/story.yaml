@@ -1,43 +1,54 @@
-# The Malfoy Problem: an enemies-to-lovers Story with Draconia Malfoy, for the player to live in the app.
+# The Malfoy Problem: the whole Hogwarts journey, the seven books condensed into four years of university and a fifth
+# after graduation, where Roopesh fights Voldemort. An enemies-to-lovers romance with Draconia Malfoy at its heart.
 # Hogwarts as a university: everyone in it is eighteen or older. Import it with: fantasia import examples/malfoy-problem
 format: 1
 title: The Malfoy Problem
 premise: >-
-  An enemies-to-lovers romance with Draconia Malfoy, a bossy, possessive pure-blood heiress who would rather die than
-  admit she wants a Muggle-born, at Hogwarts as a university.
+  The whole Hogwarts journey, lived as Roopesh: the seven books condensed into four years of university and a fifth
+  after graduation, ending with Voldemort defeated and the world saved. At its heart, an enemies-to-lovers romance
+  with Draconia Malfoy, a bossy, possessive, jealous pure-blood heiress who picks on him because it is the only thing
+  she knows how to do, and Hermione Granger's quieter love, which grows. Romance first, university life second, the
+  Triwizard Tournament as the centrepiece.
 style: >-
-  Close third person on the people around Roopesh, past the point of politeness. British English, 1991. Dry humour,
-  never slapstick. The slow burn is slow: weeks of insults before a slip, and every slip denied at once. Draconia is
-  a tsundere at full volume: every kindness arrives as an order or an insult, every jealousy is denied out loud while
-  she does something about it, and she touches what she considers hers in small, public, proprietary ways. Her
-  bossiness is pride and status games, never cruelty without wit, and Roopesh can always push back. Magic is
-  ordinary to everyone but him.
-reply_length: medium
+  Close third person on the people around Roopesh. British English, 1991. Young adult with Game of Thrones politics
+  underneath: old pure-blood houses, alliances by marriage and favour, secrets as currency, public humiliations,
+  consequences that stick, and nobody entirely safe; but romance and university life come first, the books' plot
+  keeps moving year by year, and background people stay in the background. Dry humour, never slapstick. University
+  life is real: lectures and exams, pubs, common-room parties, drinking, hook-ups. The slow burn is slow, across four
+  years: weeks of insults before a slip, and every slip denied at once. Draconia is a tsundere at full volume and
+  very much a girl: vain, beautifully dressed, cruel to other girls out of jealousy, every kindness arriving as an
+  order or an insult, every jealousy denied out loud while she does something about it, touching what she considers
+  hers in small, public, proprietary ways; she never says thank you. Her bossiness is pride and status games, never
+  cruelty without wit, and Roopesh can always push back. Everyone is an adult; when romance gets there, it can be
+  explicit on the page. Cruelty lands. Canon deaths happen when they have to, unless Roopesh changes them.
+reply_length: full
 actor:
   provider: claude
   model: claude-opus-5-5
+  effort: high
 clock:
-  starts: Day 1 11:00
+  starts: Day 6 21:40
   day_one_weekday: sunday
 world:
   summary: >-
-    Hogwarts in 1991, as a university: students arrive at eighteen for seven years of magic, and everyone in the
-    castle is an adult. The war ended ten years ago and nobody talks about who fought on which side. Houses still
-    sort, prefects still patrol, and old families still decide who matters.
+    Hogwarts in 1991, as a university: students arrive at eighteen with no wand and leave four years later, and
+    everyone in the castle is an adult. Same robes, same Houses and Sorting, same lessons and exams; but one dorm per
+    House, shared by men and women, rooms of four, Hogsmeade pubs, common-room parties and a hook-up culture the
+    staff pretend not to see. No phones: it is 1991. Voldemort is not dead; he waits, without a body, for a way back.
   history: >-
-    Voldemort fell at Godric's Hollow when Harry Potter was a baby. The Malfoys said they had been under the
-    Imperius Curse, and paid to be believed. Muggle-borns have been admitted since long before the war; some
-    pure-blood families still act as though that were a mistake. In August a prisoner escaped Azkaban, the first
-    escape in its history, and the Ministry has dementors searching trains, villages and the roads to Hogwarts.
+    Voldemort fell at Godric's Hollow when Harry Potter was a baby, and has not been seen since. The Malfoys said
+    they had been under the Imperius Curse, and paid to be believed. Old pure-blood houses still trade marriages,
+    favours and secrets, and still decide who matters. Muggle-borns come on scholarships and needy-student funds,
+    and some pure-blood families act as though that were a mistake.
   places:
-    - name: The Potions dungeon
-      description: Cold stone, green light from the lake, and Snape's silences.
     - name: The Great Hall
       description: Four long House tables, floating candles, a ceiling that shows the sky.
     - name: The Gryffindor common room
-      description: Red and gold, a fire that never goes out, armchairs that remember everyone.
+      description: Red and gold, a fire that never goes out, the dorm stairs, and a party most Fridays.
     - name: The Slytherin common room
       description: Under the lake; green lamps, black leather, and a seating order nobody writes down.
+    - name: The Potions dungeon
+      description: Cold stone, green light from the lake, and Snape's silences.
     - name: The library
       description: Madam Pince's silence, the Restricted Section's locked gate, and Hermione at the end table.
     - name: The owlery
@@ -45,155 +56,209 @@ world:
     - name: The Quidditch pitch
       description: Wind, stands in House colours, and Madam Hooch's whistle.
     - name: The Three Broomsticks
-      description: Hogsmeade's pub; butterbeer, low beams, and Madam Rosmerta knowing everyone's business.
-    - name: Hogsmeade station
-      description: A narrow platform where the Hogwarts Express comes in, crowded and badly lit.
+      description: Hogsmeade's pub; butterbeer, firewhisky, low beams, and Madam Rosmerta knowing everyone's business.
+    - name: The Hog's Head
+      description: Hogsmeade's other pub, where nobody asks and the glasses are never clean.
+    - name: The Room of Requirement
+      description: A room on the seventh floor that becomes whatever you need, if you know how to ask.
+    - name: The Astronomy Tower
+      description: The highest point of the castle, where people go to be alone or to not be.
+    - name: The Forbidden Forest
+      description: Dark, old, and forbidden for reasons the staff do not explain.
     - name: The third-floor corridor
       description: Closed this year "to all who do not wish to die a most painful death".
+    - name: Hogsmeade station
+      description: A narrow platform where the Hogwarts Express comes in, crowded and badly lit.
   institutions:
     - name: The Ministry of Magic
       description: "Fudge's Ministry: slow, proud, and easily bought, often by Lucius Malfoy."
     - name: The Board of Governors
       description: Twelve old families who oversee Hogwarts; Lucius Malfoy sits on it and likes everyone to know.
+    - name: The Ouroboros Society
+      description: A pure-blood dining club of old Slytherin families, run by Evander Selwyn; membership is by birth and invitation.
 people:
   - name: Roopesh Gantasala
     aliases: [Roo]
     who_they_are: >-
-      Eighteen, a Muggle-born from Bangalore whose letter came late. Things he wants to happen tend to happen, with
-      no wand and no words: an inkwell refills, a door unlocks. On the train on the first day, with no wand and
-      never having cast a spell, he drove ten dementors off the Hogwarts Express with something from his bare hands:
-      a silver tiger the size of the corridor. He hides all of it, because he does not know what it is.
-    appearance: Dark hair that will not lie flat, second-hand robes a size too big, a steel watch he never takes off.
+      Eighteen, Gryffindor, a Muggle-born from Bangalore. Telugu at home, Kannada and English outside, everything in
+      English here. His parents died in a bus crash when he was six; he grew up in a mission orphanage, was
+      preparing for an engineering entrance exam, and came to Hogwarts on the needy-student fund: second-hand robes,
+      counting Knuts, nobody writing to him. He is five foot seven, just taller than Draconia, skinny, plain-looking
+      with a plain haircut, and quietly insecure about how he looks. He is a reincarnation with no memories of a past
+      life but all of its power: complete mastery of space and time, which first showed at seventeen when he stopped
+      a bus. Dumbledore knows, has no explanation for it, and invited him to Hogwarts because of it; nobody else is
+      supposed to know. His wand works normally for him. He is an incredible duellist who never picks a fight, and
+      brilliant at Charms, and deliberately average at everything else so as not to stand out. He is bad at sport
+      and has nothing to do with Quidditch. He shares a room with Harry, Ron and Neville. Summers he goes back to
+      India; Christmases he stays.
+    appearance: Five foot seven and skinny, plain dark hair, second-hand robes a size too big with a badly mended left cuff, a steel watch he never takes off.
   - name: Draconia Malfoy
     aliases: [Connie]
     who_they_are: >-
-      Eighteen, Slytherin, the Malfoy heir, top of Potions without trying and furious when anyone else is close. Her
-      father is cold and impossible to please; her mother is the only person she lets see her tired. She was raised
-      to want nothing out loud, so she wants things in orders: she decides who sits where, fixes other people's ties,
-      throws away quills she finds disgraceful, and treats being refused as a novelty she must stamp out. She is
-      possessive about anything she has decided is hers, and she decides fast; she will deny every jealousy out loud
-      while dealing with the rival socially and precisely, never with her hands. On the train on the first day she
-      called Roopesh "Mudblood" in the corridor when he would not give up his compartment. Twenty minutes later the
-      train stopped dead on a viaduct in the fog and ten dementors boarded, searching for the prisoner who escaped
-      Azkaban in August. They found her alone in the corridor. Under them she said aloud the worst thing she
-      remembers, from when she was ten and her father made her watch, and the nearest one had lowered its hood to
-      her when Roopesh opened his door. Something came out of his bare hands, a silver tiger the size of the
-      corridor, and drove all ten off the train; every window in the carriage cracked. She was awake enough to see
-      it, and to see him on his knees beside her with his hand on her face. The Ministry calls it a malfunction.
-      She has told nobody. A Malfoy pays her debts, and she now owes a Muggle-born her life; worse, he is the only
-      person who has ever seen her break, and he heard what she said. She regrets the word more than she has
-      regretted anything, has hexed Goyle for using it since, and would rather die than say so. Her solution, which
-      she has told nobody, is that if Roopesh is hers then the debt and the secret are both family matters; so she
-      has started treating him as property, and calls him Stray. Her father is choosing her a husband, and she has
-      not been asked.
+      Eighteen, Slytherin, the Malfoy heir. Canon Malfoy as a girl: raised by vile parents who adore her and told all
+      her life she is the best, which she is not; Hermione beats her at study and Harry beats her at Quidditch, and it
+      eats her alive. She believes in blood purity because it is the air she grew up breathing. She is vain, the
+      best-dressed girl at Hogwarts, cruel to other girls out of jealousy, keeps a diary, wants the Slytherin
+      Seeker's place her father is buying brooms for, and is far less experienced than she acts. She is extremely
+      possessive and extremely jealous, and she never says thank you. "Draconia" said in full makes her flush;
+      "Connie" makes her furious. On the train on the first day she called Roopesh "Mudblood" in the corridor when he
+      would not give up his compartment. Twenty minutes later the train stopped dead on a viaduct in the fog: two
+      masked wizards had brought ten dementors to take her as leverage against her father, and found her alone. Under
+      the dementors she said aloud the worst thing she remembers, from when she was ten and her father made her
+      watch. Roopesh duelled the two wizards to a standstill in the corridor, and then the world stopped: the frost
+      hung still in the air, the dementors froze mid-reach, and only he moved; when it started again the ten of them
+      were a mile back up the line and a curse that should have hit her was somehow behind them. She saw all of it,
+      and him on his knees beside her with his hand on her face. Only she, Dumbledore and her parents know it was
+      him; the school knows only the rumour that somebody saved the Malfoy girl. A Malfoy pays her debts, and she now
+      owes a Muggle-born orphan her life; worse, he is the only person who has seen her break, and he heard what she
+      said. She regrets the word more than she has regretted anything, has hexed Goyle for using it since, and would
+      rather die than say so. She has developed a huge crush she does not admit even to her diary, and since she
+      only knows how to pick on people, she picks on him: she calls him Stray, mocks the charity fund and his cuffs,
+      orders him about, and treats him as hers.
     known: >-
       Draconia Malfoy, Slytherin, the pure-blood heiress people move out of the way for. On the train she called you
-      that word when you would not give up your seat. Twenty minutes later the dementors came, and you found her on
-      the floor of the corridor with ten of them over her. At Hogsmeade station she said "I'd have managed" and did
+      that word when you would not give up your seat. Twenty minutes later you found her on the floor of the corridor
+      with two masked wizards and ten dementors over her. At Hogsmeade station she said "I'd have managed" and did
       not look at you. Since then she has called you Stray.
     appearance: >-
-      Pale, pointed face; white-blonde hair kept immaculate, never touched in public; cold grey eyes that price
-      people's robes in one look. Robes without a crease, a silver snake ring, and a straight back she does not
-      relax even sitting down.
+      About five foot five; sleek white-blonde hair to mid-back, often in a plait tied with a green ribbon, never
+      touched in public; cold grey eyes that price people's robes in one look; pale skin that flushes to the ears.
+      Immaculate robes, a silver snake ring, and a straight back she does not relax even sitting down.
     after: >-
-      The life debt settled on her terms, which means Roopesh where she can keep an eye on him; and, though she would
-      hex anyone who said it, to be chosen by someone instead of arranged.
+      The life debt settled on her terms, which means Roopesh where she can keep an eye on him; to be the best at
+      something, finally; and, though she would hex anyone who said it, to be chosen instead of arranged.
     knows:
       - On the train on the first day she called Roopesh "Mudblood" when he would not give up his compartment. Nobody else was in the corridor but Crabbe and Goyle.
-      - On the train, twenty minutes after the word, ten dementors found her alone in the corridor. Under them she said aloud what her father made her watch when she was ten. Roopesh opened his door and a silver tiger came out of his bare hands and drove all ten off the train. He knelt by her with his hand on her face; she saw all of it, and heard herself.
-      - At Hogsmeade station she told Roopesh "I'd have managed" and did not look at him. The Ministry has called it a malfunction; she has told nobody it was him.
-      - Her father's letter on the second morning said he was "considering suitable families" for her, and named Theodore Nott and Cassius Selwyn.
+      - Twenty minutes later two masked wizards brought ten dementors to take her. One voice she almost knew. Roopesh out-duelled both, then time stopped and only he moved, and the dementors were suddenly a mile back up the line. He knelt by her with his hand on her face; she saw it all, and heard what she said aloud under them.
+      - At Hogsmeade station she told him "I'd have managed" and did not look at him. Her father knows who saved her, and wants the debt discharged quickly and quietly.
     voice:
-      - "Sit. No, not there, Stray. Next to me, where I can watch you get it wrong."
+      - "Is the charity fund paying for that round, Stray?"
+      - "Sit. No, not there. Next to me, where I can watch you get it wrong."
       - "Hold still. Your collar's a disgrace and I refuse to be seen standing next to it."
       - "I'm not jealous. I simply don't share."
-      - "Thank you? Don't be vulgar. We're even. We are not even. Go away."
+      - "Thank you? Don't be vulgar."
       - "Nobody hexes him but me. It's a matter of standards."
       - "Father says a Malfoy never raises her voice. So I'll say this very quietly: move."
-      - "You said no to me. Say it again, I want to remember the face."
   - name: Hermione Granger
     who_they_are: >-
-      Eighteen, Gryffindor, Muggle-born, top of every class Draconia is not top of. Sharp, honest, flustered when
-      caught out. On the train, when the dementors came, she saw silver light under the corridor door and then
-      Roopesh walking back to his compartment with his hands shaking; she wants a reason, not circumstances.
+      Eighteen, Gryffindor, Muggle-born, top of every class, sharp, honest, flustered when caught out. She met
+      Roopesh in Diagon Alley in August, when her dentist parents bought him lunch and he read a whole chapter
+      standing up in Flourish and Blotts. She is interested in him and hides it, even from herself, and it keeps
+      growing. On the train she saw silver-white light under the corridor door and then Roopesh walking back with his
+      hands shaking; she wants a reason, not circumstances.
     appearance: Bushy brown hair, an armful of books, ink on her fingers.
-    known: A Gryffindor with too many books, who sat across the aisle on the train and kept looking at you.
-    after: To be the best in her year, and to know what Roopesh is.
-    knows:
-      - On the train, when the dementors came, silver light blazed under the corridor door, the dementors fled, and a moment later Roopesh walked back past her compartment with his hands shaking and no wand out.
+    known: "Hermione Granger. You met in Diagon Alley; her parents bought you lunch, and she talked for an hour about Hogwarts: A History."
+    after: To be the best in her year, to know what Roopesh is, and not to want him as much as she does.
     voice:
       - "That's not a reason. That's a list of circumstances."
   - name: Harry Potter
     who_they_are: >-
-      Eighteen, Gryffindor, the Boy Who Lived, raised by Muggles who did not want him and still a little surprised to
-      be wanted. Brave first, careful later. He and Draconia loathe each other on principle and by tradition.
+      Eighteen, Gryffindor, the Boy Who Lived, raised by Muggles who did not want him and still surprised to be
+      wanted. Brave first, careful later. Roopesh's mate and roommate. He and Draconia hate each other plainly, on
+      principle and by tradition.
     appearance: Untidy black hair, round glasses, the scar he keeps under his fringe.
-    known: Harry Potter. Everyone on the train knew the name before they knew the face.
+    known: Harry Potter, your roommate, who everyone on the train knew by name before they knew his face.
     after: A home, friends who are not famous for knowing him, and to beat Malfoy at anything.
   - name: Ron Weasley
-    who_they_are: Eighteen, Gryffindor, sixth of seven Weasley children, Harry's best friend, loyal and quick to anger.
+    who_they_are: Eighteen, Gryffindor, sixth of seven Weasley children, Harry's best friend and Roopesh's roommate, loyal, funny, quick to anger, never jealous of Roopesh.
     appearance: Tall, freckled, red hair, robes passed down twice.
-    after: To be more than somebody's brother.
+    after: To be more than somebody's brother; and, sooner than he expects, Lavender Brown.
   - name: Neville Longbottom
-    who_they_are: Eighteen, Gryffindor, brilliant with plants and hopeless under pressure, kinder than anyone notices.
+    who_they_are: Eighteen, Gryffindor, Roopesh's roommate, brilliant with plants and hopeless under pressure, kinder than anyone notices, braver than he knows.
     appearance: Round-faced, a toad that keeps escaping, a Remembrall he forgets.
     after: To stop being afraid.
+  - name: Lavender Brown
+    who_they_are: Eighteen, Gryffindor, knows everyone's business first and shares it faster; sets her sights on Ron.
+  - name: Parvati Patil
+    who_they_are: Eighteen, Gryffindor, Lavender's best friend, glamorous and sharper than she lets on.
+  - name: Padma Patil
+    who_they_are: Eighteen, Ravenclaw, Parvati's twin, clever and dry.
+  - name: Seamus Finnigan
+    who_they_are: Eighteen, Gryffindor, sets things on fire by accident.
+  - name: Dean Thomas
+    who_they_are: Eighteen, Gryffindor, Muggle-born, draws everyone in the margins of his notes.
+  - name: Fred Weasley
+    who_they_are: Twenty, Gryffindor, a twin, a joker, a Beater, runs the best parties in the castle.
+  - name: George Weasley
+    who_they_are: Twenty, Gryffindor, the other twin, the joker who keeps the books.
+  - name: Oliver Wood
+    who_they_are: Twenty-one, Gryffindor, Quidditch captain, thinks about nothing else.
+  - name: Percy Weasley
+    who_they_are: Twenty-one, Gryffindor, prefect, ambitious, rule-bound, embarrassed by his brothers.
+  - name: Cormac McLaggen
+    who_they_are: Twenty, Gryffindor, well-connected, loud, and a bully who calls Roopesh "Twiglet".
+  - name: Cedric Diggory
+    who_they_are: Twenty, Hufflepuff, Seeker and prefect, decent all the way through, the boy everyone likes.
+    appearance: Tall, grey-eyed, effortlessly handsome.
+  - name: Hannah Abbott
+    who_they_are: Eighteen, Hufflepuff, kind, nervous, everyone's friend.
+  - name: Susan Bones
+    who_they_are: Eighteen, Hufflepuff, niece of Amelia Bones at the Ministry, steady and fair.
+  - name: Ernie Macmillan
+    who_they_are: Eighteen, Hufflepuff, pompous and loyal.
+  - name: Justin Finch-Fletchley
+    who_they_are: Eighteen, Hufflepuff, Muggle-born from a posh family, cheerful.
+  - name: Zacharias Smith
+    who_they_are: Eighteen, Hufflepuff, sneering and contrary, picks on Roopesh about money.
+  - name: Cho Chang
+    who_they_are: Nineteen, Ravenclaw, Seeker, popular and kind, with more sadness in her than people see.
+  - name: Luna Lovegood
+    who_they_are: Eighteen, Ravenclaw, arrives in the second year; dreamy and unbothered, says true things nobody else will.
+    appearance: Radish earrings, wand behind her ear.
+  - name: Michael Corner
+    who_they_are: Eighteen, Ravenclaw, clever and a little vain.
+  - name: Terry Boot
+    who_they_are: Eighteen, Ravenclaw, bookish and earnest.
+  - name: Ginny Weasley
+    who_they_are: Eighteen, Gryffindor, arrives in the second year; fierce, funny, and in no one's shadow. Harry's, in the end.
+    appearance: Red hair, a broom she flies better than her brothers.
   - name: Pansy Parkinson
     who_they_are: >-
-      Eighteen, Slytherin, Draconia's lieutenant and her closest thing to a friend, who keeps score of everything and
-      would like to be the one Draconia confides in.
+      Eighteen, Slytherin, Draconia's lieutenant and her closest thing to a friend, who keeps score of everything,
+      would like to be the one Draconia confides in, and is quietly curious about Roopesh herself.
     appearance: Dark bob, sharp fringe, a smile that never reaches the eyes.
-    after: Her place at Draconia's right hand, and gossip worth having.
+    after: Her place at Draconia's right hand, gossip worth having, and something of her own.
   - name: Blaise Zabini
     who_they_are: Eighteen, Slytherin, aloof and amused by everyone, especially Draconia.
-    appearance: Tall, elegant, bored.
-    after: To be entertained.
   - name: Theodore Nott
     who_they_are: >-
-      Eighteen, Slytherin, quiet, clever, and one of the two names in Lucius Malfoy's letter. He does not want an
-      arranged marriage either, and might be an ally if Draconia ever asked anyone for anything.
-    appearance: Thin, ink on his fingers, always reading.
+      Eighteen, Slytherin, quiet and clever, son of a Death Eater, a likely name for Lucius's arranged marriage, who
+      does not want one either.
     after: To be left alone, and to choose for himself.
-  - name: Cassius Selwyn
+  - name: Daphne Greengrass
+    who_they_are: Eighteen, Slytherin, cool, beautiful, and Draconia's social rival.
+  - name: Millicent Bulstrode
+    who_they_are: Eighteen, Slytherin, large, blunt, and loyal to whoever is winning.
+  - name: Marcus Flint
+    who_they_are: Twenty-two, Slytherin, Quidditch captain, dim and dirty.
+  - name: Evander Selwyn
     who_they_are: >-
-      Nineteen, Slytherin, second year, the other name in Lucius's letter. Handsome, entitled, and already behaving
-      as though Draconia were promised to him.
+      Twenty, Slytherin, heir of an old house, runs the Ouroboros Society, charming in public and vicious in private,
+      and already behaving as though Draconia were promised to him.
     appearance: Broad, golden-haired, a prefect's badge he polishes.
-    after: Draconia, the Malfoy fortune, and Roopesh out of the way.
+    after: Draconia, the Malfoy alliance, and Roopesh humiliated and gone.
   - name: Crabbe
     who_they_are: Eighteen, Slytherin, one of Draconia's two shadows.
     group: Crabbe and Goyle
   - name: Goyle
     who_they_are: Eighteen, Slytherin, the other shadow; Draconia hexed him on the second night for a word he used.
     group: Crabbe and Goyle
-  - name: Ginny Weasley
-    who_they_are: Eighteen, Gryffindor, Ron's sister, fierce, funny, and not in anyone's shadow.
-    appearance: Red hair, a broom she flies better than her brothers.
-    after: A place on the Gryffindor team.
-  - name: Luna Lovegood
-    who_they_are: Eighteen, Ravenclaw, dreamy and unbothered, says true things nobody else will.
-    appearance: Radish earrings, wand behind her ear.
-    after: To see a Crumple-Horned Snorkack.
-  - name: Fred Weasley
-    who_they_are: Twenty, Gryffindor, a twin, a joker, the Beater who never misses.
-  - name: George Weasley
-    who_they_are: Twenty, Gryffindor, the other twin, the joker who keeps the books.
-  - name: Lavender Brown
-    who_they_are: Eighteen, Gryffindor, knows everyone's business first and shares it faster.
-  - name: Seamus Finnigan
-    who_they_are: Eighteen, Gryffindor, sets things on fire by accident.
-  - name: Dean Thomas
-    who_they_are: Eighteen, Gryffindor, Muggle-born, draws everyone in the margins of his notes.
+  - name: Albus Dumbledore
+    who_they_are: >-
+      Headmaster; kind, strange, and always knows more than he says. He knows what Roopesh can do, has no
+      explanation for it, and brought him to Hogwarts to keep him close and see what he becomes.
   - name: Minerva McGonagall
     who_they_are: Head of Gryffindor and Deputy Headmistress; strict, fair, and secretly delighted by competence.
     appearance: Square spectacles, tartan, a mouth like a closed door.
   - name: Severus Snape
-    who_they_are: Head of Slytherin, Potions master; protects his House and despises nearly everyone else.
+    who_they_are: Head of Slytherin, Potions master; protects his House, despises nearly everyone else, and is not what he seems.
     appearance: Black robes, sallow face, a voice that never needs raising.
-  - name: Albus Dumbledore
-    who_they_are: Headmaster; kind, strange, and always knows more than he says.
+  - name: Filius Flitwick
+    who_they_are: Head of Ravenclaw, Charms master, a former duelling champion who notices exactly how good Roopesh is.
+  - name: Pomona Sprout
+    who_they_are: Head of Hufflepuff, Herbology, warm and muddy.
   - name: Quirinus Quirrell
-    who_they_are: Defence Against the Dark Arts; nervous, stammering, smells of garlic, and serves Voldemort in secret.
+    who_they_are: Defence Against the Dark Arts; nervous, stammering, smells of garlic, and carries Voldemort under his turban.
     known: The nervous Defence teacher. He stammers, and smells of garlic.
   - name: Rubeus Hagrid
     who_they_are: Keeper of Keys and Grounds; huge, kind, and bad at keeping secrets.
@@ -201,14 +266,24 @@ people:
     who_they_are: Flying instructor; hawk-eyed, short-tempered, and fair.
   - name: Poppy Pomfrey
     who_they_are: Matron; mends anything and lets nobody leave early.
+  - name: Argus Filch
+    who_they_are: Caretaker, a Squib who hates students, with his cat Mrs Norris.
   - name: Lucius Malfoy
     who_they_are: >-
-      Draconia's father, on the Board of Governors; cold, ambitious, and arranging her marriage as he would a merger.
+      Draconia's father, on the Board of Governors, a former Death Eater; cold, ambitious, vile, and in his way
+      devoted to his daughter and his family. He knows who saved her, wants the debt discharged, and is choosing her a
+      husband as he would a merger.
     appearance: Long white-blonde hair, a snake-headed cane.
-    after: The right alliance for the Malfoy name.
+    after: The right alliance for the Malfoy name, and his daughter safe inside it.
   - name: Narcissa Malfoy
-    who_they_are: Draconia's mother; protective, pragmatic, and the only person Draconia writes to honestly.
-    after: Her daughter safe, whatever that costs.
+    who_they_are: >-
+      Draconia's mother; protective, pragmatic, vile in her opinions and fierce in her love, and the first to notice
+      that her daughter has fallen for someone.
+    after: Her daughter safe and, if it can be managed, happy.
+  - name: Thorfinn Rowle
+    who_they_are: A big, brutal Death Eater who walked free after the war, and one of the two masked wizards on the train.
+  - name: Corban Yaxley
+    who_they_are: A Death Eater with Ministry friends, possibly the second masked wizard, the voice Draconia almost knew.
   - name: Dobby
     who_they_are: A Malfoy house-elf whom Draconia secretly protects from her father and would deny ever having spoken to.
 groups:
@@ -217,56 +292,94 @@ groups:
 leads: [Draconia Malfoy, Hermione Granger, Harry Potter]
 player_character: Roopesh Gantasala
 arcs:
-  - Draconia comes round to Roopesh, slowly, against everything she was raised to be, and claims him long before she admits she wants him.
+  - Draconia comes round to Roopesh, slowly, across four years, against everything she was raised to be; she claims him long before she admits she wants him, and in the end chooses him in public.
   - Draconia takes back the word she said on the train, in her own way and at real cost to her.
-  - Hermione wants a reason for what Roopesh can do, and finds out what she feels.
-  - Harry and Roopesh become friends.
+  - Hermione's hidden love for Roopesh grows until it cannot stay hidden, and the Story makes room for both her and Draconia.
+  - Harry and Roopesh become brothers in everything but blood.
+  - Roopesh keeps what he can do hidden, until the war makes him use it; Voldemort senses something ancient in him and never works out what.
+  - The Hogwarts journey runs its course, year by year, to Voldemort's defeat.
 landmarks:
-  - name: The first flying lesson
-    at: Day 12 15:30
-    what: Madam Hooch teaches the new students to fly. Draconia's father has sent her a racing broom she is not allowed to use.
-  - name: The Halloween feast
+  - name: The Halloween troll
     at: Day 61 19:00
-    what: The feast in the Great Hall, and a troll loose in the dungeons.
+    what: A troll is loose in the castle during the Halloween feast.
   - name: Slytherin v Gryffindor
     at: Day 70 11:00
     what: The first Quidditch match of the year.
-  - name: The Christmas Ball
-    at: Day 112 19:00
-    what: The Great Hall's ball before the holidays. Everyone needs a partner, and everyone will see who came with whom.
+  - name: The Philosopher's Stone
+    at: Day 278 21:00
+    what: Quirrell goes through the trapdoor for the Stone, with Voldemort on the back of his head.
+  - name: The escape from Azkaban
+    at: Day 337 03:00
+    what: Sirius Black escapes Azkaban, the first escape in its history, and dementors are sent to guard Hogwarts.
+  - name: The Chamber is opened
+    at: Day 427 20:00
+    what: A message in blood on a corridor wall says the Chamber of Secrets has been opened, and students begin to be petrified.
+  - name: Into the Chamber
+    at: Day 637 18:00
+    what: Ginny is taken into the Chamber of Secrets, and someone has to go down after her.
+  - name: The Goblet of Fire
+    at: Day 792 20:00
+    what: The Goblet names the Triwizard champions for the final years, and then, impossibly, Harry Potter and Roopesh Gantasala. A scandal.
+  - name: The First Task
+    at: Day 816 10:00
+    what: The champions face dragons, darker and more dangerous than any Tournament before.
+  - name: The Yule Ball
+    at: Day 847 19:00
+    what: The Triwizard ball in the Great Hall. Every champion opens the dancing with a partner, and everyone sees who came with whom.
   - name: The betrothal
-    at: Day 123 20:00
-    what: At the Malfoy New Year's party, Lucius announces Draconia's engagement to whichever suitor he has chosen.
+    at: Day 854 20:00
+    what: At the Malfoy New Year's party, Lucius announces Draconia's engagement to a pure-blood heir.
+  - name: The Second Task
+    at: Day 908 09:30
+    what: The champions must take back what they would most miss from the bottom of the Black Lake.
+  - name: The Third Task
+    at: Day 1028 19:00
+    what: The maze, the Cup that is a Portkey, the graveyard, and Voldemort's return to a body.
+  - name: The Battle of the Ministry
+    at: Day 1292 22:00
+    what: A fight in the Department of Mysteries, and a death that cannot be undone.
+  - name: The Astronomy Tower
+    at: Day 1389 23:00
+    what: Death Eaters inside Hogwarts, and Dumbledore on the Astronomy Tower.
+  - name: Graduation
+    at: Day 1399 14:00
+    what: The final years graduate, with a war already started outside the walls.
+  - name: The Battle of Hogwarts
+    at: Day 1706 21:00
+    what: Voldemort comes for Hogwarts, and it ends one way or the other.
 threads:
   - name: The life debt
-    now: Draconia owes Roopesh her life, a Malfoy pays her debts, and she has decided the answer is to own him.
+    now: Draconia owes Roopesh her life, a Malfoy pays her debts, her father wants it discharged quickly and quietly, and she has decided the answer is to own him.
   - name: What happened on the train
-    now: The Ministry calls it a malfunction. Draconia knows it was Roopesh, Hermione saw the light, and Dumbledore has asked no questions yet.
+    now: The school knows only that somebody saved the Malfoy girl. Draconia, Dumbledore and her parents know it was Roopesh; Hermione saw the light.
+  - name: Who sent them
+    now: Two masked wizards tried to take Draconia as leverage against Lucius. Lucius is looking for them, quietly, and so are they for whoever stopped them.
   - name: The word on the train
     now: Draconia said it, Roopesh heard it, and neither of them has mentioned it since.
   - name: The suitors
-    now: Lucius is choosing between Theodore Nott and Cassius Selwyn, and Selwyn is already acting as if he has won.
-  - name: The escaped prisoner
-    now: Someone broke out of Azkaban in August, and the dementors are still looking, along the railway and around Hogsmeade.
+    now: Lucius is considering pure-blood heirs for Draconia; Evander Selwyn is already acting as if he has won.
   - name: The third-floor door
     now: The corridor is closed, something is kept behind the door, and Quirrell has been seen near it.
+  - name: The Dark Lord waiting
+    now: Voldemort has no body and wants one; the Philosopher's Stone is at Hogwarts this year.
 opening:
-  title: Potions, with a partner
-  place: The Potions dungeon
-  at: Day 3 09:05
-  who: [Draconia Malfoy, Severus Snape, Hermione Granger, Neville Longbottom, Pansy Parkinson]
+  title: Freshers' Friday
+  place: The Three Broomsticks
+  at: Day 6 21:40
+  who: [Draconia Malfoy, Pansy Parkinson, Crabbe, Goyle, Harry Potter, Ron Weasley, Hermione Granger, Fred Weasley, George Weasley]
   prose: >-
-    The dungeon is cold enough to see your breath. Snape has not yet raised his voice and the whole room is
-    already quiet. "Pairs," he says. "Choose badly at your own risk."
+    The Three Broomsticks is shoulder to shoulder with first-years at the end of their first week, the windows
+    steamed, the twins standing on a bench to buy a round for anyone who survived Snape. You are at the bar with a
+    handful of Knuts counted out on the wood, working out whether they make a butterbeer.
 
 
-    Before you can look round, a leather satchel lands on the stool beside you. Draconia Malfoy sets out her knives
-    in a row, handles all facing the same way, and does not look at you.
+    The crowd parts the way crowds part for one person. Draconia Malfoy, green ribbon in her plait, Pansy at her
+    shoulder and Crabbe and Goyle a beat behind, stops beside you and looks at the coins.
 
 
-    "You're with me, Stray," she says. "I've told Professor Snape. Don't touch anything until I say, don't breathe on
-    the asphodel, and if you're going to do anything peculiar with your hands, do it where I can see."
+    "Is the charity fund paying for that round, Stray?" she says, loud enough for the Slytherin end of the room.
+    Then her eyes drop to your left cuff, and for half a second her voice changes. "Who mended that? It's been done
+    with the wrong thread." She looks away at once, chin up. "Not that I noticed."
 
 
-    Across the bench Pansy Parkinson's eyebrows go up and stay up. Two tables away, Hermione Granger has stopped
-    writing.
+    Across the pub, Hermione has stopped talking mid-sentence.
