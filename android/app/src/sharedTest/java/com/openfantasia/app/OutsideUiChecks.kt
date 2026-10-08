@@ -14,8 +14,8 @@ open class OutsideUiChecks : WorldUiChecks() {
     // THEN Scene 3 is shown in full
     fun readingBack() {
         openScene()
-        for (entry in listOf("Journal", "Paths", "Backstage")) compose.onNodeWithText(entry).assertIsDisplayed()
-        compose.onNodeWithText("Journal").performClick()
+        for (entry in listOf("Journal", "Paths", "Backstage")) compose.onNodeWithContentDescription(entry).assertIsDisplayed()
+        compose.onNodeWithContentDescription("Journal").performClick()
         compose.onNodeWithText("FRIDAY").assertIsDisplayed()
         compose.onNodeWithText("Scene 12 · 6:10 pm · The Three Broomsticks").assertIsDisplayed()
         compose.onNodeWithText("The insult").assertIsDisplayed()
@@ -37,7 +37,7 @@ open class OutsideUiChecks : WorldUiChecks() {
     // THEN it shows what Quirrell did that night
     fun quirrellsNights() {
         openScene()
-        compose.onNodeWithText("Backstage").performClick()
+        compose.onNodeWithContentDescription("Backstage").performClick()
         compose.onNodeWithText("Everything Roopesh doesn't know. Nothing here reaches the Scene, the Day View, the World or the Journal.").assertIsDisplayed()
         compose.onNodeWithText("OFF-SCREEN").assertIsDisplayed()
         compose.onNodeWithText("Saturday").assertIsDisplayed()
@@ -63,7 +63,7 @@ open class OutsideUiChecks : WorldUiChecks() {
     // THEN later Scenes no longer keep Ron in the background on that account
     fun deletingALesson() {
         openScene()
-        compose.onNodeWithText("Backstage").performClick()
+        compose.onNodeWithContentDescription("Backstage").performClick()
         backstage("Keep Ron in the background unless he's needed.").assertIsDisplayed()
         compose.onAllNodesWithContentDescription("Delete this line")[1].performClick()
         compose.runOnIdle { assertEquals(listOf(RemoveTasteRequest(line = "Keep Ron in the background unless he's needed.", after = "reply")), link.tasteRemovals) }
@@ -78,7 +78,7 @@ open class OutsideUiChecks : WorldUiChecks() {
         link.backstageView = FakeFantasiaLink.backstageFixture().copy(director = DirectorLine(toward = "the flying test on Wednesday",
             phase = DirectorPhase.Build, line = "Building toward the flying test on Wednesday. This stretch builds; rest comes after it."))
         openScene()
-        compose.onNodeWithText("Backstage").performClick()
+        compose.onNodeWithContentDescription("Backstage").performClick()
         backstage("THE DIRECTOR").assertIsDisplayed()
         backstage("Building toward the flying test on Wednesday. This stretch builds; rest comes after it.").assertIsDisplayed()
         compose.preview("BackstageDirector")
@@ -86,7 +86,7 @@ open class OutsideUiChecks : WorldUiChecks() {
 
     fun noDirectorBeforeHePlans() {
         openScene()
-        compose.onNodeWithText("Backstage").performClick()
+        compose.onNodeWithContentDescription("Backstage").performClick()
         backstage("TASTE · WHAT THE STORY HAS LEARNED").assertIsDisplayed()
         compose.onNodeWithText("THE DIRECTOR").assertDoesNotExist()
     }

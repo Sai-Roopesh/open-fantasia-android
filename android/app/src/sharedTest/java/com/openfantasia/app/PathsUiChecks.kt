@@ -7,7 +7,7 @@ import org.junit.Assert.*
 
 open class PathsUiChecks : WorldUiChecks() {
     private fun longPress(text: String) = compose.onNodeWithText(text).performScrollTo().performTouchInput { longClick() }
-    private fun openPaths() = compose.onNodeWithText("Paths").performClick()
+    private fun openPaths() = compose.onNodeWithContentDescription("Paths").performClick()
     /** An item of the held Reply's menu, which opens in a popup over the Scene. */
     private fun menu(text: String) = compose.onNode(hasText(text) and hasAnyAncestor(isPopup()))
 

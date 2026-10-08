@@ -8,7 +8,7 @@ import org.junit.Assert.*
 open class WorldScreenUiChecks : WorldUiChecks() {
     private fun openWorld() {
         openScene()
-        compose.onNodeWithText("World").performClick()
+        compose.onNodeWithContentDescription("World").performClick()
         compose.onNodeWithText("The World").assertIsDisplayed()
     }
 
@@ -42,6 +42,17 @@ open class WorldScreenUiChecks : WorldUiChecks() {
         compose.preview("Person")
         compose.onNodeWithContentDescription("Back to the World").performClick()
         compose.onNodeWithText("LEADS").assertIsDisplayed()
+    }
+
+    // The header's screens are icons, as Scene.dc.html draws them, each named for TalkBack, leaving the title its room.
+    fun theHeaderIsIcons() {
+        openScene()
+        for (screen in listOf("World", "Journal", "Paths", "Backstage")) {
+            compose.onNodeWithContentDescription(screen).assertIsDisplayed()
+            compose.onAllNodesWithText(screen).assertCountEquals(0)
+        }
+        compose.onNodeWithContentDescription("Backstage").performClick()
+        compose.onNodeWithText("TASTE · WHAT THE STORY HAS LEARNED", substring = true).assertExists()
     }
 
     // A Path that branched before the Player Character knew anyone: the People tab says so, and Add a person is still there.

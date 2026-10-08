@@ -14,10 +14,10 @@ open class PresenceUiChecks : WorldUiChecks() {
         compose.runOnIdle { link.reachable.value = false }
         compose.onNodeWithText("The Mac is unreachable").assertIsDisplayed()
         compose.onNodeWithText("She smiles.").assertIsDisplayed()
-        compose.onNodeWithText("Journal").performClick()
+        compose.onNodeWithContentDescription("Journal").performClick()
         compose.onNodeWithText("The insult").assertIsDisplayed()
         compose.onNodeWithContentDescription("Back to the Scene").performClick()
-        compose.onNodeWithText("World").performClick()
+        compose.onNodeWithContentDescription("World").performClick()
         compose.onNodeWithText("Hermione Granger").assertIsDisplayed()
     }
 

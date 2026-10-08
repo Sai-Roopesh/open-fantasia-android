@@ -298,12 +298,11 @@ class SceneScrollState(val list: LazyListState) {
             }
             FantasiaIcon(FantasiaIconKind.ChevronRight, Modifier.size(14.dp), FantasiaCaption)
         }
-        // The header gains each screen as it is built (docs/design/README.md); the Story's title gives way first.
-        CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
-            for ((label, open) in listOf("World" to openWorld, "Journal" to openJournal, "Paths" to openPaths, "Backstage" to openBackstage)) {
-                TextButton(onClick = open, modifier = Modifier.height(44.dp), contentPadding = PaddingValues(horizontal = 7.dp)) {
-                    Text(label, style = FantasiaType.meta, color = FantasiaSecondary)
-                }
+        // The header's screens as Scene.dc.html draws them, icons each named for TalkBack, so the title keeps its room.
+        for ((kind, open) in listOf(FantasiaIconKind.World to openWorld, FantasiaIconKind.Journal to openJournal,
+            FantasiaIconKind.Paths to openPaths, FantasiaIconKind.Backstage to openBackstage)) {
+            IconButton(onClick = open, modifier = Modifier.size(44.dp).semantics { contentDescription = kind.name }) {
+                FantasiaIcon(kind, Modifier.size(21.dp), FantasiaSecondary)
             }
         }
     }

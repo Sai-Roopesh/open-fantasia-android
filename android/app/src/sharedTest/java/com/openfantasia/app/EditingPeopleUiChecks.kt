@@ -8,7 +8,7 @@ import org.junit.Assert.*
 open class EditingPeopleUiChecks : WorldUiChecks() {
     private fun openWorld() {
         openScene(portraitPicker = { PickedImage(PNG, "image/png") })
-        compose.onNodeWithText("World").performClick()
+        compose.onNodeWithContentDescription("World").performClick()
         compose.onNodeWithText("The World").assertIsDisplayed()
     }
 

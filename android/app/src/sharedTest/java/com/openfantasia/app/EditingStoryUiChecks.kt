@@ -137,7 +137,7 @@ open class EditingStoryUiChecks : WorldUiChecks() {
     fun rewordingALesson() {
         link.backstageView = link.backstageView.copy(taste = listOf("Keep school procedure to a line.", "Keep Ron in the background."))
         openScene()
-        compose.onNodeWithText("Backstage").performClick()
+        compose.onNodeWithContentDescription("Backstage").performClick()
         compose.onNodeWithTag("backstage").performScrollToNode(hasText("Keep Ron in the background."))
         compose.onNodeWithText("Keep Ron in the background.").performClick()
         compose.onNodeWithText("A lesson").assertIsDisplayed()

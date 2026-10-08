@@ -12,7 +12,7 @@ import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.material3.LocalContentColor
 
-internal enum class FantasiaIconKind { Back, Send, Scan, Linger, Dismiss, Copy, Rewind, TryAnotherWay, Edit, Models, ChevronRight, ChevronDown, Add }
+internal enum class FantasiaIconKind { Back, Send, Scan, Linger, Dismiss, Copy, Rewind, TryAnotherWay, Edit, Models, ChevronRight, ChevronDown, Add, World, Journal, Paths, Backstage }
 
 // The strokes and viewboxes of the approved HTML icons, without a platform icon font.
 @Composable internal fun FantasiaIcon(kind: FantasiaIconKind, modifier: Modifier, color: Color = LocalContentColor.current) {
@@ -44,6 +44,12 @@ internal enum class FantasiaIconKind { Back, Send, Scan, Linger, Dismiss, Copy, 
             // Main.dc.html's Models button: a gear.
             FantasiaIconKind.Models -> svg(color, sx, sy, "M9 12a3 3 0 1 0 6 0a3 3 0 1 0-6 0z",
                 "M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z")
+            // Scene.dc.html's header: the World, the Journal, Paths and Backstage.
+            FantasiaIconKind.World -> svg(color, sx, sy, "M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0z", "M3 12h18", "M12 3a14 14 0 0 1 0 18", "M12 3a14 14 0 0 0 0 18")
+            FantasiaIconKind.Journal -> svg(color, sx, sy, "M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z", "M5 17a3 3 0 0 1 3-3h11")
+            FantasiaIconKind.Paths -> svg(color, sx, sy, "M4 5a2 2 0 1 0 4 0a2 2 0 1 0-4 0z", "M4 19a2 2 0 1 0 4 0a2 2 0 1 0-4 0z",
+                "M16 9a2 2 0 1 0 4 0a2 2 0 1 0-4 0z", "M6 7v10", "M18 11c0 4-6 3-12 6")
+            FantasiaIconKind.Backstage -> for (y in listOf(5f, 12f, 19f)) drawCircle(color, 1.4f * sx, Offset(12f * sx, y * sy))
             FantasiaIconKind.Linger -> { drawCircle(color, 9f * sx, style = Stroke(1.8f * sx)); line(12f, 7f, 12f, 12f); line(12f, 12f, 15f, 14f) }
         }
     }

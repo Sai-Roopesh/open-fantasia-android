@@ -14,4 +14,6 @@ class WorldScreenScreenTest : WorldScreenUiChecks() {
     @Test fun placesAndCalendar() = placesAndTheCalendar()
 
     @Test fun nobodyKnown() = nobodyKnownYet()
+
+    @Test fun headerIcons() = theHeaderIsIcons()
 }
