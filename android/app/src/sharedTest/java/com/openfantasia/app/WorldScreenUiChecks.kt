@@ -52,7 +52,7 @@ open class WorldScreenUiChecks : WorldUiChecks() {
             compose.onAllNodesWithText(screen).assertCountEquals(0)
         }
         compose.onNodeWithContentDescription("Backstage").performClick()
-        compose.onNodeWithText("TASTE · WHAT THE STORY HAS LEARNED", substring = true).assertExists()
+        compose.onNodeWithTag("backstage").assertIsDisplayed()
     }
 
     // A Path that branched before the Player Character knew anyone: the People tab says so, and Add a person is still there.
