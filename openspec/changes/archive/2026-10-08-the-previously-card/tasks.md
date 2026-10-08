@@ -35,5 +35,5 @@ away, which until now proved only the latest Reply; Back the same evening; Back 
 
 ## 5. Together
 
-- [ ] 5.1 On the phone: play the Night Train, step away an hour, and read the stepping-away Chronicle and its so-far summary in `fantasia moments` and the calls; the first time the Night Train has been left a day, open it on the phone and compare the card with `SceneReturn.dc.html`
+- [x] 5.1 On the phone: play the Night Train, step away an hour, and read the stepping-away Chronicle and its so-far summary in `fantasia moments` and the calls; the first time the Night Train has been left a day, open it on the phone and compare the card with `SceneReturn.dc.html`
 - [x] 5.2 Run `scripts/scenarios.mjs`, the host suite, the Android JVM and device suites, and `openspec validate --all --strict`, and verify all pass
