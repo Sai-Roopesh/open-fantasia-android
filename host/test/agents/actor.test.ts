@@ -49,6 +49,15 @@ describe("the Actor's prompt", () => {
     expect(second!.prompt).not.toBe(first!.prompt);
   });
 
+  // The two ways the Actor was seen crossing the Line around a remark (the-last-scene-scenarios design decision 3): a
+  // past for him as someone's memory, and his own perception. Each is named in the system prompt and again last.
+  it("tells the Actor that people remember of him only what the Story has shown, and that nothing is told from inside him", () => {
+    const [{ system, prompt }] = sceneWithMoves("I sit down across from her.") as [{ system: string; prompt: string }];
+    expect(system).toContain("The people here remember of Roopesh Gantasala only what the scene so far and remembered show, and their own past: they never recall anything else he said, chose or did on purpose.");
+    expect(system).toContain("Tell nothing from inside Roopesh Gantasala: what can be seen of him, never what he sees, notices or feels.");
+    expect(prompt.split("\n").at(-1)).toContain("nobody here remembers anything else of him, and nothing is told from inside him");
+  });
+
   it("carries the Scene word for word and ends on the Move to answer", () => {
     const [, second] = sceneWithMoves("I raise my glass to her.", "I ask the barman for another.");
     expect(second!.prompt).toContain("don't they have mirrors at the mission?");

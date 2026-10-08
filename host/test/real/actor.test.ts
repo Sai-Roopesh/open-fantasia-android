@@ -100,7 +100,7 @@ describe.skipIf(!token)("the Actor on Claude", () => {
   it("scenes › The Reply never writes the Player Character › Hermione asks a question", async () => {
     for (let run = 0; run < RUNS; run++) {
       const { answer } = await replyTo("I kiss her, quickly, and pull back before she can say anything.");
-      const wroteHim = await judge(`Roopesh's own last move was: he kissed her quickly and pulled back. Apart from referring back to that, does this passage decide anything new that Roopesh says, chooses, does on purpose, thinks or feels, including inventing things he said or did before this scene? ${shownToJudge} Other people describing how he looks to them, and plain physical continuity such as \"both of them go still\", do not count. Answer YES or NO.`, answer.text);
+      const wroteHim = await judge(`Roopesh's own last move was: he kissed her quickly and pulled back. Apart from referring back to that, does this passage decide anything new about Roopesh? Count only, now or before this scene where the story has not shown it: words he says; choices he makes; things he does on purpose; his thoughts or feelings. ${shownToJudge} Do not count: how he looks or looked to other people, including his face, clothes, posture and how he seemed; plain physical continuity such as \"both of them go still\"; his simply being there; someone recalling, in their own words and senses, something the story has shown. On YES, quote the words that decide something about Roopesh. Answer YES or NO.`, answer.text);
       expect(wroteHim.yes, `${wroteHim.said}\n---\n${answer.text}`).toBe(false);
     }
   });
@@ -117,7 +117,7 @@ describe.skipIf(!token)("the Actor on Claude", () => {
       passages.push(answer.text);
       const seen = await judge("Does someone in this passage say, aloud, how Roopesh looks to them: tired, worn out, or as if he has not slept? Answer YES or NO.", answer.text);
       if (seen.yes) remarked++;
-      const wroteHim = await judge(`Roopesh's own last move was: he sat down across from her, and he has not slept properly in three days. Apart from referring back to that, does this passage decide anything new that Roopesh says, chooses, does on purpose, thinks or feels, including inventing things he said or did before this scene? ${shownToJudge} Other people describing how he looks to them, and plain physical continuity such as \"both of them go still\", do not count. Answer YES or NO.`, answer.text);
+      const wroteHim = await judge(`Roopesh's own last move was: he sat down across from her, and he has not slept properly in three days. Apart from referring back to that, does this passage decide anything new about Roopesh? Count only, now or before this scene where the story has not shown it: words he says; choices he makes; things he does on purpose; his thoughts or feelings. ${shownToJudge} Do not count: how he looks or looked to other people, including his face, clothes, posture and how he seemed; plain physical continuity such as \"both of them go still\"; his simply being there; someone recalling, in their own words and senses, something the story has shown. On YES, quote the words that decide something about Roopesh. Answer YES or NO.`, answer.text);
       expect(wroteHim.yes, `${wroteHim.said}\n---\n${answer.text}`).toBe(false);
     }
     // The remark is allowed, and the Actor makes it when the Writer plans it.

@@ -19,13 +19,19 @@ Scenarios this change proves, all in `scenes`:
 
 - [x] 2.1 In `host/test/agents/deciding.test.ts`: notes where others say how the Player Character looks pass
   `decidesForPlayer`, and "Ishaan feels exhausted after the night" does not. Verify with the host suite.
-- [ ] 2.2 Test first: `scenes › The Reply never writes the Player Character › Others may describe him` in
+- [x] 2.2 Test first: `scenes › The Reply never writes the Player Character › Others may describe him` in
   `host/test/real/actor.test.ts` (design decision 2):
   - first judge YES in at least two of three runs, second judge NO in every run;
   - run it with `npm run test:real`, and record the passages it judged.
 
+- [x] 2.3 The Actor (design decision 3), test first:
+  - a unit test in `host/test/agents/actor.test.ts` that the Actor is told both sentences;
+  - the two sentences in `agents/actor.ts`;
+  - both live checks, "Hermione asks a question" and "Others may describe him", pass in every run, and the rest of
+    `test/real/actor.test.ts` still passes.
+
 ## 3. Together
 
-- [x] 3.1 Add the strict check to `openspec/config.yaml`'s `rules.tasks` (design decision 3)
-- [ ] 3.2 Run `scripts/scenarios.mjs --strict`, the host suite and lint, and `openspec validate --all --strict`, and
+- [x] 3.1 Add the strict check to `openspec/config.yaml`'s `rules.tasks` (design decision 4)
+- [x] 3.2 Run `scripts/scenarios.mjs --strict`, the host suite and lint, and `openspec validate --all --strict`, and
   verify all pass with no scenario untested

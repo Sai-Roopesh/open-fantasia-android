@@ -37,6 +37,8 @@ export function actorPrompt(state: State, scene: Entry[], recall: Recall = NOTHI
     "",
     `Whatever ${pc}'s Move says has happened, even when it has someone else act, time pass or the place change. Carry on from its effect; do not retell it.`,
     `Never decide what ${pc} says, chooses, does on purpose, thinks or feels. The people here may see ${pc} and say how ${pc} looks to them. Stop where it is ${pc}'s turn.`,
+    `The people here remember of ${pc} only what the scene so far and remembered show, and their own past: they never recall anything else he said, chose or did on purpose.`,
+    `Tell nothing from inside ${pc}: what can be seen of him, never what he sees, notices or feels.`,
     `What ${pc} thinks without saying it stays inside ${pc}. The people here hear only what was said aloud and see only what was done where they could see it.`,
     "Each person knows their own past, what they have lived through in this story, and what they have been told or have seen; nothing else.",
     `What the people here remember from before this scene is under remembered, in the words that were said and done; each moment says who of them knows it, and nobody else here does. What ${pc} said and did in it is only what his own moves say.`,
@@ -104,7 +106,7 @@ function scenePrompt(state: State, scene: Entry[], pc: string, recall: Recall): 
     // the past keeps to what happened instead of filling the gaps itself.
     section("in_play", recall.moments.filter(moment => current?.inPlay.includes(moment.id))
       .map(moment => section(`moment scene="${moment.scene}" known_to="${moment.knownTo.join(", ")}"`, sayWords(moment.words))).join("\n\n")),
-    `Write what happens next. What ${pc} says, chooses, thinks and feels belongs to the player, now and in anything the story has not shown; what he did before is only what the scene and remembered show, as they show it. Leave the rest out.`
+    `Write what happens next. What ${pc} says, chooses, thinks and feels belongs to the player, now and in anything the story has not shown; what he did before is only what the scene and remembered show, as they show it. Leave the rest out: nobody here remembers anything else of him, and nothing is told from inside him.`
   ].filter(part => part !== null).join("\n\n");
 }
 

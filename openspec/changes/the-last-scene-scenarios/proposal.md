@@ -28,6 +28,13 @@ check, so a test that goes missing again fails at once instead of turning into a
   - A live check with the real Actor: given a Beat Note that has Hermione say he looks like he hasn't slept, a
     judge finds her saying how he looks, and the same judge as "Hermione asks a question" finds nothing decided for
     him.
+- **The Actor keeps the Line better (host).** The live check found the Actor crossing the Line around the remark,
+  in about one run in three. It gave Roopesh a past the player never wrote, as another person's memory ("at
+  breakfast he sat at the far end of the table and ate nothing"). It also narrated his own perception ("he can
+  almost watch the thought arrive"). The sibling check, "Hermione asks a question", fails the same way. On 8
+  October 2026 the player chose to fix it in this change. The Actor is told that people here remember of him only
+  what the Story has shown, and that nothing is told from inside him. The live judges are told what the Story has
+  shown, so they no longer count Hermione's own memories as invented.
 - **The standard check (repo).** Every change's last task runs `scripts/scenarios.mjs --strict`, and the project
   context says so.
 
@@ -43,6 +50,9 @@ None. The behaviour is already specified and built; this change adds the tests t
 
 ## Impact
 
-- **Host:** `test/engine/presence.test.ts` (new), `test/agents/deciding.test.ts`, `test/real/actor.test.ts`.
+- **Host:**
+  - `src/agents/actor.ts` (what the Actor is told);
+  - `test/engine/presence.test.ts` (new), `test/agents/deciding.test.ts`, `test/agents/actor.test.ts`,
+    `test/real/actor.test.ts`.
 - **Repo:** `openspec/config.yaml` (the project context names the strict check).
-- No change to the app, the protocol, or what any agent is asked.
+- No change to the app or the protocol.
