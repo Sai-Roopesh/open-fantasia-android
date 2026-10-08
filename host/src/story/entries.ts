@@ -12,6 +12,15 @@ export type Payload = StorySetUp | SceneOpened | MoveWritten | Redo | BeatNote |
 export const RECORD_KINDS = ["chronicle", "world_moved", "director_plan"] as const;
 export type RecordKind = (typeof RECORD_KINDS)[number];
 
+/**
+ * The edits to the Story, by the player or Claude: they move the head without anyone playing it, so neither the
+ * Previously card nor Home counts them as play.
+ */
+export const EDIT_KINDS: ReadonlySet<string> = new Set([
+  "taste_set", "known_set", "person_set", "lead_set", "group_set", "portrait_set",
+  "premise_set", "style_set", "reply_length_set", "arcs_set", "landmark_set", "landmark_dropped", "place_set", "world_set", "clock_set"
+] satisfies Payload["kind"][]);
+
 /** A payload as any version may have stored it. */
 export type StoredPayload = Exclude<Payload, BeatNote | Chronicle | WorldMoved>
   | (Omit<BeatNote, "inPlay" | "goes"> & Partial<Pick<BeatNote, "inPlay" | "goes">>)

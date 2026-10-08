@@ -70,6 +70,15 @@ describe("the Previously card", () => {
     expect(view.previously).toEqual({ summary: "The Scene so far.", since: played.lastPlayed });
   });
 
+  it("counts from when the player last played, not from an edit to the rest of the Story made since", async () => {
+    const played = await leftMidScene();
+    played.engine.setStyle(played.storyId, "Dry and British.", played.head(), "trace-style");
+    played.engine.setClock(played.storyId, "Day 4 09:00", undefined, played.head(), "trace-clock");
+    played.engine.setLandmark(played.storyId, { name: "The Yule Ball", at: "Day 100 19:00", what: "A dance." }, true, played.head(), "trace-landmark");
+    const view = openedAfter(played, played.lastPlayed, 30);
+    expect(view.previously).toEqual({ summary: "The Scene so far.", since: played.lastPlayed });
+  });
+
   it("has no card when the Scene has no summary yet, however long the player was away", async () => {
     const played = playable(hogwartsStoryFile({ who: ["Hermione Granger"] }));
     await played.play("I sit at the other end of the sofa.");

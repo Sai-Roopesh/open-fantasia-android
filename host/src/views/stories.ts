@@ -1,11 +1,13 @@
 import type { StorySummary } from "../protocol/generated/link.js";
 import type { Mac } from "../mac.js";
 import type { State } from "../story/state.js";
+import { lastPlayed } from "../story/played.js";
 import { parseStoryTime, sayStoryTime } from "../time.js";
 
 /**
- * The home screen: every Story, with where it stands on its current Path, most recently played first
- * (openspec stories: Home shows where every Story stands).
+ * The home screen: every Story, with where it stands on its current Path and when it was last played, most recently
+ * played first (openspec stories: Home shows where every Story stands). Editing the Story, or opening another Path, is
+ * not playing it.
  */
 export function listStories(mac: Mac): StorySummary[] {
   const stories = mac.db.prepare("SELECT id, title FROM stories").all() as { id: string; title: string }[];
@@ -14,7 +16,7 @@ export function listStories(mac: Mac): StorySummary[] {
       const path = mac.tree.currentPath(story.id);
       if (!path) return [];
       const state = mac.states.at(path.headEntryId);
-      return [{ id: story.id, title: story.title, ...whereItStands(state), updated_at: path.updatedAt }];
+      return [{ id: story.id, title: story.title, ...whereItStands(state), updated_at: lastPlayed(mac, path.headEntryId) ?? path.updatedAt }];
     })
     .sort((left, right) => right.updated_at.localeCompare(left.updated_at));
 }

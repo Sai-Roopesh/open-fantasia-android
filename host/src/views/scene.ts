@@ -3,6 +3,7 @@ import { dayChoicesOf, todayOn } from "../story/day.js";
 import type { Engine } from "../engine/engine.js";
 import { LinkError } from "../link/errors.js";
 import type { Mac } from "../mac.js";
+import { lastPlayed } from "../story/played.js";
 import type { Chronicle, Entry, WorldMoved } from "../story/entries.js";
 import { sceneSpans } from "../story/spans.js";
 import type { State } from "../story/state.js";
@@ -177,16 +178,6 @@ function previously(mac: Mac, head: string, scene: string, summaries: Map<string
   if (!since || now.getTime() - Date.parse(since) <= AWAY_MS) return null;
   const summary = summaries.get(scene);
   return summary ? { summary, since } : null;
-}
-
-/** Edits to the Story, which move the head without anyone playing it. */
-const EDITS = new Set(["taste_set", "known_set", "person_set", "lead_set", "group_set", "portrait_set"]);
-
-/** When the Path at [head] was last played: its newest entry that is not an edit to the Story. */
-function lastPlayed(mac: Mac, head: string): string | undefined {
-  let entry = mac.tree.entry(head);
-  while (entry && EDITS.has(entry.payload.kind) && entry.parentId) entry = mac.tree.entry(entry.parentId);
-  return entry?.createdAt;
 }
 
 /** The Chronicler's summary of each Scene on the Path at [head] that has one, by the Scene's opening entry. */
