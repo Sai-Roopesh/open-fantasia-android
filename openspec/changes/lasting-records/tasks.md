@@ -20,7 +20,7 @@ Scenarios this change builds:
 
 - [x] 0.1 Add **Bond** to CONTEXT.md, and write `docs/adr/0009-a-bond-is-its-own-record.md` (amends 0006). Verify:
   `openspec validate --all --strict`, and the specs use the term as the glossary spells it.
-- [ ] 0.2 Draw BETWEEN YOU on `docs/design/Person.dc.html` and THE RECORD on `Backstage.dc.html`, and add them to
+- [x] 0.2 Draw BETWEEN YOU on `docs/design/Person.dc.html` and THE RECORD on `Backstage.dc.html`, and add them to
   the README's table. The player approves them before any phone code.
 
 ## 1. Records that degrade, never vanish

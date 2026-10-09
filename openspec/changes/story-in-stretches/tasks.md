@@ -26,7 +26,7 @@ Scenarios this change builds:
 - [x] 0.1 CONTEXT.md: **Stretch** added, **Scene** redefined as one thing happening between its people.
   `docs/adr/0010-the-director-owns-the-calendar.md` supersedes the Scene-end order in 0004. Verify:
   `openspec validate --all --strict`.
-- [ ] 0.2 Draw the Day View pick's day on `docs/design/DayView.dc.html` and the Stretch in Backstage's THE DIRECTOR
+- [x] 0.2 Draw the Day View pick's day on `docs/design/DayView.dc.html` and the Stretch in Backstage's THE DIRECTOR
   on `Backstage.dc.html`, and add them to the README. The player approves them before any phone code.
 
 ## 1. The Stretch plan
