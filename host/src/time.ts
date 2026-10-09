@@ -54,7 +54,8 @@ const EVENING = 18 * 60;
 /**
  * The later times the Day View offers to skip to from [now] (openspec day-view: Skip to later): this evening, while it
  * is still to come; tomorrow morning; the weekend's first morning, when the Story knows its weekdays and it is a
- * weekday now. The next Landmark is the Story's, and is added by whoever knows the Landmarks.
+ * weekday now; and next week, the same day a week on, on waking (story-in-stretches design decision 6). The next
+ * Landmark is the Story's, and is added by whoever knows the Landmarks.
  */
 export function laterTimes(now: StoryTime, dayOneWeekday: Weekday | null): { label: string; inSentence: string; at: StoryTime }[] {
   const times: { label: string; inSentence: string; at: StoryTime }[] = [];
@@ -65,6 +66,7 @@ export function laterTimes(now: StoryTime, dayOneWeekday: Weekday | null): { lab
     const toSaturday = (WEEK.indexOf("saturday") - WEEK.indexOf(weekday) + 7) % 7;
     if (toSaturday > 1) times.push({ label: "The weekend", inSentence: "the weekend", at: { day: now.day + toSaturday, minuteOfDay: WAKING } });
   }
+  times.push({ label: "Next week", inSentence: "next week", at: { day: now.day + 7, minuteOfDay: WAKING } });
   return times;
 }
 

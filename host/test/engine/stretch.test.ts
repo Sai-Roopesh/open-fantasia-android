@@ -230,3 +230,28 @@ describe("the Writer frames a Scene that matters from the plan (story-in-stretch
     expect(view().scene).toMatchObject({ number: 2 });
   });
 });
+
+describe("skipping a week (story-in-stretches design decision 6)", () => {
+  // WHEN the player skips to next week
+  // THEN the next Scene opens a week on, and Meanwhile says what he learned in it
+  it("day-view › The player chooses where to be › Skipping a week", async () => {
+    const learned = "Hermione says the flying test went ahead without you, and Draconia came first.";
+    const week = { from: (request: ModelRequest) => {
+      const weave = JSON.parse((fakeWeaveAnswer(request) as { answer: string }).answer) as Record<string, unknown[]>;
+      return { answer: JSON.stringify({ ...weave,
+        happened: [...weave.happened!, { id: "H9", what: "Draconia came first in the flying test.", at: "Day 8 11:00", where: "The Quidditch pitch", known_to: ["Draconia Malfoy", "Hermione Granger", "Roopesh Gantasala"], landmark: null }],
+        meanwhile: [{ text: learned, how: "told", happened: "H9", told_by: "Hermione Granger", about: ["Draconia Malfoy"] }] }) };
+    } };
+    const { engine, storyId, head, play, view, mac } = playable(fridayNight(), { weaver: [{ from: fakeWeaveAnswer }, week] });
+    await play("I say goodnight to Hermione and go up.");
+    engine.endScene(storyId, head(), "end");
+    await engine.woven(storyId);
+    // Saturday 7:30 am: next week is the Saturday after, on waking.
+    const next = view().day_view!.choices.skips.find(skip => skip.label === "Next week")!;
+    expect(next).toMatchObject({ in_sentence: "next week", at: "Day 11 07:30", time: "Saturday 7:30 am" });
+    engine.choose(storyId, { after: head(), kind: "skip", at: next.at, gap: null }, "skip");
+    await engine.settled(storyId);
+    expect(mac.states.at(head()).scene).toMatchObject({ number: 2, at: "Day 11 07:30" });
+    expect(journalView(mac, storyId, "t").days.flatMap(day => day.rows).some(row => row.meanwhile?.text === learned)).toBe(true);
+  });
+});

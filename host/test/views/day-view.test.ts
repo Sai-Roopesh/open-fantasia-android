@@ -85,6 +85,7 @@ describe("the Day View", () => {
       places: ["The library", "Hagrid's hut"],
       skips: [
         { label: "Tomorrow", in_sentence: "tomorrow", at: "Day 6 07:30", time: "Monday 7:30 am" },
+        { label: "Next week", in_sentence: "next week", at: "Day 12 07:30", time: "Sunday 7:30 am" },
         { label: "Draconia's flying test", in_sentence: "Draconia's flying test", at: "Day 8 10:00", time: "Wednesday 10:00 am" }
       ]
     });
@@ -98,6 +99,7 @@ describe("the Day View", () => {
     expect(view().day_view!.choices.skips.map(skip => [skip.label, skip.in_sentence, skip.time])).toEqual([
       ["This evening", "this evening", "6:00 pm"],
       ["Tomorrow", "tomorrow", "Saturday 7:30 am"],
+      ["Next week", "next week", "Friday 7:30 am"],
       ["Draconia's flying test", "Draconia's flying test", "Wednesday 10:00 am"]
     ]);
   });
