@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { currentPlan, directionDue, landmarkPassed } from "../../src/engine/directing.js";
-import { fakeWeaveAnswer, fakeWriterAnswer } from "../../src/models/fake.js";
+import { fakeChronicleAnswer, fakeWeaveAnswer, fakeWriterAnswer } from "../../src/models/fake.js";
 import type { ModelRequest } from "../../src/models/model-call.js";
 import { setJobModel } from "../../src/models/jobs.js";
 import type { DirectorPlan, WorldMoved } from "../../src/story/entries.js";
@@ -195,6 +195,50 @@ function flyingTest(scenes: number) {
     premise: "Some Scenes with Draconia, some without."
   };
 }
+
+describe("the order at a Scene's end (docs/adr/0010)", () => {
+  const order = (models: ReturnType<typeof playable>["models"]) => models.requests.map(request => request.agent).filter(agent => ["chronicler", "weaver", "director"].includes(agent));
+
+  it("records the Scene, then plans when a plan is due, then moves the World on, which reads the plan", async () => {
+    const { engine, storyId, head, play, models } = playable(hogwartsStoryFile(), { director: [{ answer: JSON.stringify(flyingTest(2)) }] });
+    await play("I say goodnight.");
+    engine.endScene(storyId, head(), "end-1");
+    await engine.woven(storyId);
+    expect(order(models)).toEqual(["chronicler", "director", "weaver"]);
+  });
+
+  it("leaves the last plan in force when the Director fails, and moves the World on all the same", async () => {
+    const peaked = { from: (request: ModelRequest) => ({ answer: JSON.stringify({ ...JSON.parse((fakeWriterAnswer(request) as { answer: string }).answer) as object, intensity: 5 }) }) };
+    const { mac, engine, storyId, head, play } = playable(hogwartsStoryFile(), {
+      director: [{ answer: JSON.stringify(flyingTest(2)) }, { fail: "Opus 5.5 is overloaded" }, { fail: "Opus 5.5 is overloaded" }],
+      writer: [{ from: fakeWriterAnswer }, peaked]
+    });
+    await play("I say goodnight.");
+    engine.endScene(storyId, head(), "end-1");
+    await engine.woven(storyId);
+    const first = currentPlan(mac, head())!.entry.id;
+    await play("I tell her what I am.");
+    engine.endScene(storyId, head(), "end-2");
+    await engine.woven(storyId);
+    expect(currentPlan(mac, head())!.entry.id).toBe(first);
+    expect(mac.tree.recordsOn(head(), "world_moved")).toHaveLength(2);
+  });
+
+  it("does not hold the World up for the record when no plan is due", async () => {
+    // A long record, slow to come; the World's answer is short.
+    const slow = { answer: JSON.stringify({ summary: "word ".repeat(4000).trim(), moments: [], told: [] }) };
+    const { mac, engine, storyId, head, play } = playable(hogwartsStoryFile(), { director: [{ answer: JSON.stringify(flyingTest(3)) }], chronicler: [{ from: fakeChronicleAnswer }, slow] });
+    await play("I say goodnight.");
+    engine.endScene(storyId, head(), "end-1");
+    await engine.woven(storyId);
+    await play("I go down to breakfast.");
+    engine.endScene(storyId, head(), "end-2");
+    await engine.woven(storyId);
+    await engine.chronicled(storyId);
+    const seq = (kind: "world_moved" | "chronicle") => mac.tree.recordsOn(head(), kind).at(-1)!.seq;
+    expect(seq("world_moved")).toBeLessThan(seq("chronicle"));
+  });
+});
 
 describe("Leads act every Stretch (openspec long-run)", () => {
   // GIVEN Draconia saw him hold Hermione in the Great Hall

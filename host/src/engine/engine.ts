@@ -144,8 +144,8 @@ export class Engine {
     if (this.mac.states.at(path.headEntryId).scene?.closed) throw new LinkError("invalid", "This Scene has already ended.");
     const closed = this.write(storyId, path, { kind: "scene_closed", by: "player" });
     this.chronicle(storyId);
-    this.weave(storyId);
     this.direct(storyId);
+    this.weave(storyId);
     return { head_entry_id: closed.id, trace_id: traceId };
   }
 
@@ -409,27 +409,26 @@ export class Engine {
   }
 
   /**
-   * Queues the Weaver for the Scene end the Story's current Path owes it (docs/adr/0004): the World moves on, and the
-   * Day View waits for it. One run at a time per Story; a failure is kept, shown on the Day View, and run again only
-   * when the player asks (retryWorld) or the Mac starts again.
+   * Queues the Weaver for the Scene end the Story's current Path owes it (docs/adr/0010): after the Director, so the
+   * World moves on toward the plan, and the Day View waits for it. One run at a time per Story; a failure is kept,
+   * shown on the Day View, and run again only when the player asks (retryWorld) or the Mac starts again.
    */
   weave(storyId: string): void {
     const previous = this.weaving.get(storyId) ?? Promise.resolve();
-    this.weaving.set(storyId, previous.then(() => this.weaveDue(storyId)).catch(() => {}));
+    this.weaving.set(storyId, previous.then(async () => {
+      await this.directed(storyId);
+      await this.weaveDue(storyId);
+    }).catch(() => {}));
   }
 
   /**
-   * Queues the Director for the Scene end the Story's current Path is at (docs/adr/0004: the Director after the
-   * Chronicler and the Weaver, when the chapter turned). It plans only when a plan is due (engine/directing.ts); its
-   * plan hangs off the Scene's end (docs/adr/0007). A failure is kept in its call, and a plan is due again next time.
+   * Queues the Director for the Scene end the Story's current Path is at (docs/adr/0010: after the Chronicler, before
+   * the Weaver). It plans only when a plan is due (engine/directing.ts); its plan hangs off the Scene's end
+   * (docs/adr/0007). A failure is kept in its call, the last plan stays in force, and a plan is due again next time.
    */
   direct(storyId: string): void {
     const previous = this.directing.get(storyId) ?? Promise.resolve();
-    this.directing.set(storyId, previous.then(async () => {
-      await this.chronicled(storyId);
-      await this.woven(storyId);
-      await this.directDue(storyId);
-    }).catch(() => {}));
+    this.directing.set(storyId, previous.then(() => this.directDue(storyId)).catch(() => {}));
   }
 
   /** Queues the Director for every Story, for `fantasia serve` when it starts. */
@@ -452,11 +451,11 @@ export class Engine {
       const path = this.mac.tree.currentPath(storyId);
       return path ? directionDue(this.mac, path.headEntryId, this.directionFailedAt.get(storyId) ?? null) : null;
     };
+    // Nothing due: the Weaver goes ahead at once, without waiting for the record.
     if (!dueNow()) return;
-    // A Scene may have ended since this run was queued: the Director plans from what the Chronicler and the Weaver
-    // recorded of it, so it waits for them, then looks again.
+    // The Director plans from the newest record of what happened and the Bonds, so it waits for the Chronicler, then
+    // looks again: a Scene may have ended since this run was queued.
     await this.chronicled(storyId);
-    await this.woven(storyId);
     const due = dueNow();
     if (!due) return;
     const traceId = `direct-${randomUUID().slice(0, 8)}`;
@@ -719,8 +718,8 @@ export class Engine {
     const seq = this.newestSeq(storyId);
     this.emit(storyId, { id: String(seq), event: { kind: "path_changed", seq } });
     this.chronicle(storyId);
-    this.weave(storyId);
     this.direct(storyId);
+    this.weave(storyId);
     return { head_entry_id: head, trace_id: traceId };
   }
 
@@ -860,8 +859,8 @@ export class Engine {
     this.publish(turn.storyId, written.reply);
     if (written.closed) this.publish(turn.storyId, written.closed);
     this.chronicle(turn.storyId);
-    this.weave(turn.storyId);
     this.direct(turn.storyId);
+    this.weave(turn.storyId);
   }
 
   private started(turn: Turn, anchor: Entry): OutgoingEvent {

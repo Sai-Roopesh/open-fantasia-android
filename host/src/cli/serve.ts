@@ -39,8 +39,8 @@ export async function serve(mac: Mac, options: { port?: number; fakeModels: bool
   await app.listen({ port: me.port, host: "0.0.0.0" });
   // Whatever the Chronicler and the Weaver owe from before the host last stopped is done now, in the background.
   engine.chronicleAll();
-  engine.weaveAll();
   engine.directAll();
+  engine.weaveAll();
   // What the Mac's commands change in the store reaches the phones watching (openspec stories).
   const stopWatching = engine.watchStore();
   const stopAdvertising = advertise(me.hostId, me.hostName, me.port);

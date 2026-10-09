@@ -47,14 +47,17 @@ describe("the Weaver at a Scene's end", () => {
     await play("I say goodnight to Hermione and go up.");
     engine.endScene(storyId, head(), "trace-end");
     expect(view().day_view).toMatchObject({ world: "moving_on", meanwhile: [], failure: null, at: "Day 4 07:30" });
+    // The Story's first plan is due, so the World waits for the Scene's record and the plan (docs/adr/0010); the one
+    // line holds until then.
+    await new Promise(resolve => setTimeout(resolve, 20));
+    expect(view().day_view).toMatchObject({ world: "moving_on" });
+    chronicler.release();
     await engine.woven(storyId);
-    // Ready while the Chronicler is still writing: only the Day View waits, and only for the Weaver.
     expect(view().day_view).toMatchObject({ world: "ready", meanwhile: [{ text: "A note under the door: \"My office, nine o'clock.\" M. McGonagall.", how: "seen" }], failure: null });
     expect(events.map(event => event.event.kind)).toContain("world_moved");
     const [record] = mac.tree.recordsOn(head(), "world_moved");
     expect(record!.payload as WorldMoved).toMatchObject({ from: "Day 3 22:40", until: "Day 4 07:30", lives: [{ who: "Minerva McGonagall" }] });
     expect(mac.tree.entry(record!.parentId!)!.payload.kind).toBe("scene_closed");
-    chronicler.release();
     await engine.chronicled(storyId);
     expect(mac.tree.recordsOn(head(), "chronicle")).toHaveLength(1);
   });
