@@ -87,6 +87,8 @@ interface WeaverFacts {
   leads: string[];
   missed: { label: string; at: string; place: string; who: string[]; expected: boolean }[];
   next?: { id: string; at: string; place: string; who: string[] } | null;
+  moves?: { who: string; move: string }[];
+  movesDue?: boolean;
 }
 
 /**
@@ -102,7 +104,9 @@ export function fakeWeaveAnswer(request: ModelRequest): Script {
       threads: [],
       happened: [
         ...facts.landmarks.map((landmark, index) => ({ id: `H${index + 1}`, what: `${landmark.name} happened.`, at: landmark.at, where: "where it was held", known_to: [], landmark: landmark.name })),
-        ...facts.missed.filter(item => item.expected).map((item, index) => ({ id: `M${index + 1}`, what: `${item.place} went on without him, and they noticed.`, at: item.at, where: item.place, known_to: item.who, landmark: null, missed: item.label }))
+        ...facts.missed.filter(item => item.expected).map((item, index) => ({ id: `M${index + 1}`, what: `${item.place} went on without him, and they noticed.`, at: item.at, where: item.place, known_to: item.who, landmark: null, missed: item.label })),
+        // The Leads' off-screen moves, made once they are due.
+        ...(facts.movesDue ? facts.moves ?? [] : []).map((lead, index) => ({ id: `L${index + 1}`, what: `${lead.who}: ${lead.move}`, at: facts.until, where: "off-screen", known_to: [lead.who], landmark: null, move: lead.who }))
       ],
       meanwhile: [],
       // The Stretch's next Scene that matters is the pick, when there is one (docs/adr/0010).

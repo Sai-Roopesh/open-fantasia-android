@@ -243,6 +243,8 @@ export interface Happened {
   knownTo: string[];
   /** The Landmark it is, when it is one. */
   landmark: string | null;
+  /** The Lead whose off-screen move this Stretch it is (docs/adr/0010); absent or null for anything else. */
+  move?: string | null;
 }
 
 /** What the Player Character learned while elsewhere, and how: one line of the Day View's Meanwhile. */

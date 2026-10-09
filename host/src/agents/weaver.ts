@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import type { Models } from "../models/model-call.js";
-import type { Entry, Happened, Happening, Life, MeanwhileItem, PlannedScene, ThreadNow } from "../story/entries.js";
+import type { Entry, Happened, Happening, LeadMove, Life, MeanwhileItem, PlannedScene, ThreadNow } from "../story/entries.js";
 import type { ModelChoice, State } from "../story/state.js";
 import type { World } from "../story/world.js";
 import { minutesOf, parseStoryTime, sayStoryTime, sayTime } from "../time.js";
@@ -51,7 +51,8 @@ export const WEAVER_SCHEMA = {
         required: ["id", "what", "at", "where", "known_to", "landmark"],
         properties: {
           id: text, what: text, at: { ...text, description: "A story time in the span, \"Day N HH:MM\"." }, where: text, known_to: names, landmark: { type: ["string", "null"] },
-          missed: { type: ["string", "null"], description: "In a Gap: the id (G1) of what was on that this is, going on without him." }
+          missed: { type: ["string", "null"], description: "In a Gap: the id (G1) of what was on that this is, going on without him." },
+          move: { type: ["string", "null"], description: "When this is a Lead's move this Stretch, made off-screen: the Lead's name; null otherwise." }
         }
       }
     },
@@ -88,7 +89,7 @@ export const WEAVER_SCHEMA = {
 interface RawWeave {
   lives: { who: string; where: string; doing: string; after: string }[];
   threads: { name: string; now: string }[];
-  happened: { id: string; what: string; at: string; where: string; known_to: string[]; landmark: string | null; missed?: string | null }[];
+  happened: { id: string; what: string; at: string; where: string; known_to: string[]; landmark: string | null; missed?: string | null; move?: string | null }[];
   meanwhile: { text: string; how: "seen" | "told" | "rumour"; happened: string; told_by: string | null; about?: string[] }[];
   happenings: { id: string; at: string; place: string; what: string; who: string[]; expected: boolean; pick: boolean; quiet?: boolean; scene?: string | null }[];
 }
@@ -121,7 +122,12 @@ export interface WeaveAsk {
    * The Director's Stretch (docs/adr/0010): its next Scene that matters after the span, which is the Story's pick unless
    * it is already on; null when the Stretch has none left, absent before the first plan.
    */
-  stretch?: { next: PlannedScene | null };
+  stretch?: {
+    next: PlannedScene | null;
+    /** The Leads' moves this Stretch still to make off-screen, and the time they must be made by: its last Scene. */
+    moves?: LeadMove[];
+    movesBy?: string | null;
+  };
 }
 
 /** What the Weaver wrote, checked, with every name as the Story keeps it and what happened given ids of its own. */
@@ -178,6 +184,7 @@ export function checkWeave(ask: WeaveAsk, raw: unknown): Checked<WeaveRecord> {
   const until = parseStoryTime(ask.until);
   const landmarkNames = new Map(state.landmarks.map(landmark => [landmark.name.toLocaleLowerCase(), landmark.name]));
   const ids = new Map<string, Happened>();
+  const outstanding = ask.stretch?.moves ?? [];
   const happened: Happened[] = raw.happened.flatMap(item => {
     const at = parseStoryTime(item.at);
     if (!at) return (dropped.push(`happened: ${item.id} is at "${item.at}", which is not a time like "Day 4 06:30"`), []);
@@ -191,7 +198,11 @@ export function checkWeave(ask: WeaveAsk, raw: unknown): Checked<WeaveRecord> {
     });
     const landmark = item.landmark === null ? null : landmarkNames.get(item.landmark.trim().toLocaleLowerCase()) ?? null;
     if (item.landmark !== null && !landmark) dropped.push(`happened: ${item.id} names the Landmark "${item.landmark}", which is not one of the story's`);
-    const checked = { id: `h-${randomUUID().slice(0, 8)}`, what: item.what.trim(), at: item.at.trim(), where: item.where.trim(), knownTo: [...new Set(knownTo)], landmark };
+    // A Lead's move this Stretch, made off-screen: only a Lead with one still to make carries the mark.
+    const mover = item.move ? named(item.move) : null;
+    const move = mover && outstanding.some(lead => lead.who === mover) ? mover : null;
+    if (item.move && !move) dropped.push(`happened: ${item.id} is marked as ${mover ?? item.move.trim()}'s move, but ${mover ?? item.move.trim()} has none to make off-screen; it is an ordinary happening`);
+    const checked = { id: `h-${randomUUID().slice(0, 8)}`, what: item.what.trim(), at: item.at.trim(), where: item.where.trim(), knownTo: [...new Set(knownTo)], landmark, move };
     ids.set(item.id.trim(), checked);
     return [checked];
   });
@@ -264,6 +275,12 @@ export function checkWeave(ask: WeaveAsk, raw: unknown): Checked<WeaveRecord> {
     happenings = happenings.map(item => item.pick ? (first ? (first = false, item) : { ...item, pick: false }) : item);
   }
   happenings = [...happenings.filter(item => item.pick), ...happenings.filter(item => !item.pick)];
+  // Every Lead acts each Stretch: by its last Scene that matters, each off-screen move is made (degrades, never refuses).
+  if (movesDueBy(ask)) {
+    for (const lead of outstanding) {
+      if (!happened.some(item => item.move === lead.who)) dropped.push(`happened: ${lead.who}'s move this Stretch is still to make, and the Stretch's last Scene that matters is here: make it now (${lead.move}), with move "${lead.who}"`);
+    }
+  }
   // The Story's pick is the Stretch's next Scene that matters, at its time (story-in-stretches design decision 4).
   if (next && !nextOn) {
     const pick = happenings.find(item => item.pick);
@@ -334,6 +351,13 @@ function sceneThatEnded(entries: Entry[], pc: string): string {
   return passages.slice(-WEAVER_EXCHANGES * 2).join("\n\n");
 }
 
+/** Whether the span reaches the time the Leads' off-screen moves must be made by. */
+function movesDueBy(ask: WeaveAsk): boolean {
+  const by = ask.stretch?.movesBy ? parseStoryTime(ask.stretch.movesBy) : null;
+  const until = parseStoryTime(ask.until);
+  return by !== null && until !== null && minutesOf(until) >= minutesOf(by);
+}
+
 /** What the Weaver is sent: the Story in its system prompt, the span and the World in its task. */
 export function weaverPrompt(ask: WeaveAsk): { system: string; prompt: string; facts: Record<string, unknown> } {
   const { state, world } = ask;
@@ -372,12 +396,14 @@ export function weaverPrompt(ask: WeaveAsk): { system: string; prompt: string; f
         sceneThatEnded(ask.scene, pc)
       ].join("\n\n")),
     section("still_on", (ask.stillOn ?? []).map(item => `- ${item.at}, ${item.place}: ${item.what}`).join("\n")),
+    ask.stretch?.moves?.length ? section(`lead_moves_offscreen by="${ask.stretch.movesBy ? say(state, ask.stretch.movesBy) : "the Stretch's end"}"`, ask.stretch.moves.map(lead => `- ${lead.who}: ${lead.move}`).join("\n")) : null,
     nextScene ? section(`next_scene_that_matters id="${nextScene.id}" at="${say(state, nextScene.at)}" place="${nextScene.place}" with="${nextScene.who.join(", ") || "nobody else"}"`, nextScene.for) : null,
     section("landmarks_in_span", landmarks.map(landmark => `- ${landmark.name}, ${landmark.at}: ${landmark.what}`).join("\n")),
     section("task", [
       "Move the World on over the span: the Lives and Threads that moved, what happened and who knows it, and what the player's character learned.",
       landmarks.length ? "Every Landmark in the span happens." : "",
       ask.gap ? "Leave happenings empty: the next Scene begins where the Gap ends." : `Then say what is on from ${say(state, ask.until)} on; what is still on stays, so do not offer it again.`,
+      ask.stretch?.moves?.length ? "Each Lead under lead_moves_offscreen makes that move this Stretch, off-screen: write it in happened when it fits the span, at a time in the span, with move set to the Lead's name, known to who did it, saw it or was told; and if it would reach him, in meanwhile as he would learn it. Every one is made by the time given." : "",
       nextScene ? `Your pick is the next Scene that matters, ${nextScene.id}: offer it as a Happening at its time and place, with scene "${nextScene.id}" and pick true, saying what is going on and why it matters to him now in the World's words, never the plan's. It may be days away.` : "",
       ask.leadless && !ask.stretch ? `The last two Scenes had no Lead in them (${state.leads.join(", ")}): your pick has one in it.` : "",
       ask.afterPeak && !ask.gap ? "The Scene that ended peaked. Your pick is a quiet Happening, nothing at stake in it, with quiet true: an ordinary part of the day, with no one wanting anything from him and nothing left hanging." : "",
@@ -386,6 +412,8 @@ export function weaverPrompt(ask: WeaveAsk): { system: string; prompt: string; f
   ].filter(part => part !== null).join("\n\n");
   const facts = { from: ask.from, until: ask.until, landmarks: landmarks.map(landmark => ({ name: landmark.name, at: landmark.at })), leadless: (ask.leadless ?? false) && !ask.stretch, afterPeak: (ask.afterPeak ?? false) && !ask.gap, leads: state.leads,
     next: nextScene ? { id: nextScene.id, at: nextScene.at, place: nextScene.place, who: nextScene.who } : null,
+    moves: (ask.stretch?.moves ?? []).map(lead => ({ who: lead.who, move: lead.move })),
+    movesDue: movesDueBy(ask),
     missed: (ask.gap?.missed ?? []).map((item, index) => ({ label: `G${index + 1}`, at: item.at, place: item.place, who: item.who, expected: item.expected })) };
   return { system: storyPrompt(state), prompt, facts };
 }

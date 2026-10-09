@@ -73,7 +73,8 @@ export function weaveAsk(mac: Mac, due: DueWeave): WeaveAsk {
 
 /**
  * The Director's Stretch as the Weaver follows it (docs/adr/0010): its next Scene that matters after [until], or null
- * when none is left; nothing before the Director has planned on this Path.
+ * when none is left; the Leads' off-screen moves not yet made under it; and the time they must be made by, its last
+ * Scene that matters. Nothing before the Director has planned on this Path.
  */
 function stretchAfter(mac: Mac, head: string, until: string): Pick<WeaveAsk, "stretch"> {
   const plan = currentPlan(mac, head);
@@ -83,7 +84,11 @@ function stretchAfter(mac: Mac, head: string, until: string): Pick<WeaveAsk, "st
     const at = parseStoryTime(scene.at);
     return at && end && minutesOf(at) > minutesOf(end);
   });
-  return { stretch: { next: next ?? null } };
+  const made = new Set(mac.tree.recordsOn(head, "world_moved")
+    .filter(record => record.seq > plan.entry.seq)
+    .flatMap(record => (record.payload as WorldMoved).happened.flatMap(item => (item.move ? [item.move] : []))));
+  const moves = plan.entry.payload.leads.filter(lead => lead.scene === null && !made.has(lead.who));
+  return { stretch: { next: next ?? null, moves, movesBy: plan.entry.payload.scenes.at(-1)?.at ?? null } };
 }
 
 /** A Gap shorter than this with nothing on in it passes without the Weaver: nothing in it will reach anyone. */
@@ -110,6 +115,10 @@ export function gapAsk(mac: Mac, move: Entry): WeaveAsk | null {
     const chosen = item.at === until && item.place === choice.place;
     return at !== null && minutesOf(at) < minutesOf(end) && !chosen;
   });
-  if (missed.length === 0 && minutesOf(end) - minutesOf(start) < QUIET_GAP_MINUTES) return null;
-  return { state, world, scene: [move], from, until, inScene: [], gap: { missed } };
+  // The Leads' off-screen moves can be made in a Gap as anywhere (docs/adr/0010); one that is due keeps a short Gap.
+  const stretch = stretchAfter(mac, move.parentId, until);
+  const by = stretch.stretch?.movesBy ? parseStoryTime(stretch.stretch.movesBy) : null;
+  const movesDue = (stretch.stretch?.moves?.length ?? 0) > 0 && by !== null && minutesOf(end) >= minutesOf(by);
+  if (missed.length === 0 && !movesDue && minutesOf(end) - minutesOf(start) < QUIET_GAP_MINUTES) return null;
+  return { state, world, scene: [move], from, until, inScene: [], gap: { missed }, ...stretch };
 }

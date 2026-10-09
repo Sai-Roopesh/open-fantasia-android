@@ -181,6 +181,30 @@ describe("the Weaver follows the Stretch (docs/adr/0010)", () => {
   });
 });
 
+describe("Leads act off-screen (story-in-stretches design decision 4)", () => {
+  const seating = { who: "Draconia Malfoy", move: "Has his name taken off the Charms seating plan.", scene: null };
+  const made = { id: "H1", what: "Draconia had his name taken off the Charms seating plan.", at: "Day 4 06:00", where: "Flitwick's office", known_to: ["Draconia Malfoy", "Neville Longbottom"], landmark: null, move: "Draconia Malfoy" };
+
+  it("is given each Lead's move still to make off-screen, and by when", async () => {
+    const { prompt } = weaverPrompt(await ask({ stretch: { next: null, moves: [seating], movesBy: "Day 10 15:00" } }));
+    expect(prompt).toContain('<lead_moves_offscreen by="Day 10 15:00 (Friday 3:00 pm)">\n- Draconia Malfoy: Has his name taken off the Charms seating plan.');
+  });
+
+  it("keeps a move made, marked with its Lead, and leaves the mark off anything else", async () => {
+    const stretch = await ask({ stretch: { next: null, moves: [seating], movesBy: "Day 10 15:00" } });
+    const checked = checkWeave(stretch, answer({ happened: [made, { ...made, id: "H2", what: "Hermione re-read her notes.", known_to: ["Hermione Granger"], move: "Hermione Granger" }], meanwhile: [] }));
+    expect(checked.ok && checked.value.happened.map(item => item.move)).toEqual(["Draconia Malfoy", null]);
+    expect(checked.ok && checked.dropped).toEqual(["happened: H2 is marked as Hermione Granger's move, but Hermione Granger has none to make off-screen; it is an ordinary happening"]);
+  });
+
+  it("asks for every move still to make once the span reaches the Stretch's last Scene that matters, and keeps the rest without it", async () => {
+    const due = await ask({ stretch: { next: null, moves: [seating], movesBy: "Day 4 07:00" } });
+    expect(checkWeave(due, answer({ meanwhile: [] }))).toMatchObject({ ok: true, dropped: ["happened: Draconia Malfoy's move this Stretch is still to make, and the Stretch's last Scene that matters is here: make it now (Has his name taken off the Charms seating plan.), with move \"Draconia Malfoy\""] });
+    const early = await ask({ stretch: { next: null, moves: [seating], movesBy: "Day 10 15:00" } });
+    expect(checkWeave(early, answer({ meanwhile: [] }))).toMatchObject({ ok: true, dropped: [] });
+  });
+});
+
 describe("the Weaver's call", () => {
   it("gives the span, the World as it stands, the Scene that ended and the Landmarks in the span", async () => {
     const { system, prompt } = weaverPrompt(await ask({}, [{ name: "the Halloween feast", at: "Day 3 23:00", what: "The Great Hall feast." }]));

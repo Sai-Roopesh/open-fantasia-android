@@ -54,7 +54,7 @@ Scenarios this change builds:
 - [x] 2.2 The Weaver reads the Stretch (`WEAVER.md`, the prompt and the check): its pick is the next unplayed Scene
   that matters, with its id. Test first: `day-view › Up to four Happenings › The next Scene that matters is days
   away`, through choosing it, the Gap and Meanwhile.
-- [ ] 2.3 Off-screen Lead moves in the span. Test first: `long-run › Leads act every Stretch › A move made off-screen
+- [x] 2.3 Off-screen Lead moves in the span. Test first: `long-run › Leads act every Stretch › A move made off-screen
   reaches him`, and `day-view › A Lead away still acts › Away, but not idle`.
 - [ ] 2.4 Spans. Test first: `living-world › … › Five days, told in a few lines` and `› Twenty minutes with nothing
   on` (an empty span moves nothing, and the Day View reuses what is still ahead).

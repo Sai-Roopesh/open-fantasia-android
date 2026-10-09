@@ -84,7 +84,14 @@ The story is planned a week at a time, around a few Scenes that matter. When the
 the people the plan puts there, `pick` true and `scene` set to its id. Say what is going on and why it matters to him
 now as the World would show it, never in the plan's words: the plan is an author's note, and the player reads your
 line. The other Happenings are what is on today, so the player can stay in the present if they choose. Every other
-Happening has `scene` null. Mark `quiet` true when
+Happening has `scene` null.
+
+Every Lead acts each Stretch, whether or not the player's character meets them. When the task gives you
+`lead_moves_offscreen`, each is a Lead's move this week, made where he is not. Make it when it fits the span you are
+moving, as something that happened, at a time in the span, with `move` set to the Lead's name and `known_to` everyone
+who did it, saw it or was told. If it would reach him (someone tells him, he finds what it left, he meets what comes of
+it), say so in `meanwhile`, as he would learn it; if nobody who knows could have told him, he does not know it yet.
+Every one is made by the time given. A Lead away from school still acts: from home, by letter, through someone else. Mark `quiet` true when
 nothing is at stake in a Happening and nothing is waiting in it: an ordinary meal, a walk, study, a letter home. A
 Happening is not quiet if someone in it wants something from him, a question hangs over it, or it is set up for what
 happened to come up; say it without hints of what is unspoken. A story that has just peaked needs rest: when the task
