@@ -65,7 +65,7 @@ Scenarios this change builds:
 
 ## 3. The Writer
 
-- [ ] 3.1 Framing from a planned Scene: the choice carries the Scene's id, and the Writer's task carries the planned
+- [x] 3.1 Framing from a planned Scene: the choice carries the Scene's id, and the Writer's task carries the planned
   Scene. Test: a chosen pick's first Writer call has its place, its people, what it is for and the Lead's move.
 - [ ] 3.2 A Scene as a dramatic unit (`WRITER.md`, the check, the Scene view's place line). Test first: `scenes › A
   Scene ends in one of three ways › Walking somewhere together keeps the Scene`. "Walking out of a Scene" still

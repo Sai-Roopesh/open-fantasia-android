@@ -208,3 +208,25 @@ describe("spans: only what reaches him (story-in-stretches design decision 4)", 
     expect((mac.tree.recordsOn(head(), "world_moved").at(-1)!.payload as WorldMoved).from).toBe("Day 4 07:30");
   });
 });
+
+describe("the Writer frames a Scene that matters from the plan (story-in-stretches design decision 5)", () => {
+  it("gives the first Writer call of a chosen pick its place, its people, what it is for and the Lead's move", async () => {
+    const story = fridayNight();
+    const { engine, storyId, head, play, view, mac, models } = playable(story, { director: [{ answer: JSON.stringify(charmsWeek(story)) }] });
+    await play("I say goodnight to Hermione and go up.");
+    engine.endScene(storyId, head(), "end");
+    await engine.woven(storyId);
+    const writes = models.writer.requests.length;
+    engine.choose(storyId, { after: head(), kind: "story", gap: null }, "story");
+    await engine.settled(storyId);
+    // The choice's Move carries the Scene that matters it is.
+    const move = mac.tree.pathTo(head()).filter(entry => entry.payload.kind === "move").at(-1)!;
+    const planned = (mac.tree.recordsOn(head(), "director_plan").at(-1)!.payload as { scenes: { id: string }[] }).scenes[0]!.id;
+    expect(move.payload).toMatchObject({ choice: { scene: planned } });
+    const prompt = models.writer.requests[writes]!.prompt;
+    expect(prompt).toContain('<scene_that_matters at="Day 9 10:00 (Thursday 10:00 am)" place="The corridor outside Charms" with="Draconia Malfoy">');
+    expect(prompt).toContain("For: She corners him about the seating plan.");
+    expect(prompt).toContain("Draconia Malfoy's move: Corners him after Charms.");
+    expect(view().scene).toMatchObject({ number: 2 });
+  });
+});

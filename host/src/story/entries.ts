@@ -82,6 +82,8 @@ export interface Choice {
   at: string | null;
   /** Who will be in it: the Happening's people, or the person followed. */
   who: string[];
+  /** The Scene that matters it opens, when it is one (docs/adr/0010). */
+  scene?: string | null;
 }
 
 /**

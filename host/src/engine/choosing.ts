@@ -1,7 +1,7 @@
 import { LinkError } from "../link/errors.js";
 import type { Mac } from "../mac.js";
 import type { ChooseRequest } from "../protocol/generated/link.js";
-import { dayChoicesOf, todayOn } from "../story/day.js";
+import { dayChoicesOf, onAhead, todayOn } from "../story/day.js";
 import type { Choice, WorldMoved } from "../story/entries.js";
 import type { State } from "../story/state.js";
 import { minutesOf, parseStoryTime, sayStoryTime } from "../time.js";
@@ -30,7 +30,9 @@ export function chosen(mac: Mac, head: string, request: ChooseRequest): { choice
     case "story": {
       const happening = request.kind === "story" ? today.find(item => item.pick) : today.find(item => item.id === request.happening);
       if (!happening) throw new LinkError("invalid", request.kind === "story" ? "The Story has no pick today." : "That is not on today.");
-      choice = { kind: request.kind, place: happening.place, at: happening.at, who: happening.who };
+      // A Happening that is the Stretch's Scene that matters opens it, with what the plan says it is for.
+      const scene = onAhead(mac, head, state.clock).find(item => item.id === happening.id)?.scene ?? null;
+      choice = { kind: request.kind, place: happening.place, at: happening.at, who: happening.who, ...(scene ? { scene } : {}) };
       line = `I go along at ${happening.time}: ${happening.place}.`;
       break;
     }

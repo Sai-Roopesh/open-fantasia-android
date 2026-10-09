@@ -353,6 +353,24 @@ function choiceTask(choice: Choice): string {
   }
 }
 
+/**
+ * The Scene that matters the player chose, as the plan has it (story-in-stretches design decision 5): when, where, who,
+ * what it is for and the Leads' moves in it. The Writer frames the new Scene from it; the player may still turn it aside.
+ */
+function sceneThatMatters(ask: WriterAsk): string | null {
+  const id = ask.choice?.scene;
+  const planned = id ? ask.plan?.plan.scenes.find(scene => scene.id === id) : undefined;
+  if (!planned || !ask.plan) return null;
+  const at = parseStoryTime(planned.at);
+  const when = at ? `${planned.at} (${sayStoryTime(at, ask.state.dayOneWeekday)})` : planned.at;
+  const moves = ask.plan.plan.leads.filter(lead => lead.scene === planned.id).map(lead => `${lead.who}'s move: ${lead.move}`);
+  return section(`scene_that_matters at="${when}" place="${planned.place}" with="${planned.who.join(", ") || "nobody else"}"`, [
+    `For: ${planned.for}`,
+    ...moves,
+    "Frame the Scene from this: it is what the week has been building to. Its turn is the plan's; what anyone says or does in it, and what the player's character does, is the Scene's."
+  ].join("\n"));
+}
+
 /** How far back the Writer is shown what happened off-screen. */
 const LATELY_MINUTES = 24 * 60;
 
@@ -435,6 +453,7 @@ export function writerPrompt(ask: WriterAsk): { system: string; prompt: string; 
     section(`move by="${pc}"`, move),
     direction?.text ? section("direction", direction.text) : null,
     ask.plan ? section("long_run", longRun(ask.plan.plan, ask.plan.scenesLeft)) : null,
+    sceneThatMatters(ask),
     section("taste", state.taste.map(line => `- ${line}`).join("\n")),
     direction?.text ? section("directions_before", state.directions.map(line => `- ${line}`).join("\n")) : null,
     section("task", task.join("\n"))
