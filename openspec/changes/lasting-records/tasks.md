@@ -85,7 +85,7 @@ Scenarios this change builds:
 
 ## 5. Together
 
-- [ ] 5.1 Update `examples/malfoy-problem/story.yaml` with Bonds for Draconia and Hermione to start from, and check
+- [x] 5.1 Update `examples/malfoy-problem/story.yaml` with Bonds for Draconia and Hermione to start from, and check
   it imports in a throwaway home.
 - [ ] 5.2 Run `scripts/scenarios.mjs --strict`, the host suite and lint, the Android JVM and device suites, and
   `openspec validate --all --strict`, and verify all pass.
