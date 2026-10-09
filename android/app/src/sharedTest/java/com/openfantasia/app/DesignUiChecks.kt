@@ -22,11 +22,13 @@ open class DesignUiChecks {
         compose.onNodeWithText("The Malfoy Problem").assertIsDisplayed()
         compose.onNodeWithText("Scene 14 · After curfew").assertIsDisplayed()
         compose.onNodeWithText("Friday 9:40 pm · with Hermione").assertIsDisplayed()
-        compose.onNodeWithText("2 h ago").assertIsDisplayed()
+        // "2 h ago", or "yesterday" when two hours ago was before midnight: the label is the Home's own, for the fixture's time.
+        val first = playedAgo(java.time.Instant.now().minusSeconds(7200 + 300).toString())
+        compose.onAllNodesWithText(first)[0].assertIsDisplayed()
         compose.onNodeWithText("The coast").assertIsDisplayed()
         compose.onNodeWithText("Sunday 7:40 am · choosing where to go").assertIsDisplayed()
         compose.onNodeWithText("3 Scenes played").assertIsDisplayed()
-        compose.onNodeWithText("yesterday").assertIsDisplayed()
+        compose.onAllNodesWithText("yesterday").assertCountEquals(if (first == "yesterday") 2 else 1)
         compose.onNodeWithText("New Stories are made with Claude on the Mac and appear here once imported.").assertIsDisplayed()
         compose.preview("Main")
         compose.runOnIdle { link.reachable.value = false }

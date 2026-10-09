@@ -78,9 +78,9 @@ Scenarios this change builds:
   - link tests and CLI tests;
   - test first: `outside-the-scene › The World screen shows what the Player Character knows › What he knows stays
     short after many Scenes`.
-- [ ] 4.3 Test first, then build: `outside-the-scene › … › Between you`, on the phone: the Person page section, built
+- [x] 4.3 Test first, then build: `outside-the-scene › … › Between you`, on the phone: the Person page section, built
   to `Person.dc.html`, as a shared check on the JVM and the device.
-- [ ] 4.4 Test first, then build: `outside-the-scene › Backstage shows everything else › A gap in the record`: on the
+- [x] 4.4 Test first, then build: `outside-the-scene › Backstage shows everything else › A gap in the record`: on the
   host, the view and Retry; on the phone, THE RECORD built to `Backstage.dc.html`, as a shared check.
 
 ## 5. Together
