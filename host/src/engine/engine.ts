@@ -21,7 +21,7 @@ import type { StoryPath } from "../store/tree.js";
 import type { Entry, EntryKind, Payload } from "../story/entries.js";
 import type { ModelChoice, Person, State } from "../story/state.js";
 import { entryEvent, sceneEntries } from "../views/scene.js";
-import { chronicleAsk, dueChronicle, endedScenesOn, gapsOn, RECORD_TRIES, STEPPED_AWAY_MS } from "./chronicling.js";
+import { chronicleAsk, dueChronicle, endedScenesOn, gapsOn, markForRetry, RECORD_TRIES, STEPPED_AWAY_MS } from "./chronicling.js";
 import { dueWeave, gapAsk, weaveAsk } from "./weaving.js";
 import { chosen } from "./choosing.js";
 import { clearable, rewind, tryAnotherWay } from "./paths.js";
@@ -546,7 +546,6 @@ export class Engine {
       // On a start, each waiting Scene gets one fresh try, not three in a row.
       if (!due || tried.has(due.scene.id + due.through.id)) return;
       tried.add(due.scene.id + due.through.id);
-      if (!due) return;
       const model = jobModels(this.mac.home).chronicler;
       try {
         const { value, callId, dropped } = await writeChronicle(this.models, model, chronicleAsk(this.mac, due), storyId, traceId, new AbortController().signal);
@@ -561,6 +560,18 @@ export class Engine {
         this.mac.tree.append(storyId, due.through.id, { kind: "record_gap", scene: due.scene.id, attempts, reason, endedScenes: endedScenesOn(this.mac, head), givenUp: attempts >= RECORD_TRIES });
       }
     }
+  }
+
+  /**
+   * The player asks for a Scene's record to be tried again (openspec outside-the-scene: A gap in the record): a fresh
+   * gap with no tries makes it due at once, and it gets three more tries (lasting-records design decision 4).
+   */
+  retryRecord(storyId: string, after: string, sceneNumber: number, traceId: string): Accepted {
+    const path = this.path(storyId);
+    if (path.headEntryId !== after) throw new LinkError("stale_head", "The Story has moved on since you last looked. Nothing was changed.");
+    markForRetry(this.mac, storyId, after, sceneNumber);
+    this.chronicle(storyId);
+    return { head_entry_id: after, trace_id: traceId };
   }
 
   /** What the Story's current Path is doing: writing a Reply, failed to, or nothing. */

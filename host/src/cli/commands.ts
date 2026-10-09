@@ -8,6 +8,7 @@ import qrcode from "qrcode-terminal";
 import { localAddresses } from "../link/bonjour.js";
 import { Pairing, PAIRING_MINUTES } from "../link/pairing.js";
 import { ensureCertificate } from "../link/tls.js";
+import { markForRetry, recordOn } from "../engine/chronicling.js";
 import type { Engine } from "../engine/engine.js";
 import { LinkError } from "../link/errors.js";
 import type { Mac } from "../mac.js";
@@ -205,6 +206,32 @@ export function moments(mac: Mac, storyId: string, out: Out): boolean {
       const entry = mac.tree.entry(quote.entry);
       out(`  ${entry?.payload.kind === "move" ? `${pc}: ` : ""}"${quote.text}"`);
     }
+  }
+  return true;
+}
+
+/**
+ * `fantasia record`: The record of a Story's current Path, as Backstage shows it; with a Scene's number, marks that
+ * Scene to be recorded again by the Mac serving the phone (this command has no models of its own to record it with).
+ */
+export function record(mac: Mac, storyId: string, retry: string | undefined, out: Out): boolean {
+  const path = mac.tree.currentPath(storyId);
+  if (!path) return (out(`No Story ${storyId}.`), false);
+  if (retry !== undefined) {
+    try {
+      markForRetry(mac, storyId, path.headEntryId, Number(retry));
+    } catch (error) {
+      return (out(error instanceof Error ? error.message : String(error)), false);
+    }
+    out(`Scene ${retry} will be recorded again by the Mac serving the phone, after the next Scene or when it starts.`);
+    return true;
+  }
+  const rows = recordOn(mac, path.headEntryId);
+  if (rows.length === 0) out("Nothing is missing from the record.");
+  const states = { waiting: "waiting to be tried again", given_up: "given up after three tries", recorded: "recorded, without some parts" };
+  for (const row of rows) {
+    out(`Scene ${row.scene.number} · ${row.scene.title} · ${states[row.state]}${row.reason ? `: ${row.reason}` : ""}`);
+    for (const why of row.dropped) out(`  left out: ${why}`);
   }
   return true;
 }

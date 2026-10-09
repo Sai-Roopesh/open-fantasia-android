@@ -1250,7 +1250,8 @@
         "writer",
         "taste",
         "trace_id",
-        "director"
+        "director",
+        "record"
       ],
       "properties": {
         "story_id": {
@@ -1305,6 +1306,13 @@
               "type": "null"
             }
           ]
+        },
+        "record": {
+          "description": "The record: each Scene not yet recorded, and each recorded with parts left out, newest first; empty when nothing is missing.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RecordRow"
+          }
         }
       }
     },
@@ -1984,7 +1992,8 @@
         "is_group",
         "known",
         "known_from",
-        "heard"
+        "heard",
+        "between"
       ],
       "properties": {
         "name": {
@@ -2040,6 +2049,17 @@
           "items": {
             "$ref": "#/$defs/MeanwhileItem"
           }
+        },
+        "between": {
+          "description": "Between you: their Bond; null when he has no history with them.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Between"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     },
@@ -2245,7 +2265,8 @@
         "wants",
         "voice",
         "knows",
-        "group"
+        "group",
+        "between"
       ],
       "properties": {
         "story_id": {
@@ -2320,6 +2341,17 @@
         },
         "trace_id": {
           "type": "string"
+        },
+        "between": {
+          "description": "Between you: their Bond; null when he has no history with them.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Between"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     },
@@ -2837,6 +2869,113 @@
         },
         "text": {
           "type": "string"
+        }
+      }
+    },
+    "Between": {
+      "description": "Where things stand between the Player Character and someone, and the turns that brought it there, newest first (lasting-records: their Bond).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "standing",
+        "turns"
+      ],
+      "properties": {
+        "standing": {
+          "type": "string"
+        },
+        "turns": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BetweenTurn"
+          }
+        }
+      }
+    },
+    "BetweenTurn": {
+      "description": "One turn in a Bond, with the Scene it came in; the Scene is null for a turn from before the Story.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text",
+        "scene_number",
+        "scene_title"
+      ],
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "scene_number": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "scene_title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "RecordRow": {
+      "description": "A Scene in The record (lasting-records): one not yet recorded, or one recorded with parts left out.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scene_number",
+        "scene_title",
+        "state",
+        "reason",
+        "dropped"
+      ],
+      "properties": {
+        "scene_number": {
+          "type": "integer"
+        },
+        "scene_title": {
+          "type": "string"
+        },
+        "state": {
+          "description": "waiting: it will be tried again after the next Scene; given_up: three tries failed, and Retry tries again; recorded: recorded, without the parts in dropped.",
+          "enum": [
+            "waiting",
+            "given_up",
+            "recorded"
+          ]
+        },
+        "reason": {
+          "description": "Why the last try failed; null for a recorded Scene.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "dropped": {
+          "description": "The parts of its record that were left out, and why.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "RecordRetryRequest": {
+      "description": "Tries the record of a Scene given up after three tries once more.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after",
+        "scene_number"
+      ],
+      "properties": {
+        "after": {
+          "description": "The head the phone saw: the Path whose record it is.",
+          "type": "string"
+        },
+        "scene_number": {
+          "type": "integer"
         }
       }
     }

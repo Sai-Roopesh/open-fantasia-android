@@ -32,6 +32,39 @@ describe("the World screen", () => {
     expect(after.known_from).toEqual({ number: 1, title: "After curfew" });
   });
 
+  // GIVEN fifteen Scenes with Draconia, each of which showed him something new about her
+  // THEN what he knows of her is still at most 60 words, and the detail is in Between you and the Journal
+  it("outside-the-scene › The World screen shows what the Player Character knows › What he knows stays short after many Scenes", async () => {
+    const words = (text: string | null) => (text ?? "").trim().split(/\s+/).length;
+    // Each Scene's record rewrites the line and adds a turn. Every third line comes back too long, as a model's might,
+    // and again when asked to repair it, so the line before it stands.
+    let scene = 0;
+    const record = { from: (request: ModelRequest) => {
+      const repair = /known: the line for Draconia Malfoy is/.test(request.prompt);
+      if (!repair) scene += 1;
+      return { answer: JSON.stringify({
+        ...JSON.parse((fakeChronicleAnswer(request) as { answer: string }).answer) as object,
+        known: [{ who: "Draconia Malfoy", now: scene % 3 === 0 ? `A Malfoy. ${"Something new. ".repeat(40)}` : `A Malfoy, sharp and proud; the latest thing he saw of her was in Scene ${scene}.` }],
+        bonds: [{ who: "Draconia Malfoy", standing: `Where things stand after Scene ${scene}.`, turn: `What changed in Scene ${scene}.` }]
+      }) };
+    } };
+    const { mac, engine, storyId, head, play } = playable(hogwarts(), { chronicler: Array.from({ length: 20 }, () => record) });
+    for (let n = 1; n <= 15; n++) {
+      await play(`I find Draconia Malfoy again, the ${n}th time this term.`);
+      engine.endScene(storyId, head(), `end-${n}`);
+      await engine.chronicled(storyId);
+    }
+    const draconia = worldView(mac, storyId, "t").people.find(person => person.name === "Draconia Malfoy")!;
+    expect(words(draconia.known)).toBeLessThanOrEqual(60);
+    expect(draconia.known).toBe("A Malfoy, sharp and proud; the latest thing he saw of her was in Scene 14.");
+    expect(draconia.between?.standing).toBe("Where things stand after Scene 15.");
+    expect(draconia.between?.turns).toHaveLength(15);
+    expect(draconia.between?.turns[0]).toMatchObject({ text: "What changed in Scene 15.", scene_number: 15 });
+    expect(draconia.between?.turns.at(-1)).toMatchObject({ text: "What changed in Scene 1.", scene_number: 1 });
+    // Someone he has no history with has no Between you.
+    expect(worldView(mac, storyId, "t").people.find(person => person.name === "Hermione Granger")!.between).toBeNull();
+  });
+
   // GIVEN Quirrell serves Voldemort, and the Player Character does not know it
   // THEN Quirrell's entry on the World screen says nothing of it
   it("outside-the-scene › The World screen shows what the Player Character knows › A secret stays out of the World screen", async () => {

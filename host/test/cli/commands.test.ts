@@ -3,7 +3,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { importCommand, models, moments, pair, show, stories, trace, world } from "../../src/cli/commands.js";
+import { importCommand, models, moments, pair, record, show, stories, trace, world } from "../../src/cli/commands.js";
 import { Engine } from "../../src/engine/engine.js";
 import { Models } from "../../src/models/model-call.js";
 import { ScriptedRunner } from "../../src/models/scripted.js";
@@ -161,6 +161,28 @@ describe("the fantasia command", () => {
     expect(listed.text()).toContain("Roopesh Gantasala: \"I sit down at the other end of the sofa.\"");
     const none = capture();
     expect(moments(mac, "no-such-story", none.out)).toBe(false);
+  });
+
+  it("shows The record, and marks a Scene given up to be tried again by the Mac that serves the phone", async () => {
+    const story = hogwartsWorldStoryFile({ title: "The library", place: "The library", at: "Day 3 15:00", who: ["Hermione Granger"] });
+    const { mac, play, engine, storyId, head } = playable(story, { chronicler: Array.from({ length: 6 }, () => ({ fail: "Sonnet is overloaded" })) });
+    const empty = capture();
+    expect(record(mac, storyId, undefined, empty.out)).toBe(true);
+    expect(empty.text()).toBe("Nothing is missing from the record.");
+    await play("I ask Hermione about the essay.");
+    engine.endScene(storyId, head(), "t-end");
+    await engine.chronicled(storyId);
+    for (let start = 0; start < 2; start++) { engine.chronicleAll(); await engine.chronicled(storyId); }
+    const listed = capture();
+    expect(record(mac, storyId, undefined, listed.out)).toBe(true);
+    expect(listed.lines[0]).toMatch(/^Scene 1 · The library · given up after three tries: .*Sonnet is overloaded/);
+    const retried = capture();
+    expect(record(mac, storyId, "1", retried.out)).toBe(true);
+    expect(retried.text()).toBe("Scene 1 will be recorded again by the Mac serving the phone, after the next Scene or when it starts.");
+    expect(mac.tree.recordsOn(head(), "record_gap").at(-1)?.payload).toMatchObject({ attempts: 0, givenUp: false });
+    const refused = capture();
+    expect(record(mac, storyId, "9", refused.out)).toBe(false);
+    expect(refused.text()).toBe("There is no Scene 9 on this Path.");
   });
 
   it("shows a Story's World: the Lives, the Threads, and what happened with who knows each", async () => {

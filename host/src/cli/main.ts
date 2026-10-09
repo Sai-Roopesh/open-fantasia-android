@@ -5,7 +5,7 @@ import { openMac } from "../mac.js";
 import { Engine } from "../engine/engine.js";
 import { subscriptionRunners } from "../models/runners.js";
 import { Models } from "../models/model-call.js";
-import { arc, claudeToken, clock, doctor, edit, group, importCommand, install, known, landmark, lead, length, models, moments, pair, person, place, portrait, premise, show, stories, style, taste, trace, world, worldIs, type LandmarkOptions, type PersonOptions } from "./commands.js";
+import { arc, claudeToken, clock, doctor, edit, group, importCommand, install, known, landmark, lead, length, models, moments, pair, person, place, portrait, premise, record, show, stories, style, taste, trace, world, worldIs, type LandmarkOptions, type PersonOptions } from "./commands.js";
 import { serve } from "./serve.js";
 
 /**
@@ -42,6 +42,9 @@ program.command("models").argument("[setting...]", "a job, a provider, a model a
 
 program.command("moments").argument("<story>", "a Story's id").description("List the Moments a Story remembers, with who knows each")
   .action((story: string) => exitWith(moments(mac(), story, out)));
+program.command("record").argument("<story>", "a Story's id").option("--retry <scene>", "a Scene's number: record it again")
+  .description("Show The record: Scenes not yet recorded, and parts left out; or with --retry, mark a Scene to be recorded again")
+  .action((story: string, options: { retry?: string }) => exitWith(record(mac(), story, options.retry, out)));
 program.command("world").argument("<story>", "a Story's id")
   .option("--summary <words>", "what the World is: set it from here on the current Path").option("--history <words>", "the World's history: set it likewise")
   .description("Show the World off-screen: Lives, Threads, and what happened with who knows it; or with --summary or --history, set what the World is")

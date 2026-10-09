@@ -9,7 +9,7 @@ import type { Engine } from "../engine/engine.js";
 import type { Mac } from "../mac.js";
 import type { ModelChoice } from "../story/state.js";
 import { CONTRACT_VERSION } from "../protocol/generated/contract.js";
-import type { ArcsRequest, ChooseRequest, ClockRequest, DropLandmarkRequest, LandmarkRequest, PlaceRequest, PremiseRequest, ReplyLengthRequest, RewordTasteRequest, StyleRequest, WorldRequest, EditRequest, GroupRequest, LeadRequest, PersonEdit, RetryRequest, RetryWorldRequest, SetActorRequest, SetJobModelRequest, EndSceneRequest, ErrorBody, FocusRequest, LingerRequest, MoveRequest, PairRequest, RedoRequest, RemoveTasteRequest, RenamePathRequest, RewindRequest, TryAnotherWayRequest } from "../protocol/generated/link.js";
+import type { ArcsRequest, ChooseRequest, ClockRequest, DropLandmarkRequest, LandmarkRequest, PlaceRequest, PremiseRequest, ReplyLengthRequest, RewordTasteRequest, StyleRequest, WorldRequest, EditRequest, GroupRequest, LeadRequest, PersonEdit, RecordRetryRequest, RetryRequest, RetryWorldRequest, SetActorRequest, SetJobModelRequest, EndSceneRequest, ErrorBody, FocusRequest, LingerRequest, MoveRequest, PairRequest, RedoRequest, RemoveTasteRequest, RenamePathRequest, RewindRequest, TryAnotherWayRequest } from "../protocol/generated/link.js";
 import { newTraceId, Traces } from "../trace.js";
 import { backstageView } from "../views/backstage.js";
 import { journalView } from "../views/journal.js";
@@ -63,6 +63,7 @@ const validClock = ajv.compile<ClockRequest>({ $ref: "link#/$defs/ClockRequest" 
 const validRewordTaste = ajv.compile<RewordTasteRequest>({ $ref: "link#/$defs/RewordTasteRequest" });
 const validRetry = ajv.compile<RetryRequest>({ $ref: "link#/$defs/RetryRequest" });
 const validRetryWorld = ajv.compile<RetryWorldRequest>({ $ref: "link#/$defs/RetryWorldRequest" });
+const validRecordRetry = ajv.compile<RecordRetryRequest>({ $ref: "link#/$defs/RecordRetryRequest" });
 
 const IMAGE_TYPES: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp" };
 
@@ -224,6 +225,11 @@ export function buildLink(options: LinkOptions): FastifyInstance {
     const body = request.body ?? {};
     if (!validRetryWorld(body)) throw new LinkError("invalid", "A Retry takes a model for this one try, or null.");
     return engine.retryWorld(request.params.id, request.traceId, body.model ? offered(options.catalog, body.model) : null);
+  });
+
+  app.post<{ Params: { id: string } }>("/stories/:id/record/retry", async request => {
+    if (!validRecordRetry(request.body)) throw new LinkError("invalid", "Retrying the record needs the Scene's number and the entry the phone last saw.");
+    return engine.retryRecord(request.params.id, request.body.after, request.body.scene_number, request.traceId);
   });
 
   app.post<{ Params: { id: string } }>("/stories/:id/end-scene", async request => {

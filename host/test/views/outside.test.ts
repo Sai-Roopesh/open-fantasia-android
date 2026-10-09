@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { backstageView } from "../../src/views/backstage.js";
 import { journalView } from "../../src/views/journal.js";
 import { pastScene } from "../../src/views/scene.js";
+import { LinkError } from "../../src/link/errors.js";
 import { playable } from "../support/play.js";
 import { hogwartsWorldStoryFile } from "../support/story-files.js";
 
@@ -70,5 +71,51 @@ describe("Outside the Scene", () => {
     expect(backstage.lives).toContainEqual({ who: "Quirinus Quirrell", where: "the third-floor corridor", doing: "Testing the wards again, at night." });
     expect(backstage.writer).toMatchObject({ call: expect.any(String), beats: expect.arrayContaining([expect.objectContaining({ status: expect.stringMatching(/done|in_play|pending|skipped/) })]) });
     expect(backstage.taste).toEqual(["Remember: Keep Ron in the background."]);
+  });
+});
+
+describe("The record (lasting-records design decision 4)", () => {
+  const library = () => hogwartsWorldStoryFile({ title: "The library", place: "The library", at: "Day 3 15:00", who: ["Hermione Granger"], prose: "Hermione is at the end table." });
+
+  // GIVEN the record of the library Scene was given up after three tries
+  // WHEN the player opens Backstage
+  // THEN The record lists the library Scene with why it failed, and Retry records it again
+  it("outside-the-scene › Backstage shows everything else, only when visited › A gap in the record", async () => {
+    const { play, engine, storyId, head, mac } = playable(library(), { chronicler: Array.from({ length: 6 }, () => ({ fail: "Sonnet is overloaded" })) });
+    await play("I ask Hermione about the essay.");
+    engine.endScene(storyId, head(), "t-end");
+    await engine.chronicled(storyId);
+    expect(backstageView(mac, storyId, "t").record).toEqual([{ scene_number: 1, scene_title: "The library", state: "waiting", reason: expect.stringContaining("Sonnet is overloaded"), dropped: [] }]);
+    for (let start = 0; start < 2; start++) { engine.chronicleAll(); await engine.chronicled(storyId); }
+    expect(backstageView(mac, storyId, "t").record).toEqual([{ scene_number: 1, scene_title: "The library", state: "given_up", reason: expect.stringContaining("Sonnet is overloaded"), dropped: [] }]);
+
+    engine.retryRecord(storyId, head(), 1, "t-retry");
+    await engine.chronicled(storyId);
+    expect(mac.tree.recordsOn(head(), "chronicle")).toHaveLength(1);
+    expect(backstageView(mac, storyId, "t").record).toEqual([]);
+  });
+
+  it("lists a Scene recorded with parts left out, and why", async () => {
+    const move = "I ask Hermione about the essay.";
+    const { play, engine, storyId, head, mac } = playable(library(), { chronicler: Array.from({ length: 2 }, () => ({ answer: JSON.stringify({
+      summary: "Hermione told him about the essay.",
+      moments: [{ what: "He asks about the essay.", quotes: [{ entry: "E2", text: move }], there: ["Hermione Granger"], weight: 2 }],
+      told: [],
+      known: [{ who: "Hermione Granger", now: "word ".repeat(70).trim() }]
+    }) })) });
+    await play(move);
+    engine.endScene(storyId, head(), "t-end");
+    await engine.chronicled(storyId);
+    expect(backstageView(mac, storyId, "t").record).toEqual([{ scene_number: 1, scene_title: "The library", state: "recorded", reason: null, dropped: ["known: the line for Hermione Granger is 70 words; say it in sixty or fewer"] }]);
+  });
+
+  it("refuses Retry for a Scene with nothing missing, or when the phone has not seen the latest", async () => {
+    const { play, engine, storyId, head } = playable(library());
+    await play("I ask Hermione about the essay.");
+    engine.endScene(storyId, head(), "t-end");
+    await engine.chronicled(storyId);
+    expect(() => engine.retryRecord(storyId, head(), 1, "t")).toThrow(new LinkError("invalid", "Scene 1 is recorded; there is nothing to try again."));
+    expect(() => engine.retryRecord(storyId, head(), 7, "t")).toThrow(new LinkError("not_found", "There is no Scene 7 on this Path."));
+    expect(() => engine.retryRecord(storyId, "an-old-head", 1, "t")).toThrow(/moved on since you last looked/);
   });
 });

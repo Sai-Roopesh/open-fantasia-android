@@ -2,8 +2,9 @@ import { bondsOn } from "../story/bonds.js";
 import { knownOn } from "../story/known.js";
 import type { ChronicleAsk } from "../agents/chronicler.js";
 import { nameIndex, namedIn } from "../agents/names.js";
+import { LinkError } from "../link/errors.js";
 import type { Mac } from "../mac.js";
-import type { Entry, RecordGap, SceneOpened } from "../story/entries.js";
+import type { Chronicle, Entry, RecordGap, SceneOpened } from "../story/entries.js";
 import type { State } from "../story/state.js";
 import { momentsOn } from "../story/memory.js";
 import { sceneSpans } from "../story/spans.js";
@@ -35,6 +36,49 @@ export function gapsOn(mac: Mac, head: string): Map<string, RecordGap> {
   const gaps = new Map<string, RecordGap>();
   for (const entry of mac.tree.recordsOn(head, "record_gap")) gaps.set((entry.payload as RecordGap).scene, entry.payload as RecordGap);
   return gaps;
+}
+
+/** A Scene in the record that is missing, or kept with parts left out. */
+export interface RecordState {
+  scene: SceneOpened & { id: string };
+  state: "waiting" | "given_up" | "recorded";
+  reason: string | null;
+  dropped: string[];
+}
+
+/**
+ * Each Scene on the Path at [head] whose last try to record it failed, waiting or given up, and each recorded with
+ * parts left out, with why, in Path order (lasting-records design decision 4). A gap stands until a record is written
+ * after it.
+ */
+export function recordOn(mac: Mac, head: string): RecordState[] {
+  const gaps = mac.tree.recordsOn(head, "record_gap") as Entry<RecordGap>[];
+  const chronicles = mac.tree.recordsOn(head, "chronicle") as Entry<Chronicle>[];
+  return mac.tree.pathTo(head).flatMap((entry): RecordState[] => {
+    if (entry.payload.kind !== "scene_opened") return [];
+    const scene = { ...entry.payload, id: entry.id };
+    const mine = chronicles.filter(record => record.payload.scene === entry.id);
+    const dropped = mine.flatMap(record => record.payload.dropped ?? []);
+    const gap = gaps.filter(record => record.payload.scene === entry.id).at(-1);
+    if (gap && Math.max(-1, ...mine.map(record => record.seq)) < gap.seq) {
+      return [{ scene, state: gap.payload.givenUp ? "given_up" : "waiting", reason: gap.payload.reason, dropped }];
+    }
+    return dropped.length ? [{ scene, state: "recorded", reason: null, dropped }] : [];
+  });
+}
+
+/**
+ * Marks Scene [sceneNumber] on the Path at [head] to be recorded again (openspec outside-the-scene: A gap in the record):
+ * a fresh gap with no tries makes it due at the next chance, with three more tries. Only a Scene whose record is
+ * missing can be.
+ */
+export function markForRetry(mac: Mac, storyId: string, head: string, sceneNumber: number): void {
+  const scene = mac.tree.pathTo(head).find(entry => entry.payload.kind === "scene_opened" && entry.payload.number === sceneNumber);
+  if (!scene) throw new LinkError("not_found", `There is no Scene ${sceneNumber} on this Path.`);
+  const missing = recordOn(mac, head).some(row => row.scene.id === scene.id && row.state !== "recorded");
+  const gap = (mac.tree.recordsOn(head, "record_gap") as Entry<RecordGap>[]).filter(entry => entry.payload.scene === scene.id).at(-1);
+  if (!missing || !gap) throw new LinkError("invalid", `Scene ${sceneNumber} is recorded; there is nothing to try again.`);
+  mac.tree.append(storyId, gap.parentId ?? head, { kind: "record_gap", scene: scene.id, attempts: 0, reason: "Tried again by the player.", endedScenes: endedScenesOn(mac, head), givenUp: false });
 }
 
 /**

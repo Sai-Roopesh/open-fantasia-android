@@ -1,10 +1,17 @@
 import { LinkError } from "../link/errors.js";
 import type { Mac } from "../mac.js";
-import type { CalendarItem, WorldPerson, WorldPlace, WorldView } from "../protocol/generated/link.js";
+import type { Between, CalendarItem, WorldPerson, WorldPlace, WorldView } from "../protocol/generated/link.js";
+import { type Bond, bondsOn } from "../story/bonds.js";
 import { onAhead } from "../story/day.js";
 import { heardOn, knownOn } from "../story/known.js";
 import { minutesOf, parseStoryTime } from "../time.js";
 import { countdown, portraitUrl, say } from "./scene.js";
+
+/** Between you, as the phone shows it (lasting-records design decision 7): where things stand, the newest turn first. */
+export function betweenOf(bond: Bond | undefined): Between | null {
+  if (!bond) return null;
+  return { standing: bond.standing, turns: [...bond.turns].reverse().map(turn => ({ text: turn.text, scene_number: turn.scene?.number ?? null, scene_title: turn.scene?.title ?? null })) };
+}
 
 /**
  * The World screen (openspec outside-the-scene: The World screen shows what the Player Character knows): People as he
@@ -18,6 +25,7 @@ export function worldView(mac: Mac, storyId: string, traceId: string): WorldView
   const state = mac.states.at(head);
   const known = knownOn(mac, head);
   const heard = heardOn(mac, head);
+  const bonds = bondsOn(mac, head);
   const pc = state.playerCharacter;
 
   const person = (name: string): WorldPerson | null => {
@@ -27,16 +35,16 @@ export function worldView(mac: Mac, storyId: string, traceId: string): WorldView
     return {
       name, aliases: who.aliases, portrait_url: who.portrait ? portraitUrl(storyId, who.portrait) : null,
       lead: state.leads.includes(name), group: who.group, is_group: false,
-      known: knowing?.text ?? null, known_from: knowing?.from ?? null, heard: heard.get(name) ?? []
+      known: knowing?.text ?? null, known_from: knowing?.from ?? null, heard: heard.get(name) ?? [], between: betweenOf(bonds.get(name))
     };
   };
-  const knownOf = new Set([...known.keys(), ...heard.keys()]);
+  const knownOf = new Set([...known.keys(), ...heard.keys(), ...bonds.keys()]);
   const leads = state.leads.filter(name => knownOf.has(name)).flatMap(name => person(name) ?? []);
   const others = [...knownOf].filter(name => !state.leads.includes(name)).sort().flatMap(name => person(name) ?? []);
   // A Group's description is public, as a place's is: each is one entry, beside any member he knows on their own.
   const groups: WorldPerson[] = state.groups.map(group => ({
     name: group.name, aliases: [], portrait_url: null, lead: false, group: null, is_group: true,
-    known: group.description || null, known_from: null, heard: heard.get(group.name) ?? []
+    known: group.description || null, known_from: null, heard: heard.get(group.name) ?? [], between: null
   }));
   const people = [...leads, ...[...others, ...groups].sort((left, right) => left.name.localeCompare(right.name))];
 

@@ -1,9 +1,11 @@
 import { LinkError } from "../link/errors.js";
 import type { Mac } from "../mac.js";
 import type { PeopleView, PersonDetail } from "../protocol/generated/link.js";
+import { bondsOn } from "../story/bonds.js";
 import { knownOn } from "../story/known.js";
 import { nameIndex } from "../agents/names.js";
 import { portraitUrl } from "./scene.js";
+import { betweenOf } from "./world.js";
 
 function current(mac: Mac, storyId: string) {
   const path = mac.tree.currentPath(storyId);
@@ -37,6 +39,7 @@ export function personDetail(mac: Mac, storyId: string, person: string, traceId:
     story_id: storyId, name, aliases: who.aliases, who_they_are: who.whoTheyAre, known: knownOn(mac, head).get(name)?.text ?? null,
     appearance: who.appearance, wants: who.after, voice: who.voice, knows: who.knows, group: who.group,
     lead: state.leads.includes(name), portrait_url: who.portrait ? portraitUrl(storyId, who.portrait) : null, player_character: name === state.playerCharacter,
-    groups: state.groups.map(group => ({ name: group.name, description: group.description })), trace_id: traceId
+    groups: state.groups.map(group => ({ name: group.name, description: group.description })), trace_id: traceId,
+    between: betweenOf(bondsOn(mac, head).get(name))
   };
 }

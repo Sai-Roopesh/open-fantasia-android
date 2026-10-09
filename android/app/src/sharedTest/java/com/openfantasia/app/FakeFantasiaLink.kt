@@ -380,7 +380,8 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
                 beats = listOf(WriterBeat(text = "She stops pretending to read.", status = BeatStatus.Done),
                     WriterBeat(text = "The lantern goes into the forest.", status = BeatStatus.InPlay)),
                 exit = "she goes up to bed, or asks him to come and look."),
-            taste = listOf("Keep school procedure to a line.", "Keep Ron in the background unless he's needed."))
+            taste = listOf("Keep school procedure to a line.", "Keep Ron in the background unless he's needed."),
+            record = emptyList())
         // The Paths screen as drawn in Paths.dc.html: Main, and the lantern tried from Scene 13 two days ago.
         fun pathsFixture() = PathsView(storyID = "story", traceID = "paths", clearable = 1, rows = listOf(
             PathRow(kind = PathRowKind.Scenes, depth = 0, label = "Scenes 1 – 12 · Friday 6:10 pm", title = null, path = null),

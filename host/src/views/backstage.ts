@@ -1,7 +1,8 @@
 import { LinkError } from "../link/errors.js";
 import type { Mac } from "../mac.js";
 import { currentPlan } from "../engine/directing.js";
-import type { BackstageDay, BackstageView, DirectorLine } from "../protocol/generated/link.js";
+import { recordOn } from "../engine/chronicling.js";
+import type { BackstageDay, BackstageView, DirectorLine, RecordRow } from "../protocol/generated/link.js";
 import { worldOn } from "../story/world.js";
 import { minutesOf, parseStoryTime, sayDay, sayTime } from "../time.js";
 
@@ -43,8 +44,14 @@ export function backstageView(mac: Mac, storyId: string, traceId: string): Backs
     writer: scene && !scene.closed ? { call: scene.call, purpose: scene.purpose, beats: scene.beats.map(beat => ({ text: beat.text, status: beat.status })), exit: scene.exit } : null,
     taste: state.taste,
     director: directorLine(mac, path.headEntryId),
+    record: recordRows(mac, path.headEntryId),
     trace_id: traceId
   };
+}
+
+/** The record (openspec outside-the-scene: Backstage shows everything else), the newest Scene first. */
+function recordRows(mac: Mac, head: string): RecordRow[] {
+  return recordOn(mac, head).reverse().map(row => ({ scene_number: row.scene.number, scene_title: row.scene.title, state: row.state, reason: row.reason, dropped: row.dropped }));
 }
 
 /** What the Director is building toward, as Backstage.dc.html says it; null until he has planned on this Path. */

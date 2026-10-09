@@ -69,9 +69,9 @@ Scenarios this change builds:
 
 ## 4. The link and the phone
 
-- [ ] 4.1 Contract 17 in `link.schema.json` and `contract.json` (design decision 7). Regenerate, and verify both
+- [x] 4.1 Contract 17 in `link.schema.json` and `contract.json` (design decision 7). Regenerate, and verify both
   sides compile.
-- [ ] 4.2 Views and routes:
+- [x] 4.2 Views and routes:
   - `between` on the World view and person detail;
   - `record` on Backstage;
   - the retry route and `fantasia record`;

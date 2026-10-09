@@ -87,7 +87,9 @@ string[]`), for Backstage.
 - **Recording in order.** The engine's chronicle step records due Scenes in Path order, one call at a time, until
   none is due. Gaps are backfilled behind the newest Scene, and a stuck Scene costs at most three attempts, ever.
 - **Retry.** `POST /stories/{id}/record/retry {scene}`, and its Mac command `fantasia record <story> --retry
-  <scene>`, write a `record_gap` with zero attempts, which makes the Scene due again.
+  <scene>`, write a `record_gap` with zero attempts, which makes the Scene due again. The route records it at once.
+  The command has no models of its own, so it only marks the Scene, and the Mac serving the phone records it after
+  the next Scene or when it starts.
 
 **5. Presence follows the page (host).**
 - **The Writer's hint.** Each turn the Writer's task gets `<shown_not_here>`: people of the Story named in the last
@@ -109,8 +111,10 @@ string[]`), for Backstage.
 **7. The link and the phone (protocol, android).** Contract 17:
 - **The person:** `WorldPerson` and `PersonDetail` gain `between: { standing, turns: [{ text, scene_number,
   scene_title }] } | null`.
-- **Backstage:** `BackstageView` gains `record: [{ scene_number, scene_title, state: "waiting" | "given_up",
-  reason, dropped: string[] }]`, plus `RecordRetryRequest { after, scene_number }`.
+- **Backstage:** `BackstageView` gains `record: [{ scene_number, scene_title, state: "waiting" | "given_up" |
+  "recorded", reason, dropped: string[] }]`, plus `RecordRetryRequest { after, scene_number }`. `recorded` is a Scene
+  kept with parts of its record left out, as the drawing's Scene 11. The record is the Chronicler's record of each
+  Scene; what the Weaver and the Director left out stays on their records and in their calls.
 - **The phone:**
   - **Person page (`Person.dc.html`):** a **BETWEEN YOU** section under WHAT YOU KNOW, with the standing in
     Literata, then the turns, each with "Scene 11 · Twenty-nine minutes".

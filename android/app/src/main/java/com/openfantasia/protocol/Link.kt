@@ -99,6 +99,10 @@
 // val worldRequest         = json.parse(WorldRequest.serializer(), jsonString)
 // val clockRequest         = json.parse(ClockRequest.serializer(), jsonString)
 // val rewordTasteRequest   = json.parse(RewordTasteRequest.serializer(), jsonString)
+// val between              = json.parse(Between.serializer(), jsonString)
+// val betweenTurn          = json.parse(BetweenTurn.serializer(), jsonString)
+// val recordRow            = json.parse(RecordRow.serializer(), jsonString)
+// val recordRetryRequest   = json.parse(RecordRetryRequest.serializer(), jsonString)
 
 package com.openfantasia.protocol
 
@@ -1063,6 +1067,12 @@ data class BackstageView (
      */
     val offscreen: List<BackstageDay>,
 
+    /**
+     * The record: each Scene not yet recorded, and each recorded with parts left out, newest
+     * first; empty when nothing is missing.
+     */
+    val record: List<RecordRow>,
+
     @SerialName("story_id")
     val storyID: String,
 
@@ -1136,6 +1146,46 @@ data class BackstageItem (
 
     val what: String
 )
+
+/**
+ * A Scene in The record (lasting-records): one not yet recorded, or one recorded with parts
+ * left out.
+ */
+@Serializable
+data class RecordRow (
+    /**
+     * The parts of its record that were left out, and why.
+     */
+    val dropped: List<String>,
+
+    /**
+     * Why the last try failed; null for a recorded Scene.
+     */
+    val reason: String? = null,
+
+    @SerialName("scene_number")
+    val sceneNumber: Long,
+
+    @SerialName("scene_title")
+    val sceneTitle: String,
+
+    /**
+     * waiting: it will be tried again after the next Scene; given_up: three tries failed, and
+     * Retry tries again; recorded: recorded, without the parts in dropped.
+     */
+    val state: State
+)
+
+/**
+ * waiting: it will be tried again after the next Scene; given_up: three tries failed, and
+ * Retry tries again; recorded: recorded, without the parts in dropped.
+ */
+@Serializable
+enum class State(val value: String) {
+    @SerialName("given_up") GivenUp("given_up"),
+    @SerialName("recorded") Recorded("recorded"),
+    @SerialName("waiting") Waiting("waiting");
+}
 
 @Serializable
 data class BackstageThread (
@@ -1511,6 +1561,11 @@ data class WorldPerson (
     val aliases: List<String>,
 
     /**
+     * Between you: their Bond; null when he has no history with them.
+     */
+    val between: Between? = null,
+
+    /**
      * The Group they are in, if any.
      */
     val group: String? = null,
@@ -1543,6 +1598,31 @@ data class WorldPerson (
 
     @SerialName("portrait_url")
     val portraitURL: String? = null
+)
+
+/**
+ * Where things stand between the Player Character and someone, and the turns that brought
+ * it there, newest first (lasting-records: their Bond).
+ */
+@Serializable
+data class Between (
+    val standing: String,
+    val turns: List<BetweenTurn>
+)
+
+/**
+ * One turn in a Bond, with the Scene it came in; the Scene is null for a turn from before
+ * the Story.
+ */
+@Serializable
+data class BetweenTurn (
+    @SerialName("scene_number")
+    val sceneNumber: Long? = null,
+
+    @SerialName("scene_title")
+    val sceneTitle: String? = null,
+
+    val text: String
 )
 
 /**
@@ -1620,6 +1700,12 @@ data class PersonDetail (
     val aliases: List<String>,
 
     val appearance: String,
+
+    /**
+     * Between you: their Bond; null when he has no history with them.
+     */
+    val between: Between? = null,
+
     val group: String? = null,
 
     /**
@@ -2024,4 +2110,18 @@ data class RewordTasteRequest (
     val line: String,
 
     val text: String
+)
+
+/**
+ * Tries the record of a Scene given up after three tries once more.
+ */
+@Serializable
+data class RecordRetryRequest (
+    /**
+     * The head the phone saw: the Path whose record it is.
+     */
+    val after: String,
+
+    @SerialName("scene_number")
+    val sceneNumber: Long
 )

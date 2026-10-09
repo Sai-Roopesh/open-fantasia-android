@@ -851,6 +851,10 @@ export interface BackstageView {
    * What the Director is building toward; null until the Director has planned on this Path.
    */
   director: DirectorLine | null;
+  /**
+   * The record: each Scene not yet recorded, and each recorded with parts left out, newest first; empty when nothing is missing.
+   */
+  record: RecordRow[];
 }
 /**
  * This interface was referenced by `Link`'s JSON-Schema
@@ -932,6 +936,28 @@ export interface DirectorLine {
    * Said for Backstage: "Building toward the flying test on Wednesday. This stretch builds; rest comes after it."
    */
   line: string;
+}
+/**
+ * A Scene in The record (lasting-records): one not yet recorded, or one recorded with parts left out.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "RecordRow".
+ */
+export interface RecordRow {
+  scene_number: number;
+  scene_title: string;
+  /**
+   * waiting: it will be tried again after the next Scene; given_up: three tries failed, and Retry tries again; recorded: recorded, without the parts in dropped.
+   */
+  state: "waiting" | "given_up" | "recorded";
+  /**
+   * Why the last try failed; null for a recorded Scene.
+   */
+  reason: string | null;
+  /**
+   * The parts of its record that were left out, and why.
+   */
+  dropped: string[];
 }
 /**
  * Delete a lesson from Taste on the Path the player is on (openspec long-run: Taste is short, readable and the player's).
@@ -1213,6 +1239,31 @@ export interface WorldPerson {
    * What he has heard of them, newest first.
    */
   heard: MeanwhileItem[];
+  /**
+   * Between you: their Bond; null when he has no history with them.
+   */
+  between: Between | null;
+}
+/**
+ * Where things stand between the Player Character and someone, and the turns that brought it there, newest first (lasting-records: their Bond).
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "Between".
+ */
+export interface Between {
+  standing: string;
+  turns: BetweenTurn[];
+}
+/**
+ * One turn in a Bond, with the Scene it came in; the Scene is null for a turn from before the Story.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "BetweenTurn".
+ */
+export interface BetweenTurn {
+  text: string;
+  scene_number: number | null;
+  scene_title: string | null;
 }
 /**
  * A place in the Story, as anyone there would know it.
@@ -1344,6 +1395,10 @@ export interface PersonDetail {
    */
   groups: GroupInfo[];
   trace_id: string;
+  /**
+   * Between you: their Bond; null when he has no history with them.
+   */
+  between: Between | null;
 }
 /**
  * A person created or changed whole, from that moment onward on the current Path.
@@ -1642,4 +1697,17 @@ export interface RewordTasteRequest {
    */
   line: string;
   text: string;
+}
+/**
+ * Tries the record of a Scene given up after three tries once more.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "RecordRetryRequest".
+ */
+export interface RecordRetryRequest {
+  /**
+   * The head the phone saw: the Path whose record it is.
+   */
+  after: string;
+  scene_number: number;
 }
