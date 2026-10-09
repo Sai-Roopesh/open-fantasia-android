@@ -38,7 +38,7 @@ Scenarios this change builds:
   - the fake Director's answer updated.
 
   Unit tests for each check.
-- [ ] 1.2 `directionDue` by days and planned Scenes. Test first: `long-run › The Director shapes the long run around
+- [x] 1.2 `directionDue` by days and planned Scenes. Test first: `long-run › The Director shapes the long run around
   Arcs and Landmarks › A stretch that has not run its course`, and the plan stays Backstage, with its view test.
 - [ ] 1.3 `DIRECTOR.md` and the prompt: the whole run, the Landmarks, the Leads' Bonds, the previous roadmap, and the
   pacing rule. Test first: `long-run › Arcs keep pace with the run › Four years of romance, paced` (the prompt

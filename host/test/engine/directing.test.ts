@@ -45,18 +45,29 @@ describe("the Director's plan, beside the Path (docs/adr/0007)", () => {
     const { mac, tree, scene, head } = story();
     const first = scene(1);
     const written = tree.append("s", first.closed.id, plan());
-    expect(currentPlan(mac, head().id)).toMatchObject({ entry: { id: written.id }, scenesSince: 0, runItsCourse: false });
+    expect(currentPlan(mac, head().id)).toMatchObject({ entry: { id: written.id }, runItsCourse: false });
     expect(tree.pathTo(head().id).some(entry => entry.payload.kind === "director_plan")).toBe(false);
     expect(tree.recordsOf(first.closed.id).map(entry => entry.id)).toEqual([written.id]);
   });
 
-  it("has run its course once as many Scenes have closed as it planned", () => {
+  it("has run its course once every Scene that matters has passed, or its days have", () => {
     const { mac, tree, scene, head } = story();
+    // Two Scenes that matter, Day 4 and Day 5 at ten.
     tree.append("s", scene(1).closed.id, plan(2));
-    scene(2);
-    expect(currentPlan(mac, head().id)).toMatchObject({ scenesSince: 1, runItsCourse: false });
-    scene(3);
-    expect(currentPlan(mac, head().id)).toMatchObject({ scenesSince: 2, runItsCourse: true });
+    scene(4);
+    expect(currentPlan(mac, head().id)).toMatchObject({ runItsCourse: false });
+    scene(5);
+    expect(currentPlan(mac, head().id)).toMatchObject({ runItsCourse: false });
+    scene(6);
+    expect(currentPlan(mac, head().id)).toMatchObject({ runItsCourse: true });
+
+    // Days: a Stretch to Day 9 whose last Scene that matters is still to come has not run its course on Day 9.
+    const later = story();
+    later.tree.append("s", later.scene(1).closed.id, { ...plan(2), scenes: plan(2).scenes.map(item => ({ ...item, at: "Day 9 22:00" })) });
+    later.scene(9);
+    expect(currentPlan(later.mac, later.head().id)).toMatchObject({ runItsCourse: false });
+    later.scene(10);
+    expect(currentPlan(later.mac, later.head().id)).toMatchObject({ runItsCourse: true });
   });
 
   it("is the newest plan on the Path, and a Path from before a plan does not have it", () => {
@@ -73,38 +84,46 @@ describe("the Director's plan, beside the Path (docs/adr/0007)", () => {
 });
 
 describe("when the Director plans (openspec long-run)", () => {
-  // GIVEN the Director planned a stretch of four Scenes building toward the flying test
-  // WHEN the second of them ends without peaking
-  // THEN the Director plans nothing new, and the next Scene is planned toward the flying test
+  // GIVEN the Director planned a Stretch from Monday to Sunday, building toward the flying test on Saturday, with
+  //   three Scenes that matter
+  // WHEN the first of them, on Tuesday, ends without peaking
+  // THEN the Director plans nothing new, and the Day View leads with the Stretch's next Scene
+  // (The Day View's half is proved with the Weaver following the plan.)
   it("long-run › The Director shapes the long run around Arcs and Landmarks › A stretch that has not run its course", async () => {
-    const { mac, engine, storyId, head, play, models } = playable(hogwartsStoryFile(), {
-      director: [{ answer: JSON.stringify(flyingTest(4)) }]
-    });
+    // Monday night, Day 6: Day 1 was a Wednesday.
+    const story = hogwartsStoryFile({ title: "Monday night", place: "The Gryffindor common room", at: "Day 6 21:40" });
+    const week = { ...flyingTest(3), from: "Day 6", until: "Day 12", toward: "the flying test on Saturday", scenes: [
+      { id: "S1", at: "Day 7 16:00", place: "The Charms classroom", who: ["Draconia Malfoy"], for: "She is paired with him and hates it.", lead: "Draconia Malfoy" },
+      { id: "S2", at: "Day 9 14:00", place: "The library", who: ["Hermione Granger"], for: "Hermione's flying notes.", lead: "Hermione Granger" },
+      { id: "S3", at: "Day 11 10:00", place: "The Quidditch pitch", who: ["Draconia Malfoy"], for: "The flying test.", lead: "Draconia Malfoy" }
+    ] };
+    const tuesday = { answer: JSON.stringify({ leaves_scene: true, frame: { title: "Charms", place: "The Charms classroom", purpose: "p", exit: "e" }, comes_in: ["Draconia Malfoy"], goes: [], beats: [{ text: "a", status: "in_play" }, { text: "b", status: "pending" }, { text: "c", status: "pending" }], note: "n", call: "continue", intensity: 2, arc_moved: true, clock: "Day 7 16:00", taste: null, in_play: [] }) };
+    const { mac, engine, storyId, head, play, models } = playable(story, { director: [{ answer: JSON.stringify(week) }], writer: [{ from: fakeWriterAnswer }, tuesday] });
     const endScene = async () => {
       engine.endScene(storyId, head(), `end-${head()}`);
       await engine.directed(storyId);
     };
-    // The first Scene's end: there is no plan yet, so the Director plans, after the Chronicler and the Weaver.
+    // Monday night ends: there is no plan yet, so the Director plans the week.
     await play("I say goodnight.");
     await endScene();
     expect(models.director.requests).toHaveLength(1);
-    const order = models.requests.map(request => request.agent).filter(agent => ["chronicler", "weaver", "director"].includes(agent));
-    expect(order.indexOf("director")).toBeGreaterThan(order.lastIndexOf("chronicler"));
-    expect(order.indexOf("director")).toBeGreaterThan(order.lastIndexOf("weaver"));
     expect(callsFor(mac.db, "director")).toEqual([{ provider: "claude", model: "claude-opus-5-5", effort: null }]);
-    expect(currentPlan(mac, head())?.entry.payload.toward).toBe("the flying test on Wednesday");
+    expect(currentPlan(mac, head())?.entry.payload).toMatchObject({ from: 6, until: 12, toward: "the flying test on Saturday" });
 
-    // The second Scene ends, quietly: the stretch has not run its course, and nothing is planned.
-    await play("I go down to breakfast.");
+    // Tuesday's Scene that matters ends, quietly: two are still ahead, and nothing is planned.
+    await play("On Tuesday I go to Charms.");
     await engine.settled(storyId);
     await endScene();
+    expect(mac.states.at(head()).clock).toBe("Day 7 16:00");
     expect(models.director.requests).toHaveLength(1);
-    expect(currentPlan(mac, head())).toMatchObject({ scenesSince: 1, runItsCourse: false });
+    expect(currentPlan(mac, head())).toMatchObject({ runItsCourse: false });
   });
 
-  it("plans again when the stretch has run its course", async () => {
-    const { engine, storyId, head, play, models } = playable(hogwartsStoryFile(), { director: [{ answer: JSON.stringify(flyingTest(2)) }] });
-    for (const move of ["I say goodnight.", "I go down to breakfast.", "I go to Charms."]) {
+  it("plans again when the Stretch has run its course: its Scenes that matter have passed", async () => {
+    // The Stretch's two Scenes that matter are on Day 4 and Day 5 at ten; the second Scene opens on Day 6.
+    const dayAfter = { answer: JSON.stringify({ leaves_scene: true, frame: { title: "Saturday", place: "The Great Hall", purpose: "p", exit: "e" }, comes_in: [], goes: [], beats: [{ text: "a", status: "in_play" }, { text: "b", status: "pending" }, { text: "c", status: "pending" }], note: "n", call: "continue", intensity: 2, arc_moved: true, clock: "Day 6 09:00", taste: null, in_play: [] }) };
+    const { engine, storyId, head, play, models } = playable(hogwartsStoryFile(), { director: [{ answer: JSON.stringify(flyingTest(2)) }], writer: [{ from: fakeWriterAnswer }, dayAfter] });
+    for (const move of ["I say goodnight.", "On Saturday I go down to breakfast."]) {
       await play(move);
       engine.endScene(storyId, head(), `end-${move}`);
       await engine.directed(storyId);

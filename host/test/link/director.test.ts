@@ -8,7 +8,7 @@ afterEach(async () => {
 });
 
 describe("the Director's plan over the link", () => {
-  // WHEN the Director plans the next chapter
+  // WHEN the Director plans the next Stretch
   // THEN its plan appears in Backstage and nowhere in the Scene, the Day View, the World screen or the Journal
   it("long-run › The Director shapes the long run around Arcs and Landmarks › The plan stays Backstage", async () => {
     const running = await runningMac();
@@ -26,8 +26,9 @@ describe("the Director's plan over the link", () => {
     const backstage = await (await call(`/stories/${storyId}/backstage`)).json() as BackstageView;
     expect(backstage.director).toEqual({ toward: "what comes next", phase: "build", line: "Building toward what comes next. This stretch builds; rest comes after it." });
 
-    // The plan's own words: what it builds toward, an Arc's step and what is not yet, and how the Premise comes in.
-    const planWords = ["what comes next", "one small step", "anything more", "Some Scenes serve the Premise"];
+    // The plan's own words: what it builds toward, a Scene that matters, an Arc's step and what is not yet, a Lead's
+    // move, the roadmap, and how the Premise comes in.
+    const planWords = ["what comes next", "A step for the Story.", "Something else in his life.", "anything more", "does something about him", "a step further than now", "Some Scenes serve the Premise"];
     const elsewhere = {
       scene: await (await call(`/stories/${storyId}/scene`)).text(),
       dayView: JSON.stringify((await view()).day_view),

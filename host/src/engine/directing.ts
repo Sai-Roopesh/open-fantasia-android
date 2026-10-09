@@ -2,7 +2,7 @@ import type { DirectorAsk, SceneSoFar } from "../agents/director.js";
 import { recalledBond } from "../agents/recall.js";
 import type { Mac } from "../mac.js";
 import { bondsOn } from "../story/bonds.js";
-import type { DirectorPlan, Entry } from "../story/entries.js";
+import type { DirectorPlan, Entry, PlannedScene } from "../story/entries.js";
 import type { Landmark } from "../story/state.js";
 import { worldOn } from "../story/world.js";
 import { minutesOf, parseStoryTime } from "../time.js";
@@ -11,12 +11,14 @@ import { summariesOn } from "../views/scene.js";
 /** Someone besides the Leads whose Bond has this many turns has history enough for the Director to plan around. */
 const LONG_BOND = 5;
 
-/** A Path's plan for the long run: the newest the Director wrote on it, and how far the stretch has gone. */
+/** A Path's plan for the long run: the newest the Director wrote on it, and how far the Stretch has gone. */
 export interface CurrentPlan {
   entry: Entry<DirectorPlan>;
   /** Scenes closed on the Path since the plan was written. */
   scenesSince: number;
-  /** As many Scenes have closed as the plan said the stretch would take. */
+  /** The Scenes that matter still ahead of the clock, in order. */
+  ahead: PlannedScene[];
+  /** Every Scene that matters has passed, or the Stretch's days have (story-in-stretches design decision 1). */
   runItsCourse: boolean;
 }
 
@@ -31,13 +33,19 @@ export function currentPlan(mac: Mac, head: string): CurrentPlan | null {
   const path = mac.tree.pathTo(head);
   const from = path.findIndex(item => item.id === entry.parentId);
   const scenesSince = path.slice(from + 1).filter(item => item.payload.kind === "scene_closed").length;
-  return { entry, scenesSince, runItsCourse: scenesSince >= entry.payload.scenes.length };
+  const now = parseStoryTime(mac.states.at(head).clock);
+  const ahead = entry.payload.scenes.filter(scene => {
+    const at = parseStoryTime(scene.at);
+    return !now || !at || minutesOf(at) > minutesOf(now);
+  });
+  const daysPassed = now !== null && now.day > entry.payload.until;
+  return { entry, scenesSince, ahead, runItsCourse: daysPassed || ahead.length === 0 };
 }
 
-/** The plan the Writer reads (design decision 4), and how many of its Scenes are left; null before the first. */
+/** The plan the Writer reads (design decision 4), and how many of its Scenes that matter are ahead; null before the first. */
 export function planForWriter(mac: Mac, head: string): { plan: DirectorPlan; scenesLeft: number } | null {
   const plan = currentPlan(mac, head);
-  return plan ? { plan: plan.entry.payload, scenesLeft: Math.max(0, plan.entry.payload.scenes.length - plan.scenesSince) } : null;
+  return plan ? { plan: plan.entry.payload, scenesLeft: plan.ahead.length } : null;
 }
 
 /** The Writer rated a Scene this high or higher: a confrontation, a revelation, or a change that cannot be undone. */
@@ -45,7 +53,7 @@ export const PEAK = 4;
 
 /** Why a plan is due at a Scene's end (openspec long-run: The Director shapes the long run), and what to ask. */
 export interface DueDirection {
-  reason: "no plan yet" | "the stretch has run its course" | "a Scene peaked" | "a Landmark passed" | "the last plan failed";
+  reason: "no plan yet" | "the Stretch has run its course" | "a Scene peaked" | "a Landmark passed" | "the last plan failed";
   /** The entry that closed the Scene the plan follows, which it hangs off (docs/adr/0007). */
   closing: Entry;
   ask: DirectorAsk;
@@ -83,7 +91,7 @@ export function directionDue(mac: Mac, head: string, failedAt: string | null): D
   const state = mac.states.at(closing.id);
   const reason: DueDirection["reason"] | null = !plan ? "no plan yet"
     : afterPeak ? "a Scene peaked"
-    : plan.runItsCourse ? "the stretch has run its course"
+    : plan.runItsCourse ? "the Stretch has run its course"
     : landmarkPassed(state.landmarks, mac.states.at(plan.entry.parentId ?? closing.id).clock, state.clock) ? "a Landmark passed"
     : owed ? "the last plan failed"
     : null;
