@@ -196,6 +196,33 @@ function flyingTest(scenes: number) {
   };
 }
 
+describe("Leads act every Stretch (openspec long-run)", () => {
+  // GIVEN Draconia saw him hold Hermione in the Great Hall
+  // WHEN the next Stretch is planned
+  // THEN Draconia's move in it acts on that, on screen or off: she claims him, or moves against Hermione
+  // (What her move is, is the live check's; here, that the Director is told, and must give her one.)
+  it("long-run › Leads act every Stretch › Jealousy acted on", async () => {
+    const story = hogwartsStoryFile({ title: "Breakfast", place: "The Great Hall", at: "Day 4 08:00", who: ["Hermione Granger", "Draconia Malfoy"], prose: "The Great Hall is loud with Saturday." });
+    const hug = "She saw him hold Hermione in the Great Hall, and left her breakfast where it was.";
+    const move = "I hold Hermione when she starts to cry.";
+    const chronicle = { answer: JSON.stringify({
+      summary: "He held Hermione in the Great Hall, and Draconia saw.",
+      moments: [{ what: "He holds Hermione.", quotes: [{ entry: "E2", text: move }], there: ["Hermione Granger", "Draconia Malfoy"], weight: 4 }],
+      told: [],
+      bonds: [{ who: "Draconia Malfoy", standing: "She calls him Stray and watches who he holds.", turn: hug }]
+    }) };
+    const week = flyingTest(2);
+    const noDraconia = { ...week, leads: week.leads.filter(lead => lead.who !== "Draconia Malfoy") };
+    const { mac, engine, storyId, head, play, models } = playable(story, { chronicler: [chronicle], director: [{ answer: JSON.stringify(noDraconia) }, { answer: JSON.stringify(week) }] });
+    await play(move);
+    engine.endScene(storyId, head(), "end-hug");
+    await engine.directed(storyId);
+    expect(models.director.requests[0]!.prompt).toContain(`- Draconia Malfoy: She calls him Stray and watches who he holds.\n  - Scene 1 · Breakfast: ${hug}`);
+    expect(models.director.requests[1]!.prompt).toContain("leads: no move for Draconia Malfoy; every Lead makes one this Stretch, on screen or off");
+    expect(currentPlan(mac, head())?.entry.payload.leads.map(lead => lead.who)).toEqual(["Draconia Malfoy", "Hermione Granger"]);
+  });
+});
+
 describe("the plan reaches the Story only through the Writer (docs/adr/0004)", () => {
   it("is in the Writer's prompt and in no other agent's", async () => {
     const { engine, storyId, head, play, models } = playable(hogwartsStoryFile(), { director: [{ answer: JSON.stringify(flyingTest(4)) }] });

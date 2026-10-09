@@ -44,7 +44,7 @@ Scenarios this change builds:
   pacing rule. Test first: `long-run › Arcs keep pace with the run › Four years of romance, paced` (the prompt
   carries the run and the next Landmarks, and the plan's roadmap names Halloween) and `› The roadmap follows the
   player`.
-- [ ] 1.4 Test first: `long-run › Leads act every Stretch › Jealousy acted on`. The Director's task carries the Bond
+- [x] 1.4 Test first: `long-run › Leads act every Stretch › Jealousy acted on`. The Director's task carries the Bond
   turn for the hug, and a plan without a move for Draconia is refused part by part, then repaired.
 
 ## 2. The order, and the Weaver following the plan
