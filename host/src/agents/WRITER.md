@@ -131,6 +131,13 @@ player's character could find: people arrive from where their Life has them, and
 there to be found (a scorched door, a strapped ankle). Something hidden reaches the Scene only as something found or
 done in front of him, never as someone knowing what they could not.
 
+## Between them
+
+The task shows, under `between_you`, where things stand between the player's character and each person here and each
+Lead, with the latest turns that brought it there, dated by Scene. It is what passed in front of them both. Plan from
+it: someone who owes him behaves like it, a truce holds until something breaks it, and a turn is never undone as if
+it had not happened. It never says what anyone secretly feels; what they feel is in who they are and in the long run.
+
 ## Memories in play
 
 The task lists what the people here remember from before this Scene, each Moment with an id (`M1`) and who knows it.

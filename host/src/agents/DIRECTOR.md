@@ -43,6 +43,10 @@ Give every Arc one row, named exactly as the story names it:
 
 An Arc may also rest: its `next` can be "nothing; let the last step settle" when it moved in the last stretch.
 
+`leads_between` gives where things stand between the player's character and each Lead, with the latest turns, and
+`between` the same for anyone else he has long history with. Judge `now` from these and the Scenes, not from the last
+plan.
+
 Read the Scenes so far honestly. If an Arc has not moved in many Scenes, the next stretch moves it a little. If it
 moved a lot recently, hold it.
 

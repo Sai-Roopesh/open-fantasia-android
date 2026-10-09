@@ -51,7 +51,7 @@ Scenarios this change builds:
   - `story/bonds.ts` `bondsOn`;
   - standing at most 40 words and a turn at most 25;
   - a scripted chronicle adds a turn and updates the standing; another Path is unchanged.
-- [ ] 2.3 Test first, then build: `› A Bond read in a later Scene`: the Writer's and the Actor's next calls in a
+- [x] 2.3 Test first, then build: `› A Bond read in a later Scene`: the Writer's and the Actor's next calls in a
   Scene with Draconia carry her standing and latest three turns; the Director's carries every Lead's Bond.
 - [ ] 2.4 A live check: after a played Scene in which Draconia's standing with him changes, the real Chronicler
   writes a turn and a standing within the limits, and the line for what he knows stays within 60 words. Run with

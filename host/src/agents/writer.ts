@@ -9,7 +9,7 @@ import type { Beat, ModelChoice, PendingDirection, SceneCall, State } from "../s
 import { minutesOf, parseStoryTime, sayStoryTime } from "../time.js";
 import { decidesForPlayer, playerNames } from "./deciding.js";
 import { nameIndex, names } from "./names.js";
-import { sayWords, type Recall } from "./recall.js";
+import { sayBetween, sayWords, type Recall } from "./recall.js";
 
 /**
  * The Writer: each Scene's author (docs/adr/0004). It reads every Move before the Actor answers it, and answers one
@@ -416,6 +416,7 @@ export function writerPrompt(ask: WriterAsk): { system: string; prompt: string; 
     section("earlier", ask.recall.earlier.join("\n")),
     section("last_scene_end", sayWords(ask.recall.lastSceneEnd)),
     section("remembered", ask.recall.moments.map((moment, position) => section(`moment id="M${position + 1}" scene="${moment.scene}" known_to="${moment.knownTo.join(", ")}"`, `${moment.what}\n${sayWords(moment.words)}`)).join("\n\n")),
+    section("between_you", sayBetween([...ask.recall.between, ...ask.recall.leads.filter(lead => !ask.recall.between.some(bond => bond.who === lead.who))])),
     section("world", worldPrompt(state, ask.world)),
     section(opening === "day_view" ? "last_scene_so_far" : "scene_so_far", sceneSoFar(ask.scene, pc)),
     section(`move by="${pc}"`, move),

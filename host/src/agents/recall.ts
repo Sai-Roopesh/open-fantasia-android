@@ -1,4 +1,5 @@
 import type { Mac } from "../mac.js";
+import { type Bond, bondsOn } from "../story/bonds.js";
 import type { Chronicle, Entry, Quote } from "../story/entries.js";
 import { momentsOn } from "../story/memory.js";
 import { worldOn } from "../story/world.js";
@@ -6,6 +7,8 @@ import { minutesOf, parseStoryTime } from "../time.js";
 
 /** At most this many Moments are recalled into a prompt (docs/adr/0006). */
 export const RECALLED_MOMENTS = 5;
+/** A Bond is recalled as where things stand and its latest turns, so a prompt stays the same size over years. */
+export const RECALLED_TURNS = 3;
 /** Each Scene further back counts for this much less when Moments are ranked. */
 const RECENCY = 0.85;
 const DAY = 24 * 60;
@@ -41,9 +44,34 @@ export interface Recall {
   moments: RecalledMoment[];
   /** What happened off-screen in the last day that someone present knows, with who of them knows it. */
   lately: { what: string; at: string; knownTo: string[] }[];
+  /** The Bond of each person present who has one (lasting-records design decision 6). */
+  between: RecalledBond[];
+  /** The Bond of every Lead, present or not, standing null for one with no history yet: for the Writer only. */
+  leads: RecalledBond[];
 }
 
-export const NOTHING_RECALLED: Recall = { earlier: [], lastSceneEnd: [], moments: [], lately: [] };
+/** A Bond as a prompt carries it: where things stand, and its latest turns as "Scene 3 · The station: …". */
+export interface RecalledBond {
+  who: string;
+  standing: string | null;
+  turns: string[];
+}
+
+export const NOTHING_RECALLED: Recall = { earlier: [], lastSceneEnd: [], moments: [], lately: [], between: [], leads: [] };
+
+/** [who]'s Bond as a prompt carries it, with at most its latest three turns. */
+export function recalledBond(who: string, bond: Bond | undefined): RecalledBond {
+  return {
+    who,
+    standing: bond?.standing ?? null,
+    turns: (bond?.turns ?? []).slice(-RECALLED_TURNS).map(turn => (turn.scene ? `Scene ${turn.scene.number} · ${turn.scene.title}: ${turn.text}` : turn.text))
+  };
+}
+
+/** Bonds as a prompt shows them: one line of where things stand for each person, and their latest turns under it. */
+export function sayBetween(bonds: RecalledBond[]): string {
+  return bonds.map(bond => [`- ${bond.who}: ${bond.standing ?? "no history yet"}`, ...bond.turns.map(turn => `  - ${turn}`)].join("\n")).join("\n");
+}
 
 function words(entry: Entry | null, text: string, pc: string): RecalledWords {
   return { by: entry?.payload.kind === "move" ? pc : null, text };
@@ -52,8 +80,12 @@ function words(entry: Entry | null, text: string, pc: string): RecalledWords {
 /** What is recalled at [head] for [present], the people in the Scene besides the Player Character. */
 export function recall(mac: Mac, head: string, present: string[]): Recall {
   const state = mac.states.at(head);
+  // Where things stand between him and the people here, and every Lead (for the Writer): open Scene or not.
+  const bonds = bondsOn(mac, head);
+  const between = present.filter(name => bonds.has(name)).map(name => recalledBond(name, bonds.get(name)));
+  const leads = state.leads.map(name => recalledBond(name, bonds.get(name)));
   const scene = state.scene;
-  if (!scene) return NOTHING_RECALLED;
+  if (!scene) return { ...NOTHING_RECALLED, between, leads };
   const pc = state.playerCharacter;
   const path = mac.tree.pathTo(head);
 
@@ -108,7 +140,7 @@ export function recall(mac: Mac, head: string, present: string[]): Recall {
     return [{ what: item.what, at: item.at, knownTo: knowers }];
   });
 
-  return { earlier, lastSceneEnd, moments, lately };
+  return { earlier, lastSceneEnd, moments, lately, between, leads };
 }
 
 /** Recalled words as a prompt shows them: the player's in a Move tag, as the Scene shows his Moves. */

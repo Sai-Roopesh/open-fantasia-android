@@ -5,6 +5,7 @@ import type { ArcStep, DirectorPlan } from "../story/entries.js";
 import type { ModelChoice, State } from "../story/state.js";
 import type { World } from "../story/world.js";
 import { parseStoryTime, sayStoryTime } from "../time.js";
+import { type RecalledBond, sayBetween } from "./recall.js";
 import { answerWithOneRepair, type Checked } from "./repair.js";
 
 /**
@@ -64,6 +65,8 @@ export interface DirectorAsk {
   previous: DirectorPlan | null;
   /** The Scene that just ended peaked, so this stretch rests (openspec long-run: Rest is deliberate). */
   afterPeak: boolean;
+  /** Every Lead's Bond, and the Bond of each person with five turns or more (lasting-records design decision 6). */
+  bonds?: { leads: RecalledBond[]; others: RecalledBond[] };
 }
 
 /** The Director could not give a plan the Story can use. */
@@ -131,6 +134,8 @@ export function directorPrompt(ask: DirectorAsk): { system: string; prompt: stri
     section("now", `It is ${say(state, state.clock)}. ${scenes.length} Scenes have been played.`),
     section("scenes_so_far", scenesSoFar.join("\n")),
     section("threads", threads.join("\n")),
+    section("leads_between", sayBetween(ask.bonds?.leads ?? [])),
+    section("between", sayBetween(ask.bonds?.others ?? [])),
     previous ? section("last_plan", [
       `Phase: ${previous.phase}, toward ${previous.toward}${previous.landmark ? ` (the Landmark ${previous.landmark})` : ""}, ${previous.scenes} Scenes.`,
       ...previous.arcs.map(arc => `- ${arc.arc}: was ${arc.now}; next ${arc.next}; not yet ${arc.not_yet}`),

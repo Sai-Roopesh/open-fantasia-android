@@ -2,7 +2,7 @@ import type { Entry } from "../story/entries.js";
 import type { ModelChoice, Person, State } from "../story/state.js";
 import { parseStoryTime, sayDay, sayTime, type StoryTime, type Weekday } from "../time.js";
 import type { ModelAnswer, Models } from "../models/model-call.js";
-import { NOTHING_RECALLED, sayWords, type Recall } from "./recall.js";
+import { NOTHING_RECALLED, sayBetween, sayWords, type Recall } from "./recall.js";
 import { lifeOf, NO_WORLD, type World } from "../story/world.js";
 import type { Life } from "../story/entries.js";
 
@@ -42,6 +42,7 @@ export function actorPrompt(state: State, scene: Entry[], recall: Recall = NOTHI
     `What ${pc} thinks without saying it stays inside ${pc}. The people here hear only what was said aloud and see only what was done where they could see it.`,
     "Each person knows their own past, what they have lived through in this story, and what they have been told or have seen; nothing else.",
     `What the people here remember from before this scene is under remembered, in the words that were said and done; each moment says who of them knows it, and nobody else here does. What ${pc} said and did in it is only what his own moves say.`,
+    `Where things stand between ${pc} and each person here is under between, with the latest turns: they lived it too, and act from where it stands.`,
     "The people here want things and act on them without being asked. They are as kind or as cruel as they are; nobody softens to make things easier.",
     "Write prose only, with no headings, notes or lists.",
     LENGTH[state.replyLength],
@@ -51,6 +52,8 @@ export function actorPrompt(state: State, scene: Entry[], recall: Recall = NOTHI
     section(`player_character name="${pc}"`, describe(state.people[pc], { withVoice: false })),
     section("people_here", here.map(person => section(`person name="${person.name}"`, describe(person, { withVoice: true, life: lifeOf(world, person) }))).join("\n\n") || "Nobody besides " + pc + "."),
     section("scene", `${state.scene.title}. ${state.scene.place}, ${at ? sayDayAndTime(at, state.dayOneWeekday) : state.scene.at}.`),
+    // Where things stand between him and each person here: what passed in front of them both, so they lived it too.
+    section("between", sayBetween(recall.between)),
     // Only the Moments someone here knows: the summaries and the end of the last Scene are not sorted by who knows them,
     // so they go to the Writer alone (docs/adr/0004: the Actor sees what the people in the Scene know).
     section("remembered", recall.moments.map(moment => section(`moment scene="${moment.scene}" known_to="${moment.knownTo.join(", ")}"`, sayWords(moment.words))).join("\n\n")),

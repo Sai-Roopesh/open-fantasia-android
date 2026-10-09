@@ -1,10 +1,15 @@
 import type { DirectorAsk, SceneSoFar } from "../agents/director.js";
+import { recalledBond } from "../agents/recall.js";
 import type { Mac } from "../mac.js";
+import { bondsOn } from "../story/bonds.js";
 import type { DirectorPlan, Entry } from "../story/entries.js";
 import type { Landmark } from "../story/state.js";
 import { worldOn } from "../story/world.js";
 import { minutesOf, parseStoryTime } from "../time.js";
 import { summariesOn } from "../views/scene.js";
+
+/** Someone besides the Leads whose Bond has this many turns has history enough for the Director to plan around. */
+const LONG_BOND = 5;
 
 /** A Path's plan for the long run: the newest the Director wrote on it, and how far the stretch has gone. */
 export interface CurrentPlan {
@@ -83,7 +88,9 @@ export function directionDue(mac: Mac, head: string, failedAt: string | null): D
     : owed ? "the last plan failed"
     : null;
   if (!reason) return null;
-  return { reason, closing, ask: { state, world: worldOn(mac, closing.id), scenes, previous: plan?.entry.payload ?? null, afterPeak } };
+  const bonds = bondsOn(mac, closing.id);
+  const others = [...bonds].filter(([who, bond]) => !state.leads.includes(who) && bond.turns.length >= LONG_BOND).map(([who, bond]) => recalledBond(who, bond));
+  return { reason, closing, ask: { state, world: worldOn(mac, closing.id), scenes, previous: plan?.entry.payload ?? null, afterPeak, bonds: { leads: state.leads.map(who => recalledBond(who, bonds.get(who))), others } } };
 }
 
 /** Every Scene on [path], with what the Chronicler said of it, its peak, and whether an Arc moved in it. */
