@@ -974,20 +974,20 @@ export interface StretchView {
  * via the `definition` "StretchScene".
  */
 export interface StretchScene {
-  /**
-   * "Mon 2:00 pm".
-   */
-  when: string;
   place: string;
-  /**
-   * What it is for, as the plan says it.
-   */
-  for: string;
   who: string[];
   /**
    * played: the player chose it; passed: its time went by without it; ahead: still to come.
    */
   state: "played" | "passed" | "ahead";
+  /**
+   * When, as Backstage says it: "Mon 2:00 pm".
+   */
+  time: string;
+  /**
+   * What it is for, as the plan says it.
+   */
+  purpose: string;
 }
 /**
  * What a Lead does about the Player Character this Stretch.

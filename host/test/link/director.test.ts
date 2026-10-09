@@ -25,7 +25,7 @@ describe("the Director's plan over the link", () => {
 
     const backstage = await (await call(`/stories/${storyId}/backstage`)).json() as BackstageView;
     expect(backstage.director).toMatchObject({ toward: "what comes next", phase: "build", line: "Building toward what comes next. This stretch builds; rest comes after it." });
-    expect(backstage.director!.stretch!.scenes.map(scene => scene.for)).toEqual(["A step for the Story.", "Something else in his life."]);
+    expect(backstage.director!.stretch!.scenes.map(scene => scene.purpose)).toEqual(["A step for the Story.", "Something else in his life."]);
 
     // The plan's own words: what it builds toward, a Scene that matters, an Arc's step and what is not yet, a Lead's
     // move, the roadmap, and how the Premise comes in.

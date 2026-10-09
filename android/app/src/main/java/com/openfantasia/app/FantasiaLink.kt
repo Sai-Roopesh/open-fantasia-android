@@ -46,6 +46,7 @@ interface FantasiaLink {
     suspend fun uploadPortrait(storyID: String, name: String, image: ByteArray, type: String, after: String): Accepted = throw LinkFailure("Editing is not on this link")
     suspend fun backstage(storyID: String): BackstageView = throw LinkFailure("Backstage is not on this link")
     suspend fun removeTaste(storyID: String, request: RemoveTasteRequest): Accepted = throw LinkFailure("Taste is not on this link")
+    suspend fun retryRecord(storyID: String, request: RecordRetryRequest): Accepted = throw LinkFailure("The record is not on this link")
     suspend fun retryWorld(storyID: String, request: RetryWorldRequest): Accepted
     suspend fun retry(storyID: String, request: RetryRequest): TurnAccepted
     // The Models screen (openspec outside-the-scene: One Models screen). A link that does not reach a Mac has none.

@@ -3043,22 +3043,14 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "when",
+        "time",
         "place",
-        "for",
+        "purpose",
         "who",
         "state"
       ],
       "properties": {
-        "when": {
-          "description": "\"Mon 2:00 pm\".",
-          "type": "string"
-        },
         "place": {
-          "type": "string"
-        },
-        "for": {
-          "description": "What it is for, as the plan says it.",
           "type": "string"
         },
         "who": {
@@ -3074,6 +3066,14 @@
             "passed",
             "ahead"
           ]
+        },
+        "time": {
+          "description": "When, as Backstage says it: \"Mon 2:00 pm\".",
+          "type": "string"
+        },
+        "purpose": {
+          "description": "What it is for, as the plan says it.",
+          "type": "string"
         }
       }
     },

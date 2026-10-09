@@ -18,5 +18,12 @@ class OutsideScreenTest : OutsideUiChecks() {
     @Test fun director() = whatTheDirectorIsBuildingToward()
 
     @Test fun noDirectorYet() = noDirectorBeforeHePlans()
+
+    @Scenario("outside-the-scene › Backstage shows everything else, only when visited › A gap in the record")
+    @Test fun record() = aGapInTheRecord()
+
+    @Test fun nothingMissing() = nothingMissingFromTheRecord()
+
+    @Test fun stretch() = theStretchBackstage()
 }
 

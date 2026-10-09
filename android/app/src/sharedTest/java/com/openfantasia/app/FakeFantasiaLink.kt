@@ -25,6 +25,7 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
     var journalView = journalFixture()
     var backstageView = backstageFixture()
     val tasteRemovals = mutableListOf<RemoveTasteRequest>()
+    val recordRetries = mutableListOf<RecordRetryRequest>()
     var retries = 0
     val retryRequests = mutableListOf<RetryRequest>()
     val worldRetryRequests = mutableListOf<RetryWorldRequest>()
@@ -209,6 +210,11 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
         return storyView
     }
     private fun minutes(at: String) = ((dayOf(at) ?: 0) - 1) * 24 * 60 + (minuteOf(at) ?: 0)
+    override suspend fun retryRecord(storyID: String, request: RecordRetryRequest): Accepted {
+        recordRetries += request
+        backstageView = backstageView.copy(record = backstageView.record.filterNot { it.sceneNumber == request.sceneNumber })
+        return Accepted(headEntryID = request.after, traceID = "record")
+    }
     override suspend fun removeTaste(storyID: String, request: RemoveTasteRequest): Accepted {
         tasteRemovals += request
         backstageView = backstageView.copy(taste = backstageView.taste - request.line)
@@ -261,7 +267,12 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
         fun worldFixture() = WorldView(storyID = "story", traceID = "world",
             people = listOf(
                 WorldPerson(name = "Draconia Malfoy", aliases = listOf("Connie"), portraitURL = null, lead = true, group = null, isGroup = false,
-                    known = "Slytherin. Calls you Stray. You owe her nothing; she owes you.", knownFrom = SceneRef(number = 3, title = "The station"), heard = emptyList()),
+                    known = "Slytherin. Calls you Stray. You owe her nothing; she owes you.", knownFrom = SceneRef(number = 3, title = "The station"), heard = emptyList(),
+                    between = Between(standing = "She owes you her life and treats you as hers to order about. She let you hold her when the room went cold, then ordered you to put her down, and has not thanked you.",
+                        turns = listOf(
+                            BetweenTurn(text = "She floated in your arms, went scarlet, and ordered you to put her down.", sceneNumber = 11, sceneTitle = "Twenty-nine minutes"),
+                            BetweenTurn(text = "She billed you for the slap: Wednesdays, in the library, on her terms.", sceneNumber = 8, sceneTitle = "The price of a slap"),
+                            BetweenTurn(text = "She slapped you in front of the Hall and said you were nothing to her.", sceneNumber = 6, sceneTitle = "Saturday lunch")))),
                 WorldPerson(name = "Hermione Granger", aliases = emptyList(), portraitURL = null, lead = true, group = null, isGroup = false,
                     known = "Gryffindor. Noticed the inkwell. Wants a reason, not circumstances.", knownFrom = SceneRef(number = 14, title = "After curfew"),
                     heard = listOf(MeanwhileItem(text = "Lavender says she cried in the girls' bathroom after Charms.", how = How.Rumour))),

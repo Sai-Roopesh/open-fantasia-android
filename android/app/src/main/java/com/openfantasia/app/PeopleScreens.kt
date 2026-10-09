@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
@@ -38,11 +39,13 @@ private val SeenGround = Color(0xFF1A2E2A)
 /** A person's page, from the World screen (what the Player Character knows) or from Everyone in the Story. */
 data class PersonPageData(
     val name: String, val aliases: List<String>, val portraitURL: String?, val lead: Boolean, val group: String?,
-    val known: String?, val knownFrom: SceneRef?, val heard: List<MeanwhileItem>, val playerCharacter: Boolean
+    val known: String?, val knownFrom: SceneRef?, val heard: List<MeanwhileItem>, val playerCharacter: Boolean,
+    /** Between you: their Bond with the Player Character, the newest turn first; null with no history (lasting-records). */
+    val between: Between? = null
 )
 
-internal fun WorldPerson.page() = PersonPageData(name, aliases, portraitURL, lead, group, known, knownFrom, heard, playerCharacter = false)
-internal fun PersonDetail.page() = PersonPageData(name, aliases, portraitURL, lead, group, known, null, emptyList(), playerCharacter)
+internal fun WorldPerson.page() = PersonPageData(name, aliases, portraitURL, lead, group, known, knownFrom, heard, playerCharacter = false, between = between)
+internal fun PersonDetail.page() = PersonPageData(name, aliases, portraitURL, lead, group, known, null, emptyList(), playerCharacter, between = between)
 
 /**
  * What the person page can change (openspec stories; editing-people design decision 7), all off while a Reply is
@@ -74,7 +77,7 @@ class PersonActions(
                 Text("Edit", style = FantasiaType.metadata, color = if (actions.enabled) FantasiaText else FantasiaDisabled)
             }
         }
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 24.dp),
+        Column(Modifier.weight(1f).testTag("person-page").verticalScroll(rememberScrollState()).padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)) {
             Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 PortraitImage(person.name, person.portraitURL?.let(portrait), Modifier.size(width = 168.dp, height = 208.dp), shape = RoundedCornerShape(24.dp),
@@ -115,6 +118,7 @@ class PersonActions(
                 Text(person.known ?: "Nothing yet, beyond what you've heard.", style = FantasiaType.previously.copy(lineHeight = 23.sp), color = FantasiaProse)
                 person.knownFrom?.let { Text("From Scene ${it.number} · ${it.title}", style = FantasiaType.meta, color = FantasiaLabel) }
             }
+            person.between?.let { BetweenYou(it) }
             if (person.heard.isNotEmpty()) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("WHAT YOU'VE HEARD", style = FantasiaType.sectionLabel, color = FantasiaCaption)
                 for (line in person.heard) {
@@ -135,6 +139,29 @@ class PersonActions(
     if (pickingGroup) GroupPicker(actions.groups, person.group, onDismiss = { pickingGroup = false },
         choose = { group -> pickingGroup = false; if (group != person.group) actions.setGroup(person.name, group) },
         create = { group, description -> pickingGroup = false; actions.newGroup(group, description, person.name) })
+}
+
+/**
+ * Between you, as drawn in Person.dc.html (openspec outside-the-scene: The World screen shows what the Player Character
+ * knows): where things stand, then the turns that brought it there, the newest first and marked, each with its Scene.
+ */
+@Composable private fun BetweenYou(between: Between) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("BETWEEN YOU", style = FantasiaType.sectionLabel, color = FantasiaCaption)
+        Text(between.standing, style = FantasiaType.previously.copy(lineHeight = 23.sp), color = FantasiaProse,
+            modifier = Modifier.fillMaxWidth().background(FantasiaSurface, RoundedCornerShape(14.dp)).border(1.dp, FantasiaLine, RoundedCornerShape(14.dp))
+                .padding(horizontal = 14.dp, vertical = 12.dp))
+        between.turns.forEachIndexed { index, turn ->
+            val newest = index == 0
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 2.dp)) {
+                Box(Modifier.padding(top = 6.dp).size(8.dp).background(if (newest) FantasiaLabel else FantasiaStrongLine, CircleShape))
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(turn.text, style = FantasiaType.detail, color = if (newest) FantasiaText else FantasiaSecondary)
+                    turn.sceneNumber?.let { number -> Text("Scene $number · ${turn.sceneTitle ?: ""}".trimEnd(' ', '·'), style = FantasiaType.small, color = FantasiaLabel) }
+                }
+            }
+        }
+    }
 }
 
 /** Which Group someone is in: None, each Group, or a new one (openspec stories: Groups are the player's to arrange). */

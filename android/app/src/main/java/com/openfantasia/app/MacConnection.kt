@@ -140,6 +140,7 @@ class MacConnection(
         command { it.uploadPortrait(storyID, name, image, type, after) }
     override suspend fun backstage(storyID: String): BackstageView = read { it.backstage(storyID) }
     override suspend fun removeTaste(storyID: String, request: RemoveTasteRequest): Accepted = command { it.removeTaste(storyID, request) }
+    override suspend fun retryRecord(storyID: String, request: RecordRetryRequest): Accepted = command { it.retryRecord(storyID, request) }
     override fun watch(initial: SceneView): Flow<SceneView> = StoryStream(
         onConnection = { connected.value = it }, loadScene = { scene(it) }
     ) {

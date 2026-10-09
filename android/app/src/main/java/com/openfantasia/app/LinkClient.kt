@@ -111,6 +111,8 @@ class LinkClient(val address: HttpUrl, fingerprint: String, private val deviceTo
     suspend fun backstage(storyID: String): BackstageView = command(listOf("stories", storyID, "backstage"))
     suspend fun removeTaste(storyID: String, request: RemoveTasteRequest): Accepted =
         command(listOf("stories", storyID, "taste", "remove"), commandJson.encodeToString(request))
+    suspend fun retryRecord(storyID: String, request: RecordRetryRequest): Accepted =
+        command(listOf("stories", storyID, "record", "retry"), commandJson.encodeToString(request))
     suspend fun edit(storyID: String, request: EditRequest): Accepted =
         command(listOf("stories", storyID, "edit"), commandJson.encodeToString(request))
 

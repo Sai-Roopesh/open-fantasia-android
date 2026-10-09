@@ -110,7 +110,7 @@ describe("Leads act every Stretch, on screen or off (story-in-stretches design d
     // Backstage shows the Stretch: its days, its Scenes that matter, and what each Lead did about him.
     const stretch = backstageView(mac, storyId, "t").director!.stretch!;
     expect(stretch).toMatchObject({ from_label: "Saturday", until_label: "Saturday" });
-    expect(stretch.scenes.map(scene => [scene.when, scene.place, scene.state])).toEqual([["Thu 10:00 am", "The library", "played"], ["Thu 4:00 pm", "The Quidditch pitch", "ahead"]]);
+    expect(stretch.scenes.map(scene => [scene.time, scene.place, scene.state])).toEqual([["Thu 10:00 am", "The library", "played"], ["Thu 4:00 pm", "The Quidditch pitch", "ahead"]]);
     expect(stretch.leads).toEqual([
       { who: "Draconia Malfoy", move: "Has his name taken off the Charms seating plan.", on_screen: false, label: "Off-screen, Tuesday · he heard it from Neville Longbottom" },
       { who: "Hermione Granger", move: "Lends him her notes.", on_screen: true, label: "On screen · The library, Thursday" }

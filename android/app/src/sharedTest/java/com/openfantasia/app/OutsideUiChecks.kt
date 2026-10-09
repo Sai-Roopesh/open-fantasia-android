@@ -84,6 +84,63 @@ open class OutsideUiChecks : WorldUiChecks() {
         compose.preview("BackstageDirector")
     }
 
+    // GIVEN the record of the library Scene was given up after three tries
+    // WHEN the player opens Backstage
+    // THEN The record lists the library Scene with why it failed, and Retry records it again
+    fun aGapInTheRecord() {
+        link.backstageView = FakeFantasiaLink.backstageFixture().copy(record = listOf(
+            RecordRow(sceneNumber = 13, sceneTitle = "The library", state = RecordRowState.GivenUp, reason = "the Chronicler could not be reached.", dropped = emptyList()),
+            RecordRow(sceneNumber = 11, sceneTitle = "Twenty-nine minutes", state = RecordRowState.Recorded, reason = null,
+                dropped = listOf("known: the line for Draconia Malfoy is 70 words; say it in sixty or fewer"))))
+        openScene()
+        compose.onNodeWithContentDescription("Backstage").performClick()
+        backstage("THE RECORD").assertIsDisplayed()
+        backstage("Scene 13 · The library").assertIsDisplayed()
+        compose.onNodeWithText("Not recorded after three tries: the Chronicler could not be reached.").assertIsDisplayed()
+        backstage("Scene 11 · Twenty-nine minutes").assertIsDisplayed()
+        compose.onNodeWithText("Recorded, without one part:", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("known: the line for Draconia Malfoy is 70 words; say it in sixty or fewer", substring = true).assertIsDisplayed()
+        compose.preview("Backstage · The record")
+        // Retry is offered only for the Scene given up, and records it again.
+        compose.onAllNodesWithText("Retry").assertCountEquals(1)
+        compose.onNodeWithText("Retry").performClick()
+        compose.runOnIdle { assertEquals(listOf(RecordRetryRequest(after = "reply", sceneNumber = 13)), link.recordRetries) }
+        compose.onNodeWithText("Scene 13 · The library").assertDoesNotExist()
+    }
+
+    fun nothingMissingFromTheRecord() {
+        openScene()
+        compose.onNodeWithContentDescription("Backstage").performClick()
+        backstage("TASTE · WHAT THE STORY HAS LEARNED").assertIsDisplayed()
+        compose.onNodeWithText("THE RECORD").assertDoesNotExist()
+    }
+
+    // The Director's Stretch, as Backstage.dc.html draws it under THE DIRECTOR: its days, its Scenes that matter, and
+    // what each Lead does this week (story-in-stretches design decision 7).
+    fun theStretchBackstage() {
+        link.backstageView = FakeFantasiaLink.backstageFixture().copy(director = DirectorLine(toward = "the flying test on Wednesday",
+            phase = DirectorPhase.Build, line = "Building toward the flying test on Wednesday. This stretch builds; rest comes after it.",
+            stretch = StretchView(fromLabel = "Saturday", untilLabel = "Friday",
+                scenes = listOf(
+                    StretchScene(time = "Sat 9:40 pm", place = "The common room", purpose = "Hermione asks for a reason", who = listOf("Hermione"), state = StretchSceneState.Played),
+                    StretchScene(time = "Mon 2:00 pm", place = "Charms", purpose = "Flitwick pairs him with Draconia", who = listOf("Draconia", "Flitwick", "Pansy"), state = StretchSceneState.Ahead)),
+                leads = listOf(
+                    StretchLead(who = "Draconia", move = "has his name taken off the Charms seating plan", onScreen = false, label = "Off-screen, Sunday · he heard it from Neville"),
+                    StretchLead(who = "Hermione", move = "lends him her flying notes, annotated", onScreen = true, label = "On screen · Charms, Monday")))))
+        openScene()
+        compose.onNodeWithContentDescription("Backstage").performClick()
+        backstage("THE DIRECTOR").assertIsDisplayed()
+        backstage("This Stretch: Saturday to Friday").assertIsDisplayed()
+        backstage("The common room: Hermione asks for a reason").assertIsDisplayed()
+        compose.onNodeWithText("✓ played").assertIsDisplayed()
+        backstage("Charms: Flitwick pairs him with Draconia").assertIsDisplayed()
+        compose.onNodeWithText("Draconia · Flitwick · Pansy").assertIsDisplayed()
+        backstage("THE LEADS THIS WEEK").assertIsDisplayed()
+        backstage("Off-screen, Sunday · he heard it from Neville").assertIsDisplayed()
+        backstage("On screen · Charms, Monday").assertIsDisplayed()
+        compose.preview("Backstage · The Stretch")
+    }
+
     fun noDirectorBeforeHePlans() {
         openScene()
         compose.onNodeWithContentDescription("Backstage").performClick()

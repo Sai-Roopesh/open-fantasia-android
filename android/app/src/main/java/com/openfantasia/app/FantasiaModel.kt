@@ -395,6 +395,21 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
         }
     }
 
+    /** Tries the record of a Scene given up after three tries once more (openspec outside-the-scene: A gap in the record). */
+    fun retryRecord(sceneNumber: Long) {
+        val scene = mutable.value.scene ?: return
+        mutable.update { it.copy(sending = true, problem = null) }
+        viewModelScope.launch {
+            try {
+                link.retryRecord(scene.storyID, RecordRetryRequest(after = scene.headEntryID, sceneNumber = sceneNumber))
+                val backstage = link.backstage(scene.storyID)
+                mutable.update { it.copy(backstage = backstage) }
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) { showProblem(e)
+            } finally { mutable.update { it.copy(sending = false) } }
+        }
+    }
+
     fun tryAnotherWay(from: String?) = changePath { link.tryAnotherWay(it.storyID, TryAnotherWayRequest(from = from, after = it.headEntryID)) }
     fun rewind(to: String) = changePath { link.rewind(it.storyID, RewindRequest(to = to, after = it.headEntryID)) }
     fun openPath(pathID: String) = changePath { link.openPath(it.storyID, pathID) }

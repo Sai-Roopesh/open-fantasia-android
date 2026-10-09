@@ -13,6 +13,9 @@ class WorldScreenScreenTest : WorldScreenUiChecks() {
 
     @Test fun placesAndCalendar() = placesAndTheCalendar()
 
+    @Scenario("outside-the-scene › The World screen shows what the Player Character knows › Between you")
+    @Test fun between() = betweenYou()
+
     @Test fun nobodyKnown() = nobodyKnownYet()
 
     @Test fun headerIcons() = theHeaderIsIcons()

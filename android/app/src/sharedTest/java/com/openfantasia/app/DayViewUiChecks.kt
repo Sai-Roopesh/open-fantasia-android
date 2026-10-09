@@ -34,7 +34,7 @@ open class DayViewUiChecks : WorldUiChecks() {
     fun summonsIsMarked() {
         ready(listOf(summons, hospital, hospital.copy(id = "healer", time = "2:00 pm", at = "Day 3 14:00"),
             hospital.copy(id = "twins", time = "8:00 pm", at = "Day 3 20:00")))
-        compose.onNodeWithText("WHAT'S ON TODAY").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("WHAT'S ON").performScrollTo().assertIsDisplayed()
         val first = compose.onNodeWithTag("happening-summons").getUnclippedBoundsInRoot()
         val second = compose.onNodeWithTag("happening-hospital").getUnclippedBoundsInRoot()
         assertTrue("The pick comes first", first.top < second.top)
@@ -54,6 +54,33 @@ open class DayViewUiChecks : WorldUiChecks() {
         for (text in listOf("Follow someone", "Go somewhere", "Skip to later", "Let the Story choose"))
             compose.onNodeWithText(text).performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("composer").assertIsDisplayed()
+    }
+
+    // GIVEN it is Saturday morning, and the Stretch's next Scene that matters is Draconia cornering him after Charms on
+    //   Thursday
+    // THEN the Day View's first offer is Thursday's, labelled "Thursday 10:00 am · in 5 days"
+    // WHEN the player chooses it
+    // THEN the days between pass, the next Scene opens on Thursday, and Meanwhile says what he learned since Saturday
+    // (The days passing are the Mac's; here, the offer and the choice.)
+    fun nextSceneDaysAway() {
+        val thursday = Happening(id = "thursday", at = "Day 8 10:00", time = "Thursday 10:00 am", daysAway = 5, scene = "s-thursday",
+            place = "The corridor outside Charms", what = "Draconia has been waiting for Charms to end, and not for Pansy.",
+            who = listOf("Draconia", "Pansy"), expected = false, pick = true)
+        ready(listOf(thursday, summons.copy(pick = false)))
+        compose.onNodeWithText("WHAT'S ON").performScrollTo().assertIsDisplayed()
+        val first = compose.onNodeWithTag("happening-thursday").getUnclippedBoundsInRoot()
+        val second = compose.onNodeWithTag("happening-summons").getUnclippedBoundsInRoot()
+        assertTrue("The Story's pick comes first", first.top < second.top)
+        compose.onNodeWithText("Thursday 10:00 am · in 5 days").assertIsDisplayed()
+        compose.onNodeWithText("The corridor outside Charms").assertIsDisplayed()
+        // Today's offers stay as they were, the time and the place on one line.
+        compose.onNodeWithText("9:00 am · McGonagall's office").performScrollTo().assertIsDisplayed()
+        compose.preview("DayView · days away")
+        // The days between are the Gap: the player may say how he spent them.
+        go("thursday")
+        compose.onNodeWithText("What did you do in the Gap?").assertIsDisplayed()
+        compose.onNodeWithText("Go to The corridor outside Charms").performClick()
+        sent(ChooseRequest(after = "closed", kind = ChooseRequestKind.Go, happening = "thursday"))
     }
 
     // WHEN the player taps Let the Story choose

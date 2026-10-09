@@ -77,7 +77,8 @@ import kotlinx.coroutines.launch
                         })
                     } else if (state.showingBackstage) {
                         BackstageScreen(state.backstage, firstName(scene.playerCharacter), state.canChangePath, back = model::closeBackstage,
-                            removeTaste = model::removeTaste, modifier = Modifier.weight(1f), reword = { model.openStoryEditor(StoryEdit.Taste(it)) })
+                            removeTaste = model::removeTaste, modifier = Modifier.weight(1f), reword = { model.openStoryEditor(StoryEdit.Taste(it)) },
+                            retryRecord = model::retryRecord)
                     } else if (state.showingStory) {
                         StoryScreen(state.story, state.canChangePath, back = model::closeStoryScreen, edit = model::openStoryEditor,
                             setLength = model::setReplyLength, modifier = Modifier.weight(1f))

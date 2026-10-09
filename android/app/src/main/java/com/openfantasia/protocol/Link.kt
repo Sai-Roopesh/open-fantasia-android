@@ -1182,13 +1182,12 @@ data class StretchLead (
  */
 @Serializable
 data class StretchScene (
+    val place: String,
+
     /**
      * What it is for, as the plan says it.
      */
-    @SerialName("for")
-    val linkSchemaFor: String,
-
-    val place: String,
+    val purpose: String,
 
     /**
      * played: the player chose it; passed: its time went by without it; ahead: still to come.
@@ -1196,10 +1195,9 @@ data class StretchScene (
     val state: StretchSceneState,
 
     /**
-     * "Mon 2:00 pm".
+     * When, as Backstage says it: "Mon 2:00 pm".
      */
-    @SerialName("when")
-    val linkSchemaWhen: String,
+    val time: String,
 
     val who: List<String>
 )

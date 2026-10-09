@@ -21,7 +21,10 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.openfantasia.protocol.*
@@ -105,7 +108,7 @@ private val FantasiaRumourGround = Color(0xFF30261A)
  * the Lives, what the Director is building toward, the Writer's plan for this Scene, and Taste, each lesson with a ✕.
  */
 @Composable fun BackstageScreen(backstage: BackstageView?, playerCharacter: String, enabled: Boolean, back: () -> Unit,
-    removeTaste: (String) -> Unit, modifier: Modifier = Modifier, reword: (String) -> Unit = {}) {
+    removeTaste: (String) -> Unit, modifier: Modifier = Modifier, reword: (String) -> Unit = {}, retryRecord: (Long) -> Unit = {}) {
     Column(modifier.background(BackstageGround)) {
         OutsideHeader("Backstage", back, BackstageLine)
         if (backstage == null) { Loading(Modifier.weight(1f)); return@Column }
@@ -120,6 +123,7 @@ private val FantasiaRumourGround = Color(0xFF30261A)
                             style = Stroke(1.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f))))
                     }.padding(horizontal = 14.dp, vertical = 12.dp))
             }
+            if (backstage.record.isNotEmpty()) item(key = "record") { TheRecord(backstage.record, enabled, retryRecord) }
             if (backstage.offscreen.isNotEmpty()) item(key = "offscreen") {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -190,12 +194,80 @@ private val FantasiaRumourGround = Color(0xFF30261A)
 }
 
 /** The Writer's plan for this Scene: its call, what the Scene is for, its beats as they stand, and its way out. */
-/** What the Director is building toward, in one line (Backstage.dc.html: THE DIRECTOR); his working stays in his call. */
+/**
+ * The record, as Backstage.dc.html draws it (openspec outside-the-scene: Backstage shows everything else): each Scene
+ * not yet recorded, and why, with Retry for one given up; and each recorded with parts left out, and which. Shown only
+ * while something is missing.
+ */
+@Composable private fun TheRecord(rows: List<RecordRow>, enabled: Boolean, retry: (Long) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        SectionLabel("THE RECORD")
+        for (row in rows) {
+            val missing = row.state != RecordRowState.Recorded
+            Column(Modifier.fillMaxWidth().background(if (missing) FantasiaFailureSurface else BackstageCard, RoundedCornerShape(14.dp))
+                .border(1.dp, if (missing) FantasiaFailureLine else FantasiaLine, RoundedCornerShape(14.dp)).padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Scene ${row.sceneNumber} · ${row.sceneTitle}", modifier = Modifier.weight(1f), style = FantasiaType.metadata.copy(fontWeight = FontWeight.SemiBold), color = FantasiaText)
+                    if (row.state == RecordRowState.GivenUp) Surface(onClick = { retry(row.sceneNumber) }, enabled = enabled, shape = FantasiaShapes.round, color = FantasiaRaised,
+                        modifier = Modifier.height(32.dp)) {
+                        Box(Modifier.padding(horizontal = 14.dp), contentAlignment = Alignment.Center) {
+                            Text("Retry", style = FantasiaType.meta, color = if (enabled) FantasiaText else FantasiaDisabled)
+                        }
+                    }
+                }
+                when (row.state) {
+                    RecordRowState.GivenUp -> Text("Not recorded after three tries: ${row.reason ?: "it could not be made."}", style = FantasiaType.meta.copy(lineHeight = 19.sp), color = FantasiaRumour)
+                    RecordRowState.Waiting -> Text("Not recorded yet; it is tried again after the next Scene: ${row.reason ?: "it could not be made."}", style = FantasiaType.meta.copy(lineHeight = 19.sp), color = FantasiaRumour)
+                    RecordRowState.Recorded -> Text("Recorded, without ${if (row.dropped.size == 1) "one part" else "${row.dropped.size} parts"}: ${row.dropped.joinToString("; ")}",
+                        style = FantasiaType.meta.copy(lineHeight = 19.sp), color = FantasiaSecondary)
+                }
+                if (row.state != RecordRowState.Recorded && row.dropped.isNotEmpty())
+                    Text("Left out before: ${row.dropped.joinToString("; ")}", style = FantasiaType.small, color = FantasiaSecondary)
+            }
+        }
+        Text("Shown only while something is missing.", style = FantasiaType.small, color = FantasiaCaption)
+    }
+}
+
+/**
+ * What the Director is building toward, in one line, and the Stretch he planned (Backstage.dc.html: THE DIRECTOR): its
+ * days, its Scenes that matter and whether each was played, and what each Lead does this week. His working stays in his call.
+ */
 @Composable private fun DirectorCard(director: DirectorLine) {
     Column(Modifier.fillMaxWidth().background(BackstageCard, RoundedCornerShape(16.dp)).padding(horizontal = 16.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SectionLabel("THE DIRECTOR")
         Text(director.line, style = FantasiaType.metadata.copy(lineHeight = 21.sp), color = FantasiaProse)
+        director.stretch?.let { stretch ->
+            Text("This Stretch: ${stretch.fromLabel} to ${stretch.untilLabel}", style = FantasiaType.meta, color = FantasiaSecondary)
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                for (scene in stretch.scenes) {
+                    val played = scene.state == StretchSceneState.Played
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(scene.time, modifier = Modifier.width(86.dp), style = FantasiaType.meta, color = FantasiaCaption)
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text("${scene.place}: ${scene.purpose}", style = FantasiaType.metadata.copy(lineHeight = 20.sp), color = if (played) FantasiaCaption else FantasiaProse)
+                            if (scene.who.isNotEmpty()) Text(scene.who.joinToString(" · "), style = FantasiaType.small, color = FantasiaCaption)
+                        }
+                        Text(when (scene.state) { StretchSceneState.Played -> "✓ played"; StretchSceneState.Passed -> "passed"; StretchSceneState.Ahead -> "ahead" },
+                            style = FantasiaType.small, color = if (played) FantasiaSeen else FantasiaCaption)
+                    }
+                }
+            }
+            if (stretch.leads.isNotEmpty()) {
+                Text("THE LEADS THIS WEEK", style = FantasiaType.sectionLabel.copy(fontSize = 11.sp), color = FantasiaCaption, modifier = Modifier.padding(top = 4.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for (lead in stretch.leads) Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(buildAnnotatedString {
+                            withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) { append(lead.who) }
+                            append(" · ${lead.move}")
+                        }, style = FantasiaType.metadata.copy(lineHeight = 20.sp), color = FantasiaProse)
+                        Text(lead.label, style = FantasiaType.small, color = FantasiaCaption)
+                    }
+                }
+            }
+        }
     }
 }
 

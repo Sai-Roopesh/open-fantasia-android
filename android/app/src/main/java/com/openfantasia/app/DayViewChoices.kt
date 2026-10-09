@@ -20,6 +20,10 @@ import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.openfantasia.protocol.*
 
@@ -35,7 +39,7 @@ internal enum class DayPicker(val title: String) { Follow("Follow someone"), Som
 
 @Composable internal fun Today(day: DayView, enabled: Boolean, go: (Happening) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("WHAT'S ON TODAY", style = FantasiaType.sectionLabel, color = FantasiaCaption)
+        Text("WHAT'S ON", style = FantasiaType.sectionLabel, color = FantasiaCaption)
         day.happenings.forEach { happening ->
             Surface(Modifier.fillMaxWidth().testTag("happening-${happening.id}"), shape = FantasiaShapes.titleCard,
                 color = FantasiaSurface, border = BorderStroke(1.dp, if (happening.pick) FantasiaAccent else FantasiaLine)) {
@@ -46,7 +50,14 @@ internal enum class DayPicker(val title: String) { Follow("Follow someone"), Som
                             modifier = Modifier.background(Color(0xFF30261A), androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
                                 .padding(horizontal = 8.dp, vertical = 2.dp))
                     }
-                    Text("${happening.time} · ${happening.place}", style = FantasiaType.metadata, color = FantasiaSecondary)
+                    // A Scene that matters days away says its day and how far off it is, the place under it (DayView.dc.html).
+                    if (happening.daysAway >= 2) {
+                        Text(buildAnnotatedString {
+                            append("${happening.time} · ")
+                            withStyle(SpanStyle(color = FailureAmber, fontWeight = FontWeight.SemiBold)) { append("in ${happening.daysAway} days") }
+                        }, style = FantasiaType.metadata, color = FantasiaSecondary)
+                        Text(happening.place, style = FantasiaType.metadata, color = FantasiaSecondary)
+                    } else Text("${happening.time} · ${happening.place}", style = FantasiaType.metadata, color = FantasiaSecondary)
                     Text(happening.what, style = FantasiaType.happening, color = FantasiaText)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(happening.who.joinToString(" · "), style = FantasiaType.meta, color = FantasiaCaption, modifier = Modifier.weight(1f))

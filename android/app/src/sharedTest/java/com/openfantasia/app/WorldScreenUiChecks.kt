@@ -44,6 +44,26 @@ open class WorldScreenUiChecks : WorldUiChecks() {
         compose.onNodeWithText("LEADS").assertIsDisplayed()
     }
 
+    // WHEN the player opens Draconia's page
+    // THEN it shows where things stand between them, and the turns that brought it there, the newest first
+    fun betweenYou() {
+        openWorld()
+        compose.onNodeWithText("Draconia Malfoy").performClick()
+        compose.onNodeWithTag("person-page").performScrollToNode(hasText("BETWEEN YOU"))
+        compose.onNodeWithText("BETWEEN YOU").assertIsDisplayed()
+        compose.onNodeWithTag("person-page").performScrollToNode(hasText("Scene 6 · Saturday lunch"))
+        val newest = compose.onNodeWithText("She floated in your arms, went scarlet, and ordered you to put her down.").fetchSemanticsNode().boundsInRoot.top
+        val oldest = compose.onNodeWithText("She slapped you in front of the Hall and said you were nothing to her.").fetchSemanticsNode().boundsInRoot.top
+        assertTrue("the newest turn comes first", newest < oldest)
+        compose.onNodeWithText("Scene 11 · Twenty-nine minutes").assertExists()
+        compose.onNodeWithText("She owes you her life and treats you as hers to order about.", substring = true).assertExists()
+        compose.preview("Person · Between you")
+        // Someone he has no history with has no Between you.
+        compose.onNodeWithContentDescription("Back to the World").performClick()
+        compose.onNodeWithText("Hermione Granger").performClick()
+        compose.onAllNodesWithText("BETWEEN YOU").assertCountEquals(0)
+    }
+
     // The header's screens are icons, as Scene.dc.html draws them, each named for TalkBack, leaving the title its room.
     fun theHeaderIsIcons() {
         openScene()
