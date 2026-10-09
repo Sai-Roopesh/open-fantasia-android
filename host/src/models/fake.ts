@@ -117,15 +117,32 @@ export function fakeWeaveAnswer(request: ModelRequest): Script {
 interface DirectorFacts {
   arcs: string[];
   afterPeak: boolean;
+  clock: string;
+  leads: string[];
+  coming: string[];
 }
 
-/** A Director's plan that keeps every rule: a row for every Arc, and a rest after a peak. */
+/**
+ * A Director's plan that keeps every rule: a Stretch of seven days from today, two Scenes that matter on the next two
+ * days, a move for every Lead (the first on screen), a row for every Arc and every coming Landmark, and a rest after a
+ * peak.
+ */
 export function fakeDirectorAnswer(request: ModelRequest): Script {
   const facts = request.facts as DirectorFacts;
+  const today = /^Day (\d+)/.exec(facts.clock)?.[1] ?? "1";
+  const day = (offset: number) => `Day ${Number(today) + offset}`;
+  const lead = facts.leads[0] ?? null;
   return {
     answer: JSON.stringify({
-      toward: facts.afterPeak ? "what comes after the rest" : "what comes next", landmark: null, phase: facts.afterPeak ? "rest" : "build", scenes: 3,
-      arcs: facts.arcs.map(arc => ({ arc, now: "where it stands", next: "one small step", not_yet: "anything more" })),
+      from: day(0), until: day(6),
+      toward: facts.afterPeak ? "what comes after the rest" : "what comes next", landmark: null, phase: facts.afterPeak ? "rest" : "build",
+      scenes: [
+        { id: "S1", at: `${day(1)} 10:00`, place: "the Great Hall", who: lead ? [lead] : [], for: facts.afterPeak ? "A quiet morning after." : "A step for the Story.", lead },
+        { id: "S2", at: `${day(2)} 15:00`, place: "the library", who: [], for: "Something else in his life.", lead: null }
+      ],
+      arcs: facts.arcs.map(arc => ({ arc, now: "where it stands", next: "one step", not_yet: "anything more" })),
+      leads: facts.leads.map((who, index) => ({ who, move: `${who} does something about him.`, scene: index === 0 ? "S1" : null })),
+      roadmap: facts.arcs.flatMap(arc => facts.coming.map(by => ({ arc, by, stands: "a step further than now" }))),
       premise: "Some Scenes serve the Premise; the others leave it alone."
     })
   };

@@ -10,10 +10,13 @@ import { hogwartsStoryFile, malfoyProblemStoryFile } from "../support/story-file
 
 const model = { provider: "claude", model: "claude-opus-5-5" } as const;
 
-/** A plan as the Director writes it: four Scenes building toward the flying test. */
+/** A plan as the Director writes it: four Scenes that matter, building toward the flying test. */
 function plan(scenes = 4): DirectorPlan {
   return {
-    kind: "director_plan", toward: "the flying test on Wednesday", landmark: "Draconia's flying test", phase: "build", scenes,
+    kind: "director_plan", from: 3, until: 9, toward: "the flying test on Wednesday", landmark: "Draconia's flying test", phase: "build",
+    scenes: Array.from({ length: scenes }, (_, index) => ({ id: `s-${index + 1}`, at: `Day ${4 + index} 10:00`, place: "The Quidditch pitch", who: ["Draconia Malfoy"], for: "A step toward the test.", lead: "Draconia Malfoy" })),
+    leads: [{ who: "Draconia Malfoy", move: "Practises where he can see her.", scene: "s-1" }, { who: "Hermione Granger", move: "Lends him her notes.", scene: null }],
+    roadmap: [],
     arcs: [{ arc: "Draconia comes round to Roopesh", now: "insults in public", next: "a slip in private", not_yet: "any kindness in front of others" }],
     premise: "Two of the four Scenes are with Draconia; the others leave her be.", callId: "c", model
   };
@@ -100,8 +103,8 @@ describe("when the Director plans (openspec long-run)", () => {
   });
 
   it("plans again when the stretch has run its course", async () => {
-    const { engine, storyId, head, play, models } = playable(hogwartsStoryFile(), { director: [{ answer: JSON.stringify(flyingTest(1)) }] });
-    for (const move of ["I say goodnight.", "I go down to breakfast."]) {
+    const { engine, storyId, head, play, models } = playable(hogwartsStoryFile(), { director: [{ answer: JSON.stringify(flyingTest(2)) }] });
+    for (const move of ["I say goodnight.", "I go down to breakfast.", "I go to Charms."]) {
       await play(move);
       engine.endScene(storyId, head(), `end-${move}`);
       await engine.directed(storyId);
@@ -161,11 +164,15 @@ describe("when the Director plans (openspec long-run)", () => {
   });
 });
 
-/** The Director's answer for the Hogwarts Story: a stretch toward the flying test. */
+/** The Director's answer for the Hogwarts Story: a Stretch from Friday Day 3 toward the flying test, with [scenes] that matter. */
 function flyingTest(scenes: number) {
+  const story = hogwartsStoryFile();
   return {
-    toward: "the flying test on Wednesday", landmark: null, phase: "build", scenes,
-    arcs: hogwartsStoryFile().arcs!.map(arc => ({ arc, now: "where it was", next: "one small step", not_yet: "anything declared" })),
+    from: "Day 3", until: "Day 9", toward: "the flying test on Wednesday", landmark: null, phase: "build",
+    scenes: Array.from({ length: scenes }, (_, index) => ({ id: `S${index + 1}`, at: `Day ${4 + index} 10:00`, place: "The Quidditch pitch", who: ["Draconia Malfoy"], for: "A step toward the test.", lead: "Draconia Malfoy" })),
+    arcs: story.arcs!.map(arc => ({ arc, now: "where it was", next: "one small step", not_yet: "anything declared" })),
+    leads: story.leads!.map((who, index) => ({ who, move: `${who} makes a move.`, scene: index === 0 ? "S1" : null })),
+    roadmap: story.arcs!.map(arc => ({ arc, by: "Draconia's flying test", stands: "She has let him see her nervous." })),
     premise: "Some Scenes with Draconia, some without."
   };
 }

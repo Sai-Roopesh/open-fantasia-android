@@ -31,7 +31,7 @@ Scenarios this change builds:
 
 ## 1. The Stretch plan
 
-- [ ] 1.1 The new `director_plan` shape, the schema, and `checkPlan`:
+- [x] 1.1 The new `director_plan` shape, the schema, and `checkPlan`:
   - Scenes within the Stretch and after the clock, people in the Story, a row for every Lead and Arc, and roadmap
     rows for the next two Landmarks;
   - part by part, as in lasting-records;

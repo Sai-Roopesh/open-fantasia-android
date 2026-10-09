@@ -31,13 +31,13 @@ export function currentPlan(mac: Mac, head: string): CurrentPlan | null {
   const path = mac.tree.pathTo(head);
   const from = path.findIndex(item => item.id === entry.parentId);
   const scenesSince = path.slice(from + 1).filter(item => item.payload.kind === "scene_closed").length;
-  return { entry, scenesSince, runItsCourse: scenesSince >= entry.payload.scenes };
+  return { entry, scenesSince, runItsCourse: scenesSince >= entry.payload.scenes.length };
 }
 
 /** The plan the Writer reads (design decision 4), and how many of its Scenes are left; null before the first. */
 export function planForWriter(mac: Mac, head: string): { plan: DirectorPlan; scenesLeft: number } | null {
   const plan = currentPlan(mac, head);
-  return plan ? { plan: plan.entry.payload, scenesLeft: Math.max(0, plan.entry.payload.scenes - plan.scenesSince) } : null;
+  return plan ? { plan: plan.entry.payload, scenesLeft: Math.max(0, plan.entry.payload.scenes.length - plan.scenesSince) } : null;
 }
 
 /** The Writer rated a Scene this high or higher: a confrontation, a revelation, or a change that cannot be undone. */

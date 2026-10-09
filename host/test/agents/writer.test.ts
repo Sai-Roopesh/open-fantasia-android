@@ -240,7 +240,7 @@ describe("the Writer's call", () => {
 
 describe("the Writer and the Director's plan (openspec long-run)", () => {
   const plan = {
-    kind: "director_plan" as const, toward: "the night she finds out what he is", landmark: null, phase: "build" as const, scenes: 4,
+    kind: "director_plan" as const, from: 1, until: 7, toward: "the night she finds out what he is", landmark: null, phase: "build" as const, scenes: [], leads: [], roadmap: [],
     arcs: [{ arc: "Meera trusts Ishaan", now: "she lets him carry her bag", next: "she tells him why she is going to Shimla", not_yet: "anything about her mother" }],
     premise: "Two of these Scenes are with Meera; the others are Ishaan alone in Shimla.", callId: "c", model: { provider: "claude" as const, model: "claude-opus-5-5" }
   };

@@ -303,22 +303,53 @@ export interface ArcStep {
   not_yet: string;
 }
 
+/** A Scene that matters in a Stretch: when and where, who is there, and the turn it is built around (docs/adr/0010). */
+export interface PlannedScene {
+  id: string;
+  at: string;
+  place: string;
+  who: string[];
+  /** What it is for: the turn it is built around, never what happens in it. */
+  for: string;
+  /** The Lead it is about, or null. */
+  lead: string | null;
+}
+
+/** What a Lead does about the Player Character this Stretch: in a Scene that matters ([scene]), or off-screen (null). */
+export interface LeadMove {
+  who: string;
+  move: string;
+  scene: string | null;
+}
+
+/** Where an Arc should stand by a coming Landmark (openspec long-run: Arcs keep pace with the run). */
+export interface RoadmapPoint {
+  arc: string;
+  /** The Landmark, as the Story names it. */
+  by: string;
+  stands: string;
+}
+
 /**
- * The Director's plan for the next stretch of the Story (openspec long-run: The Director shapes the long run). It
- * hangs off the entry that closed the Scene it followed (docs/adr/0007); the newest one on a Path is its plan, and has
- * run its course once [scenes] Scenes have closed since.
+ * The Director's plan for a Stretch of the Story (openspec long-run: The Director shapes the long run; docs/adr/0010):
+ * about a week, from story day [from] to [until], its Scenes that matter, each Arc's step, each Lead's move, and the
+ * roadmap to the next two Landmarks. It hangs off the entry that closed the Scene it followed (docs/adr/0007); the
+ * newest one on a Path is its plan.
  */
 export interface DirectorPlan {
   kind: "director_plan";
-  /** What the stretch builds toward, in the Story's words: "the flying test on Wednesday". */
+  from: number;
+  until: number;
+  /** What the Stretch builds toward, in the Story's words: "the flying test on Wednesday". */
   toward: string;
   /** The Landmark it builds toward, when it is one. */
   landmark: string | null;
   phase: "build" | "peak" | "rest";
-  /** How many Scenes the stretch should take. */
-  scenes: number;
+  scenes: PlannedScene[];
   arcs: ArcStep[];
-  /** How the Premise comes into the stretch: which kinds of Scene serve it, and which leave it alone. */
+  leads: LeadMove[];
+  roadmap: RoadmapPoint[];
+  /** How the Premise comes into the Stretch: which kinds of Scene serve it, and which leave it alone. */
   premise: string;
   /** The parts of the Director's answer left out, and why (lasting-records); empty when it was right in every part. */
   dropped?: string[];
