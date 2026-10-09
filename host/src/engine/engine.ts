@@ -21,7 +21,7 @@ import type { StoryPath } from "../store/tree.js";
 import type { Entry, EntryKind, Payload } from "../story/entries.js";
 import type { ModelChoice, Person, State } from "../story/state.js";
 import { entryEvent, sceneEntries } from "../views/scene.js";
-import { chronicleAsk, dueChronicle, STEPPED_AWAY_MS } from "./chronicling.js";
+import { chronicleAsk, dueChronicle, endedScenesOn, gapsOn, RECORD_TRIES, STEPPED_AWAY_MS } from "./chronicling.js";
 import { dueWeave, gapAsk, weaveAsk } from "./weaving.js";
 import { chosen } from "./choosing.js";
 import { clearable, rewind, tryAnotherWay } from "./paths.js";
@@ -396,15 +396,16 @@ export class Engine {
    * exchanges of an open one. It runs in the background, one run at a time per Story, and never holds up a turn; its
    * records hang off the Path (docs/adr/0007). A run that fails is kept in its call and is due again next time.
    */
-  chronicle(storyId: string): void {
+  chronicle(storyId: string, retryNow = false): void {
     const previous = this.chronicling.get(storyId) ?? Promise.resolve();
-    this.chronicling.set(storyId, previous.then(() => this.chronicleDue(storyId)).catch(() => {}));
+    this.chronicling.set(storyId, previous.then(() => this.chronicleDue(storyId, retryNow)).catch(() => {}));
   }
 
   /** Queues the Chronicler for every Story, for `fantasia serve` when it starts. */
   chronicleAll(): void {
     const stories = this.mac.db.prepare("SELECT id FROM stories").all() as { id: string }[];
-    for (const story of stories) this.chronicle(story.id);
+    // Starting again is a fresh chance for a Scene that failed while the Mac or a model could not be reached.
+    for (const story of stories) this.chronicle(story.id, true);
   }
 
   /**
@@ -536,16 +537,29 @@ export class Engine {
     } while (waitingOn !== this.chronicling.get(storyId));
   }
 
-  private async chronicleDue(storyId: string): Promise<void> {
+  private async chronicleDue(storyId: string, retryNow: boolean): Promise<void> {
     const traceId = `chronicle-${randomUUID().slice(0, 8)}`;
+    const tried = new Set<string>();
     for (;;) {
       const path = this.mac.tree.currentPath(storyId);
-      const due = path ? dueChronicle(this.mac, path.headEntryId) : null;
+      const due = path ? dueChronicle(this.mac, path.headEntryId, new Date(), retryNow) : null;
+      // On a start, each waiting Scene gets one fresh try, not three in a row.
+      if (!due || tried.has(due.scene.id + due.through.id)) return;
+      tried.add(due.scene.id + due.through.id);
       if (!due) return;
       const model = jobModels(this.mac.home).chronicler;
-      const { value, callId, dropped } = await writeChronicle(this.models, model, chronicleAsk(this.mac, due), storyId, traceId, new AbortController().signal);
-      const record = this.mac.tree.append(storyId, due.through.id, { kind: "chronicle", scene: due.scene.id, summary: value.summary, sceneEnded: due.sceneEnded, moments: value.moments, told: value.told, known: value.known, dropped, callId, model });
-      this.models.attach(callId, record.id);
+      try {
+        const { value, callId, dropped } = await writeChronicle(this.models, model, chronicleAsk(this.mac, due), storyId, traceId, new AbortController().signal);
+        const record = this.mac.tree.append(storyId, due.through.id, { kind: "chronicle", scene: due.scene.id, summary: value.summary, sceneEnded: due.sceneEnded, moments: value.moments, told: value.told, known: value.known, dropped, callId, model });
+        this.models.attach(callId, record.id);
+      } catch (error) {
+        // A record that could not be made is noted and holds up nothing: the next due Scene is recorded, and this one is
+        // tried again once another Scene has ended, until it is given up (lasting-records design decision 4).
+        const head = this.mac.tree.currentPath(storyId)?.headEntryId ?? due.through.id;
+        const attempts = (gapsOn(this.mac, head).get(due.scene.id)?.attempts ?? 0) + 1;
+        const reason = error instanceof Error ? error.message : String(error);
+        this.mac.tree.append(storyId, due.through.id, { kind: "record_gap", scene: due.scene.id, attempts, reason, endedScenes: endedScenesOn(this.mac, head), givenUp: attempts >= RECORD_TRIES });
+      }
     }
   }
 

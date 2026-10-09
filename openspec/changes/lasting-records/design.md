@@ -79,7 +79,8 @@ string[]`), for Backstage.
 - **What is due.** `dueChronicle` returns the earliest Scene that:
   - is unrecorded;
   - has not been given up (fewer than three attempts);
-  - and, if it has failed before, has seen at least one Scene end since its last attempt.
+  - and, if it has failed before, has seen at least one Scene end since its last attempt, or the Mac has just started
+    again (one fresh try each, for a failure while a model could not be reached).
 - **Recording in order.** The engine's chronicle step records due Scenes in Path order, one call at a time, until
   none is due. Gaps are backfilled behind the newest Scene, and a stuck Scene costs at most three attempts, ever.
 - **Retry.** `POST /stories/{id}/record/retry {scene}`, and its Mac command `fantasia record <story> --retry

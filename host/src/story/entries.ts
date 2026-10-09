@@ -6,10 +6,10 @@ import type { Weekday } from "../time.js";
  * What can be written to a Story's tree (docs/adr/0003). Each kind is something that happened; the State on a
  * Path is what all of them add up to, worked out by the reducer.
  */
-export type Payload = StorySetUp | SceneOpened | MoveWritten | Redo | BeatNote | ReplyWritten | SceneClosed | FocusSet | LingerSet | TasteSet | KnownSet | PersonSet | LeadSet | GroupSet | PortraitSet | StoryEdit | Chronicle | WorldMoved | DirectorPlan;
+export type Payload = StorySetUp | SceneOpened | MoveWritten | Redo | BeatNote | ReplyWritten | SceneClosed | FocusSet | LingerSet | TasteSet | KnownSet | PersonSet | LeadSet | GroupSet | PortraitSet | StoryEdit | Chronicle | WorldMoved | DirectorPlan | RecordGap;
 
 /** The kinds written beside play, hanging off the Path and never on it (docs/adr/0007). */
-export const RECORD_KINDS = ["chronicle", "world_moved", "director_plan"] as const;
+export const RECORD_KINDS = ["chronicle", "world_moved", "director_plan", "record_gap"] as const;
 export type RecordKind = (typeof RECORD_KINDS)[number];
 
 /**
@@ -189,6 +189,20 @@ export interface Chronicle {
   dropped?: string[];
   callId: string;
   model: ModelChoice;
+}
+
+/**
+ * A Scene whose record could not be made (lasting-records design decision 4): how many tries, why the last failed,
+ * how many Scenes had ended on the Path when it did, and whether it was given up. Written beside the Path after each
+ * failed try; a Retry writes one with no tries, which makes the Scene due again.
+ */
+export interface RecordGap {
+  kind: "record_gap";
+  scene: string;
+  attempts: number;
+  reason: string;
+  endedScenes: number;
+  givenUp: boolean;
 }
 
 /** What the Player Character knows of someone, as the Chronicler wrote it after a Scene they were in. */

@@ -1,7 +1,7 @@
 import { knownOn } from "../story/known.js";
 import type { ChronicleAsk } from "../agents/chronicler.js";
 import type { Mac } from "../mac.js";
-import type { Entry, SceneOpened } from "../story/entries.js";
+import type { Entry, RecordGap, SceneOpened } from "../story/entries.js";
 import { momentsOn } from "../story/memory.js";
 import { sceneSpans } from "../story/spans.js";
 
@@ -24,18 +24,35 @@ export interface DueChronicle {
   sceneEnded: boolean;
 }
 
+/** A Scene whose record failed is given up after this many tries (lasting-records design decision 4). */
+export const RECORD_TRIES = 3;
+
+/** The newest gap for each Scene on the Path to [head]: a Retry's gap, with no tries, replaces the ones before it. */
+export function gapsOn(mac: Mac, head: string): Map<string, RecordGap> {
+  const gaps = new Map<string, RecordGap>();
+  for (const entry of mac.tree.recordsOn(head, "record_gap")) gaps.set((entry.payload as RecordGap).scene, entry.payload as RecordGap);
+  return gaps;
+}
+
 /**
- * The earliest thing on the Path to [head] the Chronicler owes at [now]: a Scene that has ended (closed, or left by the
- * Move that opened the next) and is not yet summarised, or an open Scene with twelve exchanges since its last
- * Chronicle, or with any once the player has stepped away from it. A Scene's entries run from where it starts (the
- * Move that opened it, or its opening) to the entry before the next Scene starts.
+ * What on the Path to [head] the Chronicler owes at [now] (lasting-records design decision 4): a Scene that has ended
+ * (closed, or left by the Move that opened the next) and is not yet summarised, or an open Scene with twelve exchanges
+ * since its last Chronicle, or with any once the player has stepped away from it. A Scene's entries run from where it
+ * starts (the Move that opened it, or its opening) to the entry before the next Scene starts.
+ *
+ * Scenes never tried come first, in Path order. A Scene whose record failed is tried again only once another Scene has
+ * ended since, or when the Mac starts again ([retryNow]), and never after it has been given up, so one Scene that cannot
+ * be recorded holds up no other.
  */
-export function dueChronicle(mac: Mac, head: string, now: Date = new Date()): DueChronicle | null {
+export function dueChronicle(mac: Mac, head: string, now: Date = new Date(), retryNow = false): DueChronicle | null {
   const path = mac.tree.pathTo(head);
   const steppedAway = now.getTime() - Date.parse(path.at(-1)?.createdAt ?? "") >= STEPPED_AWAY_MS;
   const position = new Map(path.map((entry, index) => [entry.id, index]));
   const chronicles = mac.tree.recordsOn(head, "chronicle");
+  const gaps = gapsOn(mac, head);
   const spans = sceneSpans(path);
+  const endedScenes = countEnded(path);
+  let retry: DueChronicle | null = null;
 
   for (const [scene, { opened, start, end }] of spans.entries()) {
     let entries = path.slice(start, end);
@@ -52,12 +69,26 @@ export function dueChronicle(mac: Mac, head: string, now: Date = new Date()): Du
     const recordFrom = Math.max(0, coveredUpTo + 1 - start);
     const summarised = mine.some(entry => entry.payload.kind === "chronicle" && entry.payload.sceneEnded);
     const through = entries.at(-1) as Entry;
+    const gap = gaps.get(opened.id);
+    const due = (sceneEnded: boolean): DueChronicle => ({ scene: opened, entries, recordFrom, through, sceneEnded });
 
-    if (ended && !summarised) return { scene: opened, entries, recordFrom, through, sceneEnded: true };
     const exchangesSince = entries.slice(recordFrom).filter(entry => entry.payload.kind === "reply").length;
-    if (!ended && (exchangesSince >= CHRONICLE_EVERY || (steppedAway && exchangesSince > 0))) return { scene: opened, entries, recordFrom, through, sceneEnded: false };
+    const owed = ended ? !summarised : exchangesSince >= CHRONICLE_EVERY || (steppedAway && exchangesSince > 0);
+    if (!owed) continue;
+    if (!gap || gap.attempts === 0) return due(ended);
+    if (!gap.givenUp && (retryNow || endedScenes > gap.endedScenes)) retry ??= due(ended);
   }
-  return null;
+  return retry;
+}
+
+/** How many Scenes on the Path to [head] have ended, for a gap to say when it failed. */
+export function endedScenesOn(mac: Mac, head: string): number {
+  return countEnded(mac.tree.pathTo(head));
+}
+
+function countEnded(path: Entry[]): number {
+  const spans = sceneSpans(path);
+  return spans.filter((span, scene) => scene < spans.length - 1 || path.slice(span.start, span.end).some(entry => entry.payload.kind === "scene_closed")).length;
 }
 
 /** What the Chronicler reads for a due Chronicle: the Scene, who was in it, and the Moments someone there knows. */

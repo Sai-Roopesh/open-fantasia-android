@@ -24,8 +24,8 @@ recorded or given up after three tries.
 
 #### Scenario: A Scene that could not be recorded does not block the rest
 - **GIVEN** the record of the library Scene could not be made
-- **WHEN** the next two Scenes end
-- **THEN** both are recorded, and the library Scene is tried again after them
+- **WHEN** the next Scene ends
+- **THEN** it is recorded, and the library Scene is tried again after it, and recorded
 
 ## ADDED Requirements
 

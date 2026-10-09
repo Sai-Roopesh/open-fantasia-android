@@ -269,6 +269,7 @@ export function entryEvent(mac: Mac, storyId: string, entry: Entry): StoryEvent 
     case "chronicle":
     case "world_moved":
     case "director_plan":
+    case "record_gap":
     case "story_set_up":
       return null;
   }

@@ -33,11 +33,11 @@ Scenarios this change builds:
   - the Chronicler's check drops part by part (quotes, Moments, names, known, bond and told rows);
   - the known limit is 60 words, and the repair message says words;
   - a too-long line twice keeps the old line and the Scene's Moments and summary.
-- [ ] 1.3 Test first, then build: `› A Scene that could not be recorded does not block the rest`:
+- [x] 1.3 Test first, then build: `› A Scene that could not be recorded does not block the rest`:
   - a `record_gap` record;
   - `dueChronicle` skips a Scene that failed until another Scene has ended, and gives up after three attempts;
   - the engine records due Scenes in order until none is due;
-  - two later Scenes are recorded, and the failed one is tried after them.
+  - the next Scene is recorded, and the failed one is tried after it.
 - [ ] 1.4 The same part-by-part checks for the Weaver (names not in the Story) and the Director (unknown or missing
   Arc rows), each with a test that a partly-bad answer is kept with its drops.
 

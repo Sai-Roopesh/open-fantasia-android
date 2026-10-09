@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { Engine } from "../../src/engine/engine.js";
+import { dueChronicle } from "../../src/engine/chronicling.js";
 import { fakeChronicleAnswer, FakeModels } from "../../src/models/fake.js";
 import { Models, type ModelRequest, type ModelRunner } from "../../src/models/model-call.js";
-import type { Chronicle, Entry } from "../../src/story/entries.js";
+import type { Chronicle, Entry, RecordGap } from "../../src/story/entries.js";
 import { knownOn } from "../../src/story/known.js";
 import { playable } from "../support/play.js";
 import { hogwartsStoryFile } from "../support/story-files.js";
@@ -182,5 +183,46 @@ describe("records that degrade, never vanish (lasting-records)", () => {
     expect(chronicle!.moments.map(moment => moment.what)).toEqual(["He catches her as everything floats."]);
     expect(chronicle!.dropped).toEqual(["known: the line for Draconia Malfoy is 70 words; say it in sixty or fewer"]);
     expect(knownOn(mac, head()).get("Draconia Malfoy")?.text ?? null).toBe(before);
+  });
+
+  // GIVEN the record of the library Scene could not be made
+  // WHEN the next Scene ends
+  // THEN it is recorded, and the library Scene is tried again after it, and recorded
+  it("living-world › Moments are remembered from one record › A Scene that could not be recorded does not block the rest", async () => {
+    const library = hogwartsStoryFile({ title: "The library", place: "The library", who: ["Hermione Granger"], prose: "Hermione is at the end table." });
+    const { play, engine, storyId, head, mac } = playable(library, {
+      writer: [{ answer: JSON.stringify({ leaves_scene: false, frame: { title: "The library", place: "The library", purpose: "p", exit: "e" }, comes_in: ["Hermione Granger"], goes: [], beats: [{ text: "a", status: "in_play" }, { text: "b", status: "pending" }, { text: "c", status: "pending" }], note: "n", call: "continue", intensity: 2, arc_moved: true, clock: "Day 3 21:42", taste: null, in_play: [] }) }, leaving],
+      chronicler: [{ fail: "Sonnet is overloaded" }, { fail: "Sonnet is overloaded" }]
+    });
+    await play("I ask Hermione about the essay.");
+    await play("I go to my room.");
+    await engine.chronicled(storyId);
+    // The library Scene could not be recorded: a gap says so, and nothing else is held up.
+    expect(chronicles(mac, head())).toHaveLength(0);
+    const gaps = mac.tree.recordsOn(head(), "record_gap");
+    expect(gaps.map(gap => gap.payload)).toMatchObject([{ kind: "record_gap", attempts: 1, givenUp: false, reason: expect.stringContaining("Sonnet is overloaded") }]);
+
+    await play("I sit on my bed.");
+    engine.endScene(storyId, head(), "t-end");
+    await engine.chronicled(storyId);
+    // In the order they were written: the Scene that ended first, then the one that had failed.
+    const written = mac.tree.recordsOn(head(), "chronicle").sort((left, right) => left.seq - right.seq);
+    const title = (record: Entry) => (mac.tree.entry((record.payload as Chronicle).scene)!.payload as { title: string }).title;
+    expect(written.map(title)).toEqual(["Lights out", "The library"]);
+  });
+
+  it("gives a Scene up after three tries, and then tries it no more", async () => {
+    const { play, engine, storyId, head, mac } = playable(hogwartsStoryFile(), { chronicler: Array.from({ length: 6 }, () => ({ fail: "Sonnet is overloaded" })) });
+    await play("I say goodnight.");
+    engine.endScene(storyId, head(), "t-end");
+    await engine.chronicled(storyId);
+    for (let start = 0; start < 2; start++) { engine.chronicleAll(); await engine.chronicled(storyId); }
+    const gaps = () => mac.tree.recordsOn(head(), "record_gap").map(gap => gap.payload as RecordGap);
+    expect(gaps().map(gap => [gap.attempts, gap.givenUp])).toEqual([[1, false], [2, false], [3, true]]);
+    // Given up: starting again tries nothing more.
+    engine.chronicleAll();
+    await engine.chronicled(storyId);
+    expect(gaps()).toHaveLength(3);
+    expect(dueChronicle(mac, head(), new Date(), true)).toBeNull();
   });
 });
