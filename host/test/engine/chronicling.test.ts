@@ -4,6 +4,7 @@ import { dueChronicle } from "../../src/engine/chronicling.js";
 import { fakeChronicleAnswer, FakeModels } from "../../src/models/fake.js";
 import { Models, type ModelRequest, type ModelRunner } from "../../src/models/model-call.js";
 import type { Chronicle, Entry, RecordGap } from "../../src/story/entries.js";
+import { bondsOn } from "../../src/story/bonds.js";
 import { knownOn } from "../../src/story/known.js";
 import { playable } from "../support/play.js";
 import { hogwartsStoryFile } from "../support/story-files.js";
@@ -183,6 +184,61 @@ describe("records that degrade, never vanish (lasting-records)", () => {
     expect(chronicle!.moments.map(moment => moment.what)).toEqual(["He catches her as everything floats."]);
     expect(chronicle!.dropped).toEqual(["known: the line for Draconia Malfoy is 70 words; say it in sixty or fewer"]);
     expect(knownOn(mac, head()).get("Draconia Malfoy")?.text ?? null).toBe(before);
+  });
+
+  // GIVEN Draconia's Bond says she bills him for the slap and keeps him on her terms
+  // WHEN a Scene ends in which she floated in his arms and ordered him to put her down, and did not thank him
+  // THEN her Bond has a turn for that Scene, and where things stand says she let him hold her before she remembered to
+  //   refuse it
+  it("living-world › Where things stand between him and each person is kept › A turn in the classroom", async () => {
+    const move = "I catch you as everything floats.";
+    const before = "She bills him for the slap and keeps him on her terms.";
+    const standing = "She bills him for the slap and keeps him on her terms, but she let him hold her before she remembered to refuse it.";
+    const turn = "She floated in his arms, ordered him to put her down, and did not thank him.";
+    const classroom = hogwartsStoryFile({ title: "Twenty-nine minutes", place: "An empty classroom", who: ["Draconia Malfoy"], prose: "Draconia sets out her notes." });
+    classroom.people = classroom.people.map(person => person.name === "Draconia Malfoy" ? { ...person, bond: before } : person) as typeof classroom.people;
+    const { play, engine, storyId, head, mac, models } = playable(classroom, { chronicler: [{ answer: JSON.stringify({
+      summary: "In the classroom Draconia floated in his arms and ordered him to put her down.",
+      moments: [{ what: "He catches her as everything floats.", quotes: [{ entry: "E2", text: move }], there: ["Draconia Malfoy"], weight: 4 }],
+      told: [],
+      bonds: [{ who: "Draconia Malfoy", standing, turn }]
+    }) }] });
+    await play(move);
+    const beforeTheEnd = head();
+    engine.endScene(storyId, head(), "t-end");
+    await engine.chronicled(storyId);
+    // The Chronicler was shown where things stood, to rewrite it.
+    expect(models.chronicler.requests[0]!.prompt).toContain(`- Draconia Malfoy: ${before}`);
+    expect(bondsOn(mac, head()).get("Draconia Malfoy")).toEqual({ standing, turns: [{ text: turn, scene: { number: 1, title: "Twenty-nine minutes" } }] });
+    // Another Path, from before the Scene ended, is as it was.
+    const other = mac.tree.createPath(storyId, "Elsewhere", beforeTheEnd, false);
+    expect(bondsOn(mac, other.headEntryId).get("Draconia Malfoy")).toEqual({ standing: before, turns: [] });
+  });
+
+  it("leaves out a Bond row past its limits, or for someone not in the Scene, and keeps the rest of the record", async () => {
+    const move = "I catch you as everything floats.";
+    const classroom = hogwartsStoryFile({ title: "Twenty-nine minutes", place: "An empty classroom", who: ["Draconia Malfoy"], prose: "Draconia sets out her notes." });
+    const { play, engine, storyId, head, mac } = playable(classroom, { chronicler: Array.from({ length: 2 }, () => ({ answer: JSON.stringify({
+      summary: "In the classroom Draconia floated in his arms.",
+      moments: [{ what: "He catches her as everything floats.", quotes: [{ entry: "E2", text: move }], there: ["Draconia Malfoy"], weight: 4 }],
+      told: [],
+      bonds: [
+        { who: "Draconia Malfoy", standing: "word ".repeat(41).trim(), turn: "She let him." },
+        { who: "Draconia Malfoy", standing: "She lets him close.", turn: "word ".repeat(26).trim() },
+        { who: "Harry Potter", standing: "Friends.", turn: "They talked." }
+      ]
+    }) })) });
+    await play(move);
+    engine.endScene(storyId, head(), "t-end");
+    await engine.chronicled(storyId);
+    const [chronicle] = chronicles(mac, head());
+    expect(chronicle!.moments).toHaveLength(1);
+    expect(chronicle!.dropped).toEqual([
+      "bonds: where things stand with Draconia Malfoy is 41 words; say it in forty or fewer",
+      "bonds: the turn with Draconia Malfoy is 26 words; say it in twenty-five or fewer",
+      "bonds: Harry Potter was not in this Scene"
+    ]);
+    expect(bondsOn(mac, head()).has("Draconia Malfoy")).toBe(false);
   });
 
   // GIVEN the record of the library Scene could not be made

@@ -550,7 +550,7 @@ export class Engine {
       const model = jobModels(this.mac.home).chronicler;
       try {
         const { value, callId, dropped } = await writeChronicle(this.models, model, chronicleAsk(this.mac, due), storyId, traceId, new AbortController().signal);
-        const record = this.mac.tree.append(storyId, due.through.id, { kind: "chronicle", scene: due.scene.id, summary: value.summary, sceneEnded: due.sceneEnded, moments: value.moments, told: value.told, known: value.known, dropped, callId, model });
+        const record = this.mac.tree.append(storyId, due.through.id, { kind: "chronicle", scene: due.scene.id, summary: value.summary, sceneEnded: due.sceneEnded, moments: value.moments, told: value.told, known: value.known, bonds: value.bonds, dropped, callId, model });
         this.models.attach(callId, record.id);
       } catch (error) {
         // A record that could not be made is noted and holds up nothing: the next due Scene is recorded, and this one is

@@ -1,3 +1,4 @@
+import { bondsOn } from "../story/bonds.js";
 import { knownOn } from "../story/known.js";
 import type { ChronicleAsk } from "../agents/chronicler.js";
 import type { Mac } from "../mac.js";
@@ -99,6 +100,7 @@ export function chronicleAsk(mac: Mac, due: DueChronicle): ChronicleAsk {
     ...due.entries.flatMap(entry => (entry.payload.kind === "beat_note" ? entry.payload.here : []))
   ])];
   const knownNow = knownOn(mac, due.through.id);
+  const bondsNow = bondsOn(mac, due.through.id);
   const known = momentsOn(mac, due.through.id)
     .filter(remembered => remembered.knownTo.some(name => inScene.includes(name)))
     .sort((left, right) => right.moment.weight - left.moment.weight || right.scene.number - left.scene.number)
@@ -112,6 +114,7 @@ export function chronicleAsk(mac: Mac, due: DueChronicle): ChronicleAsk {
     sceneEnded: due.sceneEnded,
     inScene,
     known,
-    knownBefore: Object.fromEntries(inScene.map(name => [name, knownNow.get(name)?.text ?? null]))
+    knownBefore: Object.fromEntries(inScene.map(name => [name, knownNow.get(name)?.text ?? null])),
+    bondsBefore: Object.fromEntries(inScene.map(name => [name, bondsNow.get(name)?.standing ?? null]))
   };
 }

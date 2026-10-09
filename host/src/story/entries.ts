@@ -185,6 +185,8 @@ export interface Chronicle {
   told: Told[];
   /** What the Player Character now knows of the people this Scene changed it for; absent from Chronicles before it was asked. */
   known?: KnownLine[];
+  /** For each person whose standing with the Player Character this Scene changed: the turn, and where it stands now. */
+  bonds?: BondLine[];
   /** The parts of the Chronicler's answer left out, and why (lasting-records); empty when it was right in every part. */
   dropped?: string[];
   callId: string;
@@ -209,6 +211,13 @@ export interface RecordGap {
 export interface KnownLine {
   who: string;
   now: string;
+}
+
+/** A turn in someone's Bond with the Player Character, and where things stand after it (docs/adr/0009). */
+export interface BondLine {
+  who: string;
+  standing: string;
+  turn: string;
 }
 
 /** Where a person or Group is, what they are doing and what they are after: none of it set until the Weaver moves them. */

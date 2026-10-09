@@ -58,12 +58,29 @@ what it meant, and nothing about the player's character that his Moves did not s
 The player reads, for each person, what his character knows of them. You are given that line for each person in the
 Scene ("nothing yet" when he knows nothing). When this Scene showed him something about someone (what they do, what
 they want, how they treat him, something they let slip), write `known` for them: the line as it should now read, the
-old line with what he learned folded in, in three sentences at most. Rewrite it; never just add to the end.
+old line with what he learned folded in, whole, in sixty words or fewer: who they are to him and what he has seen of
+them. Rewrite it; never just add to the end. What passed between them goes in their Bond, not here.
 
 Write it as he would know it, from what he saw, heard and was told in this Scene and what the old line says, and
 nothing else. You know more about these people than he does: the story keeps their secrets. Nothing goes in his line
 that did not happen in front of him or was not said to him. Say what he saw, not what it meant: "she stopped reading
 when he sat down", not "she likes him". Leave out anyone this Scene showed him nothing new about.
+
+## Between them
+
+For each person he has history with, the story keeps a Bond: where things stand between them, and the turns that
+brought it there. You are given where things stand for each person in the Scene ("no history yet" when there is
+none). When this Scene changed what is between them (a debt made or paid, a line crossed, a kindness let in or
+refused, a truce, a betrayal), write `bonds` for them:
+
+- `turn`: what changed, in one line of twenty-five words or fewer: "She floated in his arms, ordered him to put her
+  down, and did not thank him."
+- `standing`: where things stand now, whole, in forty words or fewer: the old standing with this turn folded in.
+  Rewrite it; never just add to the end.
+
+Write both as he has seen it: what each of them did and said in front of the other, never what anyone secretly
+feels. "She let him hold her before she remembered to refuse it", not "she is falling for him". Leave out anyone with
+whom nothing changed: most Scenes change one Bond, or none.
 
 ## What you are given
 
