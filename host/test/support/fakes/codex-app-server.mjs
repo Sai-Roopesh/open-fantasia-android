@@ -39,7 +39,11 @@ createInterface({ input: process.stdin }).on("line", line => {
       send({ method: "error", params: { threadId, turnId, willRetry: false, error: { message: "gpt-6.1-sol is at capacity" } } });
       return done("failed", { message: "gpt-6.1-sol is at capacity" });
     }
-    if (prompt.includes("slow")) return void waiting.set(threadId, turnId);
+    // A slow turn says its first word, so a caller knows it is under way, then waits to be interrupted.
+    if (prompt.includes("slow")) {
+      waiting.set(threadId, turnId);
+      return void send({ method: "item/agentMessage/delta", params: { threadId, turnId, itemId: "msg", delta: "She " } });
+    }
     if (prompt.includes("approval")) send({ id: 900, method: "item/commandExecution/requestApproval", params: { threadId, turnId, itemId: "cmd", command: "ls" } });
     // A strict schema's optional keys come back as null, as the real model answers them.
     const answer = params.outputSchema ? JSON.stringify({ note: "Meera looks up.", thread: threadId, ...(params.outputSchema.properties?.mood ? { mood: null } : {}) }) : `She closes the book. (${threadId})`;

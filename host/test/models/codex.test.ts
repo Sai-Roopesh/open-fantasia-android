@@ -106,11 +106,15 @@ describe("Codex through one warm app server (docs/adr/0005)", () => {
   it("interrupts the turn when the call is abandoned while it runs", async () => {
     const { runner: codex, received } = runner();
     const controller = new AbortController();
-    const running = codex.run(request("slow"), () => {}, controller.signal);
-    await expect.poll(() => received().some(message => message.method === "turn/start")).toBe(true);
+    // The turn is under way once its first word arrives: waited for, not timed, as a loaded machine starts Codex slowly.
+    let underWay!: () => void;
+    const firstWord = new Promise<void>(resolve => (underWay = resolve));
+    const running = codex.run(request("slow"), () => underWay(), controller.signal);
+    await firstWord;
     controller.abort();
     await expect(running).rejects.toThrow(/stopped/);
-    await expect.poll(() => received().find(message => message.method === "turn/interrupt")?.params).toMatchObject({ threadId: "thread-1", turnId: "turn-thread-1" });
+    // The interrupt is sent as the call is abandoned; the server writes it down as it reads it.
+    await expect.poll(() => received().find(message => message.method === "turn/interrupt")?.params, { timeout: 10_000 }).toMatchObject({ threadId: "thread-1", turnId: "turn-thread-1" });
   });
 
   it("starts no turn for a call abandoned before it began", async () => {
