@@ -40,7 +40,7 @@ Scenarios this change builds:
   Unit tests for each check.
 - [x] 1.2 `directionDue` by days and planned Scenes. Test first: `long-run › The Director shapes the long run around
   Arcs and Landmarks › A stretch that has not run its course`, and the plan stays Backstage, with its view test.
-- [ ] 1.3 `DIRECTOR.md` and the prompt: the whole run, the Landmarks, the Leads' Bonds, the previous roadmap, and the
+- [x] 1.3 `DIRECTOR.md` and the prompt: the whole run, the Landmarks, the Leads' Bonds, the previous roadmap, and the
   pacing rule. Test first: `long-run › Arcs keep pace with the run › Four years of romance, paced` (the prompt
   carries the run and the next Landmarks, and the plan's roadmap names Halloween) and `› The roadmap follows the
   player`.

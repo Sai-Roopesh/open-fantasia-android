@@ -248,6 +248,35 @@ function say(state: State, at: string): string {
   return time ? `${at} (${sayStoryTime(time, state.dayOneWeekday)})` : at;
 }
 
+const NUMBERS = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
+
+/** How far off [days] is, as a person says it: "in 9 days", "in 9 weeks", "in about two years". */
+function away(days: number): string {
+  if (days <= 0) return "today";
+  if (days === 1) return "tomorrow";
+  if (days < 14) return `in ${days} days`;
+  if (days < 365) return `in ${Math.round(days / 7)} weeks`;
+  const years = Math.round(days / 365);
+  return `in about ${NUMBERS[years] ?? years} year${years === 1 ? "" : "s"}`;
+}
+
+/**
+ * The whole run, for pacing (story-in-stretches design decision 2): today, how far the Story's last Landmark is, and
+ * the next two Landmarks, which the roadmap is written to.
+ */
+function theRun(state: State): string | null {
+  const now = parseStoryTime(state.clock);
+  if (!now) return null;
+  const days = (at: string) => (parseStoryTime(at)?.day ?? now.day) - now.day;
+  const last = state.landmarks.map(landmark => ({ landmark, day: parseStoryTime(landmark.at)?.day ?? 0 })).sort((left, right) => right.day - left.day)[0];
+  const coming = nextLandmarks(state);
+  return [
+    `Today is Day ${now.day} (${sayStoryTime(now, state.dayOneWeekday)}).${last && last.day > now.day ? ` The Story runs to Day ${last.day}, ${away(last.day - now.day).replace(/^in /, "")} from now.` : ""}`,
+    coming.length ? `Next: ${coming.map(landmark => `${landmark.name}, Day ${parseStoryTime(landmark.at)?.day} (${away(days(landmark.at))})`).join("; then ")}.` : "No Landmark is ahead.",
+    coming.length ? `Write the roadmap for each Arc by ${coming.map(landmark => landmark.name).join(" and by ")}.` : ""
+  ].filter(Boolean).join("\n");
+}
+
 /** The Story the Director plans for: the same for every call, so its prompt cache hits (docs/adr/0005). */
 function storyPrompt(state: State): string {
   return [
@@ -272,18 +301,21 @@ export function directorPrompt(ask: DirectorAsk): { system: string; prompt: stri
   const threads = ask.world.threads.map(thread => `- ${thread.name}: ${thread.now}`);
   const prompt = [
     section("now", `It is ${say(state, state.clock)}. ${scenes.length} Scenes have been played.`),
+    section("the_run", theRun(state) ?? ""),
     section("scenes_so_far", scenesSoFar.join("\n")),
     section("threads", threads.join("\n")),
     section("leads_between", sayBetween(ask.bonds?.leads ?? [])),
     section("between", sayBetween(ask.bonds?.others ?? [])),
     previous ? section("last_plan", [
       `Phase: ${previous.phase}, toward ${previous.toward}${previous.landmark ? ` (the Landmark ${previous.landmark})` : ""}, Day ${previous.from} to Day ${previous.until}.`,
+      ...previous.scenes.map(scene => `- Scene that mattered, ${scene.at}, ${scene.place}: ${scene.for}`),
+      ...previous.leads.map(lead => `- ${lead.who}'s move: ${lead.move}${lead.scene ? "" : " (off-screen)"}`),
       ...previous.arcs.map(arc => `- ${arc.arc}: was ${arc.now}; next ${arc.next}; not yet ${arc.not_yet}`),
       ...previous.roadmap.map(point => `- Roadmap: ${point.arc}, by ${point.by}: ${point.stands}`),
       `Premise: ${previous.premise}`
     ].join("\n")) : null,
     section("task", [
-      "Plan the next stretch.",
+      `Plan the next Stretch, from today, Day ${parseStoryTime(state.clock)?.day ?? 1}.`,
       ask.afterPeak ? "The Scene that just ended peaked: this stretch is a rest." : "",
       previous ? "Judge where each Arc stands from the Scenes since the last plan, not from what the last plan hoped." : "This is the story's first plan."
     ].filter(Boolean).join(" "))

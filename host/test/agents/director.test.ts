@@ -191,3 +191,46 @@ describe("the Director", () => {
       .rejects.toBeInstanceOf(DirectorFailed);
   });
 });
+
+describe("Arcs keep pace with the run (openspec long-run)", () => {
+  /** The Malfoy Problem as the player built it: four years and a fifth, with Halloween eight weeks off. */
+  function fourYears(changes: Partial<DirectorAsk> = {}): DirectorAsk {
+    const base = ask(changes);
+    const landmarks = [...base.state.landmarks, { name: "Voldemort's defeat", at: "Day 1825 23:00", what: "The end of the war." }];
+    return { ...base, state: { ...base.state, landmarks } };
+  }
+
+  // GIVEN a Story whose romance Arc must run four years, with the Halloween troll eight weeks away
+  // WHEN the Director plans a Stretch in the first month
+  // THEN its roadmap says where Draconia should stand with him by Halloween, and the Stretch's step moves her toward it
+  // (That the step moves her toward it is the live check's; here, that the Director is given the run and must answer
+  // for Halloween.)
+  it("long-run › Arcs keep pace with the run › Four years of romance, paced", async () => {
+    const { system: told, prompt } = directorPrompt(fourYears());
+    const system = told.replace(/\s+/g, " ");
+    expect(prompt).toContain("<the_run>\nToday is Day 1 (Friday 9:40 pm). The Story runs to Day 1825, about five years from now.");
+    expect(prompt).toContain(`Next: ${HALLOWEEN}, Day 61 (in 9 weeks); then ${TRIWIZARD}, Day 720 (in about two years).`);
+    expect(prompt).toContain(`Write the roadmap for each Arc by ${HALLOWEEN} and by ${TRIWIZARD}.`);
+    expect(system).toContain("the step this week needs for the Arc to stand where the roadmap says by the next Landmark");
+    expect(system).not.toContain("The smallest step that is still a step");
+
+    const mac = freshHome();
+    const runner = new ScriptedRunner([{ answer: JSON.stringify(plan({ roadmap: [plan().roadmap[1]] })) }, { answer: JSON.stringify(plan()) }]);
+    const written = await writePlan(new Models(mac.db, { claude: runner }), { provider: "claude", model: "claude-opus-5-5" }, fourYears(), null as never, "trace", new AbortController().signal);
+    expect(runner.requests[1]!.prompt).toContain(`roadmap: no row for the Arc "${ARC}" by ${HALLOWEEN}; say where it should stand by then`);
+    expect(written.value.roadmap.map(point => point.by)).toEqual([HALLOWEEN, TRIWIZARD]);
+  });
+
+  // GIVEN the roadmap expected a first public claim by Halloween
+  // WHEN the player's Moves bring it about in the second week
+  // THEN the next Stretch's roadmap moves its later points on from there, and does not hold the Arc back to wait for
+  //   its dates
+  // (Whether the Director moves it on is the live check's; here, that it reads its last roadmap and the rule.)
+  it("long-run › Arcs keep pace with the run › The roadmap follows the player", () => {
+    const previous = { kind: "director_plan" as const, ...plan(), from: 1, until: 7, scenes: [], roadmap: [{ arc: ARC, by: HALLOWEEN, stands: "Her first public claim on him." }], callId: "c", model: { provider: "claude" as const, model: "claude-opus-5-5" } };
+    const { system: told, prompt } = directorPrompt(fourYears({ previous: previous as never }));
+    const system = told.replace(/\s+/g, " ");
+    expect(prompt).toContain(`- Roadmap: ${ARC}, by ${HALLOWEEN}: Her first public claim on him.`);
+    expect(system).toContain("When the player has run ahead of the roadmap, move the roadmap on from where the Arc now stands; never hold the Arc back to wait for its dates.");
+  });
+});
