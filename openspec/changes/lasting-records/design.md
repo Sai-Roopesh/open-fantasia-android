@@ -57,15 +57,13 @@ No compatibility is kept: stored payload shapes may change, and the player repla
 - **If it is still too long,** the line is left out (decision 3), so the old one stands. It is never truncated by
   the Mac, since a cut line can lie.
 
-**3. Checking part by part (host, `agents/repair.ts` and each check).**
-- **The shape of a check.** `Checked<T>` becomes `{ value: T | null; fatal: string[]; dropped: string[] }`:
-  - `fatal` is what makes the answer unusable: it does not match the schema, or the summary is missing;
-  - `dropped` lists the parts left out, each with why;
-  - `value` is everything that passed.
-- **The repair loop.** `answerWithOneRepair` asks again when there is anything fatal or dropped, naming every
-  problem. It then keeps whichever answer has a value with fewer drops. It fails only when no answer has a value.
-- **The dropped parts** are stored on the record (`dropped: string[]`), for Backstage.
-- **Applied to:**
+**3. Checking part by part (host, `agents/repair.ts` and each check).** `Checked<T>` keeps its two outcomes, and its
+usable one gains what it left out: `{ ok: true, value, dropped?: string[] } | { ok: false, problems }`. "Not ok" now means
+nothing in the answer is usable (it does not match the schema). Anything less only drops the part, says why in
+`dropped`, and keeps the rest. `answerWithOneRepair` asks again whenever an answer is unusable or left parts out,
+naming every problem. It keeps whichever usable answer left out less, and fails only when no answer is usable. Only
+an answer that is not used is marked refused in the calls. What was left out is stored on the record (`dropped:
+string[]`), for Backstage. Applied to:**
   - **Chronicler:** a Moment with a bad quote loses the quote, and loses the Moment if no quote is left. A bad
     `there` or `to` name is removed. A bad or overlong known, bond or told row is dropped.
   - **Weaver:** a happening, Life, Thread or Meanwhile line naming someone not in the Story loses that name, or is

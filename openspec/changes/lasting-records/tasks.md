@@ -25,7 +25,7 @@ Scenarios this change builds:
 
 ## 1. Records that degrade, never vanish
 
-- [ ] 1.1 `Checked<T>` with `value`, `fatal` and `dropped`, and `answerWithOneRepair` keeping the better answer
+- [x] 1.1 `Checked<T>` with `value`, `fatal` and `dropped`, and `answerWithOneRepair` keeping the better answer
   (design decision 3). Repair tests: a fatal answer is asked again; a partly-bad answer is repaired, and if still
   partly bad its good parts are kept with the drops listed.
 - [ ] 1.2 Test first, then build: `living-world › Moments are remembered from one record › One bad part does not
