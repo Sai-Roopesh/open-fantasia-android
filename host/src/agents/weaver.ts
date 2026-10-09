@@ -110,8 +110,6 @@ export interface WeaveAsk {
   until: string;
   /** Everyone who was in the Scene, besides the Player Character. */
   inScene: string[];
-  /** The last two Scenes had no Lead in them, so the Story's pick has one (openspec day-view: Lead absence). */
-  leadless?: boolean;
   /** The Scene that ended peaked, so the Story's pick is quiet (openspec long-run: Rest is deliberate). */
   afterPeak?: boolean;
   /** When the span is a Gap the player chose to skip: what was on in it, which goes on without him. */
@@ -161,7 +159,8 @@ export function checkWeave(ask: WeaveAsk, raw: unknown): Checked<WeaveRecord> {
   const { state } = ask;
   const pc = state.playerCharacter;
   // Part by part (lasting-records design decision 3): a bad part is left out and noted in `dropped`; what the record as a
-  // whole owes (every Landmark in the span, a missed summons answered, a Lead in the pick, rest after a peak) is `fatal`.
+  // whole owes (every Landmark in the span, a missed summons answered, the next Scene that matters, rest after a peak) is
+  // `fatal`.
   const dropped: string[] = [];
   const fatal: string[] = [];
   const people = nameIndex(Object.values(state.people));
@@ -287,11 +286,6 @@ export function checkWeave(ask: WeaveAsk, raw: unknown): Checked<WeaveRecord> {
     if (pick?.scene !== next.id) fatal.push(`happenings: your pick is the next Scene that matters, ${next.id} at ${next.at}; offer it, with scene "${next.id}" and pick true`);
     else if (pick.at !== next.at) fatal.push(`happenings: the next Scene that matters is at ${next.at}; give your pick that time`);
   }
-  if (ask.leadless && !ask.stretch) {
-    const pick = happenings.find(item => item.pick);
-    const lead = (item: Happening | undefined) => item?.who.some(name => state.leads.includes(name)) ?? false;
-    if (!lead(pick)) fatal.push(`happenings: the last two Scenes had no Lead in them; make your pick something with a Lead in it (${state.leads.join(", ")})`);
-  }
 
   if (ask.afterPeak && !ask.gap) {
     const pick = happenings.find(item => item.pick);
@@ -411,12 +405,11 @@ export function weaverPrompt(ask: WeaveAsk): { system: string; prompt: string; f
       ask.gap ? "Leave happenings empty: the next Scene begins where the Gap ends." : `Then say what is on from ${say(state, ask.until)} on; what is still on stays, so do not offer it again.`,
       ask.stretch?.moves?.length ? "Each Lead under lead_moves_offscreen makes that move this Stretch, off-screen: write it in happened when it fits the span, at a time in the span, with move set to the Lead's name, known to who did it, saw it or was told; and if it would reach him, in meanwhile as he would learn it. Every one is made by the time given." : "",
       nextScene ? `Your pick is the next Scene that matters, ${nextScene.id}: offer it as a Happening at its time and place, with scene "${nextScene.id}" and pick true, saying what is going on and why it matters to him now in the World's words, never the plan's. It may be days away.` : "",
-      ask.leadless && !ask.stretch ? `The last two Scenes had no Lead in them (${state.leads.join(", ")}): your pick has one in it.` : "",
       ask.afterPeak && !ask.gap ? "The Scene that ended peaked. Your pick is a quiet Happening, nothing at stake in it, with quiet true: an ordinary part of the day, with no one wanting anything from him and nothing left hanging." : "",
       "Return only the JSON object."
     ].filter(Boolean).join("\n"))
   ].filter(part => part !== null).join("\n\n");
-  const facts = { from: ask.from, until: ask.until, landmarks: landmarks.map(landmark => ({ name: landmark.name, at: landmark.at })), leadless: (ask.leadless ?? false) && !ask.stretch, afterPeak: (ask.afterPeak ?? false) && !ask.gap, leads: state.leads,
+  const facts = { from: ask.from, until: ask.until, landmarks: landmarks.map(landmark => ({ name: landmark.name, at: landmark.at })), afterPeak: (ask.afterPeak ?? false) && !ask.gap, leads: state.leads,
     next: nextScene ? { id: nextScene.id, at: nextScene.at, place: nextScene.place, who: nextScene.who } : null,
     moves: (ask.stretch?.moves ?? []).map(lead => ({ who: lead.who, move: lead.move })),
     movesDue: movesDueBy(ask),

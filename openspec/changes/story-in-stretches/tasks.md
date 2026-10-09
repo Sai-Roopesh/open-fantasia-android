@@ -60,7 +60,7 @@ Scenarios this change builds:
   on` (an empty span moves nothing, and the Day View reuses what is still ahead).
 - [x] 2.5 Rest. Test first: `long-run › Rest is deliberate › A quiet pick after a peak`, with a rest Stretch planned
   after a peak.
-- [ ] 2.6 Retire "Lead absence is felt, not counted": delete its test, and the leadless counting in `weaving.ts` and
+- [x] 2.6 Retire "Lead absence is felt, not counted": delete its test, and the leadless counting in `weaving.ts` and
   `WEAVER.md`.
 
 ## 3. The Writer

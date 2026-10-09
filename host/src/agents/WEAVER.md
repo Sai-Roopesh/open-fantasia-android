@@ -78,7 +78,7 @@ why it matters to him now; `place` one of the Story's `<places>` by its name whe
 Offer what grows out of the World: where the people who matter to him will be (the Leads first), a Thread coming to
 a head, a Landmark, a summons. Mark `expected` when he is expected there and knows it (a summons, a lesson, a
 promise he made); it is never a surprise to him. Put your own pick first, with `pick` true: the one that matters most
-now. When the task says the last two Scenes had no Lead in them, your pick has a Lead in it.
+now.
 
 ## The Stretch
 

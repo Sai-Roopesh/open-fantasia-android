@@ -28,27 +28,4 @@ describe("what is on today", () => {
       { at: "Day 4 20:00", time: "8:00 pm", place: "The Three Broomsticks", what: "Fred and George are buying the first round.", who: ["Harry Potter"], expected: false, pick: false }
     ]);
   });
-
-  // GIVEN the last two Scenes had no Lead in them
-  // THEN the Story's own pick at the next Day View is a Happening with a Lead in it
-  it("day-view › Lead absence is felt, not counted › Two Scenes without a Lead", async () => {
-    const beats = [{ text: "a", status: "in_play" }, { text: "b", status: "pending" }, { text: "c", status: "pending" }];
-    const writer = (changes: Record<string, unknown>) => ({ answer: JSON.stringify({ leaves_scene: false, frame: { title: "kept", place: "kept", purpose: "p", exit: "e" }, comes_in: [], goes: [], beats, note: "n", call: "continue", intensity: 2, arc_moved: true, clock: "Day 3 15:10", taste: null, in_play: [], ...changes }) });
-    const harryPicked = { ...quiet, happenings: [{ ...twins, pick: true }] };
-    const draconiaPicked = { ...quiet, happenings: [{ ...hospital, pick: true }, twins] };
-    const played = playable(hogwartsWorldStoryFile({ title: "Greenhouses", place: "Greenhouse Three", at: "Day 3 15:00", who: ["Neville Longbottom"] }), {
-      writer: [writer({}), writer({ frame: { title: "The pitch", place: "The Quidditch pitch", purpose: "p", exit: "e" }, comes_in: ["Harry Potter"], clock: "Day 3 16:00" })],
-      weaver: [{ answer: JSON.stringify(quiet) }, { answer: JSON.stringify(harryPicked) }, { answer: JSON.stringify(draconiaPicked) }],
-      unplanned: true
-    });
-    await played.play("I help Neville repot the Mandrakes.");
-    played.engine.endScene(played.storyId, played.head(), "t1");
-    await played.engine.woven(played.storyId);
-    await played.play("I go down to the pitch to watch Harry practise.");
-    played.engine.endScene(played.storyId, played.head(), "t2");
-    await played.engine.woven(played.storyId);
-    expect(played.models.weaver.requests[2]!.prompt).toMatch(/happenings: the last two Scenes had no Lead in them/);
-    const pick = played.view().day_view!.happenings.find(item => item.pick)!;
-    expect(pick.who.some(name => ["Draconia Malfoy", "Hermione Granger"].includes(name))).toBe(true);
-  });
 });

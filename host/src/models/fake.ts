@@ -82,7 +82,6 @@ interface WeaverFacts {
   from: string;
   until: string;
   landmarks: { name: string; at: string }[];
-  leadless: boolean;
   afterPeak?: boolean;
   leads: string[];
   missed: { label: string; at: string; place: string; who: string[]; expected: boolean }[];
@@ -93,7 +92,7 @@ interface WeaverFacts {
 
 /**
  * A Weaver's record that keeps every rule: the World stays as it was, every Landmark in the span happens, the
- * player's character learns nothing, and nothing is on, unless the Story's pick must have a Lead in it. In a Gap, what
+ * player's character learns nothing, and the Story's pick is the Stretch's next Scene that matters, if any. In a Gap, what
  * he was expected at goes on without him, noticed.
  */
 export function fakeWeaveAnswer(request: ModelRequest): Script {
@@ -113,10 +112,8 @@ export function fakeWeaveAnswer(request: ModelRequest): Script {
       happenings: facts.next
         ? [{ id: "P1", at: facts.next.at, place: facts.next.place, what: "Something is going on there that matters to him.", who: facts.next.who, expected: false, pick: true, quiet: facts.afterPeak === true, scene: facts.next.id }]
         : facts.afterPeak
-        ? [{ id: "P1", at: facts.until, place: "the Great Hall", what: "A late breakfast, with nothing to do after.", who: facts.leadless && facts.leads[0] ? [facts.leads[0]] : [], expected: false, pick: true, quiet: true }]
-        : facts.leadless && facts.leads[0]
-          ? [{ id: "P1", at: facts.until, place: "where they are", what: `${facts.leads[0]} is about.`, who: [facts.leads[0]], expected: false, pick: true }]
-          : []
+        ? [{ id: "P1", at: facts.until, place: "the Great Hall", what: "A late breakfast, with nothing to do after.", who: [], expected: false, pick: true, quiet: true }]
+        : []
     })
   };
 }

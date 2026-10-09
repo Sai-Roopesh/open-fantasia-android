@@ -51,11 +51,6 @@ function peopleIn(opened: Entry<SceneOpened>, entries: Entry[]): string[] {
 /** What the Weaver reads for a due Scene's end: the Story, the World before, the Scene and who was in it. */
 export function weaveAsk(mac: Mac, due: DueWeave): WeaveAsk {
   const state = mac.states.at(due.through.id);
-  const path = mac.tree.pathTo(due.through.id);
-  // The Scene that ended and the one before it: with no Lead in either, the Story's pick leans toward one
-  // (openspec day-view: Lead absence is felt, not counted).
-  const lastTwo = sceneSpans(path).slice(-2).map(span => peopleIn(span.opened, path.slice(span.start, span.end)));
-  const leadless = state.leads.length > 0 && lastTwo.length === 2 && lastTwo.every(people => !people.some(name => state.leads.includes(name)));
   return {
     state,
     world: worldOn(mac, due.through.id),
@@ -63,7 +58,6 @@ export function weaveAsk(mac: Mac, due: DueWeave): WeaveAsk {
     from: due.from,
     until: due.until,
     inScene: peopleIn(due.scene, due.entries),
-    leadless,
     // The Writer rated the Scene that ended at a peak: the Story's next pick is a quiet one (openspec long-run).
     afterPeak: due.entries.some(entry => entry.payload.kind === "beat_note" && entry.payload.intensity >= PEAK),
     stillOn: onAhead(mac, due.through.id, due.until),
