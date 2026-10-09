@@ -84,8 +84,8 @@ Scenarios this change builds:
 - [x] 5.1 A live check with the real models: a scripted month of Stretches from Freshers' Friday, choosing the
   Story's pick each time, covers at least four weeks of story time in under twenty Scenes. Draconia acts in every
   Stretch, on screen or off, and no declaration is reached. Run with `npm run test:real`.
-- [ ] 5.2 Run `scripts/scenarios.mjs --strict`, the host suite and lint, the Android JVM and device suites, and
+- [x] 5.2 Run `scripts/scenarios.mjs --strict`, the host suite and lint, the Android JVM and device suites, and
   `openspec validate --all --strict`, and verify all pass.
-- [ ] 5.3 With the player's agreement, import The Malfoy Problem again and play the first Stretch on the phone over
+- [x] 5.3 With the player's agreement, import The Malfoy Problem again and play the first Stretch on the phone over
   adb. Check the Day View leads with the next Scene that matters and its day, and that Backstage shows the Stretch
   and Draconia's move. Send the screenshots.

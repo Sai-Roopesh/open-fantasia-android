@@ -50,8 +50,10 @@ react only to what was said aloud or done where they could see it.
 
 ### Requirement: A Scene ends in one of three ways
 
-A Scene SHALL end when a Move goes elsewhere or skips ahead, when the Story brings it to a close, or when the
-player ends it. A Move that goes elsewhere SHALL lead straight into the next Scene, with no Day View between. A
+A Scene SHALL be one thing happening between its people, with a purpose. It SHALL end when that purpose has turned and
+the Story brings it to a close, when a Move skips ahead or turns to something else, or when the player ends it. A Move
+that goes somewhere while the same thing goes on between the same people SHALL keep the Scene, with the place
+changing. A Move that turns to something else SHALL lead straight into the next Scene, with no Day View between. A
 Scene the Story closes or the player ends SHALL open the **Day View**.
 
 #### Scenario: Walking out of a Scene
@@ -59,6 +61,11 @@ Scene the Story closes or the player ends SHALL open the **Day View**.
 - **WHEN** the Move is "I go to my room; Harry, Ron and Neville are playing a board game"
 - **THEN** a new Scene opens in the dormitory with its title card, and the Reply plays it
 - **AND** no Day View appears
+
+#### Scenario: Walking somewhere together keeps the Scene
+- **GIVEN** a Scene in the Great Hall in which Hermione wants to know where he went on Wednesday
+- **WHEN** the Move is "I go to the library with Hermione"
+- **THEN** the same Scene goes on in the library, the place shown changes, and no new title card opens
 
 #### Scenario: The Story closes a Scene
 - **WHEN** a Reply brings the Scene to its close
@@ -111,6 +118,9 @@ Who is in a Scene SHALL change only when someone comes in or goes: a Reply that 
 away SHALL have everyone who was there still there, with what they remember. Whoever goes SHALL be out of the Scene
 for the Replies after, and Focus on someone who goes SHALL clear.
 
+Someone the Reply shows coming into the Scene, or already there, SHALL be in the Scene from that Reply on, whether
+or not the plan named them. Someone the Reply only mentions SHALL not be.
+
 #### Scenario: Meera stays on the toy train
 - **GIVEN** Meera is in the Scene with Focus on her
 - **WHEN** the player's Move brings nobody in and sends nobody away
@@ -121,6 +131,16 @@ for the Replies after, and Focus on someone who goes SHALL clear.
 - **GIVEN** Meera is in the Scene with Focus on her
 - **WHEN** the Move is "At Barog I watch her climb down to the jeep"
 - **THEN** Meera is out of the Scene for the Replies after, and Focus is off
+
+#### Scenario: Crabbe and Goyle at her heels
+- **GIVEN** Draconia walks back up the lane with only Pansy named in the Scene
+- **WHEN** the Reply has Crabbe and Goyle a step behind her the whole way
+- **THEN** Crabbe and Goyle are in the Scene from that Reply on, and what happened on the lane is remembered by them
+  too
+
+#### Scenario: A name mentioned is not a person present
+- **WHEN** Draconia says "Father will hear of this" in a Reply
+- **THEN** Lucius Malfoy is not in the Scene
 
 ### Requirement: Only what matters earns time
 

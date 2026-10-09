@@ -87,8 +87,8 @@ Scenarios this change builds:
 
 - [x] 5.1 Update `examples/malfoy-problem/story.yaml` with Bonds for Draconia and Hermione to start from, and check
   it imports in a throwaway home.
-- [ ] 5.2 Run `scripts/scenarios.mjs --strict`, the host suite and lint, the Android JVM and device suites, and
+- [x] 5.2 Run `scripts/scenarios.mjs --strict`, the host suite and lint, the Android JVM and device suites, and
   `openspec validate --all --strict`, and verify all pass.
-- [ ] 5.3 With the player's agreement, replace The Malfoy Problem on the Mac with the new import. Play two Scenes
+- [x] 5.3 With the player's agreement, replace The Malfoy Problem on the Mac with the new import. Play two Scenes
   with Draconia on the phone over adb, then check her Bond, what he knows (60 words or fewer), The record (empty),
   and the Chronicler's calls (none failed).
