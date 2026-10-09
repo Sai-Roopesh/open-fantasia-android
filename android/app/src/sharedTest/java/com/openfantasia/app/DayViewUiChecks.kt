@@ -7,10 +7,10 @@ import com.openfantasia.protocol.*
 import org.junit.Assert.*
 
 open class DayViewUiChecks : WorldUiChecks() {
-    private val summons = Happening(id = "summons", at = "Day 3 09:00", time = "9:00 am",
+    private val summons = Happening(id = "summons", at = "Day 3 09:00", time = "9:00 am", daysAway = 0,
         place = "McGonagall's office", what = "Your account of the troll. Hermione goes in first.",
         who = listOf("McGonagall", "Hermione", "Harry"), expected = true, pick = true)
-    private val hospital = Happening(id = "hospital", at = "Day 3 11:00", time = "11:00 am",
+    private val hospital = Happening(id = "hospital", at = "Day 3 11:00", time = "11:00 am", daysAway = 0,
         place = "the hospital wing", what = "Draconia is fighting Snape for her bed back.",
         who = listOf("Draconia", "Snape", "Pansy"), expected = false, pick = false)
     private val tomorrow = Skip(label = "Tomorrow", inSentence = "tomorrow", at = "Day 4 07:30", time = "Monday 7:30 am")

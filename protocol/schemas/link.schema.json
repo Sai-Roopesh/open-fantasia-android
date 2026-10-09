@@ -769,7 +769,9 @@
         "what",
         "who",
         "expected",
-        "pick"
+        "pick",
+        "days_away",
+        "scene"
       ],
       "properties": {
         "id": {
@@ -804,6 +806,18 @@
         "pick": {
           "description": "The Story's own pick, which Let the Story choose goes to.",
           "type": "boolean"
+        },
+        "days_away": {
+          "description": "How many days off it is: 0 today, 1 tomorrow; the Day View says \"in 5 days\" beyond that.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "scene": {
+          "description": "The Stretch's Scene that matters it is, when it is one; null otherwise.",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       }
     },
@@ -1946,7 +1960,8 @@
       "required": [
         "toward",
         "phase",
-        "line"
+        "line",
+        "stretch"
       ],
       "properties": {
         "toward": {
@@ -1959,6 +1974,17 @@
         "line": {
           "description": "Said for Backstage: \"Building toward the flying test on Wednesday. This stretch builds; rest comes after it.\"",
           "type": "string"
+        },
+        "stretch": {
+          "description": "The Stretch the Director planned (Backstage.dc.html: THE DIRECTOR); null for a plan from before Stretches.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/StretchView"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     },
@@ -2976,6 +3002,104 @@
         },
         "scene_number": {
           "type": "integer"
+        }
+      }
+    },
+    "StretchView": {
+      "description": "A Stretch as Backstage shows it: its days, its Scenes that matter, and each Lead's move.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "from_label",
+        "until_label",
+        "scenes",
+        "leads"
+      ],
+      "properties": {
+        "from_label": {
+          "description": "Its first day, \"Saturday\".",
+          "type": "string"
+        },
+        "until_label": {
+          "description": "Its last day, \"Friday\".",
+          "type": "string"
+        },
+        "scenes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StretchScene"
+          }
+        },
+        "leads": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StretchLead"
+          }
+        }
+      }
+    },
+    "StretchScene": {
+      "description": "A Scene that matters in the Stretch.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "when",
+        "place",
+        "for",
+        "who",
+        "state"
+      ],
+      "properties": {
+        "when": {
+          "description": "\"Mon 2:00 pm\".",
+          "type": "string"
+        },
+        "place": {
+          "type": "string"
+        },
+        "for": {
+          "description": "What it is for, as the plan says it.",
+          "type": "string"
+        },
+        "who": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "state": {
+          "description": "played: the player chose it; passed: its time went by without it; ahead: still to come.",
+          "enum": [
+            "played",
+            "passed",
+            "ahead"
+          ]
+        }
+      }
+    },
+    "StretchLead": {
+      "description": "What a Lead does about the Player Character this Stretch.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "who",
+        "move",
+        "on_screen",
+        "label"
+      ],
+      "properties": {
+        "who": {
+          "type": "string"
+        },
+        "move": {
+          "type": "string"
+        },
+        "on_screen": {
+          "type": "boolean"
+        },
+        "label": {
+          "description": "Where and when: \"On screen · Charms, Monday\", \"Off-screen, Sunday · he heard it from Neville Longbottom\", \"Off-screen · still to come\".",
+          "type": "string"
         }
       }
     }

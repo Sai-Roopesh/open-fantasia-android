@@ -103,6 +103,9 @@
 // val betweenTurn          = json.parse(BetweenTurn.serializer(), jsonString)
 // val recordRow            = json.parse(RecordRow.serializer(), jsonString)
 // val recordRetryRequest   = json.parse(RecordRetryRequest.serializer(), jsonString)
+// val stretchView          = json.parse(StretchView.serializer(), jsonString)
+// val stretchScene         = json.parse(StretchScene.serializer(), jsonString)
+// val stretchLead          = json.parse(StretchLead.serializer(), jsonString)
 
 package com.openfantasia.protocol
 
@@ -472,6 +475,12 @@ data class Happening (
     val at: String,
 
     /**
+     * How many days off it is: 0 today, 1 tomorrow; the Day View says "in 5 days" beyond that.
+     */
+    @SerialName("days_away")
+    val daysAway: Long,
+
+    /**
      * The Player Character is expected there: shown "You're expected".
      */
     val expected: Boolean,
@@ -484,6 +493,11 @@ data class Happening (
     val pick: Boolean,
 
     val place: String,
+
+    /**
+     * The Stretch's Scene that matters it is, when it is one; null otherwise.
+     */
+    val scene: String? = null,
 
     /**
      * When, as people say it: "9:00 am", or "Tomorrow 9:00 am".
@@ -1102,6 +1116,12 @@ data class DirectorLine (
     val phase: DirectorPhase,
 
     /**
+     * The Stretch the Director planned (Backstage.dc.html: THE DIRECTOR); null for a plan from
+     * before Stretches.
+     */
+    val stretch: StretchView? = null,
+
+    /**
      * What the stretch builds toward: "the flying test on Wednesday".
      */
     val toward: String
@@ -1115,6 +1135,83 @@ enum class DirectorPhase(val value: String) {
     @SerialName("build") Build("build"),
     @SerialName("peak") Peak("peak"),
     @SerialName("rest") REST("rest");
+}
+
+/**
+ * A Stretch as Backstage shows it: its days, its Scenes that matter, and each Lead's move.
+ */
+@Serializable
+data class StretchView (
+    /**
+     * Its first day, "Saturday".
+     */
+    @SerialName("from_label")
+    val fromLabel: String,
+
+    val leads: List<StretchLead>,
+    val scenes: List<StretchScene>,
+
+    /**
+     * Its last day, "Friday".
+     */
+    @SerialName("until_label")
+    val untilLabel: String
+)
+
+/**
+ * What a Lead does about the Player Character this Stretch.
+ */
+@Serializable
+data class StretchLead (
+    /**
+     * Where and when: "On screen · Charms, Monday", "Off-screen, Sunday · he heard it from
+     * Neville Longbottom", "Off-screen · still to come".
+     */
+    val label: String,
+
+    val move: String,
+
+    @SerialName("on_screen")
+    val onScreen: Boolean,
+
+    val who: String
+)
+
+/**
+ * A Scene that matters in the Stretch.
+ */
+@Serializable
+data class StretchScene (
+    /**
+     * What it is for, as the plan says it.
+     */
+    @SerialName("for")
+    val linkSchemaFor: String,
+
+    val place: String,
+
+    /**
+     * played: the player chose it; passed: its time went by without it; ahead: still to come.
+     */
+    val state: StretchSceneState,
+
+    /**
+     * "Mon 2:00 pm".
+     */
+    @SerialName("when")
+    val linkSchemaWhen: String,
+
+    val who: List<String>
+)
+
+/**
+ * played: the player chose it; passed: its time went by without it; ahead: still to come.
+ */
+@Serializable
+enum class StretchSceneState(val value: String) {
+    @SerialName("ahead") Ahead("ahead"),
+    @SerialName("passed") Passed("passed"),
+    @SerialName("played") Played("played");
 }
 
 @Serializable
@@ -1173,7 +1270,7 @@ data class RecordRow (
      * waiting: it will be tried again after the next Scene; given_up: three tries failed, and
      * Retry tries again; recorded: recorded, without the parts in dropped.
      */
-    val state: State
+    val state: RecordRowState
 )
 
 /**
@@ -1181,7 +1278,7 @@ data class RecordRow (
  * Retry tries again; recorded: recorded, without the parts in dropped.
  */
 @Serializable
-enum class State(val value: String) {
+enum class RecordRowState(val value: String) {
     @SerialName("given_up") GivenUp("given_up"),
     @SerialName("recorded") Recorded("recorded"),
     @SerialName("waiting") Waiting("waiting");

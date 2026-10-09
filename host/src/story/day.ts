@@ -46,7 +46,7 @@ export function todayOn(mac: Mac, head: string, state: State): DayHappening[] {
     const at = parseStoryTime(item.at);
     if (!at) return [];
     const time = at.day === now.day ? sayTime(at) : at.day === now.day + 1 ? `Tomorrow ${sayTime(at)}` : sayStoryTime(at, state.dayOneWeekday);
-    return [{ id: item.id, at: item.at, time, place: item.place, what: item.what, who: item.who, expected: item.expected, pick: item.pick }];
+    return [{ id: item.id, at: item.at, time, days_away: Math.max(0, at.day - now.day), scene: item.scene ?? null, place: item.place, what: item.what, who: item.who, expected: item.expected, pick: item.pick }];
   });
 }
 

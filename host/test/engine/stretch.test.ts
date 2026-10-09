@@ -4,6 +4,7 @@ import { fakeWeaveAnswer } from "../../src/models/fake.js";
 import type { ModelRequest } from "../../src/models/model-call.js";
 import type { StoryFile } from "../../src/protocol/generated/story-file.js";
 import type { WorldMoved } from "../../src/story/entries.js";
+import { backstageView } from "../../src/views/backstage.js";
 import { journalView } from "../../src/views/journal.js";
 import { playable } from "../support/play.js";
 import { hogwartsWorldStoryFile } from "../support/story-files.js";
@@ -38,7 +39,6 @@ describe("the Story's pick is the Stretch's next Scene that matters (story-in-st
   // THEN the Day View's first offer is Thursday's, labelled "Thursday 10:00 am · in 5 days"
   // WHEN the player chooses it
   // THEN the days between pass, the next Scene opens on Thursday, and Meanwhile says what he learned since Saturday
-  // (The "· in 5 days" is the link's, with contract 18.)
   it("day-view › Up to four Happenings › The next Scene that matters is days away", async () => {
     const story = fridayNight();
     // The span to Thursday tells him one thing, from Neville.
@@ -56,7 +56,8 @@ describe("the Story's pick is the Stretch's next Scene that matters (story-in-st
     // Saturday morning: the first offer is Thursday's, the Story's pick, built from the plan but in the World's words.
     const day = view().day_view!;
     expect(day.at).toBe("Day 4 07:30");
-    expect(day.happenings[0]).toMatchObject({ at: "Day 9 10:00", time: "Thursday 10:00 am", place: "The corridor outside Charms", who: ["Draconia Malfoy"], pick: true });
+    const planned = (mac.tree.recordsOn(head(), "director_plan").at(-1)!.payload as { scenes: { id: string }[] }).scenes[0]!.id;
+    expect(day.happenings[0]).toMatchObject({ at: "Day 9 10:00", time: "Thursday 10:00 am", days_away: 5, scene: planned, place: "The corridor outside Charms", who: ["Draconia Malfoy"], pick: true });
     expect(models.weaver.requests[0]!.prompt).toContain("<next_scene_that_matters");
     expect(JSON.stringify(day)).not.toContain("She corners him about the seating plan.");
 
@@ -106,6 +107,14 @@ describe("Leads act every Stretch, on screen or off (story-in-stretches design d
     const gap = mac.tree.recordsOn(head(), "world_moved").at(-1)!.payload as WorldMoved;
     expect(gap.happened.find(item => item.move === "Draconia Malfoy")).toMatchObject({ what: seating, knownTo: expect.arrayContaining(["Neville Longbottom", "Roopesh Gantasala"]) });
     expect(journalView(mac, storyId, "t").days.flatMap(day => day.rows).some(row => row.meanwhile?.text === told)).toBe(true);
+    // Backstage shows the Stretch: its days, its Scenes that matter, and what each Lead did about him.
+    const stretch = backstageView(mac, storyId, "t").director!.stretch!;
+    expect(stretch).toMatchObject({ from_label: "Saturday", until_label: "Saturday" });
+    expect(stretch.scenes.map(scene => [scene.when, scene.place, scene.state])).toEqual([["Thu 10:00 am", "The library", "played"], ["Thu 4:00 pm", "The Quidditch pitch", "ahead"]]);
+    expect(stretch.leads).toEqual([
+      { who: "Draconia Malfoy", move: "Has his name taken off the Charms seating plan.", on_screen: false, label: "Off-screen, Tuesday · he heard it from Neville Longbottom" },
+      { who: "Hermione Granger", move: "Lends him her notes.", on_screen: true, label: "On screen · The library, Thursday" }
+    ]);
   });
 
   // GIVEN Draconia has gone home for the weekend after her father's letter

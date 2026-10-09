@@ -393,6 +393,14 @@ export interface Happening {
    * The Story's own pick, which Let the Story choose goes to.
    */
   pick: boolean;
+  /**
+   * How many days off it is: 0 today, 1 tomorrow; the Day View says "in 5 days" beyond that.
+   */
+  days_away: number;
+  /**
+   * The Stretch's Scene that matters it is, when it is one; null otherwise.
+   */
+  scene: string | null;
 }
 /**
  * What the Day View's other choices offer: people to follow, places to go, and times to skip to.
@@ -936,6 +944,65 @@ export interface DirectorLine {
    * Said for Backstage: "Building toward the flying test on Wednesday. This stretch builds; rest comes after it."
    */
   line: string;
+  /**
+   * The Stretch the Director planned (Backstage.dc.html: THE DIRECTOR); null for a plan from before Stretches.
+   */
+  stretch: StretchView | null;
+}
+/**
+ * A Stretch as Backstage shows it: its days, its Scenes that matter, and each Lead's move.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "StretchView".
+ */
+export interface StretchView {
+  /**
+   * Its first day, "Saturday".
+   */
+  from_label: string;
+  /**
+   * Its last day, "Friday".
+   */
+  until_label: string;
+  scenes: StretchScene[];
+  leads: StretchLead[];
+}
+/**
+ * A Scene that matters in the Stretch.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "StretchScene".
+ */
+export interface StretchScene {
+  /**
+   * "Mon 2:00 pm".
+   */
+  when: string;
+  place: string;
+  /**
+   * What it is for, as the plan says it.
+   */
+  for: string;
+  who: string[];
+  /**
+   * played: the player chose it; passed: its time went by without it; ahead: still to come.
+   */
+  state: "played" | "passed" | "ahead";
+}
+/**
+ * What a Lead does about the Player Character this Stretch.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "StretchLead".
+ */
+export interface StretchLead {
+  who: string;
+  move: string;
+  on_screen: boolean;
+  /**
+   * Where and when: "On screen · Charms, Monday", "Off-screen, Sunday · he heard it from Neville Longbottom", "Off-screen · still to come".
+   */
+  label: string;
 }
 /**
  * A Scene in The record (lasting-records): one not yet recorded, or one recorded with parts left out.

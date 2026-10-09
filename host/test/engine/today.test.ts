@@ -23,9 +23,9 @@ describe("what is on today", () => {
     const { view } = await saturday([summons, hospital, twins]);
     const happenings = view().day_view!.happenings;
     expect(happenings.map(({ id: _, ...item }) => item)).toEqual([
-      { at: "Day 4 09:00", time: "9:00 am", place: "McGonagall's office", what: "Your account of the troll. Hermione goes in first.", who: ["Minerva McGonagall", "Hermione Granger"], expected: true, pick: true },
-      { at: "Day 4 11:00", time: "11:00 am", place: "Outside the hospital wing", what: "Draconia, on a strapped ankle, is fighting Snape for her bed back.", who: ["Draconia Malfoy", "Severus Snape"], expected: false, pick: false },
-      { at: "Day 4 20:00", time: "8:00 pm", place: "The Three Broomsticks", what: "Fred and George are buying the first round.", who: ["Harry Potter"], expected: false, pick: false }
+      { at: "Day 4 09:00", time: "9:00 am", days_away: 0, scene: null, place: "McGonagall's office", what: "Your account of the troll. Hermione goes in first.", who: ["Minerva McGonagall", "Hermione Granger"], expected: true, pick: true },
+      { at: "Day 4 11:00", time: "11:00 am", days_away: 0, scene: null, place: "Outside the hospital wing", what: "Draconia, on a strapped ankle, is fighting Snape for her bed back.", who: ["Draconia Malfoy", "Severus Snape"], expected: false, pick: false },
+      { at: "Day 4 20:00", time: "8:00 pm", days_away: 0, scene: null, place: "The Three Broomsticks", what: "Fred and George are buying the first round.", who: ["Harry Potter"], expected: false, pick: false }
     ]);
   });
 });

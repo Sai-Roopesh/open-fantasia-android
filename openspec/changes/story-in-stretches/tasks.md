@@ -74,7 +74,7 @@ Scenarios this change builds:
 ## 4. Skips, the link and the phone
 
 - [x] 4.1 "Next week". Test first: `day-view › The player chooses where to be › Skipping a week`.
-- [ ] 4.2 Contract 18 (design decision 7). Regenerate; views and link tests for `days_away`, `scene` and the
+- [x] 4.2 Contract 18 (design decision 7). Regenerate; views and link tests for `days_away`, `scene` and the
   Backstage Stretch.
 - [ ] 4.3 The phone: the Day View pick's day and the Backstage Stretch, built to the approved drawings, with shared
   checks on the JVM and the device.
