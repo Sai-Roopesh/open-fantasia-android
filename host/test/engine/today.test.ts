@@ -9,7 +9,7 @@ const twins = { id: "P3", at: "Day 4 20:00", place: "The Three Broomsticks", wha
 
 /** The night after curfew, woven with what is on on Saturday. */
 async function saturday(happenings: object[]) {
-  const played = playable(hogwartsWorldStoryFile({ title: "After curfew", place: "The Gryffindor common room", at: "Day 3 22:40", who: ["Hermione Granger"] }), { weaver: [{ answer: JSON.stringify({ ...quiet, happenings }) }] });
+  const played = playable(hogwartsWorldStoryFile({ title: "After curfew", place: "The Gryffindor common room", at: "Day 3 22:40", who: ["Hermione Granger"] }), { weaver: [{ answer: JSON.stringify({ ...quiet, happenings }) }], unplanned: true });
   await played.play("I say goodnight to Hermione and go up.");
   played.engine.endScene(played.storyId, played.head(), "trace-end");
   await played.engine.woven(played.storyId);
@@ -38,7 +38,8 @@ describe("what is on today", () => {
     const draconiaPicked = { ...quiet, happenings: [{ ...hospital, pick: true }, twins] };
     const played = playable(hogwartsWorldStoryFile({ title: "Greenhouses", place: "Greenhouse Three", at: "Day 3 15:00", who: ["Neville Longbottom"] }), {
       writer: [writer({}), writer({ frame: { title: "The pitch", place: "The Quidditch pitch", purpose: "p", exit: "e" }, comes_in: ["Harry Potter"], clock: "Day 3 16:00" })],
-      weaver: [{ answer: JSON.stringify(quiet) }, { answer: JSON.stringify(harryPicked) }, { answer: JSON.stringify(draconiaPicked) }]
+      weaver: [{ answer: JSON.stringify(quiet) }, { answer: JSON.stringify(harryPicked) }, { answer: JSON.stringify(draconiaPicked) }],
+      unplanned: true
     });
     await played.play("I help Neville repot the Mandrakes.");
     played.engine.endScene(played.storyId, played.head(), "t1");

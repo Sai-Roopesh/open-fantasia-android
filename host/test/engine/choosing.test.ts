@@ -15,7 +15,7 @@ const writer = (changes: Record<string, unknown>) => ({ answer: JSON.stringify({
 async function saturday(writers: object[] = []) {
   const story = hogwartsWorldStoryFile({ title: "After curfew", place: "The Gryffindor common room", at: "Day 3 22:40", who: ["Hermione Granger"] });
   story.world = { places: [{ name: "The library" }] };
-  const played = playable(story, { writer: [writer({}), ...writers.map(answer => ({ answer: JSON.stringify(answer) }))], weaver: [{ answer: JSON.stringify({ lives: [], threads: [], happened: [], meanwhile: [], happenings: [summons, hospital] }) }] });
+  const played = playable(story, { writer: [writer({}), ...writers.map(answer => ({ answer: JSON.stringify(answer) }))], weaver: [{ answer: JSON.stringify({ lives: [], threads: [], happened: [], meanwhile: [], happenings: [summons, hospital] }) }], unplanned: true });
   await played.play("I say goodnight to Hermione and go up.");
   played.engine.endScene(played.storyId, played.head(), "trace-end");
   await played.engine.woven(played.storyId);

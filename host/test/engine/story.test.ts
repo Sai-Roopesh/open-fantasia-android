@@ -212,7 +212,7 @@ describe("stories › Anything can be edited or created in the app: the time", (
   // AND once the player has chosen, what happened in the World between Saturday and Sunday is in Backstage
   it("stories › Anything can be edited or created in the app › Moving the clock on", async () => {
     const story = { ...storyFile(), clock: { starts: "Day 3 22:40", day_one_weekday: "wednesday" as const }, opening: { ...storyFile().opening, at: "Day 3 22:40" } };
-    const { mac, engine, storyId, head, view } = playable(story, { weaver: [{ answer: JSON.stringify({ lives: [], threads: [], happened: [], meanwhile: [], happenings: [summons, owlery] }) }] });
+    const { mac, engine, storyId, head, view } = playable(story, { weaver: [{ answer: JSON.stringify({ lives: [], threads: [], happened: [], meanwhile: [], happenings: [summons, owlery] }) }], unplanned: true });
     engine.endScene(storyId, head(), "end");
     await engine.woven(storyId);
     expect(view().day_view).toMatchObject({ at: "Day 4 07:30", day: "Saturday" });

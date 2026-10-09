@@ -1,4 +1,4 @@
-import { PEAK } from "./directing.js";
+import { currentPlan, PEAK } from "./directing.js";
 import type { WeaveAsk } from "../agents/weaver.js";
 import type { Mac } from "../mac.js";
 import type { Entry, SceneOpened, WorldMoved } from "../story/entries.js";
@@ -66,8 +66,24 @@ export function weaveAsk(mac: Mac, due: DueWeave): WeaveAsk {
     leadless,
     // The Writer rated the Scene that ended at a peak: the Story's next pick is a quiet one (openspec long-run).
     afterPeak: due.entries.some(entry => entry.payload.kind === "beat_note" && entry.payload.intensity >= PEAK),
-    stillOn: onAhead(mac, due.through.id, due.until)
+    stillOn: onAhead(mac, due.through.id, due.until),
+    ...stretchAfter(mac, due.through.id, due.until)
   };
+}
+
+/**
+ * The Director's Stretch as the Weaver follows it (docs/adr/0010): its next Scene that matters after [until], or null
+ * when none is left; nothing before the Director has planned on this Path.
+ */
+function stretchAfter(mac: Mac, head: string, until: string): Pick<WeaveAsk, "stretch"> {
+  const plan = currentPlan(mac, head);
+  if (!plan) return {};
+  const end = parseStoryTime(until);
+  const next = plan.entry.payload.scenes.find(scene => {
+    const at = parseStoryTime(scene.at);
+    return at && end && minutesOf(at) > minutesOf(end);
+  });
+  return { stretch: { next: next ?? null } };
 }
 
 /** A Gap shorter than this with nothing on in it passes without the Weaver: nothing in it will reach anyone. */

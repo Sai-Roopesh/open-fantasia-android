@@ -155,6 +155,32 @@ describe("the Weaver's answer", () => {
   });
 });
 
+describe("the Weaver follows the Stretch (docs/adr/0010)", () => {
+  const next = { id: "s-thursday", at: "Day 9 10:00", place: "The corridor outside Charms", who: ["Draconia Malfoy"], for: "She corners him about the seating plan.", lead: "Draconia Malfoy" };
+  const offer = (changes: Record<string, unknown> = {}) => ({ id: "P1", at: "Day 9 10:00", place: "The corridor outside Charms", what: "Draconia has been waiting for Charms to end.", who: ["Draconia Malfoy"], expected: false, pick: true, scene: "s-thursday", ...changes });
+
+  it("is shown the next Scene that matters, and its pick is that Scene, at its time, days away or not", async () => {
+    const stretch = await ask({ stretch: { next } });
+    expect(weaverPrompt(stretch).prompt).toContain('<next_scene_that_matters id="s-thursday" at="Day 9 10:00 (Thursday 10:00 am)" place="The corridor outside Charms" with="Draconia Malfoy">\nShe corners him about the seating plan.');
+    const kept = checkWeave(stretch, answer({ happenings: [offer()] }));
+    expect(kept.ok && kept.value.happenings[0]).toMatchObject({ at: "Day 9 10:00", pick: true, scene: "s-thursday" });
+    expect(checkWeave(stretch, answer({ happenings: [offer({ scene: null })] }))).toMatchObject({ ok: false, problems: ["happenings: your pick is the next Scene that matters, s-thursday at Day 9 10:00; offer it, with scene \"s-thursday\" and pick true"] });
+    expect(checkWeave(stretch, answer({ happenings: [offer({ at: "Day 9 11:00" })] }))).toMatchObject({ ok: false, problems: ["happenings: the next Scene that matters is at Day 9 10:00; give your pick that time"] });
+  });
+
+  it("does not offer the next Scene that matters again while it is on, and keeps any other Happening ordinary", async () => {
+    const on = { id: "p-old", at: "Day 9 10:00", place: "The corridor outside Charms", what: "Draconia waits.", who: ["Draconia Malfoy"], expected: false, pick: true, scene: "s-thursday" };
+    const stillOn = await ask({ stretch: { next }, stillOn: [on] });
+    expect(weaverPrompt(stillOn).prompt).not.toContain("<next_scene_that_matters");
+    const checked = checkWeave(stillOn, answer({ happenings: [offer(), offer({ id: "P2", at: "Day 4 20:00", place: "The Three Broomsticks", pick: false, scene: "s-other" })] }));
+    expect(checked.ok && checked.value.happenings.map(item => [item.place, item.scene])).toEqual([["The Three Broomsticks", null]]);
+    expect(checked.ok && checked.dropped).toEqual([
+      "happenings: P1 is the next Scene that matters, which is on already; leave it out",
+      "happenings: P2 names the Scene s-other, which is not the next Scene that matters; it is an ordinary Happening"
+    ]);
+  });
+});
+
 describe("the Weaver's call", () => {
   it("gives the span, the World as it stands, the Scene that ended and the Landmarks in the span", async () => {
     const { system, prompt } = weaverPrompt(await ask({}, [{ name: "the Halloween feast", at: "Day 3 23:00", what: "The Great Hall feast." }]));

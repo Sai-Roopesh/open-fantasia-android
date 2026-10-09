@@ -51,7 +51,7 @@ Scenarios this change builds:
 
 - [x] 2.1 The order at a Scene's end: Chronicler, then the Director when due, then the Weaver, in the engine, with
   the tests that pin the order. A failed Director keeps the old plan, and the Weaver goes ahead.
-- [ ] 2.2 The Weaver reads the Stretch (`WEAVER.md`, the prompt and the check): its pick is the next unplayed Scene
+- [x] 2.2 The Weaver reads the Stretch (`WEAVER.md`, the prompt and the check): its pick is the next unplayed Scene
   that matters, with its id. Test first: `day-view › Up to four Happenings › The next Scene that matters is days
   away`, through choosing it, the Gap and Meanwhile.
 - [ ] 2.3 Off-screen Lead moves in the span. Test first: `long-run › Leads act every Stretch › A move made off-screen

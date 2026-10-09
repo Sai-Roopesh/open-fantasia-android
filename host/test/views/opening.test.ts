@@ -70,7 +70,7 @@ describe("the next Scene, while it is being written", () => {
   });
   it("keeps the next Scene's card when the turn fails before the Scene opens, and Retry opens it", async () => {
     const quiet = { answer: JSON.stringify({ lives: [], threads: [], happened: [], meanwhile: [], happenings: [] }) };
-    const { play, engine, storyId, head, view } = playable(nightTrainStoryFile(), { weaver: [quiet, { fail: "Sonnet is overloaded" }, { fail: "Sonnet is overloaded" }] });
+    const { play, engine, storyId, head, view } = playable(nightTrainStoryFile(), { weaver: [quiet, { fail: "Sonnet is overloaded" }, { fail: "Sonnet is overloaded" }], unplanned: true });
     await play("I get down after her to stretch my legs while the engine takes water.");
     engine.endScene(storyId, head(), "trace-end");
     await engine.woven(storyId);

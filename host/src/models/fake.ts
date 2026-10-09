@@ -86,6 +86,7 @@ interface WeaverFacts {
   afterPeak?: boolean;
   leads: string[];
   missed: { label: string; at: string; place: string; who: string[]; expected: boolean }[];
+  next?: { id: string; at: string; place: string; who: string[] } | null;
 }
 
 /**
@@ -104,7 +105,10 @@ export function fakeWeaveAnswer(request: ModelRequest): Script {
         ...facts.missed.filter(item => item.expected).map((item, index) => ({ id: `M${index + 1}`, what: `${item.place} went on without him, and they noticed.`, at: item.at, where: item.place, known_to: item.who, landmark: null, missed: item.label }))
       ],
       meanwhile: [],
-      happenings: facts.afterPeak
+      // The Stretch's next Scene that matters is the pick, when there is one (docs/adr/0010).
+      happenings: facts.next
+        ? [{ id: "P1", at: facts.next.at, place: facts.next.place, what: "Something is going on there that matters to him.", who: facts.next.who, expected: false, pick: true, quiet: facts.afterPeak === true, scene: facts.next.id }]
+        : facts.afterPeak
         ? [{ id: "P1", at: facts.until, place: "the Great Hall", what: "A late breakfast, with nothing to do after.", who: facts.leadless && facts.leads[0] ? [facts.leads[0]] : [], expected: false, pick: true, quiet: true }]
         : facts.leadless && facts.leads[0]
           ? [{ id: "P1", at: facts.until, place: "where they are", what: `${facts.leads[0]} is about.`, who: [facts.leads[0]], expected: false, pick: true }]

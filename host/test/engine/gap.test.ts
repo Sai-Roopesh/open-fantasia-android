@@ -15,7 +15,7 @@ async function saturday(weaver: object[], writer: object[] = []) {
   // A scripted failure goes to the Weaver as it is; anything else is its answer.
   const script = (answer: object) => ("fail" in answer ? answer as { fail: string } : { answer: JSON.stringify(answer) });
   const played = playable(hogwartsWorldStoryFile({ title: "After curfew", place: "The Gryffindor common room", at: "Day 3 22:40", who: ["Hermione Granger"] }),
-    { weaver: [saturdayMorning, ...weaver].map(script), writer: writer.map(answer => ({ answer: JSON.stringify(answer) })) });
+    { weaver: [saturdayMorning, ...weaver].map(script), writer: writer.map(answer => ({ answer: JSON.stringify(answer) })), unplanned: true });
   await played.play("I say goodnight to Hermione and go up.");
   played.engine.endScene(played.storyId, played.head(), "trace-end");
   await played.engine.woven(played.storyId);
@@ -90,7 +90,7 @@ describe("the Gap", () => {
   it("does not weave a short Gap with nothing on in it", async () => {
     const breakfast = { id: "P3", at: "Day 4 08:00", place: "The Great Hall", what: "Breakfast.", who: ["Hermione Granger"], expected: false, pick: true };
     const played = playable(hogwartsWorldStoryFile({ title: "After curfew", place: "The Gryffindor common room", at: "Day 3 22:40", who: ["Hermione Granger"] }),
-      { weaver: [{ answer: JSON.stringify({ ...saturdayMorning, happenings: [breakfast] }) }] });
+      { weaver: [{ answer: JSON.stringify({ ...saturdayMorning, happenings: [breakfast] }) }], unplanned: true });
     await played.play("I say goodnight to Hermione and go up.");
     played.engine.endScene(played.storyId, played.head(), "trace-end");
     await played.engine.woven(played.storyId);

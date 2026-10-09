@@ -10,7 +10,7 @@ import { worldOn } from "../../src/story/world.js";
 import { freshHome } from "../support/host.js";
 import { GatedRunner } from "../support/link.js";
 import { hogwartsWorldStoryFile, writeStoryFile } from "../support/story-files.js";
-import { playable } from "../support/play.js";
+import { NEVER_PLANS, playable } from "../support/play.js";
 
 /** The Weaver's answer for the night after curfew: McGonagall's note, which Roopesh finds when he wakes. */
 const noteUnderTheDoor = {
@@ -26,7 +26,7 @@ function afterCurfew(weaver: ModelRunner = new ScriptedRunner([{ answer: JSON.st
   const mac = freshHome();
   const imported = importStoryFile(writeStoryFile(hogwartsWorldStoryFile({ title: "After curfew", place: "The Gryffindor common room", at: "Day 3 22:40", who: ["Hermione Granger"] })), mac);
   if (!imported.ok) throw new Error("import failed");
-  const fake = new FakeModels();
+  const fake = new FakeModels({ director: NEVER_PLANS });
   const chronicler = new GatedRunner([JSON.stringify({ summary: "Roopesh said goodnight.", moments: [], told: [] })]);
   const runners: Record<string, ModelRunner> = { chronicler, weaver };
   const engine = new Engine(mac, new Models(mac.db, { claude: { run: (request, onText, signal) => (runners[request.agent] ?? fake).run(request, onText, signal) } }));
@@ -115,7 +115,7 @@ describe("the Weaver at a Scene's end", () => {
 async function nightWoven(weaver: object[], landmarks: { name: string; at: string; what: string }[] = []) {
   const story = hogwartsWorldStoryFile({ title: "After curfew", place: "The Gryffindor common room", at: "Day 3 22:40", who: ["Hermione Granger"] });
   story.landmarks = [...(story.landmarks ?? []), ...landmarks];
-  const played = playable(story, { weaver: weaver.map(answer => ({ answer: JSON.stringify(answer) })) });
+  const played = playable(story, { weaver: weaver.map(answer => ({ answer: JSON.stringify(answer) })), unplanned: true });
   await played.play("I say goodnight to Hermione and go up.");
   played.engine.endScene(played.storyId, played.head(), "trace-end");
   await played.engine.woven(played.storyId);
@@ -175,7 +175,7 @@ describe("what the Weaver may write", () => {
     const story = hogwartsWorldStoryFile({ title: "After curfew", place: "The Gryffindor common room", at: "Day 3 22:40", who: ["Hermione Granger"] });
     const beats = [{ text: "a", status: "in_play" }, { text: "b", status: "pending" }, { text: "c", status: "pending" }];
     const scorched = { answer: JSON.stringify({ leaves_scene: false, frame: { title: "The long way", place: "The third-floor corridor", purpose: "p", exit: "e" }, comes_in: [], goes: [], beats, note: "The third-floor door is scorched black around the lock, still warm.", call: "continue", intensity: 3, arc_moved: true, clock: "Day 4 07:40", taste: null, in_play: [] }) };
-    const played = playable(story, { weaver: [{ answer: JSON.stringify(hidden) }], writer: [{ answer: JSON.stringify({ leaves_scene: false, frame: { title: "kept", place: "kept", purpose: "p", exit: "e" }, comes_in: [], goes: [], beats, note: "n", call: "continue", intensity: 2, arc_moved: true, clock: "Day 3 22:50", taste: null, in_play: [] }) }, scorched] });
+    const played = playable(story, { unplanned: true, weaver: [{ answer: JSON.stringify(hidden) }], writer: [{ answer: JSON.stringify({ leaves_scene: false, frame: { title: "kept", place: "kept", purpose: "p", exit: "e" }, comes_in: [], goes: [], beats, note: "n", call: "continue", intensity: 2, arc_moved: true, clock: "Day 3 22:50", taste: null, in_play: [] }) }, scorched] });
     await played.play("I say goodnight to Hermione and go up.");
     played.engine.endScene(played.storyId, played.head(), "trace-end");
     await played.engine.woven(played.storyId);

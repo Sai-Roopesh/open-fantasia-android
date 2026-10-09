@@ -270,6 +270,8 @@ export interface Happening {
   pick: boolean;
   /** Nothing is at stake in it, as the Weaver judged; absent from Happenings woven before it was asked. */
   quiet?: boolean;
+  /** The Scene that matters it is, from the Director's Stretch (docs/adr/0010); absent or null for any other. */
+  scene?: string | null;
 }
 
 /**

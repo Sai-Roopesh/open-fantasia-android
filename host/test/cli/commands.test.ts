@@ -188,7 +188,7 @@ describe("the fantasia command", () => {
   it("shows a Story's World: the Lives, the Threads, and what happened with who knows each", async () => {
     const night = { lives: [{ who: "Crabbe and Goyle", where: "the Slytherin common room", doing: "running Draconia's errands", after: "Draconia's errands" }], threads: [{ name: "Quirrell and the third-floor door", now: "The door is scorched" }],
       happened: [{ id: "H1", what: "Quirrell scorched the third-floor door.", at: "Day 4 02:00", where: "the third-floor corridor", known_to: ["Quirinus Quirrell"], landmark: null }], meanwhile: [], happenings: [] };
-    const { mac, play, engine, storyId, head } = playable(hogwartsWorldStoryFile({ at: "Day 3 22:40" }), { weaver: [{ answer: JSON.stringify(night) }] });
+    const { mac, play, engine, storyId, head } = playable(hogwartsWorldStoryFile({ at: "Day 3 22:40" }), { weaver: [{ answer: JSON.stringify(night) }], unplanned: true });
     await play("I say goodnight.");
     engine.endScene(storyId, head(), "end");
     await engine.woven(storyId);

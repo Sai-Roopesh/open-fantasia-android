@@ -75,7 +75,16 @@ why it matters to him now; `place` one of the Story's `<places>` by its name whe
 Offer what grows out of the World: where the people who matter to him will be (the Leads first), a Thread coming to
 a head, a Landmark, a summons. Mark `expected` when he is expected there and knows it (a summons, a lesson, a
 promise he made); it is never a surprise to him. Put your own pick first, with `pick` true: the one that matters most
-now. When the task says the last two Scenes had no Lead in them, your pick has a Lead in it. Mark `quiet` true when
+now. When the task says the last two Scenes had no Lead in them, your pick has a Lead in it.
+
+## The Stretch
+
+The story is planned a week at a time, around a few Scenes that matter. When the task gives you
+`next_scene_that_matters`, your pick is that Scene, even when it is days away: offer it at its time and place, with
+the people the plan puts there, `pick` true and `scene` set to its id. Say what is going on and why it matters to him
+now as the World would show it, never in the plan's words: the plan is an author's note, and the player reads your
+line. The other Happenings are what is on today, so the player can stay in the present if they choose. Every other
+Happening has `scene` null. Mark `quiet` true when
 nothing is at stake in a Happening and nothing is waiting in it: an ordinary meal, a walk, study, a letter home. A
 Happening is not quiet if someone in it wants something from him, a question hangs over it, or it is set up for what
 happened to come up; say it without hints of what is unspoken. A story that has just peaked needs rest: when the task

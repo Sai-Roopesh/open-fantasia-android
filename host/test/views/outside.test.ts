@@ -13,6 +13,7 @@ describe("Outside the Scene", () => {
   // THEN Scene 3 is shown in full
   it("outside-the-scene › The Journal reads the Story back › Reading back", async () => {
     const played = playable(hogwartsWorldStoryFile({ title: "After curfew", place: "The Gryffindor common room", at: "Day 3 21:40", who: ["Hermione Granger"] }), {
+      unplanned: true,
       weaver: [weave({
         happened: [
           { id: "H1", what: "Ron heard a troll got into the dungeons.", at: "Day 3 21:40", where: "the common room", known_to: ["Ron Weasley", "Roopesh Gantasala"], landmark: null },
@@ -51,6 +52,7 @@ describe("Outside the Scene", () => {
   // THEN it shows what Quirrell did that night
   it("outside-the-scene › Backstage shows everything else, only when visited › Quirrell's nights, Backstage", async () => {
     const played = playable(hogwartsWorldStoryFile({ title: "After curfew", place: "The Gryffindor common room", at: "Day 3 23:00", who: ["Hermione Granger"] }), {
+      unplanned: true,
       weaver: [weave({
         lives: [{ who: "Quirinus Quirrell", where: "the third-floor corridor", doing: "Testing the wards again, at night.", after: "The Stone." }],
         threads: [{ name: "Quirrell and the third-floor door", now: "Quirrell has tried the wards twice and scorched the door" }],

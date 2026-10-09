@@ -267,20 +267,26 @@ describe("Leads act every Stretch (openspec long-run)", () => {
   });
 });
 
-describe("the plan reaches the Story only through the Writer (docs/adr/0004)", () => {
-  it("is in the Writer's prompt and in no other agent's", async () => {
+describe("the plan reaches the Story only through the Writer and the Weaver (docs/adr/0010)", () => {
+  it("is in the Writer's prompt, its next Scene that matters in the Weaver's, and in no other agent's", async () => {
     const { engine, storyId, head, play, models } = playable(hogwartsStoryFile(), { director: [{ answer: JSON.stringify(flyingTest(4)) }] });
     await play("I say goodnight.");
     engine.endScene(storyId, head(), "end-1");
-    await engine.directed(storyId);
+    await engine.woven(storyId);
     const before = models.requests.length;
     await play("I go down to breakfast.");
     engine.endScene(storyId, head(), "end-2");
-    await engine.directed(storyId);
+    await engine.woven(storyId);
+    // The Writer reads the plan from the first Scene after it on; the Weaver met its next Scene that matters at the
+    // first Scene's end, and does not offer it again while it is on.
     const after = models.requests.slice(before);
-    const mentions = (agent: string) => after.filter(request => request.agent === agent).some(request => `${request.system}\n${request.prompt}`.includes("the flying test on Wednesday"));
-    expect(mentions("writer")).toBe(true);
-    for (const agent of ["actor", "chronicler", "weaver"]) expect(mentions(agent), agent).toBe(false);
+    const mentions = (agent: string, words: string) => models.requests.filter(request => request.agent === agent).some(request => `${request.system}\n${request.prompt}`.includes(words));
+    expect(after.some(request => request.agent === "writer" && request.prompt.includes("the flying test on Wednesday"))).toBe(true);
+    expect(mentions("weaver", "A step toward the test.")).toBe(true);
+    for (const agent of ["actor", "chronicler"]) {
+      expect(mentions(agent, "the flying test on Wednesday"), agent).toBe(false);
+      expect(mentions(agent, "A step toward the test."), agent).toBe(false);
+    }
   });
 });
 
