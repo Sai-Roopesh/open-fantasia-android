@@ -63,7 +63,7 @@ describe("the Weaver's answer", () => {
     expect(checked.value.meanwhile.map(item => item.happened)).toEqual([ids[1], ids[2]]);
   });
 
-  it("names every rule an answer breaks, so one repair can fix them all", async () => {
+  it("names every rule an answer breaks, so one repair can fix them all, and refuses it while a Landmark in the span is missing", async () => {
     const checked = checkWeave(await ask({}, [{ name: "the Halloween feast", at: "Day 3 23:00", what: "The Great Hall feast." }]), answer({
       lives: [
         { who: "Roopesh Gantasala", where: "bed", doing: "sleeping", after: "x" },
@@ -87,7 +87,7 @@ describe("the Weaver's answer", () => {
       expect.stringMatching(/^lives: Professor Dumbledore is not in the story/),
       expect.stringMatching(/^happened: H1 is at Day 5 10:00, outside the span/),
       expect.stringMatching(/^happened: the Landmark the Halloween feast falls in the span/),
-      expect.stringMatching(/^meanwhile: item 1 tells of H1, which the player's character does not know/),
+      expect.stringMatching(/^meanwhile: item 1 tells of H1, which is not something that happened here/),
       expect.stringMatching(/^meanwhile: item 2 is told by Hermione Granger, who does not know H2/),
       expect.stringMatching(/^meanwhile: there are 7 items/)
     ]));
@@ -106,7 +106,7 @@ describe("the Weaver's answer", () => {
     expect(new Set(checked.value.happenings.map(item => item.id)).size).toBe(2);
   });
 
-  it("names every rule its Happenings break", async () => {
+  it("leaves out the Happenings that break a rule, and keeps one pick, first", async () => {
     const happening = (changes: Record<string, unknown>) => ({ id: "P1", at: "Day 4 09:00", place: "The library", what: "Reading.", who: ["Hermione Granger"], expected: false, pick: false, ...changes });
     const checked = checkWeave(await ask(), answer({ happenings: [
       happening({ id: "P1", at: "Day 4 06:00" }),
@@ -115,7 +115,14 @@ describe("the Weaver's answer", () => {
       happening({ id: "P4" }),
       happening({ id: "P5" })
     ] }));
-    expect(checked.ok ? [] : checked.problems).toEqual(expect.arrayContaining([
+    expect(checked.ok).toBe(true);
+    if (!checked.ok) return;
+    expect(checked.value.happenings.map(item => ({ place: item.place, who: item.who, pick: item.pick }))).toEqual([
+      { place: "The library", who: [], pick: true },
+      { place: "The library", who: ["Hermione Granger"], pick: false },
+      { place: "The library", who: ["Hermione Granger"], pick: false }
+    ]);
+    expect(checked.dropped).toEqual(expect.arrayContaining([
       expect.stringMatching(/^happenings: there are 5; offer at most four/),
       expect.stringMatching(/^happenings: P1 is at Day 4 06:00, before the Day View \(Day 4 07:30\)/),
       expect.stringMatching(/^happenings: P2, who: Roopesh Gantasala is the player's character/),
@@ -126,6 +133,25 @@ describe("the Weaver's answer", () => {
 
   it("is refused when it does not match the schema", async () => {
     expect(checkWeave(await ask(), { lives: [] }).ok).toBe(false);
+  });
+
+  // Records degrade, never vanish (lasting-records design decision 3): a name not in the Story costs that name, not the
+  // World's record.
+  it("keeps a partly bad answer, leaving out only the parts that break a rule", async () => {
+    const checked = checkWeave(await ask(), answer({
+      lives: [{ who: "Professor Dumbledore", where: "his office", doing: "thinking", after: "x" }],
+      happened: [{ id: "H1", what: "Quirrell tested the door, for his master.", at: "Day 4 06:45", where: "the third floor", known_to: ["Quirinus Quirrell", "Lord Voldemort"], landmark: null }],
+      meanwhile: [{ text: "Someone was on the third floor.", how: "rumour", happened: "H1", told_by: null, about: ["Gilderoy Lockhart"] }]
+    }));
+    expect(checked.ok).toBe(true);
+    if (!checked.ok) return;
+    expect(checked.value.lives).toEqual([]);
+    expect(checked.value.happened.map(item => item.knownTo)).toEqual([["Quirinus Quirrell"]]);
+    expect(checked.dropped).toEqual([
+      "lives: Professor Dumbledore is not in the story; use a name from the people or the Groups",
+      "happened: H1, known_to: Lord Voldemort is not in the story",
+      "meanwhile: item 1 tells of H1, which the player's character does not know: he did not see it and nobody told him; leave it out"
+    ]);
   });
 });
 
@@ -151,15 +177,20 @@ describe("the Weaver's call", () => {
     expect(prompt).toMatch(/Before Friday 9:40 pm, Roopesh Gantasala was off-screen, and only the player says where he was and what he did/);
   });
 
-  it("repairs a refused answer once, and fails with its reasons when the repair is refused too", async () => {
+  it("repairs a partly bad answer once, keeps its good parts when the repair is no better, and fails only when nothing is usable", async () => {
     const played = playable();
     const bad = { answer: JSON.stringify(answer({ lives: [{ who: "Roopesh Gantasala", where: "bed", doing: "sleeping", after: "x" }] })) };
     const repaired = new ScriptedRunner([bad, { answer: JSON.stringify(answer()) }]);
     const record = await writeWeave(new Models(played.mac.db, { claude: repaired }), SONNET, await ask(), "story", "trace-w", new AbortController().signal);
     expect(record.value.lives[0]!.who).toBe("Crabbe and Goyle");
+    expect(record.dropped).toEqual([]);
     expect(repaired.requests[1]!.prompt).toMatch(/lives: Roopesh Gantasala is the player's character/);
-    const refused = new ScriptedRunner([bad, bad]);
-    await expect(writeWeave(new Models(played.mac.db, { claude: refused }), SONNET, await ask(), "story", "trace-w", new AbortController().signal)).rejects.toThrow(WeaverFailed);
+    const twice = await writeWeave(new Models(played.mac.db, { claude: new ScriptedRunner([bad, bad]) }), SONNET, await ask(), "story", "trace-w", new AbortController().signal);
+    expect(twice.value.lives).toEqual([]);
+    expect(twice.value.happened).toHaveLength(3);
+    expect(twice.dropped).toEqual([expect.stringMatching(/^lives: Roopesh Gantasala is the player's character/)]);
+    const unusable = { answer: JSON.stringify({ lives: [] }) };
+    await expect(writeWeave(new Models(played.mac.db, { claude: new ScriptedRunner([unusable, unusable]) }), SONNET, await ask(), "story", "trace-w", new AbortController().signal)).rejects.toThrow(WeaverFailed);
   });
 });
 
@@ -195,11 +226,12 @@ describe("who a line of Meanwhile is about (the-world-screen: what he has heard)
     expect(checked.ok && checked.value.meanwhile[0]!.about).toEqual(["Minerva McGonagall"]);
   });
 
-  it("refuses someone not in the Story, or the Player Character, in about", async () => {
-    const stranger = checkWeave(await ask(), withAbout(["Gilderoy Lockhart"]));
-    expect(stranger.ok ? [] : stranger.problems).toEqual(["meanwhile: item 1, about: Gilderoy Lockhart is not in the story"]);
+  it("leaves out someone not in the Story, or the Player Character, from about, and keeps the line", async () => {
+    const stranger = checkWeave(await ask(), withAbout(["Gilderoy Lockhart", "mcgonagall"]));
+    expect(stranger).toMatchObject({ ok: true, dropped: ["meanwhile: item 1, about: Gilderoy Lockhart is not in the story"] });
+    expect(stranger.ok && stranger.value.meanwhile[0]!.about).toEqual(["Minerva McGonagall"]);
     const himself = checkWeave(await ask(), withAbout(["Roopesh Gantasala"]));
-    expect(himself.ok ? [] : himself.problems).toEqual(["meanwhile: item 1, about: Roopesh Gantasala is the player's character; say who else it is about"]);
+    expect(himself).toMatchObject({ ok: true, dropped: ["meanwhile: item 1, about: Roopesh Gantasala is the player's character; say who else it is about"] });
   });
 
   it("takes a line without about, as the Weaver wrote them before", async () => {

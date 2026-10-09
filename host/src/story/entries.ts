@@ -280,6 +280,8 @@ export interface WorldMoved {
   meanwhile: MeanwhileItem[];
   /** What is on from [until] on, the Story's pick first. */
   happenings: Happening[];
+  /** The parts of the Weaver's answer left out, and why (lasting-records); empty when it was right in every part. */
+  dropped?: string[];
   callId: string;
   model: ModelChoice;
 }
@@ -309,6 +311,8 @@ export interface DirectorPlan {
   arcs: ArcStep[];
   /** How the Premise comes into the stretch: which kinds of Scene serve it, and which leave it alone. */
   premise: string;
+  /** The parts of the Director's answer left out, and why (lasting-records); empty when it was right in every part. */
+  dropped?: string[];
   callId: string;
   model: ModelChoice;
 }

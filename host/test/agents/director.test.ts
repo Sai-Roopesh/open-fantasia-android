@@ -44,16 +44,20 @@ describe("the Director", () => {
 
   it("takes a plan that answers for every Arc, naming each as the Story does", () => {
     const checked = checkPlan(ask(), plan({ arcs: [{ arc: ARC.toUpperCase(), now: "a", next: "b", not_yet: "c" }], landmark: "the triwizard tournament" }));
-    expect(checked).toEqual({ ok: true, value: expect.objectContaining({ landmark: "The Triwizard Tournament", arcs: [{ arc: ARC, now: "a", next: "b", not_yet: "c" }] }) });
+    expect(checked).toEqual({ ok: true, value: expect.objectContaining({ landmark: "The Triwizard Tournament", arcs: [{ arc: ARC, now: "a", next: "b", not_yet: "c" }] }), dropped: [] });
   });
 
-  it("refuses a plan with an Arc missing, an Arc the Story does not have, or a Landmark that is not the Story's", () => {
-    const missing = checkPlan(ask(), plan({ arcs: [] }));
-    expect(missing).toEqual({ ok: false, problems: [`arcs: no row for the Arc "${ARC}"; give every Arc one row, named as the story names it`] });
-    const extra = checkPlan(ask(), plan({ arcs: [...plan().arcs, { arc: "Harry and Roopesh become friends", now: "a", next: "b", not_yet: "c" }] }));
-    expect(extra).toEqual({ ok: false, problems: ["arcs: \"Harry and Roopesh become friends\" is not one of the story's Arcs"] });
+  it("keeps a plan that names a Landmark the Story lacks, toward no Landmark", () => {
     const landmark = checkPlan(ask(), plan({ landmark: "The Yule Ball" }));
-    expect(landmark.ok ? [] : landmark.problems).toEqual(["landmark: \"The Yule Ball\" is not one of the story's Landmarks (The Triwizard Tournament); name one exactly, or null"]);
+    expect(landmark).toMatchObject({ ok: true, value: { landmark: null }, dropped: ["landmark: \"The Yule Ball\" is not one of the story's Landmarks (The Triwizard Tournament); name one exactly, or null"] });
+  });
+
+  // Records degrade, never vanish (lasting-records design decision 3).
+  it("keeps a plan with a row for an Arc the Story lacks, leaving the row out, and holds an Arc it forgot", () => {
+    const extra = checkPlan(ask(), plan({ arcs: [...plan().arcs, { arc: "Harry and Roopesh become friends", now: "a", next: "b", not_yet: "c" }] }));
+    expect(extra).toMatchObject({ ok: true, value: { arcs: plan().arcs.map(row => ({ ...row, arc: ARC })) }, dropped: ["arcs: \"Harry and Roopesh become friends\" is not one of the story's Arcs"] });
+    const missing = checkPlan(ask(), plan({ arcs: [] }));
+    expect(missing).toMatchObject({ ok: true, value: { arcs: [{ arc: ARC, next: "nothing; let the last step settle" }] }, dropped: [`arcs: no row for the Arc "${ARC}"; it holds where it is`] });
   });
 
   it("refuses a stretch outside one to six Scenes", () => {
@@ -67,13 +71,17 @@ describe("the Director", () => {
     expect(directorPrompt(after).prompt).toContain("The Scene that just ended peaked: this stretch is a rest.");
   });
 
-  it("asks once more with the problems named, and fails with the reasons when the second answer will not do either", async () => {
+  it("asks once more with the problems named, keeps the plan with the Arc held when the second answer leaves it out too, and fails only when no answer is usable", async () => {
     const mac = freshHome();
     const runner = new ScriptedRunner([{ answer: JSON.stringify(plan({ arcs: [] })) }, { answer: JSON.stringify(plan()) }]);
     const written = await writePlan(new Models(mac.db, { claude: runner }), { provider: "claude", model: "claude-opus-5-5" }, ask(), null as never, "trace", new AbortController().signal);
     expect(written.value.toward).toBe("the Halloween feast");
     expect(runner.requests[1]!.prompt).toContain("no row for the Arc");
-    const failing = new ScriptedRunner([{ answer: JSON.stringify(plan({ arcs: [] })) }, { answer: JSON.stringify(plan({ arcs: [] })) }]);
+    const held = new ScriptedRunner([{ answer: JSON.stringify(plan({ arcs: [] })) }, { answer: JSON.stringify(plan({ arcs: [] })) }]);
+    const kept = await writePlan(new Models(mac.db, { claude: held }), { provider: "claude", model: "claude-opus-5-5" }, ask(), null as never, "trace", new AbortController().signal);
+    expect(kept.value.arcs).toEqual([expect.objectContaining({ arc: ARC, next: "nothing; let the last step settle" })]);
+    expect(kept.dropped).toEqual([`arcs: no row for the Arc "${ARC}"; it holds where it is`]);
+    const failing = new ScriptedRunner([{ answer: JSON.stringify({ toward: "x" }) }, { answer: JSON.stringify(plan({ scenes: 0 })) }]);
     await expect(writePlan(new Models(mac.db, { claude: failing }), { provider: "claude", model: "claude-opus-5-5" }, ask(), null as never, "trace", new AbortController().signal))
       .rejects.toBeInstanceOf(DirectorFailed);
   });

@@ -38,7 +38,7 @@ Scenarios this change builds:
   - `dueChronicle` skips a Scene that failed until another Scene has ended, and gives up after three attempts;
   - the engine records due Scenes in order until none is due;
   - the next Scene is recorded, and the failed one is tried after it.
-- [ ] 1.4 The same part-by-part checks for the Weaver (names not in the Story) and the Director (unknown or missing
+- [x] 1.4 The same part-by-part checks for the Weaver (names not in the Story) and the Director (unknown or missing
   Arc rows), each with a test that a partly-bad answer is kept with its drops.
 
 ## 2. Bonds

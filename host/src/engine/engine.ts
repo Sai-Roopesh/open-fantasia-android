@@ -462,8 +462,8 @@ export class Engine {
     const traceId = `direct-${randomUUID().slice(0, 8)}`;
     const model = jobModels(this.mac.home).director;
     try {
-      const { value, callId } = await writePlan(this.models, model, due.ask, storyId, traceId, new AbortController().signal);
-      const record = this.mac.tree.append(storyId, due.closing.id, { kind: "director_plan", ...value, callId, model });
+      const { value, callId, dropped } = await writePlan(this.models, model, due.ask, storyId, traceId, new AbortController().signal);
+      const record = this.mac.tree.append(storyId, due.closing.id, { kind: "director_plan", ...value, dropped, callId, model });
       this.models.attach(callId, record.id);
       this.directionFailedAt.delete(storyId);
     } catch {
@@ -512,8 +512,8 @@ export class Engine {
     const model = this.weaveOnce.get(storyId) ?? jobModels(this.mac.home).weaver;
     this.weaveOnce.delete(storyId);
     try {
-      const { value, callId } = await writeWeave(this.models, model, weaveAsk(this.mac, due), storyId, traceId, new AbortController().signal);
-      const record = this.mac.tree.append(storyId, due.through.id, { kind: "world_moved", scene: due.scene.id, from: due.from, until: due.until, ...value, callId, model });
+      const { value, callId, dropped } = await writeWeave(this.models, model, weaveAsk(this.mac, due), storyId, traceId, new AbortController().signal);
+      const record = this.mac.tree.append(storyId, due.through.id, { kind: "world_moved", scene: due.scene.id, from: due.from, until: due.until, ...value, dropped, callId, model });
       this.models.attach(callId, record.id);
       this.emit(storyId, { id: String(record.seq), event: { kind: "world_moved", seq: record.seq } });
     } catch (error) {
@@ -792,8 +792,8 @@ export class Engine {
     if (!ask || !scene) return;
     turn.step = "weaver";
     const model = turn.models.weaver;
-    const { value, callId } = await writeWeave(this.models, model, ask, turn.storyId, turn.traceId, new AbortController().signal);
-    const record = this.mac.tree.append(turn.storyId, move.id, { kind: "world_moved", scene: scene.openedBy, from: ask.from, until: ask.until, ...value, callId, model });
+    const { value, callId, dropped } = await writeWeave(this.models, model, ask, turn.storyId, turn.traceId, new AbortController().signal);
+    const record = this.mac.tree.append(turn.storyId, move.id, { kind: "world_moved", scene: scene.openedBy, from: ask.from, until: ask.until, ...value, dropped, callId, model });
     this.models.attach(callId, record.id);
   }
 

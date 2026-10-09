@@ -71,7 +71,10 @@ string[]`), for Backstage.
   - **Weaver:** a happening, Life, Thread or Meanwhile line naming someone not in the Story loses that name, or is
     dropped when it means nothing without it, as with Voldemort before he is in the people.
   - **Director:** a row for an Arc the Story does not have is dropped. A missing Arc row becomes "hold; let it
-    settle".
+    settle", keeping where the last plan said it stood. A Landmark that is not the Story's becomes none.
+  - **What stays required.** A duty of the record as a whole still refuses it: the Weaver's Landmark in the span, a
+    missed summons answered, a Lead in the pick after two Scenes without one, and rest after a peak (Weaver and
+    Director).
 
 **4. Nothing blocks, and gaps are backfilled (host, `engine/chronicling.ts`).**
 - **A record of each failure.** A new background record `record_gap { scene, attempts, reason, givenUp }`, added to

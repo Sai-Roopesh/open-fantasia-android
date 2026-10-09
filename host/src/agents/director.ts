@@ -74,20 +74,25 @@ export function checkPlan(ask: DirectorAsk, raw: unknown): Checked<RawPlan> {
   if (!matchesSchema(raw)) {
     return { ok: false, problems: (matchesSchema.errors ?? []).map(error => `${error.instancePath.replace(/^\//, "").replace(/\//g, ".") || "answer"}: ${error.message ?? "is not as the schema says"}`) };
   }
-  const problems: string[] = [];
+  // Part by part (lasting-records design decision 3): a row for an Arc the Story lacks is left out, an Arc with no row
+  // holds where the last plan left it, and a Landmark that is not the Story's is none; rest after a peak is the plan's.
+  const dropped: string[] = [];
   const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
   const arcs: ArcStep[] = [];
   for (const arc of ask.state.arcs) {
     const row = raw.arcs.find(item => same(item.arc, arc));
-    if (!row) problems.push(`arcs: no row for the Arc "${arc}"; give every Arc one row, named as the story names it`);
-    else arcs.push({ arc, now: row.now.trim(), next: row.next.trim(), not_yet: row.not_yet.trim() });
+    if (row) arcs.push({ arc, now: row.now.trim(), next: row.next.trim(), not_yet: row.not_yet.trim() });
+    else {
+      const last = ask.previous?.arcs.find(item => same(item.arc, arc));
+      dropped.push(`arcs: no row for the Arc "${arc}"; it holds where it is`);
+      arcs.push({ arc, now: last?.now ?? "where the last Scenes left it", next: "nothing; let the last step settle", not_yet: last?.not_yet ?? "any step at all" });
+    }
   }
-  for (const row of raw.arcs) if (!ask.state.arcs.some(arc => same(arc, row.arc))) problems.push(`arcs: "${row.arc}" is not one of the story's Arcs`);
+  for (const row of raw.arcs) if (!ask.state.arcs.some(arc => same(arc, row.arc))) dropped.push(`arcs: "${row.arc}" is not one of the story's Arcs`);
   const landmark = raw.landmark === null ? null : ask.state.landmarks.find(item => same(item.name, raw.landmark ?? ""))?.name;
-  if (landmark === undefined) problems.push(`landmark: "${raw.landmark}" is not one of the story's Landmarks (${ask.state.landmarks.map(item => item.name).join(", ") || "it has none"}); name one exactly, or null`);
-  if (ask.afterPeak && raw.phase !== "rest") problems.push(`phase: the Scene that just ended peaked, so this stretch is a rest, not a ${raw.phase}`);
-  if (problems.length) return { ok: false, problems };
-  return { ok: true, value: { toward: raw.toward.trim(), landmark: landmark ?? null, phase: raw.phase, scenes: raw.scenes, arcs, premise: raw.premise.trim() } };
+  if (landmark === undefined) dropped.push(`landmark: "${raw.landmark}" is not one of the story's Landmarks (${ask.state.landmarks.map(item => item.name).join(", ") || "it has none"}); name one exactly, or null`);
+  if (ask.afterPeak && raw.phase !== "rest") return { ok: false, problems: [`phase: the Scene that just ended peaked, so this stretch is a rest, not a ${raw.phase}`, ...dropped] };
+  return { ok: true, value: { toward: raw.toward.trim(), landmark: landmark ?? null, phase: raw.phase, scenes: raw.scenes, arcs, premise: raw.premise.trim() }, dropped };
 }
 
 function section(tag: string, body: string): string | null {
@@ -142,7 +147,7 @@ export function directorPrompt(ask: DirectorAsk): { system: string; prompt: stri
 }
 
 /** Runs the Director once, checked and repaired once; throws DirectorFailed with the reasons. */
-export function writePlan(models: Models, model: ModelChoice, ask: DirectorAsk, storyId: string, traceId: string, signal: AbortSignal): Promise<{ value: RawPlan; callId: string }> {
+export function writePlan(models: Models, model: ModelChoice, ask: DirectorAsk, storyId: string, traceId: string, signal: AbortSignal): Promise<{ value: RawPlan; callId: string; dropped: string[] }> {
   const { system, prompt, facts } = directorPrompt(ask);
   return answerWithOneRepair(models,
     { agent: "director", model, system, prompt, schema: DIRECTOR_SCHEMA, facts, traceId, storyId },

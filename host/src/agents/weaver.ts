@@ -148,7 +148,10 @@ export function checkWeave(ask: WeaveAsk, raw: unknown): Checked<WeaveRecord> {
   }
   const { state } = ask;
   const pc = state.playerCharacter;
-  const problems: string[] = [];
+  // Part by part (lasting-records design decision 3): a bad part is left out and noted in `dropped`; what the record as a
+  // whole owes (every Landmark in the span, a missed summons answered, a Lead in the pick, rest after a peak) is `fatal`.
+  const dropped: string[] = [];
+  const fatal: string[] = [];
   const people = nameIndex(Object.values(state.people));
   const groups = new Map(state.groups.map(group => [group.name.toLocaleLowerCase(), group.name]));
   const named = (name: string) => groups.get(name.trim().toLocaleLowerCase()) ?? people.get(name.trim().toLocaleLowerCase()) ?? null;
@@ -158,9 +161,9 @@ export function checkWeave(ask: WeaveAsk, raw: unknown): Checked<WeaveRecord> {
   for (const life of raw.lives) {
     const who = named(life.who);
     const group = who ? state.people[who]?.group : null;
-    if (!who) problems.push(`lives: ${life.who.trim()} is not in the story; use a name from the people or the Groups`);
-    else if (who === pc) problems.push(`lives: ${pc} is the player's character, whose life is the player's; leave him out`);
-    else if (group) problems.push(`lives: ${who} lives as one of ${group}; give the Group's Life instead`);
+    if (!who) dropped.push(`lives: ${life.who.trim()} is not in the story; use a name from the people or the Groups`);
+    else if (who === pc) dropped.push(`lives: ${pc} is the player's character, whose life is the player's; leave him out`);
+    else if (group) dropped.push(`lives: ${who} lives as one of ${group}; give the Group's Life instead`);
     else lives.push({ who, where: life.where.trim(), doing: life.doing.trim(), after: life.after.trim() });
   }
 
@@ -169,94 +172,101 @@ export function checkWeave(ask: WeaveAsk, raw: unknown): Checked<WeaveRecord> {
   const until = parseStoryTime(ask.until);
   const landmarkNames = new Map(state.landmarks.map(landmark => [landmark.name.toLocaleLowerCase(), landmark.name]));
   const ids = new Map<string, Happened>();
-  const happened: Happened[] = raw.happened.map(item => {
+  const happened: Happened[] = raw.happened.flatMap(item => {
     const at = parseStoryTime(item.at);
-    if (!at) problems.push(`happened: ${item.id} is at "${item.at}", which is not a time like "Day 4 06:30"`);
-    else if (from && until && (minutesOf(at) < minutesOf(from) || minutesOf(at) > minutesOf(until))) {
-      problems.push(`happened: ${item.id} is at ${item.at.trim()}, outside the span (${ask.from} to ${ask.until})`);
+    if (!at) return (dropped.push(`happened: ${item.id} is at "${item.at}", which is not a time like "Day 4 06:30"`), []);
+    if (from && until && (minutesOf(at) < minutesOf(from) || minutesOf(at) > minutesOf(until))) {
+      return (dropped.push(`happened: ${item.id} is at ${item.at.trim()}, outside the span (${ask.from} to ${ask.until})`), []);
     }
     const knownTo = item.known_to.flatMap(name => {
       const who = named(name);
-      if (!who) return (problems.push(`happened: ${item.id}, known_to: ${name.trim()} is not in the story`), []);
+      if (!who) return (dropped.push(`happened: ${item.id}, known_to: ${name.trim()} is not in the story`), []);
       return [who];
     });
     const landmark = item.landmark === null ? null : landmarkNames.get(item.landmark.trim().toLocaleLowerCase()) ?? null;
-    if (item.landmark !== null && !landmark) problems.push(`happened: ${item.id} names the Landmark "${item.landmark}", which is not one of the story's`);
+    if (item.landmark !== null && !landmark) dropped.push(`happened: ${item.id} names the Landmark "${item.landmark}", which is not one of the story's`);
     const checked = { id: `h-${randomUUID().slice(0, 8)}`, what: item.what.trim(), at: item.at.trim(), where: item.where.trim(), knownTo: [...new Set(knownTo)], landmark };
     ids.set(item.id.trim(), checked);
-    return checked;
+    return [checked];
   });
   // In a Gap, what was on goes on without him; where he was expected, the people there notice (openspec day-view).
   for (const [index, missed] of (ask.gap?.missed ?? []).entries()) {
     const label = `G${index + 1}`;
     if (!missed.expected) continue;
     const answered = raw.happened.some(item => item.missed?.trim() === label && item.known_to.some(name => missed.who.includes(named(name) ?? "")));
-    if (!answered) problems.push(`happened: ${missed.place} at ${sayTime(parseStoryTime(missed.at) ?? { day: 0, minuteOfDay: 0 })} went on without him, and he was expected; write it going on, with the people there noticing he did not come (missed: ${label})`);
+    if (!answered) fatal.push(`happened: ${missed.place} at ${sayTime(parseStoryTime(missed.at) ?? { day: 0, minuteOfDay: 0 })} went on without him, and he was expected; write it going on, with the people there noticing he did not come (missed: ${label})`);
   }
   for (const landmark of landmarksIn(ask)) {
     if (!happened.some(item => item.landmark === landmark.name)) {
-      problems.push(`happened: the Landmark ${landmark.name} falls in the span (${landmark.at}) and has not happened; write it, with landmark set to its name`);
+      fatal.push(`happened: the Landmark ${landmark.name} falls in the span (${landmark.at}) and has not happened; write it, with landmark set to its name`);
     }
   }
 
   // Meanwhile: only what he knows, told by someone who knows it.
-  if (raw.meanwhile.length > MAX_MEANWHILE) problems.push(`meanwhile: there are ${raw.meanwhile.length} items; give at most six, the ones that matter to him`);
-  const meanwhile: MeanwhileItem[] = raw.meanwhile.flatMap((item, index) => {
+  if (raw.meanwhile.length > MAX_MEANWHILE) dropped.push(`meanwhile: there are ${raw.meanwhile.length} items; give at most six, the ones that matter to him`);
+  const meanwhile: MeanwhileItem[] = raw.meanwhile.slice(0, MAX_MEANWHILE).flatMap((item, index) => {
     const at = `meanwhile: item ${index + 1}`;
     const about = ids.get(item.happened.trim());
-    if (!about) return (problems.push(`${at} tells of ${item.happened}, which is not something that happened here`), []);
+    if (!about) return (dropped.push(`${at} tells of ${item.happened}, which is not something that happened here`), []);
     if (!about.knownTo.includes(pc)) {
-      problems.push(`${at} tells of ${item.happened.trim()}, which the player's character does not know: he did not see it and nobody told him; leave it out`);
+      dropped.push(`${at} tells of ${item.happened.trim()}, which the player's character does not know: he did not see it and nobody told him; leave it out`);
       return [];
     }
     let toldBy: string | null = null;
     if (item.how === "told") {
       toldBy = item.told_by ? named(item.told_by) : null;
-      if (!item.told_by) problems.push(`${at} is told, so say who told him in told_by`);
-      else if (!toldBy) problems.push(`${at} is told by ${item.told_by.trim()}, who is not in the story`);
-      else if (!about.knownTo.includes(toldBy)) problems.push(`${at} is told by ${toldBy}, who does not know ${item.happened.trim()}; only someone who knows it can tell him`);
+      const wrong = !item.told_by ? `${at} is told, so say who told him in told_by`
+        : !toldBy ? `${at} is told by ${item.told_by.trim()}, who is not in the story`
+          : !about.knownTo.includes(toldBy) ? `${at} is told by ${toldBy}, who does not know ${item.happened.trim()}; only someone who knows it can tell him`
+            : null;
+      if (wrong) return (dropped.push(wrong), []);
     }
     const subjects = item.about?.flatMap(name => {
       const known = named(name);
-      if (!known) return (problems.push(`${at}, about: ${name.trim()} is not in the story`), []);
-      if (known === pc) return (problems.push(`${at}, about: ${pc} is the player's character; say who else it is about`), []);
+      if (!known) return (dropped.push(`${at}, about: ${name.trim()} is not in the story`), []);
+      if (known === pc) return (dropped.push(`${at}, about: ${pc} is the player's character; say who else it is about`), []);
       return [known];
     });
     return [{ text: item.text.trim(), how: item.how, happened: about.id, toldBy, ...(subjects ? { about: [...new Set(subjects)] } : {}) }];
   });
 
   // What is on: at most four, from the Day View on, the Story's names, one pick and it first.
-  if (raw.happenings.length > MAX_HAPPENINGS) problems.push(`happenings: there are ${raw.happenings.length}; offer at most four, the ones that matter most`);
-  const happenings: Happening[] = raw.happenings.map(item => {
+  if (raw.happenings.length > MAX_HAPPENINGS) dropped.push(`happenings: there are ${raw.happenings.length}; offer at most four, the ones that matter most`);
+  let happenings: Happening[] = raw.happenings.slice(0, MAX_HAPPENINGS).flatMap(item => {
     const at = parseStoryTime(item.at);
-    if (!at) problems.push(`happenings: ${item.id} is at "${item.at}", which is not a time like "Day 4 09:00"`);
-    else if (until && minutesOf(at) < minutesOf(until)) problems.push(`happenings: ${item.id} is at ${item.at.trim()}, before the Day View (${ask.until}); offer only what is still to come`);
+    if (!at) return (dropped.push(`happenings: ${item.id} is at "${item.at}", which is not a time like "Day 4 09:00"`), []);
+    if (until && minutesOf(at) < minutesOf(until)) return (dropped.push(`happenings: ${item.id} is at ${item.at.trim()}, before the Day View (${ask.until}); offer only what is still to come`), []);
     const who = item.who.flatMap(name => {
       const known = named(name);
-      if (!known) return (problems.push(`happenings: ${item.id}, who: ${name.trim()} is not in the story`), []);
-      if (known === pc) return (problems.push(`happenings: ${item.id}, who: ${pc} is the player's character; say who else will be there`), []);
+      if (!known) return (dropped.push(`happenings: ${item.id}, who: ${name.trim()} is not in the story`), []);
+      if (known === pc) return (dropped.push(`happenings: ${item.id}, who: ${pc} is the player's character; say who else will be there`), []);
       return [known];
     });
-    return { id: `p-${randomUUID().slice(0, 8)}`, at: item.at.trim(), place: item.place.trim(), what: item.what.trim(), who: [...new Set(who)], expected: item.expected, pick: item.pick, quiet: item.quiet === true };
+    return [{ id: `p-${randomUUID().slice(0, 8)}`, at: item.at.trim(), place: item.place.trim(), what: item.what.trim(), who: [...new Set(who)], expected: item.expected, pick: item.pick, quiet: item.quiet === true }];
   });
+  // One pick, first: a second pick is no longer one, and the pick is put first.
   const picks = happenings.filter(item => item.pick).length;
-  if (picks > 1) problems.push(`happenings: ${picks} are the pick; pick one, and put it first`);
-  else if (picks === 1 && !happenings[0]?.pick) problems.push("happenings: your pick is not first; put it first");
+  if (picks > 1) {
+    dropped.push(`happenings: ${picks} are the pick; pick one, and put it first`);
+    let first = true;
+    happenings = happenings.map(item => item.pick ? (first ? (first = false, item) : { ...item, pick: false }) : item);
+  }
+  happenings = [...happenings.filter(item => item.pick), ...happenings.filter(item => !item.pick)];
   if (ask.leadless) {
     const pick = happenings.find(item => item.pick);
     const lead = (item: Happening | undefined) => item?.who.some(name => state.leads.includes(name)) ?? false;
-    if (!lead(pick)) problems.push(`happenings: the last two Scenes had no Lead in them; make your pick something with a Lead in it (${state.leads.join(", ")})`);
+    if (!lead(pick)) fatal.push(`happenings: the last two Scenes had no Lead in them; make your pick something with a Lead in it (${state.leads.join(", ")})`);
   }
 
   if (ask.afterPeak && !ask.gap) {
     const pick = happenings.find(item => item.pick);
-    if (!pick) problems.push("happenings: the Scene that ended peaked; offer a quiet Happening as your pick, nothing at stake in it, with quiet true");
-    else if (!pick.quiet) problems.push("happenings: the Scene that ended peaked; make your pick a quiet Happening, nothing at stake in it, and set its quiet true");
+    if (!pick) fatal.push("happenings: the Scene that ended peaked; offer a quiet Happening as your pick, nothing at stake in it, with quiet true");
+    else if (!pick.quiet) fatal.push("happenings: the Scene that ended peaked; make your pick a quiet Happening, nothing at stake in it, and set its quiet true");
   }
 
-  if (problems.length) return { ok: false, problems };
+  if (fatal.length) return { ok: false, problems: [...fatal, ...dropped] };
   // A Gap's span ends where the next Scene begins; what is on after it is for the Day View after that Scene.
-  return { ok: true, value: { lives, threads: raw.threads.map(thread => ({ name: thread.name.trim(), now: thread.now.trim() })), happened, meanwhile, happenings: ask.gap ? [] : happenings } };
+  return { ok: true, value: { lives, threads: raw.threads.map(thread => ({ name: thread.name.trim(), now: thread.now.trim() })), happened, meanwhile, happenings: ask.gap ? [] : happenings }, dropped };
 }
 
 function section(tag: string, body: string): string | null {
@@ -359,7 +369,7 @@ export function weaverPrompt(ask: WeaveAsk): { system: string; prompt: string; f
 }
 
 /** Runs the Weaver once, checked and repaired once; throws WeaverFailed with the reasons. */
-export function writeWeave(models: Models, model: ModelChoice, ask: WeaveAsk, storyId: string, traceId: string, signal: AbortSignal): Promise<{ value: WeaveRecord; callId: string }> {
+export function writeWeave(models: Models, model: ModelChoice, ask: WeaveAsk, storyId: string, traceId: string, signal: AbortSignal): Promise<{ value: WeaveRecord; callId: string; dropped: string[] }> {
   const { system, prompt, facts } = weaverPrompt(ask);
   return answerWithOneRepair(models,
     { agent: "weaver", model, system, prompt, schema: WEAVER_SCHEMA, facts, traceId, storyId },
