@@ -87,6 +87,7 @@
         "aliases": { "description": "Other names they answer to.", "type": "array", "items": { "type": "string", "minLength": 1 } },
         "who_they_are": { "description": "Who they are and the backstory they come with.", "type": "string", "minLength": 1 },
         "known": { "description": "What the Player Character knows of them when the Story begins: what he, not the Story, would say of them. Who they are may hold what nobody knows; this never does.", "type": "string", "minLength": 1 },
+        "bond": { "description": "Where things stand between them and the Player Character when the Story begins, when they already have history: as he has seen it, in forty words or fewer. Never for the Player Character himself.", "type": "string", "minLength": 1 },
         "appearance": { "type": "string" },
         "after": { "description": "What they are after.", "type": "string" },
         "knows": { "description": "What they know when the Story begins, beyond their own backstory.", "type": "array", "items": { "type": "string" } },

@@ -4,6 +4,7 @@ import { Ajv2020, type ErrorObject } from "ajv/dist/2020.js";
 import { parse } from "yaml";
 import schema from "../../../protocol/schemas/story-file.schema.json" with { type: "json" };
 import type { StoryFile } from "../protocol/generated/story-file.js";
+import { MAX_STANDING_WORDS } from "../story/bonds.js";
 import { parseStoryTime } from "../time.js";
 
 /** The Story File formats this app understands. */
@@ -40,7 +41,7 @@ export function checkStoryFile(folder: string): Checked {
   if (!validate(parsed)) return { ok: false, problems: (validate.errors ?? []).map(schemaProblem) };
   // The schema has just checked every field, which is what this cast stands on.
   const storyFile = parsed as unknown as StoryFile;
-  const problems = [...nameProblems(storyFile), ...referenceProblems(storyFile), ...portraitProblems(storyFile, folder), ...timeProblems(storyFile)];
+  const problems = [...nameProblems(storyFile), ...referenceProblems(storyFile), ...portraitProblems(storyFile, folder), ...bondProblems(storyFile), ...timeProblems(storyFile)];
   return problems.length ? { ok: false, problems } : { ok: true, storyFile };
 }
 
@@ -109,6 +110,19 @@ function portraitProblems(story: StoryFile, folder: string): Problem[] {
     } else if (!existsSync(join(folder, relative)) || !statSync(join(folder, relative)).isFile()) {
       problems.push({ where: at, message: `${person.name}'s Portrait "${person.portrait}" is not in the Story File's folder` });
     }
+  });
+  return problems;
+}
+
+/** A Bond is where things stand between him and someone else, in forty words or fewer (lasting-records design decision 1). */
+function bondProblems(story: StoryFile): Problem[] {
+  const problems: Problem[] = [];
+  story.people.forEach((person, index) => {
+    if (!person.bond) return;
+    const at = `people[${index}].bond`;
+    const words = person.bond.trim().split(/\s+/).length;
+    if (person.name === story.player_character) problems.push({ where: at, message: `${person.name} is the Player Character; a Bond is between him and someone else` });
+    else if (words > MAX_STANDING_WORDS) problems.push({ where: at, message: `${person.name}'s Bond is ${words} words; say where things stand in forty or fewer` });
   });
   return problems;
 }

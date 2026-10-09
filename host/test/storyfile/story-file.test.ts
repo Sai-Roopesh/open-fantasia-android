@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { importStoryFile } from "../../src/storyfile/import.js";
+import { bondsOn } from "../../src/story/bonds.js";
 import { worldOn } from "../../src/story/world.js";
 import { listStories } from "../../src/views/stories.js";
 import { freshHome } from "../support/host.js";
@@ -83,6 +84,40 @@ describe("story-file", () => {
     expect(person.known).toBe("The nervous Defence teacher, who stammers and smells of garlic.");
     // Someone the Story File says nothing of is known for nothing yet.
     expect(mac.states.at(mac.tree.currentPath(result.storyId)!.headEntryId).people[story.people[0]!.name]!.known).toBeNull();
+  });
+
+  // GIVEN a Story File where Draconia's Bond says she called him the word on the train, he saved her twenty minutes later,
+  //   and she owes him and calls him Stray
+  // WHEN it is imported and her page is opened
+  // THEN Between you shows that standing before any Scene is played
+  // (The page's half is proved with the person view; here, the Bond the page reads.)
+  it("story-file › A Story File sets up every part of a Story › A Bond to start from", () => {
+    const mac = freshHome();
+    const story = malfoyProblemStoryFile();
+    const standing = "She called him the word on the train; twenty minutes later he saved her. She owes him, hates owing him, and calls him Stray.";
+    story.people = story.people.map(person => person.name === "Draconia Malfoy" ? { ...person, bond: standing } : person) as typeof story.people;
+    const result = importStoryFile(writeStoryFile(story), mac);
+    if (!result.ok) throw new Error(result.problems.map(problem => problem.message).join("; "));
+    const bonds = bondsOn(mac, mac.tree.currentPath(result.storyId)!.headEntryId);
+    expect(bonds.get("Draconia Malfoy")).toEqual({ standing, turns: [] });
+    // Someone the Story File gives no Bond has none yet.
+    expect(bonds.has("Hermione Granger")).toBe(false);
+  });
+
+  // A Bond is where things stand between him and someone else, in forty words or fewer (lasting-records design decision 1).
+  it("refuses a Bond for the Player Character himself, or one over forty words", () => {
+    const mac = freshHome();
+    const story = malfoyProblemStoryFile();
+    const pc = story.people.findIndex(person => person.name === story.player_character);
+    const draconia = story.people.findIndex(person => person.name === "Draconia Malfoy");
+    story.people = story.people.map((person, index) => index === pc ? { ...person, bond: "He is himself." }
+      : index === draconia ? { ...person, bond: Array.from({ length: 41 }, () => "word").join(" ") } : person) as typeof story.people;
+    const result = importStoryFile(writeStoryFile(story), mac);
+    expect(result.ok ? [] : result.problems).toHaveLength(2);
+    expect(result.ok ? [] : result.problems).toEqual(expect.arrayContaining([
+      { where: `people[${pc}].bond`, message: `${story.player_character} is the Player Character; a Bond is between him and someone else` },
+      { where: `people[${draconia}].bond`, message: "Draconia Malfoy's Bond is 41 words; say where things stand in forty or fewer" }
+    ]));
   });
 
   // WHEN a Story File has two people named "Weasley"

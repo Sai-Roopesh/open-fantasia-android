@@ -117,6 +117,10 @@ export interface PersonSetup {
    * What the Player Character knows of them when the Story begins: what he, not the Story, would say of them. Who they are may hold what nobody knows; this never does.
    */
   known?: string;
+  /**
+   * Where things stand between them and the Player Character when the Story begins, when they already have history: as he has seen it, in forty words or fewer. Never for the Player Character himself.
+   */
+  bond?: string;
   appearance?: string;
   /**
    * What they are after.

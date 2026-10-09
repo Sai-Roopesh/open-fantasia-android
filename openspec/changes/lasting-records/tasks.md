@@ -43,7 +43,7 @@ Scenarios this change builds:
 
 ## 2. Bonds
 
-- [ ] 2.1 The Story File's `bond` (story-file.schema.json, import). Test first: `story-file › A Story File sets up
+- [x] 2.1 The Story File's `bond` (story-file.schema.json, import). Test first: `story-file › A Story File sets up
   every part of a Story › A Bond to start from`, on the host: `bondsOn` has her standing before any Scene.
 - [ ] 2.2 Test first, then build: `living-world › Where things stand between him and each person is kept › A turn
   in the classroom`:
