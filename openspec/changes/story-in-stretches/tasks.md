@@ -81,7 +81,7 @@ Scenarios this change builds:
 
 ## 5. Together
 
-- [ ] 5.1 A live check with the real models: a scripted month of Stretches from Freshers' Friday, choosing the
+- [x] 5.1 A live check with the real models: a scripted month of Stretches from Freshers' Friday, choosing the
   Story's pick each time, covers at least four weeks of story time in under twenty Scenes. Draconia acts in every
   Stretch, on screen or off, and no declaration is reached. Run with `npm run test:real`.
 - [ ] 5.2 Run `scripts/scenarios.mjs --strict`, the host suite and lint, the Android JVM and device suites, and
