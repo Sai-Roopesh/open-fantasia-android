@@ -23,7 +23,7 @@ Scenarios this change builds:
 
 ## 0. Words, decisions and screens
 
-- [ ] 0.1 CONTEXT.md: **Stretch** added, **Scene** redefined as one thing happening between its people.
+- [x] 0.1 CONTEXT.md: **Stretch** added, **Scene** redefined as one thing happening between its people.
   `docs/adr/0010-the-director-owns-the-calendar.md` supersedes the Scene-end order in 0004. Verify:
   `openspec validate --all --strict`.
 - [ ] 0.2 Draw the Day View pick's day on `docs/design/DayView.dc.html` and the Stretch in Backstage's THE DIRECTOR

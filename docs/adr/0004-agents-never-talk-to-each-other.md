@@ -8,7 +8,8 @@ same time:
 - each turn: the player's Move, then the **Writer** (which must see the Move: a Move can leave the Scene or skip
   time), then the **Actor**, streaming the Reply;
 - each Scene end: the **Chronicler** and the **Weaver** at once, then the **Director** when the chapter turned. Only
-  the Day View waits, and only for the Weaver;
+  the Day View waits, and only for the Weaver. (Superseded by docs/adr/0010: the Chronicler, then the Director when
+  due, then the Weaver.);
 - every twelve exchanges inside a long Scene: the Chronicler, in the background, so early Moments are recorded
   while they are fresh.
 

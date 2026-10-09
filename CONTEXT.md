@@ -78,9 +78,16 @@ Character's words, choices or feelings.
 _Avoid_: Response, generation, bot message, AI turn
 
 **Scene**:
-A stretch of the Story in one place and time, played Move by Reply. It ends when a Move goes somewhere else or
-skips ahead, when the Story brings it to a close, or when the player ends it.
+One thing happening between its people, played Move by Reply. It may move from place to place while that thing goes
+on, as when Draconia and the Player Character argue all the way up the lane. It ends when a Move turns to something
+else or skips more than a couple of hours, when the Story brings it to a close, or when the player ends it.
 _Avoid_: Chapter, session, segment
+
+**Stretch**:
+About a week of story time, planned as a whole: the few Scenes in it that matter, each with its day, place, people
+and what it is for, and what each Lead does about the Player Character that week, on screen or off. Between the
+Scenes that matter, the days pass as Meanwhile.
+_Avoid_: Chapter, episode, arc, week
 
 **Happening**:
 Something going on in the World at a time and place that the Player Character could be at, such as McGonagall
