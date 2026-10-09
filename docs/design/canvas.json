@@ -3,7 +3,7 @@
   "attachments": {},
   "boards": {
     "Backstage.dc.html": {
-      "h": 1200,
+      "h": 1500,
       "title": "Backstage",
       "w": 390,
       "x": 1410,
@@ -73,7 +73,7 @@
       "y": 3480
     },
     "Person.dc.html": {
-      "h": 1000,
+      "h": 1300,
       "title": "A person",
       "w": 390,
       "x": 470,

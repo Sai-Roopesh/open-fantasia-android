@@ -185,6 +185,12 @@ A part of the Story that matters, especially one shared with the Player Characte
 words with who was there and who knows of it. Everyone who was there remembers it from that one record.
 _Avoid_: Memory, memory entry, recollection, note
 
+**Bond**:
+Where things stand between the Player Character and one person he has history with, as he has seen it, and the turns
+that brought it there, each one line from the Scene it happened in. Kept once, beside the Moments; nobody's secret
+feelings are in it.
+_Avoid_: Relationship meter, affinity, affection score, relationship memory
+
 ### What the player sees
 
 **Journal**:

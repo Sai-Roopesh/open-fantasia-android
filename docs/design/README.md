@@ -44,9 +44,9 @@ placeholders; the app shows the real images (openspec stories: Portraits are rea
 | `MovingOn.dc.html` | Between Scenes: one line while the Scene is recorded and the World moves on | the Chronicler, the Weaver |
 | `DayView.dc.html` | The Day View: the day, the place, countdowns, Meanwhile, Happenings, the other choices, your own Move | screens-to-design (first form); the Weaver |
 | `Gap.dc.html` | What did you do in the Gap? | the Weaver |
-| `World.dc.html`, `Person.dc.html` | The World screen and a person | the World screen, editing |
+| `World.dc.html`, `Person.dc.html` | The World screen and a person, with Between you | the World screen, editing, lasting records |
 | `Journal.dc.html` | The Journal | the Journal |
-| `Backstage.dc.html` | Backstage, Taste included | Backstage |
+| `Backstage.dc.html` | Backstage, Taste and The record included | Backstage, lasting records |
 | `Paths.dc.html` | Paths | Paths |
 | `Models.dc.html` | Models | the Models screen |
 | `Story.dc.html`, `StoryEdit.dc.html` | The Story: its Premise, Style and reply length, Arcs, Landmarks, World, places and institutions, and the time; and the sheet that edits each, Taste's lines included | editing the Story |

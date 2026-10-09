@@ -16,7 +16,7 @@ a{color:#B9A4FF;text-decoration:none}a:hover{color:#D6C9FF}
 button{font:inherit;cursor:pointer}
 </style>
 </helmet>
-<div style="width:390px;height:1000px;box-sizing:border-box;background:#141218;color:#EEEAF4;font-family:Manrope,system-ui,sans-serif;display:flex;flex-direction:column">
+<div style="width:390px;min-height:1300px;box-sizing:border-box;background:#141218;color:#EEEAF4;font-family:Manrope,system-ui,sans-serif;display:flex;flex-direction:column">
   <header style="display:flex;align-items:center;gap:2px;padding:6px 4px">
     <a href="World.dc.html" aria-label="Back to the World" style="display:flex;align-items:center;justify-content:center;width:44px;height:44px;color:#EEEAF4"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></a>
     <span style="flex:1"></span>
@@ -48,6 +48,16 @@ button{font:inherit;cursor:pointer}
       <a href="Journal.dc.html" style="font-size:13px">From Scene 3 · The station</a>
     </section>
 
+    <section aria-label="Between you" style="display:flex;flex-direction:column;gap:10px">
+      <h2 style="margin:0;font-size:12px;font-weight:700;letter-spacing:0.1em;color:#8E879C">BETWEEN YOU</h2>
+      <p style="margin:0;padding:12px 14px;border-radius:14px;background:#1E1B24;border:1px solid #2E2A36;font-family:Literata,Georgia,serif;font-size:15px;line-height:1.55;color:#E2DDEA">She owes you her life and treats you as hers to order about. She let you hold her when the room went cold, then ordered you to put her down, and has not thanked you.</p>
+      <ol style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px">
+        <li style="display:flex;gap:10px"><span aria-hidden="true" style="flex:none;width:8px;height:8px;margin-top:6px;border-radius:4px;background:#B9A4FF"></span><span style="display:flex;flex-direction:column;gap:2px"><span style="font-size:14px;line-height:1.45;color:#EEEAF4">She floated in your arms, went scarlet, and ordered you to put her down.</span><a href="Journal.dc.html" style="font-size:12px">Scene 11 · Twenty-nine minutes</a></span></li>
+        <li style="display:flex;gap:10px"><span aria-hidden="true" style="flex:none;width:8px;height:8px;margin-top:6px;border-radius:4px;background:#3A3544"></span><span style="display:flex;flex-direction:column;gap:2px"><span style="font-size:14px;line-height:1.45;color:#B3ACC0">She billed you for the slap: Wednesdays, in the library, on her terms.</span><a href="Journal.dc.html" style="font-size:12px">Scene 8 · The price of a slap</a></span></li>
+        <li style="display:flex;gap:10px"><span aria-hidden="true" style="flex:none;width:8px;height:8px;margin-top:6px;border-radius:4px;background:#3A3544"></span><span style="display:flex;flex-direction:column;gap:2px"><span style="font-size:14px;line-height:1.45;color:#B3ACC0">She slapped you in front of the Hall and said you were nothing to her.</span><a href="Journal.dc.html" style="font-size:12px">Scene 6 · Saturday lunch</a></span></li>
+      </ol>
+    </section>
+
     <section style="display:flex;flex-direction:column;gap:8px">
       <h2 style="margin:0;font-size:12px;font-weight:700;letter-spacing:0.1em;color:#8E879C">WHAT YOU'VE HEARD</h2>
       <div style="display:flex;gap:10px;align-items:flex-start">
@@ -58,7 +68,7 @@ button{font:inherit;cursor:pointer}
   </main>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1000}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1300}}'>
 class Component extends DCLogic {
   renderVals() { return {}; }
 }
