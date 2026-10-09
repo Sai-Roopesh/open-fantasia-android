@@ -70,6 +70,13 @@ describe("the Director's plan, beside the Path (docs/adr/0007)", () => {
     expect(currentPlan(later.mac, later.head().id)).toMatchObject({ runItsCourse: true });
   });
 
+  it("treats a plan from before Stretches as no plan, so the Director plans afresh", () => {
+    const { mac, tree, scene, head } = story();
+    tree.append("s", scene(1).closed.id, { ...plan(), scenes: 4 } as never);
+    expect(currentPlan(mac, head().id)).toBeNull();
+    expect(directionDue(mac, head().id, null)).toMatchObject({ reason: "no plan yet" });
+  });
+
   it("is the newest plan on the Path, and a Path from before a plan does not have it", () => {
     const { mac, tree, scene, head } = story();
     const first = scene(1);

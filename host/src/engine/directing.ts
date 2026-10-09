@@ -28,7 +28,8 @@ export interface CurrentPlan {
  * rewound to before that Scene's end does not have it.
  */
 export function currentPlan(mac: Mac, head: string): CurrentPlan | null {
-  const entry = mac.tree.recordsOn(head, "director_plan").at(-1) as Entry<DirectorPlan> | undefined;
+  // A plan from before Stretches (its Scenes a count) is no plan: the Director plans afresh (docs/adr/0010).
+  const entry = (mac.tree.recordsOn(head, "director_plan") as Entry<DirectorPlan>[]).filter(record => Array.isArray(record.payload.scenes)).at(-1);
   if (!entry?.parentId) return null;
   const path = mac.tree.pathTo(head);
   const from = path.findIndex(item => item.id === entry.parentId);

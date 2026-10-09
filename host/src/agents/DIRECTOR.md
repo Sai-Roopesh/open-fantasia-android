@@ -49,7 +49,8 @@ Two to five, in order, each:
 - `lead`: the Lead it is about, or null.
 
 A Scene is one thing happening between its people. Plan fewer, fuller ones, and leave the player room: they can always
-choose something else.
+choose something else. Three is the usual week; two for a quiet one; four only when the week builds to a Landmark; five
+almost never. Everything else in the week passes as Meanwhile, and the Leads' off-screen moves carry it.
 
 ## Each Arc
 
