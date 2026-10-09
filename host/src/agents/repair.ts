@@ -50,12 +50,13 @@ export async function answerWithOneRepair<T>(
     const checked = check(answer.json);
     if (checked.ok) {
       const dropped = checked.dropped ?? [];
-      const better = !best || dropped.length < best.dropped.length;
+      const better: boolean = !best || dropped.length < best.dropped.length;
       // Only an answer not used is marked refused: one kept with parts left out is a record, not a failure.
       if (better && best) models.refuse(best.callId, `replaced by its repair, which left less out: ${best.dropped.join("; ")}`);
       else if (!better) models.refuse(answer.callId, `its repair left more out than the first answer: ${dropped.join("; ")}`);
-      if (better) best = { value: checked.value, callId: answer.callId, dropped };
-      if (dropped.length === 0) return best!;
+      const kept: { value: T; callId: string; dropped: string[] } | null = better ? { value: checked.value, callId: answer.callId, dropped } : best;
+      best = kept;
+      if (kept && kept.dropped.length === 0) return kept;
       repair = { answer: answer.json, problems: dropped };
       continue;
     }

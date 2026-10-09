@@ -3,6 +3,7 @@ import { Engine } from "../../src/engine/engine.js";
 import { fakeChronicleAnswer, FakeModels } from "../../src/models/fake.js";
 import { Models, type ModelRequest, type ModelRunner } from "../../src/models/model-call.js";
 import type { Chronicle, Entry } from "../../src/story/entries.js";
+import { knownOn } from "../../src/story/known.js";
 import { playable } from "../support/play.js";
 import { hogwartsStoryFile } from "../support/story-files.js";
 
@@ -153,5 +154,33 @@ describe("when the Chronicler runs", () => {
     expect(again).toHaveLength(1);
     expect(again[0]!.parent.id).toBe(head());
     expect(again[0]!.parent.id).not.toBe(first[0]!.parent.id);
+  });
+});
+
+describe("records that degrade, never vanish (lasting-records)", () => {
+  /** A chronicle that is right in every part but one: what he knows of Draconia, far too long. */
+  const tooLong = (move: string) => ({ answer: JSON.stringify({
+    summary: "In the classroom Draconia floated in his arms and ordered him to put her down.",
+    moments: [{ what: "He catches her as everything floats.", quotes: [{ entry: "E2", text: move }], there: ["Draconia Malfoy"], weight: 4 }],
+    told: [],
+    known: [{ who: "Draconia Malfoy", now: "word ".repeat(70).trim() }]
+  }) });
+
+  // GIVEN a Scene in which Draconia floated in his arms, and the record's line for what he knows of her comes back
+  //   too long twice
+  // THEN that Scene's Moments and summary are kept, and what he knew of her before stays as it was
+  it("living-world › Moments are remembered from one record › One bad part does not lose the Scene", async () => {
+    const move = "I catch you as everything floats.";
+    const classroom = hogwartsStoryFile({ title: "Twenty-nine minutes", place: "An empty classroom", who: ["Draconia Malfoy"], prose: "Draconia sets out her notes." });
+    const { play, engine, storyId, head, mac } = playable(classroom, { chronicler: [tooLong(move), tooLong(move)] });
+    const before = knownOn(mac, head()).get("Draconia Malfoy")?.text ?? null;
+    await play(move);
+    engine.endScene(storyId, head(), "t-end");
+    await engine.chronicled(storyId);
+    const [chronicle] = chronicles(mac, head());
+    expect(chronicle).toMatchObject({ summary: "In the classroom Draconia floated in his arms and ordered him to put her down.", sceneEnded: true });
+    expect(chronicle!.moments.map(moment => moment.what)).toEqual(["He catches her as everything floats."]);
+    expect(chronicle!.dropped).toEqual(["known: the line for Draconia Malfoy is 70 words; say it in sixty or fewer"]);
+    expect(knownOn(mac, head()).get("Draconia Malfoy")?.text ?? null).toBe(before);
   });
 });

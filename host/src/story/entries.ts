@@ -185,6 +185,8 @@ export interface Chronicle {
   told: Told[];
   /** What the Player Character now knows of the people this Scene changed it for; absent from Chronicles before it was asked. */
   known?: KnownLine[];
+  /** The parts of the Chronicler's answer left out, and why (lasting-records); empty when it was right in every part. */
+  dropped?: string[];
   callId: string;
   model: ModelChoice;
 }

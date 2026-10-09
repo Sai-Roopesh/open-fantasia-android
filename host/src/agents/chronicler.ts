@@ -23,8 +23,8 @@ const MAX_MOMENTS = 5;
 const MAX_QUOTES = 3;
 /** Asked for in thirty words; refused only when far past it, since no model counts words exactly. */
 const MAX_SUMMARY_WORDS = 45;
-/** What he knows of someone, asked for in three sentences. */
-const MAX_KNOWN_WORDS = 80;
+/** What he knows of someone: who they are to him and what he has seen, whole, in sixty words or fewer (lasting-records). */
+const MAX_KNOWN_WORDS = 60;
 
 const text = { type: "string", minLength: 1 } as const;
 
@@ -166,13 +166,18 @@ function findWords(source: string, quote: string): string | null {
 
 const wordCount = (value: string) => value.trim().split(/\s+/).filter(Boolean).length;
 
-/** Checks the Chronicler's answer against the Scene it read; returns the record, or every problem a repair could fix. */
+/**
+ * Checks the Chronicler's answer against the Scene it read, part by part (lasting-records design decision 3): only an
+ * answer that does not match the schema is unusable. Anything else that is wrong leaves out only its own part (a
+ * quote, a Moment, a name, a line), says why in `dropped`, and keeps the rest.
+ */
 export function checkChronicle(ask: ChronicleAsk, raw: unknown): Checked<ChronicleRecord> {
   if (!matchesSchema(raw)) {
     return { ok: false, problems: (matchesSchema.errors ?? []).map(error => `${error.instancePath.replace(/^\//, "").replace(/\//g, ".") || "answer"}: ${error.message ?? "is not as the schema says"}`) };
   }
   const { state } = ask;
-  const problems: string[] = [];
+  const dropped: string[] = [];
+  const drop = (why: string) => { dropped.push(why); return null; };
   const pc = state.playerCharacter;
   const pcNames = playerNames({ name: pc, aliases: state.people[pc]?.aliases ?? [] });
   const index = nameIndex(Object.values(state.people));
@@ -180,75 +185,75 @@ export function checkChronicle(ask: ChronicleAsk, raw: unknown): Checked<Chronic
 
   const person = (where: string, name: string): string | null => {
     const known = storyName(index, name);
-    if (!known) return (problems.push(`${where}: ${name.trim() || "a blank name"} is not in the story; use a name from the people`), null);
-    if (known === pc) return (problems.push(`${where}: ${pc} is the player's character, who is always there; leave them out`), null);
-    if (!ask.inScene.includes(known)) return (problems.push(`${where}: ${known} was not in this Scene`), null);
+    if (!known) return drop(`${where}: ${name.trim() || "a blank name"} is not in the story; use a name from the people`);
+    if (known === pc) return drop(`${where}: ${pc} is the player's character, who is always there; leave them out`);
+    if (!ask.inScene.includes(known)) return drop(`${where}: ${known} was not in this Scene`);
     return known;
   };
   const newEntry = (where: string, label: string): Labelled | null => {
     const item = byLabel.get(label.trim());
-    if (!item) return (problems.push(`${where} names ${label}, which is not an entry here`), null);
-    if (item.index < ask.recordFrom) return (problems.push(`${where} is from ${label}, which was recorded already; record Moments only from the entries after`), null);
+    if (!item) return drop(`${where} names ${label}, which is not an entry here`);
+    if (item.index < ask.recordFrom) return drop(`${where} is from ${label}, which was recorded already; record Moments only from the entries after`);
     return item;
   };
 
   // The summary.
-  const summary = raw.summary?.trim() || null;
-  if (!summary) problems.push(ask.sceneEnded
+  let summary = raw.summary?.trim() || null;
+  if (!summary) drop(ask.sceneEnded
     ? "summary: the Scene has ended; write one line of what happened in it"
     : "summary: the Scene goes on; write where it stands so far, in one or two lines");
-  if (summary && wordCount(summary) > MAX_SUMMARY_WORDS) problems.push(`summary: it is ${wordCount(summary)} words; say it in thirty or fewer`);
+  if (summary && wordCount(summary) > MAX_SUMMARY_WORDS) summary = drop(`summary: it is ${wordCount(summary)} words; say it in thirty or fewer`);
 
-  // The Moments.
-  if (raw.moments.length > MAX_MOMENTS) problems.push(`moments: there are ${raw.moments.length}; record at most five, the ones that matter most`);
-  const moments: Moment[] = raw.moments.map((moment, momentIndex) => {
+  // The Moments: a bad quote is left out, and a Moment with no quote left, or that decides for him, is left out.
+  if (raw.moments.length > MAX_MOMENTS) drop(`moments: there are ${raw.moments.length}; record at most five, the ones that matter most`);
+  const moments: Moment[] = raw.moments.slice(0, MAX_MOMENTS).flatMap((moment, momentIndex) => {
     const where = `moments: moment ${momentIndex + 1}`;
-    if (moment.quotes.length < 1 || moment.quotes.length > MAX_QUOTES) problems.push(`${where} has ${moment.quotes.length} quotes; give one to three`);
     let fromMove = false;
-    const quotes: Quote[] = moment.quotes.flatMap((quote, quoteIndex) => {
+    const quotes: Quote[] = moment.quotes.slice(0, MAX_QUOTES).flatMap((quote, quoteIndex) => {
       const quoteWhere = `${where}, quote ${quoteIndex + 1}`;
       const item = newEntry(quoteWhere, quote.entry);
       if (!item) return [];
       const words = findWords(item.text, quote.text);
-      if (words === null) return (problems.push(`${quoteWhere} is not word for word in ${item.label}; copy the words exactly`), []);
+      if (words === null) return (drop(`${quoteWhere} is not word for word in ${item.label}; copy the words exactly`), []);
       if (item.kind === "move") fromMove = true;
       else {
         const phrase = decidesForPlayer(words, pcNames) ?? claimsAboutPlayer(words, pcNames);
-        if (phrase) return (problems.push(`${quoteWhere} is from a Reply and decides for the player's character ("${phrase}"); only his Moves say what he did, so quote his Move instead`), []);
+        if (phrase) return (drop(`${quoteWhere} is from a Reply and decides for the player's character ("${phrase}"); only his Moves say what he did, so quote his Move instead`), []);
       }
       return [{ entry: item.entry.id, text: words }];
     });
+    if (moment.quotes.length > MAX_QUOTES) drop(`${where} has ${moment.quotes.length} quotes; give one to three`);
+    if (!quotes.length) return (drop(`${where} has no quote that could be kept, so it is left out`), []);
     const what = moment.what.trim();
     const phrase = decidesForPlayer(what, pcNames);
-    if (phrase && !fromMove) problems.push(`${where}, what says what the player's character did ("${phrase}"), and no quote is from his Move`);
+    if (phrase && !fromMove) return (drop(`${where}, what says what the player's character did ("${phrase}"), and no quote is from his Move`), []);
     const there = [...new Set(moment.there.flatMap(name => person(`${where}, there`, name) ?? []))];
-    return { id: randomUUID(), what, quotes, there, weight: moment.weight };
+    return [{ id: randomUUID(), what, quotes, there, weight: moment.weight }];
   });
 
   // Telling.
   const told: Told[] = raw.told.flatMap(item => {
     const shown = /^M(\d+)$/.exec(item.moment.trim());
     const known = shown ? ask.known[Number(shown[1]) - 1] : undefined;
-    if (!known) return (problems.push(`told: ${item.moment} is not a Moment you were shown`), []);
+    if (!known) return (drop(`told: ${item.moment} is not a Moment you were shown`), []);
     const at = newEntry(`told: ${item.moment}`, item.entry);
     const to = [...new Set(item.to.flatMap(name => person(`told: ${item.moment}, to`, name) ?? []))];
     return at && to.length ? [{ moment: known.id, to, entry: at.entry.id }] : [];
   });
 
-  // What he now knows of the people in the Scene: one line each, for those this Scene changed.
+  // What he now knows of the people in the Scene: one line each, whole, for those this Scene changed.
   const seen = new Set<string>();
   const known: KnownLine[] = (raw.known ?? []).flatMap(row => {
     const who = person("known", row.who);
     if (!who) return [];
-    if (seen.has(who)) return (problems.push(`known: two lines for ${who}; write one`), []);
+    if (seen.has(who)) return (drop(`known: two lines for ${who}; write one`), []);
     seen.add(who);
     const now = row.now.trim();
-    if (wordCount(now) > MAX_KNOWN_WORDS) problems.push(`known: the line for ${who} is ${wordCount(now)} words; say it in three sentences at most`);
+    if (wordCount(now) > MAX_KNOWN_WORDS) return (drop(`known: the line for ${who} is ${wordCount(now)} words; say it in sixty or fewer`), []);
     return [{ who, now }];
   });
 
-  if (problems.length) return { ok: false, problems };
-  return { ok: true, value: { summary, moments, told, known } };
+  return { ok: true, value: { summary, moments, told, known }, dropped };
 }
 
 function section(tag: string, body: string): string | null {
@@ -282,7 +287,7 @@ export function chroniclerPrompt(ask: ChronicleAsk): { system: string; prompt: s
   const whatHeKnows = ask.inScene.map(name => `- ${name}: ${knownBefore[name] ?? "nothing yet"}`);
   const task = [
     ask.sceneEnded ? "The Scene has ended: write its summary." : "The Scene goes on: write where it stands so far.",
-    ask.inScene.length ? `For each person in the Scene whose line it changes, write in known what ${pc} now knows of them: the line above, with what this Scene showed him, in three sentences at most.` : "",
+    ask.inScene.length ? `For each person in the Scene whose line it changes, write in known what ${pc} now knows of them, as the line should read now, whole, in sixty words or fewer: who they are to him and what he has seen of them. Rewrite it; never add to the end.` : "",
     ask.recordFrom > 0 ? "Entries marked recorded were recorded already: record Moments only from the entries after them." : "",
     "Return only the JSON object."
   ].filter(Boolean).join("\n");
@@ -303,7 +308,7 @@ export function chroniclerPrompt(ask: ChronicleAsk): { system: string; prompt: s
 }
 
 /** Runs the Chronicler once, checked and repaired once; throws ChroniclerFailed with the reasons. */
-export function writeChronicle(models: Models, model: ModelChoice, ask: ChronicleAsk, storyId: string, traceId: string, signal: AbortSignal): Promise<{ value: ChronicleRecord; callId: string }> {
+export function writeChronicle(models: Models, model: ModelChoice, ask: ChronicleAsk, storyId: string, traceId: string, signal: AbortSignal): Promise<{ value: ChronicleRecord; callId: string; dropped: string[] }> {
   const { system, prompt, facts } = chroniclerPrompt(ask);
   return answerWithOneRepair(models,
     { agent: "chronicler", model, system, prompt, schema: CHRONICLER_SCHEMA, facts, traceId, storyId },

@@ -63,7 +63,9 @@ describe("the Chronicler's answer", () => {
     expect(record!.summary).toMatch(/^On the night train/);
   });
 
-  it("names every rule an answer breaks", () => {
+  // Records degrade, never vanish (openspec living-world, lasting-records): every rule broken is named, and only the
+  // parts that break one are left out.
+  it("names every rule an answer breaks, and leaves out only the parts that break one", () => {
     const checked = checkChronicle(ask(), answer({
       summary: null,
       moments: [
@@ -73,14 +75,13 @@ describe("the Chronicler's answer", () => {
       ],
       told: [{ moment: "M4", to: ["Meera Kulkarni"], entry: "E5" }]
     }));
-    expect(checked.ok).toBe(false);
-    expect(checked.ok ? [] : checked.problems).toEqual(expect.arrayContaining([
+    expect(checked.ok).toBe(true);
+    expect(checked.ok ? checked.value : null).toMatchObject({ summary: null, moments: [], told: [] });
+    expect(checked.ok ? checked.dropped : []).toEqual(expect.arrayContaining([
       expect.stringMatching(/^summary: the Scene has ended/),
       expect.stringMatching(/^moments: moment 1, quote 1 is not word for word in E3/),
       expect.stringMatching(/^moments: moment 2, quote 1 is from a Reply and decides for the player's character/),
-      expect.stringMatching(/^moments: moment 2, what says what the player's character did/),
-      expect.stringMatching(/^moments: moment 2, there: Ishaan Mehra is the player's character/),
-      expect.stringMatching(/^moments: moment 2, there: The Conductor is not in the story/),
+      expect.stringMatching(/^moments: moment 2 has no quote that could be kept/),
       expect.stringMatching(/^moments: moment 3, quote 1 names E9, which is not an entry here/),
       expect.stringMatching(/^told: M4 is not a Moment you were shown/)
     ]));
@@ -88,7 +89,7 @@ describe("the Chronicler's answer", () => {
 
   it("writes where a Scene still being played stands so far, and records nothing from entries already recorded", () => {
     const checked = checkChronicle(ask({ sceneEnded: false, recordFrom: 3 }), answer({ summary: null }));
-    expect(checked.ok ? [] : checked.problems).toEqual(expect.arrayContaining([
+    expect(checked.ok ? checked.dropped : []).toEqual(expect.arrayContaining([
       expect.stringMatching(/^summary: the Scene goes on; write where it stands so far/),
       expect.stringMatching(/^moments: moment 1, quote 1 is from E2, which was recorded already/)
     ]));
@@ -119,14 +120,16 @@ describe("the Chronicler's call", () => {
     expect(chroniclerPrompt(ask({ sceneEnded: false })).prompt).toMatch(/The Scene goes on: write where it stands so far\./);
   });
 
-  it("repairs a refused answer once, and fails with its reasons when the repair is refused too", async () => {
+  it("repairs an answer that left a part out once, and fails with its reasons only when no answer is usable", async () => {
     const { mac } = nightTrain();
-    const bad = { answer: JSON.stringify(answer({ summary: null })) };
-    const runner = new ScriptedRunner([bad, { answer: JSON.stringify(answer()) }]);
+    const partly = { answer: JSON.stringify(answer({ summary: null })) };
+    const runner = new ScriptedRunner([partly, { answer: JSON.stringify(answer()) }]);
     const record = await writeChronicle(new Models(mac.db, { claude: runner }), SONNET, ask(), "story", "trace-c", new AbortController().signal);
     expect(record.value.summary).toMatch(/^On the night train/);
+    expect(record.dropped).toEqual([]);
     expect(runner.requests[1]!.prompt).toMatch(/summary: the Scene has ended/);
 
+    const bad = { answer: JSON.stringify({ summary: "x" }) };
     const failing = new ScriptedRunner([bad, bad]);
     const failure = await writeChronicle(new Models(mac.db, { claude: failing }), SONNET, ask(), "story", "trace-c", new AbortController().signal).then(() => null, (error: unknown) => error);
     expect(failure).toBeInstanceOf(ChroniclerFailed);
@@ -154,13 +157,13 @@ describe("what the Player Character knows of the people in the Scene (openspec o
     expect(checked.ok && checked.value.known).toEqual([]);
   });
 
-  it("refuses a line for someone not in the Scene, for the Player Character, two for one person, or one far too long", () => {
-    const problems = (known: unknown) => { const checked = checkChronicle(ask({ knownBefore }), answer({ known })); return checked.ok ? [] : checked.problems; };
+  it("leaves out a line for someone not in the Scene, for the Player Character, two for one person, or one too long", () => {
+    const problems = (known: unknown) => { const checked = checkChronicle(ask({ knownBefore }), answer({ known })); return checked.ok ? checked.dropped ?? [] : checked.problems; };
     expect(problems([{ who: "Ishaan Mehra", now: "Himself." }])).toEqual(["known: Ishaan Mehra is the player's character, who is always there; leave them out"]);
     expect(problems([{ who: "Meera Kulkarni", now: "A." }, { who: "Meera", now: "B." }])).toEqual(["known: two lines for Meera Kulkarni; write one"]);
-    expect(problems([{ who: "Meera Kulkarni", now: "word ".repeat(100) }])).toEqual(["known: the line for Meera Kulkarni is 100 words; say it in three sentences at most"]);
+    expect(problems([{ who: "Meera Kulkarni", now: "word ".repeat(100) }])).toEqual(["known: the line for Meera Kulkarni is 100 words; say it in sixty or fewer"]);
     const notThere = ask({ knownBefore, inScene: ["Uncle Bhalla"] });
     const checked = checkChronicle(notThere, answer({ known: [{ who: "Meera Kulkarni", now: "A." }] }));
-    expect(checked.ok ? [] : checked.problems).toContain("known: Meera Kulkarni was not in this Scene");
+    expect(checked.ok ? checked.dropped : []).toContain("known: Meera Kulkarni was not in this Scene");
   });
 });

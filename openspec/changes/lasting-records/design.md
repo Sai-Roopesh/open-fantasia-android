@@ -63,7 +63,9 @@ nothing in the answer is usable (it does not match the schema). Anything less on
 `dropped`, and keeps the rest. `answerWithOneRepair` asks again whenever an answer is unusable or left parts out,
 naming every problem. It keeps whichever usable answer left out less, and fails only when no answer is usable. Only
 an answer that is not used is marked refused in the calls. What was left out is stored on the record (`dropped:
-string[]`), for Backstage. Applied to:**
+string[]`), for Backstage.
+
+**Applied to:**
   - **Chronicler:** a Moment with a bad quote loses the quote, and loses the Moment if no quote is left. A bad
     `there` or `to` name is removed. A bad or overlong known, bond or told row is dropped.
   - **Weaver:** a happening, Life, Thread or Meanwhile line naming someone not in the Story loses that name, or is

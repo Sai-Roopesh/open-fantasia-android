@@ -28,7 +28,7 @@ Scenarios this change builds:
 - [x] 1.1 `Checked<T>` with `value`, `fatal` and `dropped`, and `answerWithOneRepair` keeping the better answer
   (design decision 3). Repair tests: a fatal answer is asked again; a partly-bad answer is repaired, and if still
   partly bad its good parts are kept with the drops listed.
-- [ ] 1.2 Test first, then build: `living-world › Moments are remembered from one record › One bad part does not
+- [x] 1.2 Test first, then build: `living-world › Moments are remembered from one record › One bad part does not
   lose the Scene`:
   - the Chronicler's check drops part by part (quotes, Moments, names, known, bond and told rows);
   - the known limit is 60 words, and the repair message says words;
