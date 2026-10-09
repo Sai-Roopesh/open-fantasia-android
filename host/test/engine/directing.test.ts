@@ -295,20 +295,23 @@ describe("rest after a peak, in play", () => {
   // THEN the Story's own pick at the Day View is a quiet Happening
   it("long-run › Rest is deliberate › A quiet pick after a peak", async () => {
     const peaked = { from: (request: ModelRequest) => ({ answer: JSON.stringify({ ...JSON.parse((fakeWriterAnswer(request) as { answer: string }).answer) as object, intensity: 5 }) }) };
-    // The Weaver first offers a duel as its pick; the check sends it back for a quiet one.
+    // The Weaver first offers the rest's first Scene with something at stake in it; the check sends it back.
     const duel = { from: (request: ModelRequest) => {
-      const weave = JSON.parse((fakeWeaveAnswer(request) as { answer: string }).answer) as Record<string, unknown>;
-      const until = (request.facts as { until: string }).until;
-      return { answer: JSON.stringify({ ...weave, happenings: [{ id: "P1", at: until, place: "the Quidditch pitch", what: "Flint calls Roopesh out for a duel.", who: [], expected: false, pick: true, quiet: false }] }) };
+      const weave = JSON.parse((fakeWeaveAnswer(request) as { answer: string }).answer) as { happenings: Record<string, unknown>[] };
+      return { answer: JSON.stringify({ ...weave, happenings: weave.happenings.map(item => ({ ...item, what: "Flint calls Roopesh out for a duel.", quiet: false })) }) };
     } };
     const { mac, engine, storyId, head, play, models } = playable(hogwartsStoryFile(), { writer: [peaked], weaver: [duel] });
     await play("I tell her what I am, in front of her whole House.");
     engine.endScene(storyId, head(), "end-peak");
     await engine.woven(storyId);
+    // A rest is planned before the World moves on, and the Story's pick is its first Scene, quiet.
+    expect(models.director.requests[0]!.prompt).toContain("The Scene that just ended peaked: this stretch is a rest.");
+    const plan = currentPlan(mac, head())!.entry.payload;
+    expect(plan.phase).toBe("rest");
     expect(models.weaver.requests[0]!.prompt).toContain("The Scene that ended peaked.");
     expect(models.weaver.requests[1]!.prompt).toContain("make your pick a quiet Happening");
     const moved = mac.tree.recordsOn(head(), "world_moved").at(-1)!.payload as WorldMoved;
-    expect(moved.happenings.find(item => item.pick)).toMatchObject({ quiet: true });
+    expect(moved.happenings.find(item => item.pick)).toMatchObject({ quiet: true, scene: plan.scenes[0]!.id });
   });
 });
 

@@ -32,7 +32,8 @@ export function todayOn(mac: Mac, head: string, state: State): DayHappening[] {
   const latest = mac.tree.recordsOn(head, "world_moved").at(-1)?.payload as WorldMoved | undefined;
   if (!latest || !now || latest.scene !== state.scene?.openedBy) return [];
   // The Story's pick: the latest weave's, or the Scene that matters it offered before and still ahead.
-  const pick = latest.happenings.find(item => item.pick)?.id ?? onAhead(mac, head, state.clock).find(item => item.scene)?.id;
+  const ahead = onAhead(mac, head, state.clock);
+  const pick = latest.happenings.find(item => item.pick)?.id ?? ahead.find(item => item.scene)?.id ?? ahead.findLast(item => item.pick)?.id;
   const minutes = (at: string) => {
     const time = parseStoryTime(at);
     return time ? minutesOf(time) : 0;

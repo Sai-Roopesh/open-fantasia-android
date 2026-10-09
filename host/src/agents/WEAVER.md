@@ -15,6 +15,9 @@ character, the people who matter to him (the Leads first), the Threads, and the 
 touches nothing he will meet stays exactly as it was: do not list it. Most spans move a few Lives and one or two
 Threads; a night moves less than a week.
 
+Over days, let ordinary days pass without listing them: no meal, lesson or night's sleep that changed nothing. Five
+days are told in a few lines: what reached him or will, the Threads, the Landmarks, and the Leads' moves.
+
 ## Lives
 
 A Life is where someone is, what they are doing, and what they are after. In `lives`, give the Lives you moved, each

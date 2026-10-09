@@ -22,7 +22,7 @@ import type { Entry, EntryKind, Payload } from "../story/entries.js";
 import type { ModelChoice, Person, State } from "../story/state.js";
 import { entryEvent, sceneEntries } from "../views/scene.js";
 import { chronicleAsk, dueChronicle, endedScenesOn, gapsOn, markForRetry, RECORD_TRIES, STEPPED_AWAY_MS } from "./chronicling.js";
-import { dueWeave, gapAsk, weaveAsk } from "./weaving.js";
+import { dueWeave, emptySpan, gapAsk, weaveAsk } from "./weaving.js";
 import { chosen } from "./choosing.js";
 import { clearable, rewind, tryAnotherWay } from "./paths.js";
 import { editEarlier, editInPlace, isLatest, passageOnPath, wordsOf } from "./editing.js";
@@ -510,8 +510,15 @@ export class Engine {
     const traceId = `weave-${randomUUID().slice(0, 8)}`;
     const model = this.weaveOnce.get(storyId) ?? jobModels(this.mac.home).weaver;
     this.weaveOnce.delete(storyId);
+    const ask = weaveAsk(this.mac, due);
+    // A short span with nothing in it moves nothing, and needs no call (docs/adr/0010).
+    if (emptySpan(ask)) {
+      const record = this.mac.tree.append(storyId, due.through.id, { kind: "world_moved", scene: due.scene.id, from: due.from, until: due.until, lives: [], threads: [], happened: [], meanwhile: [], happenings: [], callId: null, model: null });
+      this.emit(storyId, { id: String(record.seq), event: { kind: "world_moved", seq: record.seq } });
+      return;
+    }
     try {
-      const { value, callId, dropped } = await writeWeave(this.models, model, weaveAsk(this.mac, due), storyId, traceId, new AbortController().signal);
+      const { value, callId, dropped } = await writeWeave(this.models, model, ask, storyId, traceId, new AbortController().signal);
       const record = this.mac.tree.append(storyId, due.through.id, { kind: "world_moved", scene: due.scene.id, from: due.from, until: due.until, ...value, dropped, callId, model });
       this.models.attach(callId, record.id);
       this.emit(storyId, { id: String(record.seq), event: { kind: "world_moved", seq: record.seq } });

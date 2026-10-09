@@ -57,7 +57,8 @@ describe("a turn with the Writer", () => {
     expect(shown.earlier_scenes.map(scene => scene.title)).toEqual(["After curfew"]);
     expect(shown.day_view).toBeNull();
     expect(models.actor.requests[0]!.system).toContain("Lights out. The boys' dormitory");
-    expect(events.map(event => event.event.kind).filter(kind => kind !== "reply_delta")).toEqual(["move", "scene_opened", "reply_started", "reply"]);
+    // The World's record of the Scene left behind arrives whenever it is ready; the turn's own events are these.
+    expect(events.map(event => event.event.kind).filter(kind => kind !== "reply_delta" && kind !== "world_moved")).toEqual(["move", "scene_opened", "reply_started", "reply"]);
   });
 
   // WHEN a Reply brings the Scene to its close

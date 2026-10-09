@@ -12,8 +12,11 @@ describe("Outside the Scene", () => {
   // WHEN the player opens the Journal and taps Scene 3
   // THEN Scene 3 is shown in full
   it("outside-the-scene › The Journal reads the Story back › Reading back", async () => {
+    // The first Scene runs an hour and more, so the World moves on after it (a span with no time in it moves nothing).
+    const longer = { answer: JSON.stringify({ leaves_scene: false, frame: { title: "kept", place: "kept", purpose: "p", exit: "e" }, comes_in: [], goes: [], beats: [{ text: "a", status: "in_play" }, { text: "b", status: "pending" }, { text: "c", status: "pending" }], note: "n", call: "continue", intensity: 2, arc_moved: true, clock: "Day 3 22:50", taste: null, in_play: [] }) };
     const played = playable(hogwartsWorldStoryFile({ title: "After curfew", place: "The Gryffindor common room", at: "Day 3 21:40", who: ["Hermione Granger"] }), {
       unplanned: true,
+      writer: [longer],
       weaver: [weave({
         happened: [
           { id: "H1", what: "Ron heard a troll got into the dungeons.", at: "Day 3 21:40", where: "the common room", known_to: ["Ron Weasley", "Roopesh Gantasala"], landmark: null },
@@ -38,9 +41,9 @@ describe("Outside the Scene", () => {
     expect(rows.map(row => row.kind === "scene" ? `Scene ${row.scene!.number}${row.scene!.now ? " now" : ""}` : `${row.meanwhile!.how}: ${row.meanwhile!.text}`)).toEqual([
       "Scene 1", "told: Ron says a troll got into the dungeons.", "Scene 2", "Scene 3", "Scene 4 now"
     ]);
-    expect(journal.days.map(day => day.day)).toEqual(["Friday"]);
+    expect(journal.days.map(day => day.day)).toEqual(["Friday", "Saturday"]);
     expect(rows[0]!.scene).toMatchObject({ title: "After curfew", label: "Scene 1 · 9:40 pm · The Gryffindor common room" });
-    expect(rows.at(-1)!.scene!.label).toMatch(/^Scene 4 · 9:40 pm · .* · now$/);
+    expect(rows.at(-1)!.scene!.label).toMatch(/^Scene 4 · \d+:\d\d [ap]m · .* · now$/);
     expect(JSON.stringify(journal)).not.toMatch(/Quirrell|wards/);
 
     const third = pastScene(mac, storyId, 3, "trace-past");

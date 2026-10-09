@@ -295,8 +295,9 @@ export interface WorldMoved {
   happenings: Happening[];
   /** The parts of the Weaver's answer left out, and why (lasting-records); empty when it was right in every part. */
   dropped?: string[];
-  callId: string;
-  model: ModelChoice;
+  /** The Weaver's call, or null for a span with nothing in it, which moved nothing without one (docs/adr/0010). */
+  callId: string | null;
+  model: ModelChoice | null;
 }
 
 /** One Arc as the Director plans it for a stretch: where it stands, the one step it may take, and what is too far. */

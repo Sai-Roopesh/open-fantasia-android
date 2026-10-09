@@ -145,3 +145,66 @@ describe("Leads act every Stretch, on screen or off (story-in-stretches design d
     expect(day.meanwhile).toEqual([{ text: letter, how: "told" }]);
   });
 });
+
+describe("spans: only what reaches him (story-in-stretches design decision 4)", () => {
+  const beats = [{ text: "a", status: "in_play" }, { text: "b", status: "pending" }, { text: "c", status: "pending" }];
+  const writerAt = (clock: string, frame: { title: string; place: string } | null = null) => ({ answer: JSON.stringify({ leaves_scene: frame !== null, frame: frame ? { ...frame, purpose: "p", exit: "e" } : { title: "kept", place: "kept", purpose: "p", exit: "e" }, comes_in: [], goes: [], beats, note: "n", call: "continue", intensity: 2, arc_moved: true, clock, taste: null, in_play: [] }) });
+
+  // GIVEN a Scene ends at 8:00 am, and the next is chosen for 8:20 am with nothing on before it
+  // THEN the World is not moved for those twenty minutes
+  it("living-world › Off-screen time is resolved only as far as it reaches the player › Twenty minutes with nothing on", async () => {
+    const story = fridayNight();
+    // Saturday 7:30 am: Thursday's Scene that matters, and breakfast at 8:20.
+    const saturday = { from: (request: ModelRequest) => {
+      const weave = JSON.parse((fakeWeaveAnswer(request) as { answer: string }).answer) as Record<string, unknown[]>;
+      return { answer: JSON.stringify({ ...weave, happenings: [...weave.happenings!, { id: "P2", at: "Day 4 08:20", place: "The Great Hall", what: "Breakfast, and the post.", who: ["Hermione Granger"], expected: false, pick: false, scene: null }] }) };
+    } };
+    const { engine, storyId, head, play, view, mac, models } = playable(story, {
+      director: [{ answer: JSON.stringify(charmsWeek(story)) }],
+      weaver: [saturday],
+      writer: [writerAt("Day 3 22:50"), writerAt("Day 4 07:40", { title: "The stairs", place: "The moving staircase" }), writerAt("Day 4 08:00"), writerAt("Day 4 08:20", { title: "Breakfast", place: "The Great Hall" })]
+    });
+    await play("I say goodnight to Hermione and go up.");
+    engine.endScene(storyId, head(), "end-1");
+    await engine.woven(storyId);
+    expect(models.weaver.requests).toHaveLength(1);
+
+    // A short Scene on the stairs, 7:40 to 8:00: half an hour since the World last stood, with nothing in it.
+    await play("I take the long way down to breakfast.");
+    await play("I wait for the stairs to swing back.");
+    engine.endScene(storyId, head(), "end-2");
+    await engine.woven(storyId);
+    expect(models.weaver.requests).toHaveLength(1);
+    const day = view().day_view!;
+    expect(day).toMatchObject({ at: "Day 4 08:00", world: "ready", meanwhile: [] });
+    // What is still ahead stays on, the Story's pick first.
+    expect(day.happenings.map(item => [item.at, item.pick])).toEqual([["Day 9 10:00", true], ["Day 4 08:20", false]]);
+
+    // Breakfast at 8:20, with nothing on before it: the World is not moved for those twenty minutes either.
+    engine.choose(storyId, { after: head(), kind: "go", happening: day.happenings[1]!.id, gap: null }, "go");
+    await engine.settled(storyId);
+    expect(models.weaver.requests).toHaveLength(1);
+    expect(mac.states.at(head()).scene).toMatchObject({ number: 3, at: "Day 4 08:20" });
+  });
+
+  // WHEN five days pass between Scenes
+  // THEN what happened lists what reached him or will, with each Lead's move among it, and no ordinary meal or lesson
+  //   is listed
+  // (Whether it lists a meal is the live check's; here, that the Weaver is told so, and makes each move due.)
+  it("living-world › Off-screen time is resolved only as far as it reaches the player › Five days, told in a few lines", async () => {
+    const story = fridayNight();
+    const week = charmsWeek(story, { leads: [{ who: "Draconia Malfoy", move: "Has his name taken off the Charms seating plan.", scene: null }, { who: "Hermione Granger", move: "Lends him her notes.", scene: null }] });
+    const { engine, storyId, head, play, view, mac, models } = playable(story, { director: [{ answer: JSON.stringify(week) }] });
+    await play("I say goodnight to Hermione and go up.");
+    engine.endScene(storyId, head(), "end");
+    await engine.woven(storyId);
+    // To Thursday's Scene: five days and a bit, the Stretch's last Scene that matters not yet reached.
+    engine.choose(storyId, { after: head(), kind: "go", happening: view().day_view!.happenings[0]!.id, gap: null }, "go");
+    await engine.settled(storyId);
+    const prompt = models.weaver.requests.at(-1)!.prompt;
+    expect(prompt).toContain("Five days pass.");
+    expect(prompt).toContain("Let ordinary days pass without listing them: no meal, lesson or night's sleep that changed nothing.");
+    expect(prompt).toContain("- Draconia Malfoy: Has his name taken off the Charms seating plan.");
+    expect((mac.tree.recordsOn(head(), "world_moved").at(-1)!.payload as WorldMoved).from).toBe("Day 4 07:30");
+  });
+});

@@ -351,6 +351,8 @@ function sceneThatEnded(entries: Entry[], pc: string): string {
   return passages.slice(-WEAVER_EXCHANGES * 2).join("\n\n");
 }
 
+const DAYS_SAID = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"];
+
 /** Whether the span reaches the time the Leads' off-screen moves must be made by. */
 function movesDueBy(ask: WeaveAsk): boolean {
   const by = ask.stretch?.movesBy ? parseStoryTime(ask.stretch.movesBy) : null;
@@ -368,6 +370,9 @@ export function weaverPrompt(ask: WeaveAsk): { system: string; prompt: string; f
     const at = parseStoryTime(item.at);
     return at && from && minutesOf(from) - minutesOf(at) <= LATELY_MINUTES;
   });
+  const spanStart = parseStoryTime(ask.from);
+  const spanEnd = parseStoryTime(ask.until);
+  const days = spanStart && spanEnd ? Math.floor((minutesOf(spanEnd) - minutesOf(spanStart)) / (24 * 60)) : 0;
   const nextScene = !ask.gap && ask.stretch?.next && !(ask.stillOn ?? []).some(item => item.scene === ask.stretch?.next?.id) ? ask.stretch.next : null;
   const life = (item: Life) => `- ${item.who}: ${item.where ?? "where not yet said"}; ${item.doing ?? "doing what they do"}; after: ${item.after || "nothing said"}`;
   const landmarks = landmarksIn(ask);
@@ -380,7 +385,8 @@ export function weaverPrompt(ask: WeaveAsk): { system: string; prompt: string; f
   const prompt = [
     section(`span from="${say(state, ask.from)}" until="${say(state, ask.until)}"`, [
       `The World last stood at ${say(state, ask.from)}. Move it on to ${say(state, ask.until)}, when ${pc} is next free to choose what to do.`,
-      night
+      night,
+      days >= 2 ? `${DAYS_SAID[days] ?? `${days}`} days pass. Let ordinary days pass without listing them: no meal, lesson or night's sleep that changed nothing. Write what reached him or will, the Threads and Landmarks, and the Leads' moves.` : ""
     ].filter(Boolean).join("\n")),
     section("lives", world.lives.map(life).join("\n")),
     section("threads", world.threads.map(thread => `- ${thread.name}: ${thread.now}`).join("\n")),

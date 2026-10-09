@@ -56,9 +56,9 @@ Scenarios this change builds:
   away`, through choosing it, the Gap and Meanwhile.
 - [x] 2.3 Off-screen Lead moves in the span. Test first: `long-run › Leads act every Stretch › A move made off-screen
   reaches him`, and `day-view › A Lead away still acts › Away, but not idle`.
-- [ ] 2.4 Spans. Test first: `living-world › … › Five days, told in a few lines` and `› Twenty minutes with nothing
+- [x] 2.4 Spans. Test first: `living-world › … › Five days, told in a few lines` and `› Twenty minutes with nothing
   on` (an empty span moves nothing, and the Day View reuses what is still ahead).
-- [ ] 2.5 Rest. Test first: `long-run › Rest is deliberate › A quiet pick after a peak`, with a rest Stretch planned
+- [x] 2.5 Rest. Test first: `long-run › Rest is deliberate › A quiet pick after a peak`, with a rest Stretch planned
   after a peak.
 - [ ] 2.6 Retire "Lead absence is felt, not counted": delete its test, and the leadless counting in `weaving.ts` and
   `WEAVER.md`.

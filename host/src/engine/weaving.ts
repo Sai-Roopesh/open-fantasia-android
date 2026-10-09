@@ -91,6 +91,25 @@ function stretchAfter(mac: Mac, head: string, until: string): Pick<WeaveAsk, "st
   return { stretch: { next: next ?? null, moves, movesBy: plan.entry.payload.scenes.at(-1)?.at ?? null } };
 }
 
+/**
+ * Whether a Scene's end moves nothing (story-in-stretches design decision 4): under an hour since the World last stood,
+ * with nothing on in it, no Landmark, no Lead's move due, no peak to rest after, and no new Scene that matters to
+ * offer. The Day View then keeps what is still ahead.
+ */
+export function emptySpan(ask: WeaveAsk): boolean {
+  const from = parseStoryTime(ask.from);
+  const until = parseStoryTime(ask.until);
+  if (!from || !until || minutesOf(until) - minutesOf(from) >= QUIET_GAP_MINUTES || ask.afterPeak) return false;
+  const within = (at: string) => { const time = parseStoryTime(at); return time !== null && minutesOf(time) > minutesOf(from) && minutesOf(time) <= minutesOf(until); };
+  if ((ask.stillOn ?? []).some(item => within(item.at))) return false;
+  if (ask.state.landmarks.some(landmark => within(landmark.at))) return false;
+  const stretch = ask.stretch;
+  const by = stretch?.movesBy ? parseStoryTime(stretch.movesBy) : null;
+  if ((stretch?.moves?.length ?? 0) > 0 && by !== null && minutesOf(until) >= minutesOf(by)) return false;
+  if (stretch?.next && !(ask.stillOn ?? []).some(item => item.scene === stretch.next?.id)) return false;
+  return true;
+}
+
 /** A Gap shorter than this with nothing on in it passes without the Weaver: nothing in it will reach anyone. */
 const QUIET_GAP_MINUTES = 60;
 

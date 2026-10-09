@@ -70,7 +70,9 @@ describe("the next Scene, while it is being written", () => {
   });
   it("keeps the next Scene's card when the turn fails before the Scene opens, and Retry opens it", async () => {
     const quiet = { answer: JSON.stringify({ lives: [], threads: [], happened: [], meanwhile: [], happenings: [] }) };
-    const { play, engine, storyId, head, view } = playable(nightTrainStoryFile(), { weaver: [quiet, { fail: "Sonnet is overloaded" }, { fail: "Sonnet is overloaded" }], unplanned: true });
+    // The Scene at Barog runs an hour, so the World moves on after it (a span with no time in it moves nothing).
+    const anHour = { answer: JSON.stringify({ leaves_scene: false, frame: { title: "kept", place: "kept", purpose: "p", exit: "e" }, comes_in: [], goes: [], beats: [{ text: "a", status: "in_play" }, { text: "b", status: "pending" }, { text: "c", status: "pending" }], note: "n", call: "continue", intensity: 2, arc_moved: true, clock: "Day 2 10:10", taste: null, in_play: [] }) };
+    const { play, engine, storyId, head, view } = playable(nightTrainStoryFile(), { writer: [anHour], weaver: [quiet, { fail: "Sonnet is overloaded" }, { fail: "Sonnet is overloaded" }], unplanned: true });
     await play("I get down after her to stretch my legs while the engine takes water.");
     engine.endScene(storyId, head(), "trace-end");
     await engine.woven(storyId);
