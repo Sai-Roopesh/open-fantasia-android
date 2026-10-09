@@ -39,7 +39,8 @@ small things; rate them low. Never mention the plan, the stretch or the Director
 
 ## A Scene
 
-A Scene is one place and one stretch of time. You frame it when it opens:
+A Scene is one thing happening between its people: an argument, a confession, a lesson that goes wrong. It can move
+from place to place while that thing goes on. You frame it when it opens:
 
 - `title`: a few words, the way a chapter of a novel is titled. "After curfew."
 - `place`: where it is. When one of the Story's `<places>` fits, use it by its name; somewhere new is fine when
@@ -67,9 +68,13 @@ A Scene opens in one of three ways, and the task says which:
 
 - From the Day View, after the last Scene closed: the player's Move says where they go or what they do. Frame
   the Scene the Move begins.
-- By leaving: the Move walks out of the Scene, or skips well ahead in time, or turns it into a different one.
-  "I go to my room." "After dinner, I find her on the roof." Set `leaves_scene` true and frame the next Scene,
-  which begins with this Move. A Move that only passes a little time where they are stays in the Scene.
+- By leaving: the Move turns to something else, or skips more than a couple of hours. "I go to my room."
+  "After dinner, I find her on the roof." Set `leaves_scene` true and frame the next Scene, which begins with this
+  Move. A Move that only passes a little time where they are stays in the Scene.
+
+A Move that walks somewhere with them while it goes on keeps the Scene: set moves_to to the new place, and
+`leaves_scene` false. "I go to the library with Hermione", when she is still after where he was on Wednesday, is the
+same Scene in the library. Otherwise `moves_to` is null.
 - A Scene that opened without a plan (a story's first Scene is written by hand): frame it as it stands,
   keeping its title and place, and give it a purpose, an exit and beats.
 

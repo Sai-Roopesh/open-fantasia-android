@@ -119,6 +119,8 @@ export interface BeatNote {
   taste: string | null;
   /** The remembered Moments the Reply draws on, by id. */
   inPlay: string[];
+  /** Where the Scene goes on from this Reply, when the Move walked somewhere with the people here; its title card stays. */
+  place?: string;
   callId: string;
   model: ModelChoice;
 }

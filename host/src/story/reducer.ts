@@ -123,6 +123,7 @@ function followScene(scene: CurrentScene, note: BeatNote): CurrentScene {
   const sameBeat = inPlay >= 0 && scene.beats.length > 0 && inPlay === inPlayIndex(scene.beats);
   return {
     ...scene,
+    place: note.place ?? scene.place,
     purpose: note.plan?.purpose ?? scene.purpose,
     exit: note.plan?.exit ?? scene.exit,
     here: note.here,

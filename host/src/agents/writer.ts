@@ -79,7 +79,8 @@ export const WRITER_SCHEMA = {
     arc_moved: { type: "boolean" },
     clock: { type: "string", description: "The story time the Reply begins, \"Day N HH:MM\"." },
     taste: { type: ["string", "null"] },
-    in_play: { type: "array", items: { type: "string" }, description: "Up to two remembered Moments the Reply should draw on, by their ids (M1 …); usually none." }
+    in_play: { type: "array", items: { type: "string" }, description: "Up to two remembered Moments the Reply should draw on, by their ids (M1 …); usually none." },
+    moves_to: { type: ["string", "null"], description: "When the Move walks somewhere with the people here while the same thing goes on, the new place; the Scene goes on there. Otherwise null." }
   }
 } as const;
 
@@ -96,6 +97,7 @@ interface RawAnswer {
   clock: string;
   taste: string | null;
   in_play: string[];
+  moves_to?: string | null;
 }
 
 const ajv = new Ajv2020({ strict: false, allErrors: true });
@@ -146,6 +148,8 @@ export interface WriterPlan {
   taste: string | null;
   /** The ids of the remembered Moments the Reply draws on. */
   inPlay: string[];
+  /** Where the Scene goes on, when the Move walks somewhere with the people here (story-in-stretches design decision 5). */
+  movesTo: string | null;
 }
 
 export type Checked = { ok: true; plan: WriterPlan } | { ok: false; problems: string[] };
@@ -282,8 +286,11 @@ export function checkWriterAnswer(ask: WriterAsk, raw: unknown): Checked {
     return [moment.id];
   });
 
+  // A Scene is one thing happening between its people: walking somewhere together keeps it, with the place changing.
+  const movesTo = raw.moves_to?.trim() || null;
+  if (movesTo && opensScene) problems.push("moves_to: this Move opens a new Scene; give moves_to only when the same Scene goes on somewhere else, and null here");
   if (problems.length) return { ok: false, problems };
-  return { ok: true, plan: { opens, plans, here, goes, beats, note, call: raw.call, intensity: raw.intensity, arcMoved: raw.arc_moved, clock, taste, inPlay: memoriesInPlay } };
+  return { ok: true, plan: { opens, plans, here, goes, beats, note, call: raw.call, intensity: raw.intensity, arcMoved: raw.arc_moved, clock, taste, inPlay: memoriesInPlay, movesTo: movesTo && movesTo !== scene?.place ? movesTo : null } };
 }
 
 function section(tag: string, body: string): string | null {

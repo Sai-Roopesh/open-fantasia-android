@@ -61,6 +61,23 @@ describe("a turn with the Writer", () => {
     expect(events.map(event => event.event.kind).filter(kind => kind !== "reply_delta" && kind !== "world_moved")).toEqual(["move", "scene_opened", "reply_started", "reply"]);
   });
 
+  // GIVEN a Scene in the Great Hall in which Hermione wants to know where he went on Wednesday
+  // WHEN the Move is "I go to the library with Hermione"
+  // THEN the same Scene goes on in the library, the place shown changes, and no new title card opens
+  it("scenes › A Scene ends in one of three ways › Walking somewhere together keeps the Scene", async () => {
+    const hall = { title: "Wednesday", place: "The Great Hall", purpose: "Hermione decides whether to believe where he says he went on Wednesday.", exit: "She lets it go, or says she knows he is lying." };
+    const { play, path, view, events, models } = playable(hogwartsStoryFile({ title: "Wednesday", place: "The Great Hall", at: "Day 3 12:30", who: ["Hermione Granger"] }), {
+      writer: [writer({ frame: hall, clock: "Day 3 12:32" }), writer({ moves_to: "The library", clock: "Day 3 12:40" })]
+    });
+    await play("I tell Hermione I was in the library on Wednesday.");
+    await play("I go to the library with Hermione.");
+    expect(path().filter(payload => payload.kind === "scene_opened")).toHaveLength(1);
+    expect(view().scene).toMatchObject({ number: 1, title: "Wednesday", place: "The library" });
+    expect(events.filter(event => event.event.kind === "scene_opened")).toHaveLength(0);
+    // The Writer was told the Scene goes on when they walk somewhere together.
+    expect(models.writer.requests[1]!.system.replace(/\s+/g, " ")).toContain("A Move that walks somewhere with them while it goes on keeps the Scene: set moves_to to the new place");
+  });
+
   // WHEN a Reply brings the Scene to its close
   // THEN the Day View opens after it
   it("scenes › A Scene ends in one of three ways › The Story closes a Scene", async () => {
