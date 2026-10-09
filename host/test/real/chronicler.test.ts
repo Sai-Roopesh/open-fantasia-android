@@ -132,6 +132,38 @@ describe.skipIf(!token)("the Chronicler on Claude", () => {
     }
   });
 
+  // Lasting-records task 2.4: after a Scene that changes where things stand with Draconia, the real Chronicler writes a
+  // turn and a standing within their limits, and keeps what he knows of her within sixty words, saying no secret feeling.
+  it("keeps Draconia's Bond and what he knows of her within their limits after the classroom", async () => {
+    const floating: [string, string][] = [
+      ["When her levitation charm goes wrong and everything in the room lifts, I catch her before she hits the ceiling.",
+        "Draconia lands against your chest with the desks drifting around you both. For a long second she does not move. Then her chin comes up. \"Put me down, Stray. Now.\""],
+      ["I put her down, carefully, and step back.",
+        "She smooths her robes, gathers her notes from the air one by one, and leaves without a word of thanks. At the door she stops. \"Nobody hears of this.\""]
+    ];
+    const known = "Slytherin, and a Malfoy: sharp-tongued, proud, the best in their year at Charms and furious about anyone who comes close. She called him the word on the train and slapped him at the feast. She bills him for the slap, calls him Stray, and keeps her distance on her own terms.";
+    const bond = "She called him the word on the train; he saved her twenty minutes later. She owes him, hates owing him, bills him for the slap, and calls him Stray.";
+    for (let run = 0; run < RUNS; run++) {
+      const classroom = hogwartsStoryFile({ title: "Twenty-nine minutes", place: "An empty classroom", at: "Day 9 16:00", who: ["Draconia Malfoy"], prose: "Draconia sets out her notes and does not look up when he comes in." });
+      classroom.people = classroom.people.map(person => person.name === "Draconia Malfoy" ? { ...person, known, bond } : person) as StoryFile["people"];
+      const { mac, runner, models, storyId, head, played } = onClaude(classroom);
+      played(floating);
+      new Engine(mac, models).endScene(storyId, head(), "real-end");
+      const record = await writeChronicle(models, DEFAULT_JOB_MODELS.chronicler, chronicleAsk(mac, dueChronicle(mac, head())!), storyId, "real-bond", new AbortController().signal);
+      runner.close();
+      const said = `run ${run + 1}: ${JSON.stringify({ bonds: record.value.bonds, known: record.value.known, dropped: record.dropped })}`;
+      const row = record.value.bonds.find(item => item.who === "Draconia Malfoy");
+      expect(row, said).toBeDefined();
+      const words = (text: string) => text.trim().split(/\s+/).length;
+      expect(words(row!.standing), said).toBeLessThanOrEqual(40);
+      expect(words(row!.turn), said).toBeLessThanOrEqual(25);
+      for (const line of record.value.known) expect(words(line.now), said).toBeLessThanOrEqual(60);
+      expect(record.dropped.filter(why => /^(bonds|known):/.test(why)), said).toEqual([]);
+      const secret = await judge("The passage says where things stand between Roopesh and Draconia, as he has seen it. Does it state a feeling of hers as a fact (that she likes, loves, wants or is falling for him) rather than what she said or did? Answer YES or NO.", `${row!.standing}\n${row!.turn}`);
+      expect(secret.yes, `${said}\n${secret.said}`).toBe(false);
+    }
+  });
+
   // GIVEN the Moment at the Hogsmeade station where the Player Character saved Draconia
   // WHEN a later Scene brings up the life debt with Draconia
   // THEN her Replies draw on what was actually said and done at the station

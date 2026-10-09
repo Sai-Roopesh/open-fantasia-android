@@ -6,6 +6,7 @@ import type { Script } from "../../src/models/scripted.js";
 import type { StoryFile } from "../../src/protocol/generated/story-file.js";
 import { NIGHT_TRAIN } from "../support/stories.js";
 import { playable } from "../support/play.js";
+import { hogwartsWorldStoryFile } from "../support/story-files.js";
 
 const beats = [{ text: "a", status: "in_play" }, { text: "b", status: "pending" }, { text: "c", status: "pending" }];
 
@@ -61,5 +62,71 @@ describe("who is in a Scene", () => {
     expect(state().scene).toMatchObject({ here: [], focus: null });
     await play("I watch the jeep until the cloud takes it.");
     expect(lastActorSystem(models)).not.toContain('<person name="Meera Kulkarni">');
+  });
+});
+
+/** Draconia walking back up the lane, with only Pansy named in the Scene, and Lucius in the Story but far away. */
+function theLane(scripts: { writer: Script[]; actor: Script[]; chronicler?: Script[] }) {
+  const story = hogwartsWorldStoryFile({ title: "The lane", place: "The lane up from Hogsmeade", at: "Day 3 17:00", who: ["Draconia Malfoy", "Pansy Parkinson"], prose: "Draconia turns back up the lane without waiting for anyone." });
+  story.people = [...story.people,
+    { name: "Pansy Parkinson", who_they_are: "Draconia's friend, Slytherin, quick to laugh at anyone else." },
+    { name: "Lucius Malfoy", who_they_are: "Draconia's father, on the Hogwarts board of governors." }] as StoryFile["people"];
+  return playable(story, scripts);
+}
+
+const SHADOWED = "Draconia walks fast, Pansy at her elbow. Crabbe and Goyle keep a step behind her the whole way, cracking their knuckles.";
+const shadowedMoment = (there: string[]) => ({ answer: JSON.stringify({
+  summary: "Draconia walked back up the lane with her friends.",
+  moments: [{ what: "Crabbe and Goyle shadow Draconia up the lane.", quotes: [{ entry: "E3", text: "Crabbe and Goyle keep a step behind her the whole way" }], there, weight: 2 }],
+  told: []
+}) });
+
+describe("presence follows the page (lasting-records design decision 5)", () => {
+  // GIVEN Draconia walks back up the lane with only Pansy named in the Scene
+  // WHEN the Reply has Crabbe and Goyle a step behind her the whole way
+  // THEN Crabbe and Goyle are in the Scene from that Reply on, and what happened on the lane is remembered by them too
+  it("scenes › People stay in a Scene until they go › Crabbe and Goyle at her heels", async () => {
+    const shadows = ["Draconia Malfoy", "Vincent Crabbe", "Gregory Goyle"];
+    const { play, engine, storyId, head, mac, models, state } = theLane({
+      writer: [writer({}, "Day 3 17:05"), writer({ comes_in: ["Vincent Crabbe", "Gregory Goyle"] }, "Day 3 17:10")],
+      actor: [{ answer: SHADOWED }],
+      chronicler: [shadowedMoment(shadows)]
+    });
+    await play("I follow Draconia back up the lane.");
+    await play("I keep pace beside her.");
+    // The Writer is told who the last Reply showed, and puts them in the Scene.
+    expect(models.writer.requests[1]!.prompt).toContain("<shown_not_here>\nVincent Crabbe, Gregory Goyle\n</shown_not_here>");
+    expect(models.writer.requests[0]!.prompt).not.toContain("<shown_not_here>");
+    expect(state().scene?.here).toEqual(expect.arrayContaining(["Vincent Crabbe", "Gregory Goyle"]));
+    engine.endScene(storyId, head(), "t-end");
+    await engine.chronicled(storyId);
+    const [record] = mac.tree.recordsOn(head(), "chronicle").map(entry => entry.payload as { moments: { there: string[] }[]; dropped?: string[] });
+    expect(record!.moments[0]!.there).toEqual(shadows);
+    expect(record!.dropped).toEqual([]);
+  });
+
+  it("lets the Chronicler remember someone the page shows, though the Writer never named them", async () => {
+    const shadows = ["Draconia Malfoy", "Vincent Crabbe", "Gregory Goyle"];
+    const { play, engine, storyId, head, mac } = theLane({ writer: [writer({}, "Day 3 17:05")], actor: [{ answer: SHADOWED }], chronicler: [shadowedMoment(shadows)] });
+    await play("I follow Draconia back up the lane.");
+    engine.endScene(storyId, head(), "t-end");
+    await engine.chronicled(storyId);
+    const [record] = mac.tree.recordsOn(head(), "chronicle").map(entry => entry.payload as { moments: { there: string[] }[]; dropped?: string[] });
+    expect(record!.moments[0]!.there).toEqual(shadows);
+    expect(record!.dropped).toEqual([]);
+  });
+
+  // WHEN Draconia says "Father will hear of this" in a Reply
+  // THEN Lucius Malfoy is not in the Scene
+  it("scenes › People stay in a Scene until they go › A name mentioned is not a person present", async () => {
+    const { play, models, state } = theLane({
+      writer: [writer({}, "Day 3 17:05"), writer({}, "Day 3 17:10")],
+      actor: [{ answer: "\"Father will hear of this,\" Draconia says, not looking back. \"Lucius Malfoy does not forgive.\"" }]
+    });
+    await play("I tell her she can hate me later.");
+    await play("I keep pace beside her.");
+    // Named, so offered; the Writer, reading that she only mentions him, leaves him out.
+    expect(models.writer.requests[1]!.prompt).toContain("<shown_not_here>\nLucius Malfoy\n</shown_not_here>");
+    expect(state().scene?.here).not.toContain("Lucius Malfoy");
   });
 });

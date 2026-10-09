@@ -53,18 +53,18 @@ Scenarios this change builds:
   - a scripted chronicle adds a turn and updates the standing; another Path is unchanged.
 - [x] 2.3 Test first, then build: `› A Bond read in a later Scene`: the Writer's and the Actor's next calls in a
   Scene with Draconia carry her standing and latest three turns; the Director's carries every Lead's Bond.
-- [ ] 2.4 A live check: after a played Scene in which Draconia's standing with him changes, the real Chronicler
+- [x] 2.4 A live check: after a played Scene in which Draconia's standing with him changes, the real Chronicler
   writes a turn and a standing within the limits, and the line for what he knows stays within 60 words. Run with
   `npm run test:real`.
 
 ## 3. Presence follows the page
 
-- [ ] 3.1 Test first, then build: `scenes › People stay in a Scene until they go › Crabbe and Goyle at her heels`:
+- [x] 3.1 Test first, then build: `scenes › People stay in a Scene until they go › Crabbe and Goyle at her heels`:
   - `<shown_not_here>` in the Writer's task, and its rule in `WRITER.md`;
   - the Chronicler accepts names on the Scene's page;
   - a scripted Reply naming Crabbe and Goyle, and a Writer that then lists them, leave them in `here`, and a
     Moment naming them is kept.
-- [ ] 3.2 Test first, then build: `› A name mentioned is not a person present`: Lucius named in a Reply is offered
+- [x] 3.2 Test first, then build: `› A name mentioned is not a person present`: Lucius named in a Reply is offered
   in `<shown_not_here>`, but is not in the Scene unless the Writer names him.
 
 ## 4. The link and the phone

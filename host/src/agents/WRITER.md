@@ -116,6 +116,10 @@ your plan does. Most Replies name nobody in either. A new Scene starts with nobo
 so when you frame one, `comes_in` is everyone there. Someone the story does not name stays unnamed in the note:
 "a vendor", "the guard".
 
+The page settles who is here. The task's `shown_not_here` lists the people of the story the last Reply named who are
+not here. Put in `comes_in` anyone that Reply shows in the Scene, come in or there all along ("Crabbe and Goyle a
+step behind her"). Leave out anyone it only mentions: "Father will hear of this" does not bring her father.
+
 ## Who knows what
 
 You see the whole story; the people in it do not. Each person knows their own past, what they lived through in this

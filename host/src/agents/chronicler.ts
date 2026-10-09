@@ -103,6 +103,8 @@ export interface ChronicleAsk {
   sceneEnded: boolean;
   /** Everyone who was in the Scene at some point, besides the Player Character. */
   inScene: string[];
+  /** Anyone else of the Story the Scene's own entries name: the page may show them there (lasting-records decision 5). */
+  namedOnPage?: string[];
   known: KnownMoment[];
   /** What the Player Character knew of each person in the Scene before it, or null for nothing yet. */
   knownBefore?: Record<string, string | null>;
@@ -197,7 +199,7 @@ export function checkChronicle(ask: ChronicleAsk, raw: unknown): Checked<Chronic
     const known = storyName(index, name);
     if (!known) return drop(`${where}: ${name.trim() || "a blank name"} is not in the story; use a name from the people`);
     if (known === pc) return drop(`${where}: ${pc} is the player's character, who is always there; leave them out`);
-    if (!ask.inScene.includes(known)) return drop(`${where}: ${known} was not in this Scene`);
+    if (!ask.inScene.includes(known) && !(ask.namedOnPage ?? []).includes(known)) return drop(`${where}: ${known} was not in this Scene`);
     return known;
   };
   const newEntry = (where: string, label: string): Labelled | null => {
@@ -321,6 +323,7 @@ export function chroniclerPrompt(ask: ChronicleAsk): { system: string; prompt: s
   const prompt = [
     section(`scene title="${ask.scene.title}" place="${ask.scene.place}" when="${when}"`, entries.join("\n\n")),
     section("people_in_the_scene", ask.inScene.join(", ") || "Nobody besides " + pc),
+    section("also_named", (ask.namedOnPage ?? []).filter(name => !ask.inScene.includes(name)).join(", ")),
     section("known_moments", known.join("\n\n")),
     section("what_he_knows", whatHeKnows.join("\n")),
     section("between_you", betweenYou.join("\n")),

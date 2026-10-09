@@ -34,3 +34,17 @@ export function names(text: string, person: Person): boolean {
   const words = [person.name, ...person.aliases, ...person.name.split(/\s+/).filter(word => word.length >= 3)];
   return words.some(word => new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(text));
 }
+
+/**
+ * The Story's names for everyone [text] names, by any name the index gives them (lasting-records design decision 5): a
+ * shorter name two people share ("Malfoy") names neither, and "Father" names nobody.
+ */
+export function namedIn(text: string, index: Map<string, string>): string[] {
+  // Each person once, in the order the text first names them.
+  const first = new Map<string, number>();
+  for (const [alias, name] of index) {
+    const at = text.search(new RegExp(`\\b${alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i"));
+    if (at >= 0 && at < (first.get(name) ?? Infinity)) first.set(name, at);
+  }
+  return [...first].sort((left, right) => left[1] - right[1]).map(([name]) => name);
+}

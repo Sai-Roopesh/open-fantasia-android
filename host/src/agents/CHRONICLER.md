@@ -21,7 +21,8 @@ For each Moment:
 - `what`: one line saying what the Moment was, for whoever reads the record later: "Meera gives Ishaan the last of
   her biscuits for the tea."
 - `there`: who was there besides the player's character, by their names in the story. The player's character is in
-  every Scene you read.
+  every Scene you read. Someone under `also_named` counts only when the entries show them there, not when they are
+  only mentioned.
 - `weight`: how much it mattered. 1, in passing; 2, noticed; 3, something between people shifted; 4, a turn; 5,
   never to be forgotten. Most Moments are a 2 or a 3. A Scene with three 5s has none.
 

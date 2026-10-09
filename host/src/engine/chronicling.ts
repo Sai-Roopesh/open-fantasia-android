@@ -1,8 +1,10 @@
 import { bondsOn } from "../story/bonds.js";
 import { knownOn } from "../story/known.js";
 import type { ChronicleAsk } from "../agents/chronicler.js";
+import { nameIndex, namedIn } from "../agents/names.js";
 import type { Mac } from "../mac.js";
 import type { Entry, RecordGap, SceneOpened } from "../story/entries.js";
+import type { State } from "../story/state.js";
 import { momentsOn } from "../story/memory.js";
 import { sceneSpans } from "../story/spans.js";
 
@@ -92,6 +94,16 @@ function countEnded(path: Entry[]): number {
   return spans.filter((span, scene) => scene < spans.length - 1 || path.slice(span.start, span.end).some(entry => entry.payload.kind === "scene_closed")).length;
 }
 
+/** Everyone of the Story the Scene's own entries name, besides the Player Character: who the page may show there. */
+function namedOnPage(state: State, entries: Entry[]): string[] {
+  const index = nameIndex(Object.values(state.people));
+  const page = entries.flatMap(entry => {
+    const payload = entry.payload;
+    return payload.kind === "reply" || payload.kind === "move" ? [payload.text] : payload.kind === "scene_opened" && payload.prose ? [payload.prose] : [];
+  });
+  return [...new Set(page.flatMap(text => namedIn(text, index)))].filter(name => name !== state.playerCharacter);
+}
+
 /** What the Chronicler reads for a due Chronicle: the Scene, who was in it, and the Moments someone there knows. */
 export function chronicleAsk(mac: Mac, due: DueChronicle): ChronicleAsk {
   const state = mac.states.at(due.through.id);
@@ -115,6 +127,7 @@ export function chronicleAsk(mac: Mac, due: DueChronicle): ChronicleAsk {
     inScene,
     known,
     knownBefore: Object.fromEntries(inScene.map(name => [name, knownNow.get(name)?.text ?? null])),
-    bondsBefore: Object.fromEntries(inScene.map(name => [name, bondsNow.get(name)?.standing ?? null]))
+    bondsBefore: Object.fromEntries(inScene.map(name => [name, bondsNow.get(name)?.standing ?? null])),
+    namedOnPage: namedOnPage(state, due.entries).filter(name => !inScene.includes(name))
   };
 }

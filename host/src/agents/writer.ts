@@ -8,7 +8,7 @@ import type { Entry } from "../story/entries.js";
 import type { Beat, ModelChoice, PendingDirection, SceneCall, State } from "../story/state.js";
 import { minutesOf, parseStoryTime, sayStoryTime } from "../time.js";
 import { decidesForPlayer, playerNames } from "./deciding.js";
-import { nameIndex, names } from "./names.js";
+import { nameIndex, namedIn, names } from "./names.js";
 import { sayBetween, sayWords, type Recall } from "./recall.js";
 
 /**
@@ -375,6 +375,18 @@ function worldPrompt(state: State, world: World): string {
 }
 
 /** What the Writer is sent: the Story in its system prompt, the moment in its task, and the facts both came from. */
+/**
+ * The people of the Story the last Reply names who are not in the Scene (lasting-records design decision 5): a hint for
+ * the Writer, who reads the page and brings in those it shows there, never those it only mentions.
+ */
+function shownNotHere(ask: WriterAsk): string[] {
+  const { state } = ask;
+  const reply = ask.scene.findLast(entry => entry.payload.kind === "reply")?.payload;
+  if (reply?.kind !== "reply" || !state.scene) return [];
+  const here = state.scene.here;
+  return namedIn(reply.text, nameIndex(Object.values(state.people))).filter(name => name !== state.playerCharacter && !here.includes(name));
+}
+
 export function writerPrompt(ask: WriterAsk): { system: string; prompt: string; facts: Record<string, unknown> } {
   const { state, move, direction } = ask;
   const pc = state.playerCharacter;
@@ -419,6 +431,7 @@ export function writerPrompt(ask: WriterAsk): { system: string; prompt: string; 
     section("between_you", sayBetween([...ask.recall.between, ...ask.recall.leads.filter(lead => !ask.recall.between.some(bond => bond.who === lead.who))])),
     section("world", worldPrompt(state, ask.world)),
     section(opening === "day_view" ? "last_scene_so_far" : "scene_so_far", sceneSoFar(ask.scene, pc)),
+    opening === "day_view" ? null : section("shown_not_here", shownNotHere(ask).join(", ")),
     section(`move by="${pc}"`, move),
     direction?.text ? section("direction", direction.text) : null,
     ask.plan ? section("long_run", longRun(ask.plan.plan, ask.plan.scenesLeft)) : null,
