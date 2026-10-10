@@ -69,6 +69,6 @@ Scenarios this change builds:
   invented. Run with `npm run test:real`.
 - [x] 4.2 Run `scripts/scenarios.mjs --strict`, the host suite and lint, the Android JVM and device suites, and
   `openspec validate --all --strict`, and verify all pass.
-- [ ] 4.3 With the player's agreement, import The Malfoy Problem again on the Mac. Play on a test copy over adb until
+- [x] 4.3 With the player's agreement, import The Malfoy Problem again on the Mac. Play on a test copy over adb until
   an arrangement is made on the page. Check the next Day View offers it, and that skipping past it has it noticed
   when he was expected. Send the screenshots, then remove the test copy.
