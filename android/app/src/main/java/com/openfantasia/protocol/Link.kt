@@ -481,6 +481,12 @@ data class Happening (
     val daysAway: Long,
 
     /**
+     * For a weekly Engagement, the day it repeats ("Wednesday"), and time is then the hour
+     * alone: shown "Every Wednesday · 7:30 pm". Null otherwise.
+     */
+    val every: String? = null,
+
+    /**
      * The Player Character is expected there: shown "You're expected".
      */
     val expected: Boolean,
@@ -723,11 +729,12 @@ data class TurnAccepted (
  * One event on a Story's live stream. Entry events (scene_opened, move, reply,
  * scene_closed, focus_set, linger_set, redo) are replayed after a reconnect; reply_started,
  * reply_delta and reply_failed describe the turn under way; world_moved and world_failed
- * say the World has moved on, or could not, after a Scene ended. path_changed says the
- * Story is now on another Path, or its Path was moved back, or a Move or Reply on it was
- * edited. After scene_opened, scene_closed, redo, world_moved, world_failed and
- * path_changed, and after a move that opens the next Scene, the phone reads the Scene
- * again, because they change more than one part of it.
+ * say the World has moved on, or could not, after a Scene ended. record_written says a
+ * record of what happened was written after the Day View was ready, and may put more on it.
+ * path_changed says the Story is now on another Path, or its Path was moved back, or a Move
+ * or Reply on it was edited. After scene_opened, scene_closed, redo, world_moved,
+ * world_failed, record_written and path_changed, and after a move that opens the next
+ * Scene, the phone reads the Scene again, because they change more than one part of it.
  */
 @Serializable
 data class StoryEvent (
@@ -783,6 +790,7 @@ enum class StoryEventKind(val value: String) {
     @SerialName("linger_set") LingerSet("linger_set"),
     @SerialName("move") Move("move"),
     @SerialName("path_changed") PathChanged("path_changed"),
+    @SerialName("record_written") RecordWritten("record_written"),
     @SerialName("redo") Redo("redo"),
     @SerialName("reply") Reply("reply"),
     @SerialName("reply_delta") ReplyDelta("reply_delta"),

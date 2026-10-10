@@ -401,6 +401,10 @@ export interface Happening {
    * The Stretch's Scene that matters it is, when it is one; null otherwise.
    */
   scene: string | null;
+  /**
+   * For a weekly Engagement, the day it repeats ("Wednesday"), and time is then the hour alone: shown "Every Wednesday · 7:30 pm". Null otherwise.
+   */
+  every: string | null;
 }
 /**
  * What the Day View's other choices offer: people to follow, places to go, and times to skip to.
@@ -492,7 +496,7 @@ export interface TurnAccepted {
   trace_id: string;
 }
 /**
- * One event on a Story's live stream. Entry events (scene_opened, move, reply, scene_closed, focus_set, linger_set, redo) are replayed after a reconnect; reply_started, reply_delta and reply_failed describe the turn under way; world_moved and world_failed say the World has moved on, or could not, after a Scene ended. path_changed says the Story is now on another Path, or its Path was moved back, or a Move or Reply on it was edited. After scene_opened, scene_closed, redo, world_moved, world_failed and path_changed, and after a move that opens the next Scene, the phone reads the Scene again, because they change more than one part of it.
+ * One event on a Story's live stream. Entry events (scene_opened, move, reply, scene_closed, focus_set, linger_set, redo) are replayed after a reconnect; reply_started, reply_delta and reply_failed describe the turn under way; world_moved and world_failed say the World has moved on, or could not, after a Scene ended. record_written says a record of what happened was written after the Day View was ready, and may put more on it. path_changed says the Story is now on another Path, or its Path was moved back, or a Move or Reply on it was edited. After scene_opened, scene_closed, redo, world_moved, world_failed, record_written and path_changed, and after a move that opens the next Scene, the phone reads the Scene again, because they change more than one part of it.
  *
  * This interface was referenced by `Link`'s JSON-Schema
  * via the `definition` "StoryEvent".
@@ -511,7 +515,8 @@ export interface StoryEvent {
     | "reply_failed"
     | "world_moved"
     | "world_failed"
-    | "path_changed";
+    | "path_changed"
+    | "record_written";
   /**
    * The newest entry this event follows.
    */

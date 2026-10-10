@@ -53,9 +53,9 @@ Scenarios this change builds:
 
 ## 3. The link and the phone
 
-- [ ] 3.1 Contract 19: `record_written` and `Happening.every`. Regenerate; verify both sides compile; link tests for
+- [x] 3.1 Contract 19: `record_written` and `Happening.every`. Regenerate; verify both sides compile; link tests for
   the event and the field.
-- [ ] 3.2 `record_written` from the engine when a record adds or changes an Engagement on the Path the phone shows.
+- [x] 3.2 `record_written` from the engine when a record adds or changes an Engagement on the Path the phone shows.
   Test first: `presence › Between Scenes is quiet, and shows progress › An Engagement fills in`, on the host (the
   event after a late Chronicle, and the Day View read again shows the session).
 - [ ] 3.3 The phone: read the Scene again on `record_written`, and the weekly card built to the approved drawing.

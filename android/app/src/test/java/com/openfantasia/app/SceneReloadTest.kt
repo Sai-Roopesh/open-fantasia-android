@@ -80,6 +80,24 @@ class SceneReloadTest {
         }
     }
 
+    // openspec presence › Between Scenes is quiet, and shows progress › An Engagement fills in
+    @Test fun `A record written late reloads the Day View with what it put on`() = runBlocking {
+        MacServer().use { mac ->
+            val initial = sceneFixture().copy(dayView = FakeFantasiaLink.dayView().copy(world = World.Ready),
+                headEntryID = "closed", seq = 6, lastEventID = "6")
+            val library = Happening(id = "e-library", at = "Day 8 19:30", time = "7:30 pm", every = "Wednesday", daysAway = 3,
+                place = "The library", what = "Draconia's hour on the Charms practical.", who = listOf("Draconia Malfoy"), expected = true, pick = false)
+            val snapshot = initial.copy(seq = 8, lastEventID = "8", dayView = initial.dayView!!.copy(happenings = initial.dayView!!.happenings + library))
+            mac.enqueue(MockResponse().setHeader("Content-Type", "text/event-stream").setBody(
+                eventData("8.record_written", StoryEvent(kind = StoryEventKind.RecordWritten, seq = 8))))
+            mac.enqueue(MockResponse().setBody(linkJson.encodeToString(snapshot)))
+            val view = withTimeout(5000) { StoryStream(loadScene = { mac.client.scene(it) }) { mac.client }.follow(initial).first() }
+            assertEquals(snapshot, view)
+            assertEquals("closed", view.headEntryID)
+            assertEquals("/stories/story/scene", mac.server.run { takeRequest(); takeRequest() }.path)
+        }
+    }
+
     @Test fun `World failed reloads the reason and trace even at the same sequence`() = runBlocking {
         MacServer().use { mac ->
             val initial = sceneFixture().copy(dayView = FakeFantasiaLink.dayView().copy(world = World.MovingOn),

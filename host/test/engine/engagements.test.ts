@@ -103,7 +103,7 @@ describe("what he has arranged is on (openspec day-view)", () => {
     await play("I say goodnight to Hermione and go up.");
     engine.endScene(storyId, head(), "end");
     await engine.woven(storyId);
-    expect(view().day_view!.happenings).toEqual([expect.objectContaining({ at: "Day 4 10:00", time: "10:00 am", place: "The library", who: ["Draconia Malfoy"], expected: true })]);
+    expect(view().day_view!.happenings).toEqual([expect.objectContaining({ at: "Day 4 10:00", time: "10:00 am", every: null, place: "The library", who: ["Draconia Malfoy"], expected: true })]);
   });
 
   // GIVEN Hermione said she would be at the library's end table if anyone wanted to do the Charms essay properly
@@ -159,7 +159,7 @@ describe("weekly, and called off (openspec day-view: What he has arranged is on)
     await engine.chronicled(storyId);
     await engine.woven(storyId);
     const library = (at: string) => view().day_view!.happenings.find(item => item.place === "The library" && item.at === at);
-    expect(library("Day 8 19:30")).toMatchObject({ time: "Wednesday 7:30 pm", days_away: 3, expected: true });
+    expect(library("Day 8 19:30")).toMatchObject({ every: "Wednesday", time: "7:30 pm", days_away: 3, expected: true });
     // A week on: the first Wednesday is behind him, and the next one is on.
     const nextWeek = view().day_view!.choices.skips.find(skip => skip.label === "Next week")!;
     engine.choose(storyId, { after: head(), kind: "skip", at: nextWeek.at, gap: "I keep my head down all week." }, "skip");
@@ -167,7 +167,7 @@ describe("weekly, and called off (openspec day-view: What he has arranged is on)
     engine.endScene(storyId, head(), "end-2");
     await engine.woven(storyId);
     expect(library("Day 8 19:30")).toBeUndefined();
-    expect(library("Day 15 19:30")).toMatchObject({ time: "Wednesday 7:30 pm", expected: true });
+    expect(library("Day 15 19:30")).toMatchObject({ every: "Wednesday", time: "7:30 pm", expected: true });
   });
 
   // GIVEN Draconia's Wednesday sessions are on
@@ -261,6 +261,36 @@ describe("the Writer is told what he has arranged (engagements design decision 7
     mac.tree.append(storyId, opening.id, { kind: "chronicle", scene: opening.id, summary: null, sceneEnded: false, moments: [], told: [], engagements: [session], callId: "c", model: { provider: "claude", model: "claude-sonnet-5-5" } });
     await play("I finish my pudding.");
     expect(models.writer.requests[0]!.prompt).toContain("<his_engagements>\n- Wednesday 7:30 pm (Day 8 19:30), every week, The library: Draconia's hour on the Charms practical. With Draconia Malfoy. He is expected.\n</his_engagements>");
+  });
+});
+
+describe("the Day View fills in (openspec presence)", () => {
+  // GIVEN the Day View is ready, and the record of the Scene that ended is still being written
+  // WHEN the record lands with Draconia's Wednesday library session
+  // THEN the session appears on the Day View the player is looking at
+  it("presence › Between Scenes is quiet, and shows progress › An Engagement fills in", async () => {
+    const story = hogwartsStoryFile({ title: "Breakfast", place: "The Great Hall", at: "Day 5 07:30", who: ["Draconia Malfoy"], prose: "Draconia sits down opposite him without asking." });
+    // The second Scene's record is long, and slow to come; the World does not wait for it, no plan being due.
+    const slow = { answer: JSON.stringify({ summary: "Draconia set Wednesdays.", told: [],
+      moments: [{ what: `She sets the price of the slap. ${"And so on. ".repeat(1500)}`, quotes: [{ entry: "E2", text: ORDER }], there: ["Draconia Malfoy"], weight: 3 }],
+      engagements: [wednesdays([{ entry: "E2", text: ORDER }, { entry: "E3", text: AGREED }])] }) };
+    const { play, engine, storyId, head, view, events } = playable(story, {
+      actor: [{ answer: "She looks at him, and waits." }, { answer: `She does not look up from her toast. ${ORDER}` }],
+      chronicler: [{ answer: JSON.stringify({ summary: "Breakfast.", moments: [], told: [] }) }, slow]
+    });
+    await play("I eat my toast.");
+    engine.endScene(storyId, head(), "end-1");
+    await engine.woven(storyId);
+    await engine.chronicled(storyId);
+    await play("At lunch I ask Draconia what the slap is going to cost me.");
+    await play(AGREED);
+    engine.endScene(storyId, head(), "end-2");
+    await engine.woven(storyId);
+    const kinds = () => events.map(event => event.event.kind);
+    expect(kinds()).not.toContain("record_written");
+    await engine.chronicled(storyId);
+    expect(kinds().lastIndexOf("record_written")).toBeGreaterThan(kinds().lastIndexOf("world_moved"));
+    expect(view().day_view!.happenings.find(item => item.place === "The library")).toMatchObject({ every: "Wednesday", expected: true });
   });
 });
 

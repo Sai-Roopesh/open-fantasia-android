@@ -1,6 +1,6 @@
 import type { DayChoices, Happening as DayHappening, Skip } from "../protocol/generated/link.js";
 import type { Mac } from "../mac.js";
-import { formatStoryTime, laterTimes, minutesOf, parseStoryTime, sayStoryTime, sayTime, type StoryTime } from "../time.js";
+import { formatStoryTime, laterTimes, minutesOf, parseStoryTime, sayDay, sayStoryTime, sayTime, type StoryTime } from "../time.js";
 import { engagementsOn } from "./engagements.js";
 import type { Happening, WorldMoved } from "./entries.js";
 import { samePlace } from "./places.js";
@@ -59,8 +59,10 @@ export function todayOn(mac: Mac, head: string, state: State): DayHappening[] {
   return on.flatMap(item => {
     const at = parseStoryTime(item.at);
     if (!at) return [];
-    const time = at.day === now.day ? sayTime(at) : at.day === now.day + 1 ? `Tomorrow ${sayTime(at)}` : sayStoryTime(at, state.dayOneWeekday);
-    return [{ id: item.id, at: item.at, time, days_away: Math.max(0, at.day - now.day), scene: item.scene ?? null, place: item.place, what: item.what, who: item.who, expected: item.expected, pick: item.pick }];
+    // A weekly Engagement says the day it repeats, and its hour (engagements design decision 6).
+    const every = item.every === "week" ? sayDay(at, state.dayOneWeekday) : null;
+    const time = every ? sayTime(at) : at.day === now.day ? sayTime(at) : at.day === now.day + 1 ? `Tomorrow ${sayTime(at)}` : sayStoryTime(at, state.dayOneWeekday);
+    return [{ id: item.id, at: item.at, time, every, days_away: Math.max(0, at.day - now.day), scene: item.scene ?? null, place: item.place, what: item.what, who: item.who, expected: item.expected, pick: item.pick }];
   });
 }
 

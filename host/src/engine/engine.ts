@@ -558,6 +558,8 @@ export class Engine {
         const { value, callId, dropped } = await writeChronicle(this.models, model, chronicleAsk(this.mac, due), storyId, traceId, new AbortController().signal);
         const record = this.mac.tree.append(storyId, due.through.id, { kind: "chronicle", scene: due.scene.id, summary: value.summary, sceneEnded: due.sceneEnded, moments: value.moments, told: value.told, known: value.known, bonds: value.bonds, engagements: value.engagements, changed: value.changed, dropped, callId, model });
         this.models.attach(callId, record.id);
+        // A record that puts something on the Day View, or takes it off, tells the phone to read it again (docs/adr/0011).
+        if (value.engagements.length || value.changed.length) this.emit(storyId, { id: `${record.seq}.record_written`, event: { kind: "record_written", seq: record.seq } });
       } catch (error) {
         // A record that could not be made is noted and holds up nothing: the next due Scene is recorded, and this one is
         // tried again once another Scene has ended, until it is given up (lasting-records design decision 4).

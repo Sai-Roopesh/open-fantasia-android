@@ -2,4 +2,4 @@
 
 package com.openfantasia.protocol
 
-const val CONTRACT_VERSION = 18
+const val CONTRACT_VERSION = 19
