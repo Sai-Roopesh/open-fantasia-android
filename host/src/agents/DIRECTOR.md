@@ -43,7 +43,8 @@ Two to five, in order, each:
 - `at`: a time within the Stretch and after now, as "Day 8 10:00". Use the story's own days: classes, meals, matches,
   the Landmarks.
 - `place`: where, as the story names places, or a new one.
-- `who`: who is there besides the player's character, by their names in the story.
+- `who`: who is there besides the player's character, by their names in `<people>`. Name no one else; leave anyone else
+  there unnamed, in `who` and in `for`: "the librarian", "a prefect".
 - `for`: the turn it is built around, said as an author to an author: "she is paired with him and has to be civil in
   front of Flitwick". Never what anyone says, and never what the player's character does: the player decides that.
 - `lead`: the Lead it is about, or null.

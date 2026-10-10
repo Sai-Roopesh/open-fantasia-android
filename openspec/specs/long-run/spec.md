@@ -41,7 +41,8 @@ The **Director** SHALL shape the Story into **Stretches** that build, peak and r
 - the step each Arc may take in it;
 - the move each **Lead** makes in it.
 
-The Director SHALL know the **Engagements** ahead of the Player Character. A Scene that matters about something he has
+The Director SHALL know the Story's people and places, and SHALL name only the Story's people in a Scene that
+matters; anyone else there is left unnamed. The Director SHALL know the **Engagements** ahead of the Player Character. A Scene that matters about something he has
 arranged SHALL be that Engagement, at its time and place, and never a second meeting beside it.
 
 The Director SHALL plan a new Stretch when the last one's days have passed or its Scenes have been played, when a
@@ -64,6 +65,11 @@ the **Weaver**, and SHALL be visible only Backstage.
 - **WHEN** the Director plans a Scene that matters about the debt with her
 - **THEN** it is the library at ten on Saturday, and the Day View offers it once, as the Story's pick
 - **AND** no second meeting with her about it is planned
+
+#### Scenario: Only the Story's people
+- **GIVEN** the Story has no librarian among its people
+- **WHEN** the Director plans a Scene that matters in the library
+- **THEN** everyone the Scene names is one of the Story's people, and the plan is not sent back for a name
 
 ### Requirement: Rest is deliberate
 

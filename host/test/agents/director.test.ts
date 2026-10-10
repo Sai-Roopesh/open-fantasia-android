@@ -205,6 +205,17 @@ describe("the Director", () => {
   });
 });
 
+describe("the Director knows the Story's people (director-knows-the-people)", () => {
+  it("is given the Story's people and places, without the Player Character, and told to leave walk-ons unnamed", () => {
+    const { system } = directorPrompt(ask({}, [{ name: "Rolanda Hooch", who_they_are: "The flying instructor." }]));
+    expect(system).toContain("<people>");
+    expect(system).toContain("- Rolanda Hooch: The flying instructor.");
+    expect(system).toContain("<places>\n- The Three Broomsticks");
+    expect(system).not.toMatch(/<people>[^]*- Roopesh Gantasala:/);
+    expect(system).toContain("Name no one else; leave anyone else");
+  });
+});
+
 describe("a headline for each Scene that matters (blank-gaps-and-headlines design decision 2)", () => {
   it("keeps a short headline, and lets one too long or none fall back to the note, without asking again", () => {
     const checked = checkPlan(ask(), plan({ scenes: [

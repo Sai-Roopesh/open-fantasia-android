@@ -311,7 +311,11 @@ function storyPrompt(state: State): string {
       state.arcs.length ? `Arcs:\n${state.arcs.map(arc => `- ${arc}`).join("\n")}` : "",
       state.landmarks.length ? `Landmarks:\n${state.landmarks.map(landmark => `- ${landmark.name}, ${say(state, landmark.at)}: ${landmark.what}`).join("\n")}` : ""
     ].filter(Boolean).join("\n")),
+    // Who and where the Story has, as the Writer is given them: the Director names no one else (director-knows-the-people).
+    section("places", state.world.places.map(place => `- ${place.name}${place.description ? `: ${place.description}` : ""}`).join("\n")),
     section(`player_character name="${state.playerCharacter}"`, state.people[state.playerCharacter]?.whoTheyAre ?? ""),
+    section("people", Object.values(state.people).filter(person => person.name !== state.playerCharacter)
+      .map(person => `- ${person.name}${person.aliases.length ? ` (also ${person.aliases.join(", ")})` : ""}: ${person.whoTheyAre}`).join("\n")),
     section("leads", state.leads.join(", "))
   ].filter(part => part !== null).join("\n\n");
 }
