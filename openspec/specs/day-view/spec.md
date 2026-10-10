@@ -114,8 +114,8 @@ the next Scene with its title card. A time to skip to that is a week or more awa
 
 Choosing something later than now SHALL ask "What did you do in the Gap?". Whatever the player writes SHALL be
 what the Player Character did and SHALL become part of the Story; left blank, they SHALL have spent it quietly
-where they were. Every Happening in the **Gap** SHALL go on without them. A choice the Mac cannot take SHALL keep
-what the player wrote in the **Gap**, with the reason.
+where they were. Every Happening in the **Gap** SHALL go on without them, and the Gap SHALL list them in time order. A
+choice the Mac cannot take SHALL keep what the player wrote in the **Gap**, with the reason.
 
 #### Scenario: Skipping a summons
 - **GIVEN** it is 7:40 am, McGonagall expects the Player Character at 9:00, and Draconia is in the hospital wing at 11:00
@@ -135,6 +135,11 @@ what the player wrote in the **Gap**, with the reason.
 - **GIVEN** the player has written "I spent the morning in the library reading about life debts" in the Gap
 - **WHEN** the Mac cannot take the choice
 - **THEN** the Gap stays open with what he wrote, and says why
+
+#### Scenario: What goes on without him, in time order
+- **GIVEN** the Story's pick is on Sunday at 2:00 pm, and he is expected in the library on Saturday at 10:00 am
+- **WHEN** the player skips to next week
+- **THEN** the Gap lists Saturday's library first, then Sunday's
 
 ### Requirement: Missing something has consequences
 

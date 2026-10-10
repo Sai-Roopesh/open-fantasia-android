@@ -25,7 +25,10 @@ const MAX_MOMENTS = 5;
 const MAX_QUOTES = 3;
 /** Asked for in thirty words; refused only when far past it, since no model counts words exactly. */
 const MAX_SUMMARY_WORDS = 45;
-/** What he knows of someone: who they are to him and what he has seen, whole, in sixty words or fewer (lasting-records). */
+/**
+ * What he knows of someone is at most sixty words (openspec outside-the-scene: What he knows stays short); asked for in
+ * forty-five, so a line a little long is still within it and nothing is asked again (docs/adr/0012).
+ */
 const MAX_KNOWN_WORDS = 60;
 /** A Bond's lines are asked for in forty and twenty-five words; refused only when far past it (docs/adr/0012). */
 const REFUSED_STANDING_WORDS = Math.floor(MAX_STANDING_WORDS * 1.5);
@@ -291,7 +294,7 @@ export function checkChronicle(ask: ChronicleAsk, raw: unknown): Checked<Chronic
     if (seen.has(who)) return (drop(`known: two lines for ${who}; write one`), []);
     seen.add(who);
     const now = row.now.trim();
-    if (wordCount(now) > MAX_KNOWN_WORDS) return (drop(`known: the line for ${who} is ${wordCount(now)} words; say it in sixty or fewer`), []);
+    if (wordCount(now) > MAX_KNOWN_WORDS) return (drop(`known: the line for ${who} is ${wordCount(now)} words; say it in forty-five or fewer`), []);
     return [{ who, now }];
   });
 

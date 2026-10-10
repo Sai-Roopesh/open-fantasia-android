@@ -33,7 +33,10 @@ class DayViewScreenTest : DayViewUiChecks() {
     @Test fun backDiscardsGapAndBlankSendsNullCheck() = backDiscardsGapAndBlankSendsNull()
     @Test fun somewhereIsNowCheck() = somewhereIsNow()
     @Test fun skipHasGapAcrossDaysCheck() = skipHasGapAcrossDays()
+    @Scenario("day-view › The player chooses where to be › A Landmark weeks away")
     @Test fun landmarkWeeksAwayCheck() = landmarkWeeksAway()
+    @Scenario("day-view › The Gap is the player's, and everything in it goes on without them › What goes on without him, in time order")
+    @Test fun gapInTimeOrderCheck() = gapInTimeOrder()
     @Test fun laterPickHasGapCheck() = laterPickHasGap()
     @Test fun unavailableOptionsAreHiddenAndOfflineDisabledCheck() = unavailableOptionsAreHiddenAndOfflineDisabled()
 }

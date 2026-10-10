@@ -357,6 +357,8 @@ export interface PlannedScene {
   for: string;
   /** The Lead it is about, or null. */
   lead: string | null;
+  /** The Engagement it is, when it is one he has arranged, at that Engagement's time and place (director-knows-engagements). */
+  engagement?: string | null;
 }
 
 /** What a Lead does about the Player Character this Stretch: in a Scene that matters ([scene]), or off-screen (null). */

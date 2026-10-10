@@ -59,7 +59,7 @@ what it meant, and nothing about the player's character that his Moves did not s
 The player reads, for each person, what his character knows of them. You are given that line for each person in the
 Scene ("nothing yet" when he knows nothing). When this Scene showed him something about someone (what they do, what
 they want, how they treat him, something they let slip), write `known` for them: the line as it should now read, the
-old line with what he learned folded in, whole, in sixty words or fewer: who they are to him and what he has seen of
+old line with what he learned folded in, whole, in forty-five words or fewer: who they are to him and what he has seen of
 them. Rewrite it; never just add to the end. What passed between them goes in their Bond, not here.
 
 Write it as he would know it, from what he saw, heard and was told in this Scene and what the old line says, and

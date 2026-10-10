@@ -41,6 +41,9 @@ The **Director** SHALL shape the Story into **Stretches** that build, peak and r
 - the step each Arc may take in it;
 - the move each **Lead** makes in it.
 
+The Director SHALL know the **Engagements** ahead of the Player Character. A Scene that matters about something he has
+arranged SHALL be that Engagement, at its time and place, and never a second meeting beside it.
+
 The Director SHALL plan a new Stretch when the last one's days have passed or its Scenes have been played, when a
 Scene has peaked, or when a Landmark has passed, and at no other time. It SHALL plan before the World moves on at a
 Scene's end, so that what comes next follows the plan. The plan SHALL reach the Story only through the **Writer** and
@@ -55,6 +58,12 @@ the **Weaver**, and SHALL be visible only Backstage.
   three Scenes that matter
 - **WHEN** the first of them, on Tuesday, ends without peaking
 - **THEN** the Director plans nothing new, and the Day View leads with the Stretch's next Scene
+
+#### Scenario: A Scene that matters he arranged
+- **GIVEN** he told Draconia to meet him in the library at ten on Saturday, and it was recorded
+- **WHEN** the Director plans a Scene that matters about the debt with her
+- **THEN** it is the library at ten on Saturday, and the Day View offers it once, as the Story's pick
+- **AND** no second meeting with her about it is planned
 
 ### Requirement: Rest is deliberate
 

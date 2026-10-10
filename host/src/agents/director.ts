@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import type { Models } from "../models/model-call.js";
+import type { OnEngagement } from "../story/engagements.js";
 import type { ArcStep, DirectorPlan, LeadMove, PlannedScene, RoadmapPoint } from "../story/entries.js";
 import type { Landmark, ModelChoice, State } from "../story/state.js";
 import type { World } from "../story/world.js";
@@ -42,7 +43,10 @@ export const DIRECTOR_SCHEMA = {
       description: "The Scenes that matter in the Stretch, in order.",
       items: {
         type: "object", additionalProperties: false, required: ["id", "at", "place", "who", "for", "lead"],
-        properties: { id: text, at: text, place: text, who: { type: "array", items: { type: "string" } }, for: text, lead: { type: ["string", "null"] } }
+        properties: {
+          id: text, at: text, place: text, who: { type: "array", items: { type: "string" } }, for: text, lead: { type: ["string", "null"] },
+          engagement: { type: ["string", "null"], description: "When it is one of his Engagements (E1 …), its label: it is at that Engagement's time and place. Otherwise null." }
+        }
       }
     },
     arcs: {
@@ -73,7 +77,7 @@ interface AnswerPlan {
   toward: string;
   landmark: string | null;
   phase: DirectorPlan["phase"];
-  scenes: { id: string; at: string; place: string; who: string[]; for: string; lead: string | null }[];
+  scenes: { id: string; at: string; place: string; who: string[]; for: string; lead: string | null; engagement?: string | null }[];
   arcs: ArcStep[];
   leads: { who: string; move: string; scene: string | null }[];
   roadmap: RoadmapPoint[];
@@ -119,6 +123,8 @@ export interface DirectorAsk {
   afterPeak: boolean;
   /** Every Lead's Bond, and the Bond of each person with five turns or more (lasting-records design decision 6). */
   bonds?: { leads: RecalledBond[]; others: RecalledBond[] };
+  /** His Engagements ahead, each with its next time, labelled E1 … in the prompt (director-knows-engagements). */
+  engagementsOn?: OnEngagement[];
 }
 
 /** The Director could not give a plan the Story can use. */
@@ -165,8 +171,17 @@ export function checkPlan(ask: DirectorAsk, raw: unknown): Checked<RawPlan> {
 
   // The Scenes that matter: within the Stretch and after now, with the Story's people.
   const sceneIds = new Map<string, string>();
-  const scenes: PlannedScene[] = raw.scenes.flatMap(scene => {
-    const label = scene.id.trim();
+  const scenes: PlannedScene[] = raw.scenes.flatMap(planned => {
+    const label = planned.id.trim();
+    // A Scene that is one of his Engagements takes its time and place from the record (director-knows-engagements
+    // design decision 2); a label not shown is cleared (docs/adr/0012).
+    const shown = /^E(\d+)$/i.exec(planned.engagement?.trim() ?? "")?.[1];
+    const on = shown ? ask.engagementsOn?.[Number(shown) - 1] : undefined;
+    if (on) {
+      const day = parseStoryTime(on.next)?.day ?? 0;
+      if (day < from || day > until) return (dropped.push(`scenes: ${label} is E${shown}, at ${on.next}, outside the Stretch (Day ${from} to Day ${until})`), []);
+    }
+    const scene = on ? { ...planned, at: on.next, place: on.engagement.place, who: [...planned.who, ...on.engagement.who] } : planned;
     const at = parseStoryTime(scene.at);
     if (!at) return (dropped.push(`scenes: ${label} is at "${scene.at.trim()}", which is not a time like "Day ${from + 3} 14:00"`), []);
     if (at.day < from || at.day > until) return (dropped.push(`scenes: ${label} is at ${scene.at.trim()}, outside the Stretch (Day ${from} to Day ${until})`), []);
@@ -181,7 +196,7 @@ export function checkPlan(ask: DirectorAsk, raw: unknown): Checked<RawPlan> {
     if (scene.lead !== null && !lead) dropped.push(`scenes: ${label}, lead: ${scene.lead.trim()} is not a Lead; name one of the Leads (${state.leads.join(", ")}), or null`);
     const id = `s-${randomUUID().slice(0, 8)}`;
     sceneIds.set(label, id);
-    return [{ id, at: scene.at.trim(), place: scene.place.trim(), who, for: scene.for.trim(), lead }];
+    return [{ id, at: scene.at.trim(), place: scene.place.trim(), who, for: scene.for.trim(), lead, engagement: on?.engagement.id ?? null }];
   });
   if (scenes.length === 0) fatal.push(`scenes: none of the Scenes that matter can be kept; plan two to five within the Stretch`);
 
@@ -306,6 +321,10 @@ export function directorPrompt(ask: DirectorAsk): { system: string; prompt: stri
     section("threads", threads.join("\n")),
     section("leads_between", sayBetween(ask.bonds?.leads ?? [])),
     section("between", sayBetween(ask.bonds?.others ?? [])),
+    section("his_engagements", (ask.engagementsOn ?? []).map(({ engagement, next }, position) => {
+      const at = parseStoryTime(next);
+      return `- E${position + 1} ${at ? sayStoryTime(at, state.dayOneWeekday) : next} (${next})${engagement.every === "week" ? ", every week" : ""}, ${engagement.place}: ${engagement.what}${engagement.who.length ? ` With ${engagement.who.join(", ")}.` : ""}${engagement.expected ? " He is expected." : ""}`;
+    }).join("\n")),
     previous ? section("last_plan", [
       `Phase: ${previous.phase}, toward ${previous.toward}${previous.landmark ? ` (the Landmark ${previous.landmark})` : ""}, Day ${previous.from} to Day ${previous.until}.`,
       ...previous.scenes.map(scene => `- Scene that mattered, ${scene.at}, ${scene.place}: ${scene.for}`),

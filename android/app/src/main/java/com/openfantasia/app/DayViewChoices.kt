@@ -166,7 +166,9 @@ internal enum class DayPicker(val title: String) { Follow("Follow someone"), Som
     go: (String?) -> Unit) {
     var text by remember { mutableStateOf("") }
     val name = firstName(player)
+    // What goes on without him, in time order: the Day View puts its pick first, the Gap does not (openspec day-view).
     val missed = day.happenings.filter { storyMinute(it.at) >= storyMinute(day.at) && storyMinute(it.at) < storyMinute(choice.at) }
+        .sortedBy { storyMinute(it.at) }
     DaySheet("gap-sheet", dismiss, draggable = false) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("What did you do in the Gap?", style = FantasiaType.sheetTitle)

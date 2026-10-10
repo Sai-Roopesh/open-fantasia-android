@@ -209,6 +209,23 @@ open class DayViewUiChecks : WorldUiChecks() {
         compose.onNodeWithText("7:40 am – Thursday 7:00 pm, before The Halloween troll").assertIsDisplayed()
     }
 
+    // GIVEN the Story's pick is on Sunday at 2:00 pm, and he is expected in the library on Saturday at 10:00 am
+    // WHEN the player skips to next week
+    // THEN the Gap lists Saturday's library first, then Sunday's
+    fun gapInTimeOrder() {
+        val sunday = Happening(id = "sunday", at = "Day 5 14:00", time = "Sunday 2:00 pm", daysAway = 2, scene = "s-sunday",
+            place = "The back tables", what = "Draconia, away from Pansy.", who = listOf("Draconia"), expected = false, pick = true)
+        val saturday = Happening(id = "saturday", at = "Day 4 10:00", time = "Tomorrow 10:00 am", daysAway = 1,
+            place = "the library", what = "Draconia, about the train.", who = listOf("Draconia"), expected = true, pick = false)
+        val nextWeek = Skip(label = "Next week", inSentence = "next week", at = "Day 10 07:30", time = "Friday 7:30 am", daysAway = 7)
+        ready(listOf(sunday, saturday), skips = listOf(tomorrow, nextWeek))
+        tap("Skip to later")
+        compose.onNodeWithText("Next week").performClick()
+        val first = compose.onNodeWithText("Tomorrow 10:00 am · the library. You're expected.").assertIsDisplayed().getUnclippedBoundsInRoot()
+        val second = compose.onNodeWithText("Sunday 2:00 pm · The back tables.").assertIsDisplayed().getUnclippedBoundsInRoot()
+        assertTrue("Saturday's library comes before Sunday's", first.top < second.top)
+    }
+
     fun laterPickHasGap() {
         ready()
         tap("Let the Story choose")

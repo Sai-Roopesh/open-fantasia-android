@@ -2,6 +2,7 @@ import type { DirectorAsk, SceneSoFar } from "../agents/director.js";
 import { recalledBond } from "../agents/recall.js";
 import type { Mac } from "../mac.js";
 import { bondsOn } from "../story/bonds.js";
+import { engagementsOn } from "../story/engagements.js";
 import type { DirectorPlan, Entry, PlannedScene } from "../story/entries.js";
 import type { Landmark } from "../story/state.js";
 import { worldOn } from "../story/world.js";
@@ -99,7 +100,7 @@ export function directionDue(mac: Mac, head: string, failedAt: string | null): D
   if (!reason) return null;
   const bonds = bondsOn(mac, closing.id);
   const others = [...bonds].filter(([who, bond]) => !state.leads.includes(who) && bond.turns.length >= LONG_BOND).map(([who, bond]) => recalledBond(who, bond));
-  return { reason, closing, ask: { state, world: worldOn(mac, closing.id), scenes, previous: plan?.entry.payload ?? null, afterPeak, bonds: { leads: state.leads.map(who => recalledBond(who, bonds.get(who))), others } } };
+  return { reason, closing, ask: { state, world: worldOn(mac, closing.id), scenes, previous: plan?.entry.payload ?? null, afterPeak, bonds: { leads: state.leads.map(who => recalledBond(who, bonds.get(who))), others }, engagementsOn: engagementsOn(mac, closing.id, state.clock) } };
 }
 
 /** Every Scene on [path], with what the Chronicler said of it, its peak, and whether an Arc moved in it. */

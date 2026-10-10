@@ -47,10 +47,19 @@ Two to five, in order, each:
 - `for`: the turn it is built around, said as an author to an author: "she is paired with him and has to be civil in
   front of Flitwick". Never what anyone says, and never what the player's character does: the player decides that.
 - `lead`: the Lead it is about, or null.
+- `engagement`: when it is one of his Engagements, its label ("E1"); otherwise null.
 
 A Scene is one thing happening between its people. Plan fewer, fuller ones, and leave the player room: they can always
 choose something else. Three is the usual week; two for a quiet one; four only when the week builds to a Landmark; five
 almost never. Everything else in the week passes as Meanwhile, and the Leads' off-screen moves carry it.
+
+## What he has arranged
+
+`<his_engagements>` is what he has arranged and knows is on: a meeting he set, a summons, an invitation, a weekly
+session. Each is labelled E1, E2. When a Scene that matters is about something he has arranged, it is that Engagement:
+set `engagement` to its label, and it is at the Engagement's time and place. Never plan a second meeting about the same
+thing beside it. If he set up a talk with Draconia for Saturday at ten and the talk matters, Saturday at ten is the
+Scene; a separate one on Sunday would leave her waiting twice.
 
 ## Each Arc
 

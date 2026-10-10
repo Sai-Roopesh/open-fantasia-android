@@ -161,7 +161,10 @@ describe("what the Player Character knows of the people in the Scene (openspec o
     const problems = (known: unknown) => { const checked = checkChronicle(ask({ knownBefore }), answer({ known })); return checked.ok ? checked.dropped ?? [] : checked.problems; };
     expect(problems([{ who: "Ishaan Mehra", now: "Himself." }])).toEqual(["known: Ishaan Mehra is the player's character, who is always there; leave them out"]);
     expect(problems([{ who: "Meera Kulkarni", now: "A." }, { who: "Meera", now: "B." }])).toEqual(["known: two lines for Meera Kulkarni; write one"]);
-    expect(problems([{ who: "Meera Kulkarni", now: "word ".repeat(100) }])).toEqual(["known: the line for Meera Kulkarni is 100 words; say it in sixty or fewer"]);
+    expect(problems([{ who: "Meera Kulkarni", now: "word ".repeat(100) }])).toEqual(["known: the line for Meera Kulkarni is 100 words; say it in forty-five or fewer"]);
+    // A line a little past the forty-five asked is kept, within the sixty the World screen promises (docs/adr/0012).
+    expect(problems([{ who: "Meera Kulkarni", now: "word ".repeat(52) }])).toEqual([]);
+    expect(chroniclerPrompt(ask({ knownBefore })).system).toContain("in forty-five words or fewer");
     const notThere = ask({ knownBefore, inScene: ["Uncle Bhalla"] });
     const checked = checkChronicle(notThere, answer({ known: [{ who: "Meera Kulkarni", now: "A." }] }));
     expect(checked.ok ? checked.dropped : []).toContain("known: Meera Kulkarni was not in this Scene");

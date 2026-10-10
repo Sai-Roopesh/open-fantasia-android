@@ -182,7 +182,7 @@ describe("records that degrade, never vanish (lasting-records)", () => {
     const [chronicle] = chronicles(mac, head());
     expect(chronicle).toMatchObject({ summary: "In the classroom Draconia floated in his arms and ordered him to put her down.", sceneEnded: true });
     expect(chronicle!.moments.map(moment => moment.what)).toEqual(["He catches her as everything floats."]);
-    expect(chronicle!.dropped).toEqual(["known: the line for Draconia Malfoy is 70 words; say it in sixty or fewer"]);
+    expect(chronicle!.dropped).toEqual(["known: the line for Draconia Malfoy is 70 words; say it in forty-five or fewer"]);
     expect(knownOn(mac, head()).get("Draconia Malfoy")?.text ?? null).toBe(before);
   });
 

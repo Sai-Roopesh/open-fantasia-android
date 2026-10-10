@@ -205,6 +205,34 @@ describe("the Director", () => {
   });
 });
 
+describe("the Director knows what he has arranged (director-knows-engagements)", () => {
+  const library = { id: "g-library", what: "Draconia, about the train and what she owes.", at: "Day 2 10:00", place: "The library", who: ["Draconia Malfoy"], expected: true, every: null, quotes: [] };
+  const sessions = { id: "g-sessions", what: "Hermione's Charms revision.", at: "Day 3 19:30", place: "The library's end table", who: ["Hermione Granger"], expected: false, every: "week" as const, quotes: [] };
+  const later = { ...library, id: "g-later", at: "Day 12 10:00", place: "The owlery" };
+  const engagementsOn = [{ engagement: library, next: "Day 2 10:00" }, { engagement: sessions, next: "Day 3 19:30" }, { engagement: later, next: "Day 12 10:00" }];
+
+  it("is told his Engagements ahead, labelled, with the expected ones marked and the weekly ones said", () => {
+    const { prompt, system } = directorPrompt(ask({ engagementsOn }));
+    expect(prompt).toContain("<his_engagements>\n- E1 Saturday 10:00 am (Day 2 10:00), The library: Draconia, about the train and what she owes. With Draconia Malfoy. He is expected.\n- E2 Sunday 7:30 pm (Day 3 19:30), every week, The library's end table: Hermione's Charms revision. With Hermione Granger.");
+    expect(system).toContain("## What he has arranged");
+  });
+
+  it("gives a Scene that is an Engagement its time and place, clears a label not shown, and leaves out one outside the Stretch", () => {
+    const checked = checkPlan(ask({ engagementsOn }), plan({ scenes: [
+      { ...charms, engagement: "E1" },
+      { ...pitch, engagement: "E7" },
+      { ...pitch, id: "S3", at: "Day 5 10:00", engagement: "E3" }
+    ] }));
+    expect(checked.ok).toBe(true);
+    if (!checked.ok) return;
+    expect(checked.value.scenes.map(scene => ({ at: scene.at, place: scene.place, who: scene.who, engagement: scene.engagement }))).toEqual([
+      { at: "Day 2 10:00", place: "The library", who: ["Draconia Malfoy", "Hermione Granger"], engagement: "g-library" },
+      { at: "Day 6 10:00", place: "The Quidditch pitch", who: ["Draconia Malfoy", "Harry Potter"], engagement: null }
+    ]);
+    expect(checked.dropped).toEqual(["scenes: S3 is E3, at Day 12 10:00, outside the Stretch (Day 1 to Day 7)"]);
+  });
+});
+
 describe("Arcs keep pace with the run (openspec long-run)", () => {
   /** The Malfoy Problem as the player built it: four years and a fifth, with Halloween eight weeks off. */
   function fourYears(changes: Partial<DirectorAsk> = {}): DirectorAsk {

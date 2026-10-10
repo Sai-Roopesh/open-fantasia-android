@@ -111,7 +111,7 @@ describe("The record (lasting-records design decision 4)", () => {
     await play(move);
     engine.endScene(storyId, head(), "t-end");
     await engine.chronicled(storyId);
-    expect(backstageView(mac, storyId, "t").record).toEqual([{ scene_number: 1, scene_title: "The library", state: "recorded", reason: null, dropped: ["known: the line for Hermione Granger is 70 words; say it in sixty or fewer"] }]);
+    expect(backstageView(mac, storyId, "t").record).toEqual([{ scene_number: 1, scene_title: "The library", state: "recorded", reason: null, dropped: ["known: the line for Hermione Granger is 70 words; say it in forty-five or fewer"] }]);
   });
 
   it("refuses Retry for a Scene with nothing missing, or when the phone has not seen the latest", async () => {

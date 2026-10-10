@@ -104,6 +104,33 @@ describe("the pick and an Engagement are one card (play-check-fixes design decis
   });
 });
 
+describe("the Director builds on what he has arranged (director-knows-engagements)", () => {
+  // GIVEN he told Draconia to meet him in the library at ten on Saturday, and it was recorded
+  // WHEN the Director plans a Scene that matters about the debt with her
+  // THEN it is the library at ten on Saturday, and the Day View offers it once, as the Story's pick
+  // AND no second meeting with her about it is planned
+  it("long-run › The Director shapes the long run around Arcs and Landmarks › A Scene that matters he arranged", async () => {
+    const story = fridayNight();
+    // The Director plans the talk about the debt on Sunday afternoon, and names it as his Engagement.
+    const talk = { id: "S1", at: "Day 5 14:00", place: "The back tables", who: ["Draconia Malfoy"], for: "The debt, away from Pansy.", lead: "Draconia Malfoy", engagement: "E1" };
+    const plan = charmsWeek(story, { scenes: [talk, { ...charmsWeek(story).scenes[1]!, id: "S2" }], leads: [{ who: "Draconia Malfoy", move: "Comes to the library.", scene: "S1" }, { who: "Hermione Granger", move: "Lends him her notes.", scene: "S2" }] });
+    const { engine, storyId, head, play, view, mac, models } = playable(story, { director: [{ answer: JSON.stringify(plan) }], weaver: [{ from: fakeWeaveAnswer }] });
+    const opening = mac.tree.pathTo(head()).find(entry => entry.payload.kind === "scene_opened")!;
+    const meeting = { id: "g-saturday", what: "Draconia, about the train and what she owes.", at: "Day 4 10:00", place: "The library", who: ["Draconia Malfoy"], expected: true, every: null, quotes: [{ entry: "E1", text: "x" }] };
+    mac.tree.append(storyId, opening.id, { kind: "chronicle", scene: opening.id, summary: null, sceneEnded: false, moments: [], told: [], engagements: [meeting], callId: "c", model: { provider: "claude", model: "claude-sonnet-5-5" } });
+    await play("I tell Draconia to meet me in the library at ten tomorrow.");
+    engine.endScene(storyId, head(), "end");
+    await engine.woven(storyId);
+
+    expect(models.director.requests[0]!.prompt).toContain("<his_engagements>\n- E1 Saturday 10:00 am (Day 4 10:00), The library: Draconia, about the train and what she owes.");
+    const scenes = (mac.tree.recordsOn(head(), "director_plan").at(-1)!.payload as { scenes: { at: string; place: string; engagement?: string | null }[] }).scenes;
+    expect(scenes[0]).toMatchObject({ at: "Day 4 10:00", place: "The library", engagement: "g-saturday" });
+    const day = view().day_view!;
+    expect(day.happenings[0]).toMatchObject({ at: "Day 4 10:00", place: "The library", pick: true, expected: true });
+    expect(day.happenings.filter(item => item.who.includes("Draconia Malfoy") && item.place.toLowerCase().includes("library"))).toHaveLength(1);
+  });
+});
+
 describe("Leads act every Stretch, on screen or off (story-in-stretches design decision 4)", () => {
   const seating = "Draconia had his name taken off the Charms seating plan.";
   const told = "Neville says Draconia had your name taken off the Charms seating plan.";
