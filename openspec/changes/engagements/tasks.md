@@ -23,16 +23,16 @@ Scenarios this change builds:
 
 ## 1. The record
 
-- [ ] 1.1 The Chronicler's `engagements` and `changed`, and its `<engagements_on>` (design decisions 1 and 2):
+- [x] 1.1 The Chronicler's `engagements` and `changed`, and its `<engagements_on>` (design decisions 1 and 2):
   - the schema, the check part by part (quotes word for word, a time after the Scene's start, people in the Story, a
     duplicate of one on left out, a `changed` label not shown left out), and `CHRONICLER.md`;
   - unit tests for each check.
 
   Then test first: `living-world › An Engagement is recorded where it is made › Made in a Reply`, `› Words that are
   not on the page` and `› Arranged behind his back`.
-- [ ] 1.2 A Meanwhile line's `engagement` in the Weaver (schema, check, `WEAVER.md`), with unit tests: a time before
+- [x] 1.2 A Meanwhile line's `engagement` in the Weaver (schema, check, `WEAVER.md`), with unit tests: a time before
   the span's end and a name not in the Story are left out.
-- [ ] 1.3 `story/engagements.ts` `engagementsOn`: Engagements from Chronicles and World records in Path order, moves
+- [x] 1.3 `story/engagements.ts` `engagementsOn`: Engagements from Chronicles and World records in Path order, moves
   and call-offs applied, each one's next time ahead of a clock, weekly ones rolled on. Unit tests: one-off, weekly,
   moved, called off, and another Path unchanged.
 

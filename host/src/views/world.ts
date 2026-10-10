@@ -4,6 +4,7 @@ import type { Between, CalendarItem, WorldPerson, WorldPlace, WorldView } from "
 import { type Bond, bondsOn } from "../story/bonds.js";
 import { onAhead } from "../story/day.js";
 import { heardOn, knownOn } from "../story/known.js";
+import { samePlace } from "../story/places.js";
 import { minutesOf, parseStoryTime } from "../time.js";
 import { countdown, portraitUrl, say } from "./scene.js";
 
@@ -48,10 +49,10 @@ export function worldView(mac: Mac, storyId: string, traceId: string): WorldView
   }));
   const people = [...leads, ...[...others, ...groups].sort((left, right) => left.name.localeCompare(right.name))];
 
-  const scenePlaces = mac.tree.pathTo(head).flatMap(entry => entry.payload.kind === "scene_opened" ? [entry.payload.place.toLocaleLowerCase()] : []);
+  const scenePlaces = mac.tree.pathTo(head).flatMap(entry => entry.payload.kind === "scene_opened" ? [entry.payload.place] : []);
   const places: WorldPlace[] = [...state.world.places, ...state.world.institutions].map(place => ({
     name: place.name, description: place.description,
-    been: scenePlaces.some(where => where.includes(place.name.toLocaleLowerCase()) || place.name.toLocaleLowerCase().includes(where))
+    been: scenePlaces.some(where => samePlace(where, place.name))
   }));
 
   const now = parseStoryTime(state.clock);

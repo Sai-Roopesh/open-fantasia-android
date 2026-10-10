@@ -1,4 +1,5 @@
 import { bondsOn } from "../story/bonds.js";
+import { engagementsOn } from "../story/engagements.js";
 import { knownOn } from "../story/known.js";
 import type { ChronicleAsk } from "../agents/chronicler.js";
 import { nameIndex, namedIn } from "../agents/names.js";
@@ -172,6 +173,8 @@ export function chronicleAsk(mac: Mac, due: DueChronicle): ChronicleAsk {
     known,
     knownBefore: Object.fromEntries(inScene.map(name => [name, knownNow.get(name)?.text ?? null])),
     bondsBefore: Object.fromEntries(inScene.map(name => [name, bondsNow.get(name)?.standing ?? null])),
-    namedOnPage: namedOnPage(state, due.entries).filter(name => !inScene.includes(name))
+    namedOnPage: namedOnPage(state, due.entries).filter(name => !inScene.includes(name)),
+    // What is on from the Scene's start, as it stood before this record (docs/adr/0011).
+    engagementsOn: engagementsOn(mac, due.through.id, due.scene.payload.at).map(on => on.engagement)
   };
 }

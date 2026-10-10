@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import type { Models } from "../models/model-call.js";
-import type { Entry, Happened, Happening, LeadMove, Life, MeanwhileItem, PlannedScene, ThreadNow } from "../story/entries.js";
+import type { Engagement, Entry, Happened, Happening, LeadMove, Life, MeanwhileItem, PlannedScene, ThreadNow } from "../story/entries.js";
 import type { ModelChoice, State } from "../story/state.js";
 import type { World } from "../story/world.js";
 import { minutesOf, parseStoryTime, sayStoryTime, sayTime } from "../time.js";
@@ -65,7 +65,12 @@ export const WEAVER_SCHEMA = {
         required: ["text", "how", "happened", "told_by"],
         properties: {
           text, how: { type: "string", enum: ["seen", "told", "rumour"] }, happened: text, told_by: { type: ["string", "null"] },
-          about: { ...names, description: "Who the line is about, by their names in the story; never the player's character." }
+          about: { ...names, description: "Who the line is about, by their names in the story; never the player's character." },
+          engagement: {
+            description: "When the line tells him of something on at a time and place (a summons, a note, a message): it; otherwise absent.",
+            type: "object", additionalProperties: false, required: ["what", "at", "place", "who", "expected", "every"],
+            properties: { what: text, at: text, place: text, who: names, expected: { type: "boolean" }, every: { type: ["string", "null"], enum: ["week", null] } }
+          }
         }
       }
     },
@@ -90,7 +95,7 @@ interface RawWeave {
   lives: { who: string; where: string; doing: string; after: string }[];
   threads: { name: string; now: string }[];
   happened: { id: string; what: string; at: string; where: string; known_to: string[]; landmark: string | null; missed?: string | null; move?: string | null }[];
-  meanwhile: { text: string; how: "seen" | "told" | "rumour"; happened: string; told_by: string | null; about?: string[] }[];
+  meanwhile: { text: string; how: "seen" | "told" | "rumour"; happened: string; told_by: string | null; about?: string[]; engagement?: { what: string; at: string; place: string; who: string[]; expected: boolean; every: "week" | null } }[];
   happenings: { id: string; at: string; place: string; what: string; who: string[]; expected: boolean; pick: boolean; quiet?: boolean; scene?: string | null }[];
 }
 
@@ -243,7 +248,23 @@ export function checkWeave(ask: WeaveAsk, raw: unknown): Checked<WeaveRecord> {
       if (known === pc) return (dropped.push(`${at}, about: ${pc} is the player's character; say who else it is about`), []);
       return [known];
     });
-    return [{ text: item.text.trim(), how: item.how, happened: about.id, toldBy, ...(subjects ? { about: [...new Set(subjects)] } : {}) }];
+    // The Engagement the line carries: ahead of him, with the Story's people (docs/adr/0011). A bad one costs the
+    // Engagement, never the line.
+    let engagement: Engagement | undefined;
+    if (item.engagement) {
+      const time = parseStoryTime(item.engagement.at);
+      if (!time) dropped.push(`${at}, engagement: "${item.engagement.at}" is not a time like "Day 4 09:00"`);
+      else if (until && minutesOf(time) < minutesOf(until)) dropped.push(`${at}, engagement: it is at ${item.engagement.at.trim()}, before the span ends (${ask.until}); it is not ahead of him`);
+      else {
+        const who = [...new Set(item.engagement.who.flatMap(name => {
+          const known = named(name);
+          if (!known) return (dropped.push(`${at}, engagement, who: ${name.trim()} is not in the story`), []);
+          return known === pc ? [] : [known];
+        }))];
+        engagement = { id: `g-${randomUUID().slice(0, 8)}`, what: item.engagement.what.trim(), at: item.engagement.at.trim(), place: item.engagement.place.trim(), who, expected: item.engagement.expected, every: item.engagement.every };
+      }
+    }
+    return [{ text: item.text.trim(), how: item.how, happened: about.id, toldBy, ...(subjects ? { about: [...new Set(subjects)] } : {}), ...(engagement ? { engagement } : {}) }];
   });
 
   // What is on: at most four, from the Day View on, the Story's names, one pick and it first.

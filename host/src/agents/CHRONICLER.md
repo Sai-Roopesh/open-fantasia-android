@@ -67,6 +67,27 @@ nothing else. You know more about these people than he does: the story keeps the
 that did not happen in front of him or was not said to him. Say what he saw, not what it meant: "she stopped reading
 when he sat down", not "she likes him". Leave out anyone this Scene showed him nothing new about.
 
+## Engagements
+
+When the Scene arranges something the player's character knows is on at a time and place, record it in
+`engagements`. It might be a summons, an order, an invitation, a lesson, a meeting he agreed to, or a session every
+week. Give:
+
+- `what`: one line of what it is, for the player: "Draconia's hour on the Charms practical, at the end table."
+- `at`: when, as "Day N HH:MM", worked out from the Scene's own day and time. "Wednesday, half past seven" said on
+  Sunday, Day 5, is Day 8 19:30. When only the day is said, take the usual hour for such a thing.
+- `place`: where, as the story names places.
+- `who`: who will be there, besides him.
+- `expected`: true when his Move agreed to it, or someone with the standing to expect him summoned or ordered him
+  (a teacher, a Head of House, someone he owes and agreed to). An invitation he did not take up is false.
+- `every`: `week` when it repeats each week ("Wednesdays"), otherwise null.
+- `quotes`: one to three passages from the Moves and Replies it was made in, word for word, with their labels, as
+  for a Moment.
+
+Only what was arranged in front of him, or said to him, is his. Something mentioned that is already under
+`engagements_on` is not new: if this Scene moved it or called it off, record that in `changed`, with the label you
+were shown (`E2`), `to` as the new time or `off`, and the words.
+
 ## Between them
 
 For each person he has history with, the story keeps a Bond: where things stand between them, and the turns that

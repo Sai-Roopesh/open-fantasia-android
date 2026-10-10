@@ -205,6 +205,28 @@ describe("Leads act off-screen (story-in-stretches design decision 4)", () => {
   });
 });
 
+describe("an Engagement carried by Meanwhile (engagements design decision 1)", () => {
+  const note = { text: "A note under the door: \"My office, nine o'clock.\" M. McGonagall.", how: "seen", happened: "H2", told_by: null };
+  const summons = { what: "McGonagall wants his account of the troll.", at: "Day 4 09:00", place: "McGonagall's office", who: ["mcgonagall"], expected: true, every: null };
+
+  it("keeps the Engagement a line of Meanwhile carries, with names as the Story keeps them", async () => {
+    const checked = checkWeave(await ask(), answer({ meanwhile: [{ ...note, engagement: summons }] }));
+    expect(checked).toMatchObject({ ok: true, dropped: [] });
+    expect(checked.ok && checked.value.meanwhile[0]!.engagement).toEqual({ id: expect.stringMatching(/^g-/), what: summons.what, at: "Day 4 09:00", place: "McGonagall's office", who: ["Minerva McGonagall"], expected: true, every: null });
+    expect(weaverPrompt(await ask()).system).toContain("`engagement`");
+  });
+
+  it("leaves out an Engagement before the span's end, and a name not in the Story, and keeps the line", async () => {
+    const early = checkWeave(await ask(), answer({ meanwhile: [{ ...note, engagement: { ...summons, at: "Day 4 07:00" } }] }));
+    expect(early).toMatchObject({ ok: true, dropped: ["meanwhile: item 1, engagement: it is at Day 4 07:00, before the span ends (Day 4 07:30); it is not ahead of him"] });
+    expect(early.ok && early.value.meanwhile[0]).toMatchObject({ text: note.text });
+    expect(early.ok && early.value.meanwhile[0]!.engagement).toBeUndefined();
+    const stranger = checkWeave(await ask(), answer({ meanwhile: [{ ...note, engagement: { ...summons, who: ["Minerva McGonagall", "Gilderoy Lockhart"] } }] }));
+    expect(stranger).toMatchObject({ ok: true, dropped: ["meanwhile: item 1, engagement, who: Gilderoy Lockhart is not in the story"] });
+    expect(stranger.ok && stranger.value.meanwhile[0]!.engagement?.who).toEqual(["Minerva McGonagall"]);
+  });
+});
+
 describe("the Weaver's call", () => {
   it("gives the span, the World as it stands, the Scene that ended and the Landmarks in the span", async () => {
     const { system, prompt } = weaverPrompt(await ask({}, [{ name: "the Halloween feast", at: "Day 3 23:00", what: "The Great Hall feast." }]));

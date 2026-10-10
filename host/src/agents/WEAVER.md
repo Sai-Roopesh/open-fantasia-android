@@ -63,6 +63,11 @@ Mark each by how he knows the thing itself, not by how he came to hear of it:
   that Selwyn's bones broke one after another is a rumour, though he heard her say it, because she did not see them
   break. Write it as it would be told ("Lavender says…"), not as the truth. Add him to `known_to`.
 
+When the line tells him of something on at a time and place (a note under the door, a summons passed on, a message
+that someone wants him somewhere), give it `engagement`: `{ what, at, place, who, expected, every }`. `at` is
+"Day N HH:MM", after the span ends. `expected` is true for a summons or an order, false for an invitation. `every` is
+`week` for something every week, otherwise null. Otherwise leave `engagement` out.
+
 `happened` is the id of the happening it is about. Nothing hidden is ever in Meanwhile, and nothing he could not know:
 if nobody who knows it could have told him, and he could not have seen it, he does not know it. Say what he learned
 in the story's voice, the way someone would tell it, with the names he knows them by. A quiet span may have nothing

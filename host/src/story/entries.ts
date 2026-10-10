@@ -191,6 +191,9 @@ export interface Chronicle {
   known?: KnownLine[];
   /** For each person whose standing with the Player Character this Scene changed: the turn, and where it stands now. */
   bonds?: BondLine[];
+  /** The Engagements made in this Scene, and those it moved or called off (docs/adr/0011). */
+  engagements?: Engagement[];
+  changed?: EngagementChange[];
   /** The parts of the Chronicler's answer left out, and why (lasting-records); empty when it was right in every part. */
   dropped?: string[];
   callId: string;
@@ -215,6 +218,31 @@ export interface RecordGap {
 export interface KnownLine {
   who: string;
   now: string;
+}
+
+/**
+ * Something the Player Character knows is on at a time and place (docs/adr/0011): made on the page, quoted as it was
+ * written, or carried by a line of Meanwhile. A weekly one repeats on [at]'s weekday and hour.
+ */
+export interface Engagement {
+  id: string;
+  what: string;
+  /** Its first time, "Day N HH:MM". */
+  at: string;
+  place: string;
+  who: string[];
+  /** He agreed to it, or was summoned or ordered to it; an invitation is not expected. */
+  expected: boolean;
+  every: "week" | null;
+  /** The words it was made in, for one made on the page; none for one carried by Meanwhile. */
+  quotes?: Quote[];
+}
+
+/** A Scene moved an Engagement to [to], or called it off, in front of him, in these words. */
+export interface EngagementChange {
+  engagement: string;
+  to: string;
+  quotes: Quote[];
 }
 
 /** A turn in someone's Bond with the Player Character, and where things stand after it (docs/adr/0009). */
@@ -261,6 +289,8 @@ export interface MeanwhileItem {
   toldBy: string | null;
   /** Who the line is about; absent from lines woven before it was asked, which are about whoever they name. */
   about?: string[];
+  /** The Engagement the line carries, when it tells him of one: a note, a summons passed on (docs/adr/0011). */
+  engagement?: Engagement;
 }
 
 /** Something going on that the Player Character could go to (openspec day-view: Up to four Happenings). */

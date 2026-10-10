@@ -167,3 +167,61 @@ describe("what the Player Character knows of the people in the Scene (openspec o
     expect(checked.ok ? checked.dropped : []).toContain("known: Meera Kulkarni was not in this Scene");
   });
 });
+
+describe("Engagements in the record (engagements design decisions 1 and 2)", () => {
+  const tea = { what: "Tea with Meera at the Shimla station canteen.", at: "Day 2 18:00", place: "The Shimla station canteen", who: ["meera"], expected: true, every: null, quotes: [{ entry: "E3", text: "“For the tea,” she says." }] };
+
+  it("keeps an Engagement made on the page, with its words as the entry has them and names as the Story keeps them", () => {
+    const checked = checkChronicle(ask(), answer({ engagements: [tea] }));
+    expect(checked).toMatchObject({ ok: true, dropped: [] });
+    if (!checked.ok) return;
+    expect(checked.value.engagements).toEqual([{ id: expect.stringMatching(/^g-/), what: tea.what, at: "Day 2 18:00", place: "The Shimla station canteen", who: ["Meera Kulkarni"], expected: true, every: null, quotes: [{ entry: "entry-3", text: "“For the tea,” she says." }] }]);
+    expect(chroniclerPrompt(ask()).system).toContain("## Engagements");
+  });
+
+  it("leaves out an Engagement whose words are not on the page, or that is before the Scene, or that is already on; and a name not in the Story", () => {
+    const shown = { id: "g-canteen", what: "Tea at the canteen.", at: "Day 2 18:15", place: "the Shimla station canteen", who: ["Meera Kulkarni"], expected: true, every: null };
+    const checked = checkChronicle(ask({ engagementsOn: [shown] }), answer({ engagements: [
+      { ...tea, quotes: [{ entry: "E3", text: "Meet me at the canteen at six." }] },
+      { ...tea, place: "The mall road", at: "Day 1 20:00" },
+      { ...tea },
+      { ...tea, place: "The mall road", at: "Day 2 11:00", who: ["Meera Kulkarni", "Gilderoy Lockhart"] }
+    ] }));
+    expect(checked.ok).toBe(true);
+    if (!checked.ok) return;
+    expect(checked.value.engagements.map(item => [item.place, item.who])).toEqual([["The mall road", ["Meera Kulkarni"]]]);
+    expect(checked.dropped).toEqual([
+      "engagements: engagement 1, quote 1 is not word for word in E3; copy the words exactly",
+      "engagements: engagement 1 has no quote that could be kept, so it is left out",
+      "engagements: engagement 2 is at Day 1 20:00, before the Scene began (Day 1 22:40)",
+      "engagements: engagement 3 is E1, already on (Tea at the canteen.); give it in changed if this Scene moved or called it off",
+      "engagements: engagement 4, who: Gilderoy Lockhart is not in the story"
+    ]);
+  });
+
+  it("records an Engagement on moved or called off by the Scene, by the label it was shown, with its words", () => {
+    const shown = [
+      { id: "g-canteen", what: "Tea at the canteen.", at: "Day 2 18:00", place: "The Shimla station canteen", who: ["Meera Kulkarni"], expected: true, every: null },
+      { id: "g-walk", what: "A walk on the Ridge.", at: "Day 3 07:00", place: "The Ridge", who: ["Meera Kulkarni"], expected: false, every: "week" as const }
+    ];
+    const words = [{ entry: "E5", text: "Meera laughs into her collar." }];
+    const checked = checkChronicle(ask({ engagementsOn: shown }), answer({ changed: [
+      { engagement: "E1", to: "off", quotes: words },
+      { engagement: "E2", to: "Day 3 08:00", quotes: words },
+      { engagement: "E7", to: "off", quotes: words },
+      { engagement: "E2", to: "Day 4 08:00", quotes: [{ entry: "E5", text: "nowhere on the page" }] }
+    ] }));
+    expect(checked.ok).toBe(true);
+    if (!checked.ok) return;
+    expect(checked.value.changed).toEqual([
+      { engagement: "g-canteen", to: "off", quotes: [{ entry: "entry-5", text: "Meera laughs into her collar." }] },
+      { engagement: "g-walk", to: "Day 3 08:00", quotes: [{ entry: "entry-5", text: "Meera laughs into her collar." }] }
+    ]);
+    expect(checked.dropped).toEqual([
+      "changed: E7 is not an Engagement you were shown",
+      "changed: E2, quote 1 is not word for word in E5; copy the words exactly",
+      "changed: E2 has no quote that could be kept, so it is left out"
+    ]);
+    expect(chroniclerPrompt(ask({ engagementsOn: shown })).prompt).toContain("<engagements_on>\n- E1: Tea at the canteen. Day 2 18:00 (Friday 6:00 pm), The Shimla station canteen, with Meera Kulkarni, he is expected\n- E2: A walk on the Ridge. Every Saturday at 7:00 am from Day 3 07:00, The Ridge, with Meera Kulkarni\n</engagements_on>");
+  });
+});

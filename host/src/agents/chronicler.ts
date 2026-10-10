@@ -3,9 +3,10 @@ import { readFileSync } from "node:fs";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import type { Models } from "../models/model-call.js";
 import { MAX_STANDING_WORDS, MAX_TURN_WORDS } from "../story/bonds.js";
-import type { BondLine, Entry, KnownLine, Moment, Quote, Told } from "../story/entries.js";
+import type { BondLine, Engagement, EngagementChange, Entry, KnownLine, Moment, Quote, Told } from "../story/entries.js";
+import { samePlace } from "../story/places.js";
 import type { ModelChoice, State } from "../story/state.js";
-import { parseStoryTime, sayStoryTime } from "../time.js";
+import { minutesOf, parseStoryTime, sayStoryTime } from "../time.js";
 import { claimsAboutPlayer, decidesForPlayer, playerNames } from "./deciding.js";
 import { nameIndex, storyName } from "./names.js";
 import { answerWithOneRepair, type Checked } from "./repair.js";
@@ -66,6 +67,26 @@ export const CHRONICLER_SCHEMA = {
       description: "For each person in the Scene whose line it changes: what the player's character now knows of them.",
       items: { type: "object", additionalProperties: false, required: ["who", "now"], properties: { who: text, now: text } }
     },
+    engagements: {
+      type: "array",
+      description: "Each arrangement made in this Scene that the player's character knows is on at a time and place, with the words it was made in.",
+      items: {
+        type: "object", additionalProperties: false, required: ["what", "at", "place", "who", "expected", "every", "quotes"],
+        properties: {
+          what: text, at: text, place: text, who: { type: "array", items: { type: "string" } }, expected: { type: "boolean" },
+          every: { type: ["string", "null"], enum: ["week", null] },
+          quotes: { type: "array", items: { type: "object", additionalProperties: false, required: ["entry", "text"], properties: { entry: text, text } } }
+        }
+      }
+    },
+    changed: {
+      type: "array",
+      description: "Each Engagement you were shown (E1 …) that this Scene moved to another time, or called off, with the words.",
+      items: {
+        type: "object", additionalProperties: false, required: ["engagement", "to", "quotes"],
+        properties: { engagement: text, to: text, quotes: { type: "array", items: { type: "object", additionalProperties: false, required: ["entry", "text"], properties: { entry: text, text } } } }
+      }
+    },
     bonds: {
       type: "array",
       description: "For each person in the Scene whose standing with the player's character this Scene changed: where it stands now, and the turn.",
@@ -80,6 +101,8 @@ interface RawChronicle {
   told: { moment: string; to: string[]; entry: string }[];
   known?: { who: string; now: string }[];
   bonds?: { who: string; standing: string; turn: string }[];
+  engagements?: { what: string; at: string; place: string; who: string[]; expected: boolean; every: "week" | null; quotes: { entry: string; text: string }[] }[];
+  changed?: { engagement: string; to: string; quotes: { entry: string; text: string }[] }[];
 }
 
 const ajv = new Ajv2020({ strict: false, allErrors: true });
@@ -110,6 +133,8 @@ export interface ChronicleAsk {
   knownBefore?: Record<string, string | null>;
   /** Where things stood between him and each person in the Scene before it, or null for no history yet. */
   bondsBefore?: Record<string, string | null>;
+  /** The Engagements on, as the Chronicler is shown them (E1 …), so a Scene can move or call one off (docs/adr/0011). */
+  engagementsOn?: Engagement[];
 }
 
 /** What the Chronicler recorded, checked, with every quote as its entry has it and every name as the Story keeps it. */
@@ -119,6 +144,8 @@ export interface ChronicleRecord {
   told: Told[];
   known: KnownLine[];
   bonds: BondLine[];
+  engagements: Engagement[];
+  changed: EngagementChange[];
 }
 
 /** The Chronicler could not give a record the Story can use. */
@@ -279,7 +306,59 @@ export function checkChronicle(ask: ChronicleAsk, raw: unknown): Checked<Chronic
     return [{ who, standing, turn }];
   });
 
-  return { ok: true, value: { summary, moments, told, known, bonds }, dropped };
+  // Engagements: what he knows is on, in the words it was made in; never before the Scene, never twice.
+  const pageQuotes = (where: string, quotes: { entry: string; text: string }[]): Quote[] => quotes.slice(0, MAX_QUOTES).flatMap((quote, quoteIndex) => {
+    const quoteWhere = `${where}, quote ${quoteIndex + 1}`;
+    const item = newEntry(quoteWhere, quote.entry);
+    if (!item) return [];
+    const words = findWords(item.text, quote.text);
+    if (words === null) return (drop(`${quoteWhere} is not word for word in ${item.label}; copy the words exactly`), []);
+    return [{ entry: item.entry.id, text: words }];
+  });
+  const sceneStart = parseStoryTime(ask.scene.at);
+  const on = ask.engagementsOn ?? [];
+  const near = (left: string, right: string) => {
+    const a = parseStoryTime(left);
+    const b = parseStoryTime(right);
+    return a !== null && b !== null && Math.abs(minutesOf(a) - minutesOf(b)) <= 60;
+  };
+  const engagements: Engagement[] = (raw.engagements ?? []).flatMap((made, madeIndex) => {
+    const where = `engagements: engagement ${madeIndex + 1}`;
+    const quotes = pageQuotes(where, made.quotes);
+    if (!quotes.length) return (drop(`${where} has no quote that could be kept, so it is left out`), []);
+    const at = parseStoryTime(made.at);
+    if (!at) return (drop(`${where} is at "${made.at.trim()}", which is not a time like "Day 4 19:30"`), []);
+    if (sceneStart && minutesOf(at) < minutesOf(sceneStart)) return (drop(`${where} is at ${made.at.trim()}, before the Scene began (${ask.scene.at})`), []);
+    const already = on.findIndex(item => samePlace(item.place, made.place) && near(item.at, made.at));
+    if (already >= 0) return (drop(`${where} is E${already + 1}, already on (${on[already]?.what}); give it in changed if this Scene moved or called it off`), []);
+    const who = [...new Set(made.who.flatMap(name => {
+      const known = storyName(index, name);
+      if (!known) return (drop(`${where}, who: ${name.trim()} is not in the story`), []);
+      return known === pc ? [] : [known];
+    }))];
+    return [{ id: `g-${randomUUID().slice(0, 8)}`, what: made.what.trim(), at: made.at.trim(), place: made.place.trim(), who, expected: made.expected, every: made.every, quotes }];
+  });
+  const changed: EngagementChange[] = (raw.changed ?? []).flatMap(change => {
+    const label = change.engagement.trim();
+    const shown = /^E(\d+)$/.exec(label);
+    const engagement = shown ? on[Number(shown[1]) - 1] : undefined;
+    if (!engagement) return (drop(`changed: ${label} is not an Engagement you were shown`), []);
+    const to = change.to.trim().toLocaleLowerCase() === "off" ? "off" : change.to.trim();
+    if (to !== "off" && !parseStoryTime(to)) return (drop(`changed: ${label} moves to "${change.to.trim()}", which is not a time like "Day 4 19:30" or "off"`), []);
+    const quotes = pageQuotes(`changed: ${label}`, change.quotes);
+    if (!quotes.length) return (drop(`changed: ${label} has no quote that could be kept, so it is left out`), []);
+    return [{ engagement: engagement.id, to, quotes }];
+  });
+
+  return { ok: true, value: { summary, moments, told, known, bonds, engagements, changed }, dropped };
+}
+
+/** An Engagement as the Chronicler is shown it: what, when (or every week from when), where, with whom, and expected. */
+function sayEngagement(item: Engagement, state: State): string {
+  const at = parseStoryTime(item.at);
+  const said = at ? sayStoryTime(at, state.dayOneWeekday) : item.at;
+  const when = item.every === "week" && at ? `Every ${said.split(" ")[0]} at ${said.split(" ").slice(1).join(" ")} from ${item.at}` : `${item.at} (${said})`;
+  return `${item.what} ${when}, ${item.place}${item.who.length ? `, with ${item.who.join(", ")}` : ""}${item.expected ? ", he is expected" : ""}`;
 }
 
 function section(tag: string, body: string): string | null {
@@ -311,12 +390,14 @@ export function chroniclerPrompt(ask: ChronicleAsk): { system: string; prompt: s
     `<moment id="M${position + 1}">\n${moment.what}\n${moment.quotes.map(quote => `"${quote.text}"`).join("\n")}\n</moment>`);
   const knownBefore = ask.knownBefore ?? {};
   const whatHeKnows = ask.inScene.map(name => `- ${name}: ${knownBefore[name] ?? "nothing yet"}`);
+  const engagementsShown = (ask.engagementsOn ?? []).map((item, position) => `- E${position + 1}: ${sayEngagement(item, state)}`);
   const bondsBefore = ask.bondsBefore ?? {};
   const betweenYou = ask.inScene.map(name => `- ${name}: ${bondsBefore[name] ?? "no history yet"}`);
   const task = [
     ask.sceneEnded ? "The Scene has ended: write its summary." : "The Scene goes on: write where it stands so far.",
     ask.inScene.length ? `For each person in the Scene whose line it changes, write in known what ${pc} now knows of them, as the line should read now, whole, in sixty words or fewer: who they are to him and what he has seen of them. Rewrite it; never add to the end.` : "",
     ask.inScene.length ? `For each person in the Scene whose standing with ${pc} this Scene changed, write in bonds the turn, in twenty-five words or fewer, and where things stand now, whole, in forty words or fewer.` : "",
+    `When this Scene arranged something ${pc} knows is on at a time and place, or moved or called off one under engagements_on, write it in engagements or changed, with the words it was made in. The Scene is on Day ${at?.day ?? "?"}: give times as "Day N HH:MM".`,
     ask.recordFrom > 0 ? "Entries marked recorded were recorded already: record Moments only from the entries after them." : "",
     "Return only the JSON object."
   ].filter(Boolean).join("\n");
@@ -327,6 +408,7 @@ export function chroniclerPrompt(ask: ChronicleAsk): { system: string; prompt: s
     section("known_moments", known.join("\n\n")),
     section("what_he_knows", whatHeKnows.join("\n")),
     section("between_you", betweenYou.join("\n")),
+    section("engagements_on", engagementsShown.join("\n")),
     section("task", task)
   ].filter(part => part !== null).join("\n\n");
 
