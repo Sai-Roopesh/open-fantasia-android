@@ -16,7 +16,7 @@ Scenarios this change builds:
 
 ## 0. Words, decision and screen
 
-- [ ] 0.1 Add **Engagement** to CONTEXT.md, and write `docs/adr/0011-an-arrangement-is-recorded-where-it-is-made.md`.
+- [x] 0.1 Add **Engagement** to CONTEXT.md, and write `docs/adr/0011-an-arrangement-is-recorded-where-it-is-made.md`.
   Verify: `openspec validate --all --strict`, and the specs use the term as the glossary spells it.
 - [ ] 0.2 Draw a weekly Engagement's card on `docs/design/DayView.dc.html` ("Every Wednesday · 7:30 pm", marked
   "You're expected"), and update the README row. The player approves it before any phone code.

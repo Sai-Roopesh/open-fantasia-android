@@ -95,6 +95,12 @@ taking accounts at 9:00 or the twins' round at the Three Broomsticks. Some the P
 and their absence is noticed; any Happening they are not at goes on without them.
 _Avoid_: Opportunity, event, quest, storylet, option
 
+**Engagement**:
+Something the Player Character knows is on at a time and place, because it was arranged in front of him or reached
+him: a summons, a lesson, an invitation, a session he agreed to, once or every week. It is on the Day View until it
+is kept, missed, called off or past. He is expected at one he agreed to or was summoned to; missing it is noticed.
+_Avoid_: Appointment, plan, event, reminder
+
 **Gap**:
 The time between where the Player Character is and the Happening the player chose next. The Player Character
 spends it however the player says, or quietly if they say nothing, and everything else in it goes on without
