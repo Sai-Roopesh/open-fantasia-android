@@ -63,7 +63,7 @@ Scenarios this change builds:
 
 ## 4. Together
 
-- [ ] 4.1 A live check with the real Chronicler on the first play's five arrangements, played as scripted Scenes
+- [x] 4.1 A live check with the real Chronicler on the first play's five arrangements, played as scripted Scenes
   (Draconia's Wednesday, Hermione's invitation, Flitwick's practical) and Meanwhile lines (McGonagall's summons, the
   note under the door). At least four of the five are recorded with the right day, place and expected flag, and none
   invented. Run with `npm run test:real`.
