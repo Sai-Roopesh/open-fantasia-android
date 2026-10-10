@@ -83,6 +83,24 @@ open class DayViewUiChecks : WorldUiChecks() {
         sent(ChooseRequest(after = "closed", kind = ChooseRequestKind.Go, happening = "thursday"))
     }
 
+    // GIVEN in Sunday's Scene Draconia set Wednesday evenings at half past seven in the library, and he said he would be there
+    // THEN every Day View until then offers Wednesday 7:30 pm in the library, marked "You're expected"
+    // (The Day View's half, as DayView.dc.html draws a weekly Engagement.)
+    fun wednesdayEvenings() {
+        val library = Happening(id = "e-library", at = "Day 5 19:30", time = "7:30 pm", every = "Wednesday", daysAway = 3,
+            place = "The library", what = "Draconia's hour on the Charms practical, at the end table, on her terms.",
+            who = listOf("Draconia"), expected = true, pick = false)
+        ready(listOf(summons, library))
+        compose.onNodeWithText("Every Wednesday · 7:30 pm · The library").performScrollTo().assertIsDisplayed()
+        val card = compose.onNodeWithTag("happening-e-library")
+        card.assert(hasAnyDescendant(hasText("You're expected")))
+        compose.onAllNodesWithText("in 3 days", substring = true).assertCountEquals(0)
+        compose.preview("DayView · weekly")
+        go("e-library")
+        compose.onNodeWithText("Go to The library").performClick()
+        sent(ChooseRequest(after = "closed", kind = ChooseRequestKind.Go, happening = "e-library"))
+    }
+
     // WHEN the player taps Let the Story choose
     // THEN the next Scene opens on the Story's own pick
     fun storyChooses() {

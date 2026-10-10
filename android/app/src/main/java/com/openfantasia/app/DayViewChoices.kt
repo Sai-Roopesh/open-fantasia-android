@@ -37,6 +37,7 @@ internal fun storyMinute(at: String): Long {
 internal data class DayChoice(val request: ChooseRequest, val at: String, val time: String, val destination: String, val action: String)
 internal enum class DayPicker(val title: String) { Follow("Follow someone"), Somewhere("Go somewhere"), Skip("Skip to later") }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable internal fun Today(day: DayView, enabled: Boolean, go: (Happening) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("WHAT'S ON", style = FantasiaType.sectionLabel, color = FantasiaCaption)
@@ -44,14 +45,24 @@ internal enum class DayPicker(val title: String) { Follow("Follow someone"), Som
             Surface(Modifier.fillMaxWidth().testTag("happening-${happening.id}"), shape = FantasiaShapes.titleCard,
                 color = FantasiaSurface, border = BorderStroke(1.dp, if (happening.pick) FantasiaAccent else FantasiaLine)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (happening.pick || happening.expected) Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        if (happening.pick) Text("The Story's pick", style = FantasiaType.pickLabel, color = FantasiaLabel)
-                        if (happening.expected) Text("You're expected", style = FantasiaType.meanwhileTag, color = FailureAmber,
+                    val expected: @Composable () -> Unit = {
+                        Text("You're expected", style = FantasiaType.meanwhileTag, color = FailureAmber,
                             modifier = Modifier.background(Color(0xFF30261A), androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
                                 .padding(horizontal = 8.dp, vertical = 2.dp))
                     }
+                    val weekly = happening.every
+                    if (happening.pick || (happening.expected && weekly == null)) Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        if (happening.pick) Text("The Story's pick", style = FantasiaType.pickLabel, color = FantasiaLabel)
+                        if (happening.expected) expected()
+                    }
+                    // A weekly Engagement says the day it repeats and its hour, its mark beside it (DayView.dc.html).
+                    if (weekly != null) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("Every $weekly · ${happening.time} · ${happening.place}", style = FantasiaType.metadata, color = FantasiaSecondary)
+                            if (happening.expected && !happening.pick) expected()
+                        }
                     // A Scene that matters days away says its day and how far off it is, the place under it (DayView.dc.html).
-                    if (happening.daysAway >= 2) {
+                    } else if (happening.daysAway >= 2) {
                         Text(buildAnnotatedString {
                             append("${happening.time} · ")
                             withStyle(SpanStyle(color = FailureAmber, fontWeight = FontWeight.SemiBold)) { append("in ${happening.daysAway} days") }

@@ -15,6 +15,9 @@ class DayViewUiJvmTest : DayViewUiChecks() {
     @Scenario("day-view › Up to four Happenings › The next Scene that matters is days away")
     @Test fun daysAway() = nextSceneDaysAway()
 
+    @Scenario("day-view › What he has arranged is on › Wednesday evenings in the library")
+    @Test fun weekly() = wednesdayEvenings()
+
     @Scenario("day-view › The player chooses where to be › Letting the Story choose")
     @Test fun story() = storyChooses()
 
