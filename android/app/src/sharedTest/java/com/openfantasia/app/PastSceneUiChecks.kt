@@ -54,11 +54,24 @@ open class PastSceneUiChecks {
         compose.runOnIdle { assertTrue(link.moves.isEmpty()); assertTrue(link.redos.isEmpty()); assertTrue(link.endScenes.isEmpty()) }
     }
 
+    /**
+     * Puts the keyboard away and waits until the Scene's list is back to [height], its size before any keyboard. The
+     * list keeps its newest passage in view, so a keyboard still opening after a scroll pushes what was scrolled to off
+     * the top: on a device, a cold keyboard opens after the text is in.
+     */
+    private fun keyboardDown(height: Float) {
+        androidx.test.espresso.Espresso.closeSoftKeyboard()
+        compose.waitUntil(5_000) { compose.onNodeWithTag("scene-passages").fetchSemanticsNode().boundsInRoot.height == height }
+    }
+
     fun loadFailureShowsReasonAndTrace() {
         link.pastSceneFailure = LinkFailure("There is no Scene 13 on this Path", "missing-scene")
         compose.setContent { FantasiaApp(FantasiaModel(link), PairingScanner { error("Already paired") }) }
         compose.onNodeWithText("The Malfoy Problem").performClick()
+        val height = compose.onNodeWithTag("scene-passages").fetchSemanticsNode().boundsInRoot.height
+        // A draft typed, and the keyboard put away before reading back, as a player does.
         compose.onNodeWithTag("composer").performTextInput("An unfinished Move")
+        keyboardDown(height)
         compose.onNodeWithTag("scene-passages").performScrollToNode(hasTestTag("earlier-13"))
         compose.onNodeWithTag("earlier-13").performClick()
         compose.onNodeWithText("There is no Scene 13 on this Path").assertIsDisplayed()
@@ -70,6 +83,8 @@ open class PastSceneUiChecks {
         compose.onNodeWithText("There is no Scene 13 on this Path").assertDoesNotExist()
         compose.onNodeWithTag("composer").assertTextContains("An unfinished Move")
         compose.runOnIdle { link.pastSceneFailure = null }
+        keyboardDown(height)
+        compose.onNodeWithTag("scene-passages").performScrollToNode(hasTestTag("earlier-13"))
         compose.onNodeWithTag("earlier-13").performClick()
         compose.onNodeWithText("The troll raises its club.").assertIsDisplayed()
         compose.runOnIdle { assertEquals(listOf("story" to 13L, "story" to 13L), link.pastSceneRequests) }
