@@ -5,6 +5,7 @@ import type { Entry, SceneOpened, WorldMoved } from "../story/entries.js";
 import { sceneSpans } from "../story/spans.js";
 import { worldOn } from "../story/world.js";
 import { onAhead } from "../story/day.js";
+import { engagementsOn } from "../story/engagements.js";
 import { minutesOf, parseStoryTime } from "../time.js";
 
 /** A Scene's end the Weaver owes: the Scene, the entry its record hangs off, and the span to move the World over. */
@@ -60,7 +61,8 @@ export function weaveAsk(mac: Mac, due: DueWeave): WeaveAsk {
     inScene: peopleIn(due.scene, due.entries),
     // The Writer rated the Scene that ended at a peak: the Story's next pick is a quiet one (openspec long-run).
     afterPeak: due.entries.some(entry => entry.payload.kind === "beat_note" && entry.payload.intensity >= PEAK),
-    stillOn: onAhead(mac, due.through.id, due.until),
+    stillOn: onAhead(mac, due.through.id, due.until).filter(item => !item.engagement),
+    engagementsOn: engagementsOn(mac, due.through.id, due.until),
     ...stretchAfter(mac, due.through.id, due.until)
   };
 }
@@ -87,7 +89,7 @@ function stretchAfter(mac: Mac, head: string, until: string): Pick<WeaveAsk, "st
 
 /**
  * Whether a Scene's end moves nothing (story-in-stretches design decision 4): under an hour since the World last stood,
- * with nothing on in it, no Landmark, no Lead's move due, no peak to rest after, and no new Scene that matters to
+ * with nothing on in it (no Happening, no Engagement), no Landmark, no Lead's move due, no peak to rest after, and no new Scene that matters to
  * offer. The Day View then keeps what is still ahead.
  */
 export function emptySpan(ask: WeaveAsk): boolean {
@@ -96,6 +98,8 @@ export function emptySpan(ask: WeaveAsk): boolean {
   if (!from || !until || minutesOf(until) - minutesOf(from) >= QUIET_GAP_MINUTES || ask.afterPeak) return false;
   const within = (at: string) => { const time = parseStoryTime(at); return time !== null && minutesOf(time) > minutesOf(from) && minutesOf(time) <= minutesOf(until); };
   if ((ask.stillOn ?? []).some(item => within(item.at))) return false;
+  // An Engagement in the span is something on: kept or missed, the World answers it.
+  if ((ask.engagementsOn ?? []).some(on => within(on.next))) return false;
   if (ask.state.landmarks.some(landmark => within(landmark.at))) return false;
   const stretch = ask.stretch;
   const by = stretch?.movesBy ? parseStoryTime(stretch.movesBy) : null;

@@ -3,7 +3,7 @@ import type { Script } from "../../src/models/scripted.js";
 import type { Chronicle, Entry } from "../../src/story/entries.js";
 import { engagementsOn } from "../../src/story/engagements.js";
 import { playable } from "../support/play.js";
-import { hogwartsStoryFile } from "../support/story-files.js";
+import { hogwartsStoryFile, hogwartsWorldStoryFile } from "../support/story-files.js";
 
 const ORDER = "\"Wednesdays, in the library, half past seven. You'll be there before me.\"";
 const AGREED = "yeah alright i will be there";
@@ -84,3 +84,114 @@ describe("an Engagement is recorded where it is made (openspec living-world)", (
     expect(models.chronicler.requests.at(-1)!.prompt).toContain("<engagements_on>\n- E1: Draconia's hour on the Charms practical, in the library. Every Wednesday at 7:30 pm from Day 8 19:30, The library, with Draconia Malfoy, he is expected");
   });
 });
+
+/** Friday night after curfew (Day 3), the World moving on to Saturday 7:30 am with what [weave] says. */
+function fridayNight(weave: Record<string, unknown>) {
+  const story = hogwartsWorldStoryFile({ title: "After curfew", place: "The Gryffindor common room", at: "Day 3 22:40", who: ["Hermione Granger"] });
+  return playable(story, { weaver: [{ answer: JSON.stringify({ lives: [], threads: [], happened: [], meanwhile: [], happenings: [], ...weave }) }], unplanned: true });
+}
+
+const noteSeen = { id: "H1", what: "Draconia pushed a note under his door.", at: "Day 4 07:00", where: "The boys' dormitory", known_to: ["Draconia Malfoy", "Roopesh Gantasala"], landmark: null };
+const note = (engagement: Record<string, unknown>) => ({ text: "A note under the door: \"Library. Ten o'clock.\" D.M.", how: "seen", happened: "H1", told_by: null, engagement });
+const atTen = { what: "Draconia, in the library, about the note.", at: "Day 4 10:00", place: "The library", who: ["Draconia Malfoy"], expected: true, every: null };
+
+describe("what he has arranged is on (openspec day-view)", () => {
+  // GIVEN Meanwhile shows him Draconia's note: "Library. Ten o'clock."
+  // THEN the Day View offers the library at ten, with Draconia, among its Happenings
+  it("day-view › What he has arranged is on › A note under the door", async () => {
+    const { play, engine, storyId, head, view } = fridayNight({ happened: [noteSeen], meanwhile: [note(atTen)] });
+    await play("I say goodnight to Hermione and go up.");
+    engine.endScene(storyId, head(), "end");
+    await engine.woven(storyId);
+    expect(view().day_view!.happenings).toEqual([expect.objectContaining({ at: "Day 4 10:00", time: "10:00 am", place: "The library", who: ["Draconia Malfoy"], expected: true })]);
+  });
+
+  // GIVEN Hermione said she would be at the library's end table if anyone wanted to do the Charms essay properly
+  // THEN the Day View offers the library with Hermione, and it is not marked "You're expected"
+  it("day-view › What he has arranged is on › An invitation, not a summons", async () => {
+    const invited = { what: "Hermione at the end table, doing the Charms essay properly.", at: "Day 4 09:00", place: "The library", who: ["Hermione Granger"], expected: false, every: null };
+    const { play, engine, storyId, head, view } = fridayNight({ happened: [{ ...noteSeen, what: "Hermione said where she would be.", known_to: ["Hermione Granger", "Roopesh Gantasala"] }], meanwhile: [{ text: "Hermione says she will be at the end table if anyone wants to do the essay properly.", how: "told", happened: "H1", told_by: "Hermione Granger", engagement: invited }] });
+    await play("I say goodnight to Hermione and go up.");
+    engine.endScene(storyId, head(), "end");
+    await engine.woven(storyId);
+    expect(view().day_view!.happenings).toEqual([expect.objectContaining({ place: "The library", who: ["Hermione Granger"], expected: false })]);
+  });
+
+  // GIVEN five things are on before Thursday's Scene that matters, one of them McGonagall's summons at 9:00
+  // THEN the Day View offers four, and McGonagall's summons is among them, marked "You're expected"
+  it("day-view › Up to four Happenings › What he is expected at is never crowded out", async () => {
+    const happening = (id: string, at: string, place: string, pick = false) => ({ id, at, place, what: `${place}.`, who: ["Harry Potter"], expected: false, pick });
+    const summons = { what: "McGonagall wants his account of the troll.", at: "Day 4 09:00", place: "McGonagall's office", who: ["Minerva McGonagall"], expected: true, every: null };
+    const { play, engine, storyId, head, view } = fridayNight({
+      happened: [{ ...noteSeen, what: "McGonagall sent for him.", known_to: ["Minerva McGonagall", "Roopesh Gantasala"] }],
+      meanwhile: [{ text: "A note from McGonagall: her office, nine o'clock.", how: "seen", happened: "H1", told_by: null, engagement: summons }],
+      happenings: [happening("P1", "Day 9 10:00", "The Charms corridor", true), happening("P2", "Day 4 11:00", "The Great Hall"), happening("P3", "Day 4 14:00", "The Quidditch pitch"), happening("P4", "Day 4 20:00", "The Three Broomsticks")]
+    });
+    await play("I say goodnight to Hermione and go up.");
+    engine.endScene(storyId, head(), "end");
+    await engine.woven(storyId);
+    const on = view().day_view!.happenings;
+    expect(on.map(item => [item.place, item.pick, item.expected])).toEqual([
+      ["The Charms corridor", true, false], ["McGonagall's office", false, true], ["The Great Hall", false, false], ["The Quidditch pitch", false, false]
+    ]);
+  });
+
+  it("keeps one card for an Engagement the Weaver also offered", async () => {
+    const { play, engine, storyId, head, view } = fridayNight({ happened: [noteSeen], meanwhile: [note(atTen)],
+      happenings: [{ id: "P1", at: "Day 4 10:15", place: "the library", what: "Draconia is in the library.", who: ["Draconia Malfoy"], expected: false, pick: false }] });
+    await play("I say goodnight to Hermione and go up.");
+    engine.endScene(storyId, head(), "end");
+    await engine.woven(storyId);
+    expect(view().day_view!.happenings).toEqual([expect.objectContaining({ at: "Day 4 10:00", place: "The library", expected: true })]);
+  });
+});
+
+describe("weekly, and called off (openspec day-view: What he has arranged is on)", () => {
+  // GIVEN in Sunday's Scene Draconia set Wednesday evenings at half past seven in the library, and he said he would be
+  //   there
+  // THEN every Day View until then offers Wednesday 7:30 pm in the library, marked "You're expected"
+  // AND after that Wednesday, the Day View offers the next Wednesday, until she calls it off
+  it("day-view › What he has arranged is on › Wednesday evenings in the library", async () => {
+    const { play, engine, storyId, head, view } = sundayMorning([record([wednesdays([{ entry: "E3", text: ORDER }, { entry: "E4", text: AGREED }])])]);
+    await play("I ask her what the slap is going to cost me.");
+    await play(AGREED);
+    engine.endScene(storyId, head(), "end");
+    await engine.chronicled(storyId);
+    await engine.woven(storyId);
+    const library = (at: string) => view().day_view!.happenings.find(item => item.place === "The library" && item.at === at);
+    expect(library("Day 8 19:30")).toMatchObject({ time: "Wednesday 7:30 pm", days_away: 3, expected: true });
+    // A week on: the first Wednesday is behind him, and the next one is on.
+    const nextWeek = view().day_view!.choices.skips.find(skip => skip.label === "Next week")!;
+    engine.choose(storyId, { after: head(), kind: "skip", at: nextWeek.at, gap: "I keep my head down all week." }, "skip");
+    await engine.settled(storyId);
+    engine.endScene(storyId, head(), "end-2");
+    await engine.woven(storyId);
+    expect(library("Day 8 19:30")).toBeUndefined();
+    expect(library("Day 15 19:30")).toMatchObject({ time: "Wednesday 7:30 pm", expected: true });
+  });
+
+  // GIVEN Draconia's Wednesday sessions are on
+  // WHEN a Scene ends in which she tells him not to bother coming any more
+  // THEN the Day View no longer offers them
+  it("day-view › What he has arranged is on › Called off", async () => {
+    const dismissal = "\"Don't bother coming on Wednesday. Or any Wednesday.\"";
+    const calledOff = { answer: JSON.stringify({ summary: "Draconia called the Wednesdays off.", moments: [], told: [], changed: [{ engagement: "E1", to: "off", quotes: [{ entry: "E2", text: dismissal }] }] }) };
+    const story = hogwartsStoryFile({ title: "The price of a slap", place: "The Great Hall", at: "Day 5 07:30", who: ["Draconia Malfoy"], prose: "Draconia sits down opposite him without asking." });
+    const { play, engine, storyId, head, view } = playable(story, {
+      actor: [{ answer: `She does not look up from her toast. ${ORDER}` }, { answer: "She looks at him, and waits." }, { answer: `She says it to the window. ${dismissal}` }],
+      chronicler: [record([wednesdays([{ entry: "E3", text: ORDER }, { entry: "E4", text: AGREED }])]), calledOff]
+    });
+    await play("I ask her what the slap is going to cost me.");
+    await play(AGREED);
+    engine.endScene(storyId, head(), "end");
+    await engine.chronicled(storyId);
+    await engine.woven(storyId);
+    expect(view().day_view!.happenings.some(item => item.place === "The library")).toBe(true);
+    await play("At lunch I sit down across from her.");
+    engine.endScene(storyId, head(), "end-2");
+    await engine.chronicled(storyId);
+    await engine.woven(storyId);
+    expect(view().day_view!.happenings.some(item => item.place === "The library")).toBe(false);
+  });
+});
+

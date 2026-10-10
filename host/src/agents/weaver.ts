@@ -125,6 +125,8 @@ export interface WeaveAsk {
    * The Director's Stretch (docs/adr/0010): its next Scene that matters after the span, which is the Story's pick unless
    * it is already on; null when the Stretch has none left, absent before the first plan.
    */
+  /** The Engagements on from the span's end (docs/adr/0011): on the Day View already, so never offered again. */
+  engagementsOn?: { engagement: Engagement; next: string }[];
   stretch?: {
     next: PlannedScene | null;
     /** The Leads' moves this Stretch still to make off-screen, and the time they must be made by: its last Scene. */
@@ -417,13 +419,14 @@ export function weaverPrompt(ask: WeaveAsk): { system: string; prompt: string; f
         sceneThatEnded(ask.scene, pc)
       ].join("\n\n")),
     section("still_on", (ask.stillOn ?? []).map(item => `- ${item.at}, ${item.place}: ${item.what}`).join("\n")),
+    section("engagements_on", (ask.engagementsOn ?? []).map(({ engagement, next }) => `- ${next}${engagement.every === "week" ? " (every week)" : ""}, ${engagement.place}: ${engagement.what}${engagement.expected ? " He is expected." : ""}`).join("\n")),
     ask.stretch?.moves?.length ? section(`lead_moves_offscreen by="${ask.stretch.movesBy ? say(state, ask.stretch.movesBy) : "the Stretch's end"}"`, ask.stretch.moves.map(lead => `- ${lead.who}: ${lead.move}`).join("\n")) : null,
     nextScene ? section(`next_scene_that_matters id="${nextScene.id}" at="${say(state, nextScene.at)}" place="${nextScene.place}" with="${nextScene.who.join(", ") || "nobody else"}"`, nextScene.for) : null,
     section("landmarks_in_span", landmarks.map(landmark => `- ${landmark.name}, ${landmark.at}: ${landmark.what}`).join("\n")),
     section("task", [
       "Move the World on over the span: the Lives and Threads that moved, what happened and who knows it, and what the player's character learned.",
       landmarks.length ? "Every Landmark in the span happens." : "",
-      ask.gap ? "Leave happenings empty: the next Scene begins where the Gap ends." : `Then say what is on from ${say(state, ask.until)} on; what is still on stays, so do not offer it again.`,
+      ask.gap ? "Leave happenings empty: the next Scene begins where the Gap ends." : `Then say what is on from ${say(state, ask.until)} on; what is still on, and his engagements, stay on, so do not offer them again.`,
       ask.stretch?.moves?.length ? "Each Lead under lead_moves_offscreen makes that move this Stretch, off-screen: write it in happened when it fits the span, at a time in the span, with move set to the Lead's name, known to who did it, saw it or was told; and if it would reach him, in meanwhile as he would learn it. Every one is made by the time given." : "",
       nextScene ? `Your pick is the next Scene that matters, ${nextScene.id}: offer it as a Happening at its time and place, with scene "${nextScene.id}" and pick true, saying what is going on and why it matters to him now in the World's words, never the plan's. It may be days away.` : "",
       ask.afterPeak && !ask.gap ? "The Scene that ended peaked. Your pick is a quiet Happening, nothing at stake in it, with quiet true: an ordinary part of the day, with no one wanting anything from him and nothing left hanging." : "",

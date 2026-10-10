@@ -38,11 +38,11 @@ Scenarios this change builds:
 
 ## 2. The Day View
 
-- [ ] 2.1 What is on draws on Engagements (design decision 3): `onAhead` and `todayOn`, the Weaver Happening at the
+- [x] 2.1 What is on draws on Engagements (design decision 3): `onAhead` and `todayOn`, the Weaver Happening at the
   same place and time dropped, the order and the cap, and the Weaver told what is on. Test first: `day-view › What
   he has arranged is on › A note under the door`, `› An invitation, not a summons`, and `day-view › Up to four
   Happenings › What he is expected at is never crowded out`.
-- [ ] 2.2 Weekly and called off. Test first: `day-view › What he has arranged is on › Wednesday evenings in the
+- [x] 2.2 Weekly and called off. Test first: `day-view › What he has arranged is on › Wednesday evenings in the
   library` (offered days away and again the next week) and `› Called off`.
 - [ ] 2.3 Kept or missed (design decision 4): a choice carries its Engagement; kept by the choice or by a Scene at its
   place over its time; every span's missed Engagements passed to the Weaver. Test first: `day-view › Missing

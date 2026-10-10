@@ -308,6 +308,9 @@ export interface Happening {
   quiet?: boolean;
   /** The Scene that matters it is, from the Director's Stretch (docs/adr/0010); absent or null for any other. */
   scene?: string | null;
+  /** The Engagement it is the next time of (docs/adr/0011), and whether it repeats; absent for the Weaver's own. */
+  engagement?: string;
+  every?: "week" | null;
 }
 
 /**

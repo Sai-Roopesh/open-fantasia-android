@@ -1,31 +1,48 @@
 import type { DayChoices, Happening as DayHappening, Skip } from "../protocol/generated/link.js";
 import type { Mac } from "../mac.js";
 import { formatStoryTime, laterTimes, minutesOf, parseStoryTime, sayStoryTime, sayTime, type StoryTime } from "../time.js";
+import { engagementsOn } from "./engagements.js";
 import type { Happening, WorldMoved } from "./entries.js";
+import { samePlace } from "./places.js";
 import type { State } from "./state.js";
 
 /** At most this many Happenings are on at once (openspec day-view: Up to four Happenings). */
 const MAX_ON = 4;
 
+/** An Engagement at the same place within this many minutes of a Weaver's Happening is the same thing. */
+const SAME_TIME_MINUTES = 60;
+
+const minutesAt = (at: string) => {
+  const time = parseStoryTime(at);
+  return time ? minutesOf(time) : 0;
+};
+
 /**
- * Every Happening offered on the Path to [head] that is still ahead of [from]: what was on stays on, whether or not
- * the latest record offered it again. Oldest first, each once.
+ * What is on along the Path to [head] from [from] (openspec day-view): every Happening the Weaver offered that is still
+ * ahead, whether or not the latest record offered it again, and each Engagement's next time (docs/adr/0011). A
+ * Weaver's Happening at an Engagement's place within the hour is the same thing, and the Engagement stands for it.
+ * Oldest first, each once.
  */
 export function onAhead(mac: Mac, head: string, from: string): Happening[] {
   const now = parseStoryTime(from);
   const seen = new Set<string>();
-  return mac.tree.recordsOn(head, "world_moved").flatMap(entry => (entry.payload as WorldMoved).happenings).filter(item => {
+  const engagements: Happening[] = engagementsOn(mac, head, from).map(({ engagement, next }) => ({
+    id: `e-${engagement.id}-${next.replace(/\W+/g, "")}`, at: next, place: engagement.place, what: engagement.what, who: engagement.who,
+    expected: engagement.expected, pick: false, engagement: engagement.id, every: engagement.every
+  }));
+  const offered = mac.tree.recordsOn(head, "world_moved").flatMap(entry => (entry.payload as WorldMoved).happenings).filter(item => {
     const at = parseStoryTime(item.at);
     if (!now || !at || minutesOf(at) < minutesOf(now) || seen.has(item.id)) return false;
     seen.add(item.id);
-    return true;
+    return !engagements.some(on => samePlace(on.place, item.place) && Math.abs(minutesAt(on.at) - minutesOf(at)) <= SAME_TIME_MINUTES);
   });
+  return [...offered, ...engagements].sort((left, right) => minutesAt(left.at) - minutesAt(right.at));
 }
 
 /**
- * What is on from the Day View's time (openspec day-view: Up to four Happenings): what the Weaver offered for the
- * Scene that closed and what was on already and is still ahead, the Story's pick first, at most four; nothing until
- * the World has moved on.
+ * What is on from the Day View's time (openspec day-view: Up to four Happenings): the Story's pick first, then the
+ * Engagements he is expected at before it, then the rest by time; at most four, the latest giving way first, never the
+ * pick or an expected Engagement before it. Nothing until the World has moved on.
  */
 export function todayOn(mac: Mac, head: string, state: State): DayHappening[] {
   const now = parseStoryTime(state.clock);
@@ -33,15 +50,12 @@ export function todayOn(mac: Mac, head: string, state: State): DayHappening[] {
   if (!latest || !now || latest.scene !== state.scene?.openedBy) return [];
   // The Story's pick: the latest weave's, or the Scene that matters it offered before and still ahead.
   const ahead = onAhead(mac, head, state.clock);
-  const pick = latest.happenings.find(item => item.pick)?.id ?? ahead.find(item => item.scene)?.id ?? ahead.findLast(item => item.pick)?.id;
-  const minutes = (at: string) => {
-    const time = parseStoryTime(at);
-    return time ? minutesOf(time) : 0;
-  };
-  const on = onAhead(mac, head, state.clock)
-    .map(item => ({ ...item, pick: item.id === pick }))
-    .sort((left, right) => Number(right.pick) - Number(left.pick) || minutes(left.at) - minutes(right.at))
-    .slice(0, MAX_ON);
+  const pickId = latest.happenings.find(item => item.pick)?.id ?? ahead.find(item => item.scene)?.id ?? ahead.findLast(item => item.pick && !item.engagement)?.id;
+  const pick = ahead.find(item => item.id === pickId);
+  const until = pick ? minutesAt(pick.at) : Infinity;
+  const kept = ahead.filter(item => item !== pick && item.engagement && item.expected && minutesAt(item.at) <= until);
+  const rest = ahead.filter(item => item !== pick && !kept.includes(item)).slice(0, Math.max(0, MAX_ON - (pick ? 1 : 0) - kept.length));
+  const on = [...(pick ? [{ ...pick, pick: true }] : []), ...kept.map(item => ({ ...item, pick: false })), ...rest.map(item => ({ ...item, pick: false }))];
   return on.flatMap(item => {
     const at = parseStoryTime(item.at);
     if (!at) return [];

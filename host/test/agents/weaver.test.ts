@@ -216,6 +216,11 @@ describe("an Engagement carried by Meanwhile (engagements design decision 1)", (
     expect(weaverPrompt(await ask()).system).toContain("`engagement`");
   });
 
+  it("is told the Engagements on, so it does not offer them again", async () => {
+    const on = [{ engagement: { id: "g-1", what: "Draconia's hour in the library.", at: "Day 8 19:30", place: "The library", who: ["Draconia Malfoy"], expected: true, every: "week" as const }, next: "Day 8 19:30" }];
+    expect(weaverPrompt(await ask({ engagementsOn: on })).prompt).toContain("<engagements_on>\n- Day 8 19:30 (every week), The library: Draconia's hour in the library. He is expected.\n</engagements_on>");
+  });
+
   it("leaves out an Engagement before the span's end, and a name not in the Story, and keeps the line", async () => {
     const early = checkWeave(await ask(), answer({ meanwhile: [{ ...note, engagement: { ...summons, at: "Day 4 07:00" } }] }));
     expect(early).toMatchObject({ ok: true, dropped: ["meanwhile: item 1, engagement: it is at Day 4 07:00, before the span ends (Day 4 07:30); it is not ahead of him"] });
