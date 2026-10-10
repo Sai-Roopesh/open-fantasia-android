@@ -42,7 +42,7 @@ placeholders; the app shows the real images (openspec stories: Portraits are rea
 | `SceneReturn.dc.html` | Back after a night away: the Previously card | the Chronicler |
 | `LongPress.dc.html` | An earlier Reply's menu: Copy, Rewind to here, Try another way from here, Edit | Paths, editing |
 | `MovingOn.dc.html` | Between Scenes: one line while the Scene is recorded and the World moves on | the Chronicler, the Weaver |
-| `DayView.dc.html` | The Day View: the day, the place, countdowns, Meanwhile, the Story's pick with its day, Happenings, the other choices, your own Move | screens-to-design (first form); the Weaver; story in stretches |
+| `DayView.dc.html` | The Day View: the day, the place, countdowns, Meanwhile, the Story's pick with its day, Happenings and a weekly Engagement, the other choices, your own Move | screens-to-design (first form); the Weaver; story in stretches; engagements |
 | `Gap.dc.html` | What did you do in the Gap? | the Weaver |
 | `World.dc.html`, `Person.dc.html` | The World screen and a person, with Between you | the World screen, editing, lasting records |
 | `Journal.dc.html` | The Journal | the Journal |
