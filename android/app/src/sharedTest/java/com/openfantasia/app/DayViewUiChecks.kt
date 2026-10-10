@@ -13,13 +13,13 @@ open class DayViewUiChecks : WorldUiChecks() {
     private val hospital = Happening(id = "hospital", at = "Day 3 11:00", time = "11:00 am", daysAway = 0,
         place = "the hospital wing", what = "Draconia is fighting Snape for her bed back.",
         who = listOf("Draconia", "Snape", "Pansy"), expected = false, pick = false)
-    private val tomorrow = Skip(label = "Tomorrow", inSentence = "tomorrow", at = "Day 4 07:30", time = "Monday 7:30 am")
-    private val evening = Skip(label = "This evening", inSentence = "this evening", at = "Day 3 18:00", time = "6:00 pm")
-    private fun ready(happenings: List<Happening> = listOf(summons, hospital)) {
+    private val tomorrow = Skip(label = "Tomorrow", inSentence = "tomorrow", at = "Day 4 07:30", time = "Monday 7:30 am", daysAway = 1)
+    private val evening = Skip(label = "This evening", inSentence = "this evening", at = "Day 3 18:00", time = "6:00 pm", daysAway = 0)
+    private fun ready(happenings: List<Happening> = listOf(summons, hospital), skips: List<Skip> = listOf(evening, tomorrow)) {
         link.current.value = link.current.value.copy(headEntryID = "closed", dayView = FakeFantasiaLink.dayView().copy(
             place = "Gryffindor Tower", happenings = happenings,
             meanwhile = listOf(MeanwhileItem(how = How.Seen, text = "A note under the door.")),
-            choices = DayChoices(follow = listOf("Hermione", "Draconia"), places = listOf("The library"), skips = listOf(evening, tomorrow))))
+            choices = DayChoices(follow = listOf("Hermione", "Draconia"), places = listOf("The library"), skips = skips)))
         openScene()
     }
     private fun tap(text: String) = compose.onNodeWithText(text).performScrollTo().performClick()
@@ -190,6 +190,23 @@ open class DayViewUiChecks : WorldUiChecks() {
         compose.onNodeWithText("11:00 am · the hospital wing.").assertIsDisplayed()
         compose.onNodeWithText("Skip to tomorrow").performClick()
         sent(ChooseRequest(after = "closed", kind = ChooseRequestKind.Skip, at = tomorrow.at))
+    }
+
+    // GIVEN it is Friday, and the next Landmark, the Halloween troll, is on a Thursday 48 days on
+    // THEN Skip to later offers it as "Thursday 7:00 pm · in 48 days", and next week as "Friday 7:30 am · in 7 days"
+    fun landmarkWeeksAway() {
+        val nextWeek = Skip(label = "Next week", inSentence = "next week", at = "Day 10 07:30", time = "Friday 7:30 am", daysAway = 7)
+        val troll = Skip(label = "The Halloween troll", inSentence = "The Halloween troll", at = "Day 51 19:00", time = "Thursday 7:00 pm", daysAway = 48)
+        ready(skips = listOf(tomorrow, nextWeek, troll))
+        tap("Skip to later")
+        compose.onNodeWithText("Thursday 7:00 pm · in 48 days").assertIsDisplayed()
+        compose.onNodeWithText("Friday 7:30 am · in 7 days").assertIsDisplayed()
+        // Within the week the weekday says the day.
+        compose.onNodeWithText("Monday 7:30 am").assertIsDisplayed()
+        compose.preview("DayView · skip weeks away")
+        // The Gap says the time it runs to, as before.
+        compose.onNodeWithText("The Halloween troll").performClick()
+        compose.onNodeWithText("7:40 am – Thursday 7:00 pm, before The Halloween troll").assertIsDisplayed()
     }
 
     fun laterPickHasGap() {

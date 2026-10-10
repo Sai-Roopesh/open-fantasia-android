@@ -443,6 +443,10 @@ export interface Skip {
    * As people say it: "6:00 pm" on the Day View's own day, "Saturday 7:30 am" on another.
    */
   time: string;
+  /**
+   * How many days off it is: 0 today, 1 tomorrow; the skip says "in 48 days" a week or more away.
+   */
+  days_away: number;
 }
 /**
  * The Previously card: where the Story stands, from the Chronicler's records, and when the player last played.

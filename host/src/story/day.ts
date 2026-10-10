@@ -20,8 +20,9 @@ const minutesAt = (at: string) => {
 /**
  * What is on along the Path to [head] from [from] (openspec day-view): every Happening the Weaver offered that is still
  * ahead, whether or not the latest record offered it again, and each Engagement's next time (docs/adr/0011). A
- * Weaver's Happening at an Engagement's place within the hour is the same thing, and the Engagement stands for it.
- * Oldest first, each once.
+ * Weaver's Happening at an Engagement's place within the hour is the same thing, and one card stands for both: the
+ * Engagement's time, place and mark, with the Happening's id, pick, Scene and words (play-check-fixes design decision
+ * 1). Oldest first, each once.
  */
 export function onAhead(mac: Mac, head: string, from: string): Happening[] {
   const now = parseStoryTime(from);
@@ -34,15 +35,22 @@ export function onAhead(mac: Mac, head: string, from: string): Happening[] {
     const at = parseStoryTime(item.at);
     if (!now || !at || minutesOf(at) < minutesOf(now) || seen.has(item.id)) return false;
     seen.add(item.id);
-    return !engagements.some(on => samePlace(on.place, item.place) && Math.abs(minutesAt(on.at) - minutesOf(at)) <= SAME_TIME_MINUTES);
+    const index = engagements.findIndex(on => samePlace(on.place, item.place) && Math.abs(minutesAt(on.at) - minutesOf(at)) <= SAME_TIME_MINUTES);
+    const card = engagements[index];
+    if (!card) return true;
+    // The same thing: the latest Happening for it gives the card its id, pick, Scene and words, unless an earlier one
+    // was the Scene that matters and this one is not.
+    if (card.scene && !item.scene) return false;
+    engagements[index] = { ...card, id: item.id, pick: item.pick, scene: item.scene ?? null, what: item.what, who: [...new Set([...card.who, ...item.who])] };
+    return false;
   });
   return [...offered, ...engagements].sort((left, right) => minutesAt(left.at) - minutesAt(right.at));
 }
 
 /**
- * What is on from the Day View's time (openspec day-view: Up to four Happenings): the Story's pick first, then the
- * Engagements he is expected at before it, then the rest by time; at most four, the latest giving way first, never the
- * pick or an expected Engagement before it. Nothing until the World has moved on.
+ * What is on from the Day View's time (openspec day-view: Up to four Happenings): the Story's pick first, then the rest
+ * by time; at most four, the latest giving way first, never the pick or an expected Engagement before it. Nothing
+ * until the World has moved on.
  */
 export function todayOn(mac: Mac, head: string, state: State): DayHappening[] {
   const now = parseStoryTime(state.clock);
@@ -55,7 +63,8 @@ export function todayOn(mac: Mac, head: string, state: State): DayHappening[] {
   const until = pick ? minutesAt(pick.at) : Infinity;
   const kept = ahead.filter(item => item !== pick && item.engagement && item.expected && minutesAt(item.at) <= until);
   const rest = ahead.filter(item => item !== pick && !kept.includes(item)).slice(0, Math.max(0, MAX_ON - (pick ? 1 : 0) - kept.length));
-  const on = [...(pick ? [{ ...pick, pick: true }] : []), ...kept.map(item => ({ ...item, pick: false })), ...rest.map(item => ({ ...item, pick: false }))];
+  const others = [...kept, ...rest].sort((left, right) => minutesAt(left.at) - minutesAt(right.at)).map(item => ({ ...item, pick: false }));
+  const on = [...(pick ? [{ ...pick, pick: true }] : []), ...others];
   return on.flatMap(item => {
     const at = parseStoryTime(item.at);
     if (!at) return [];
@@ -76,10 +85,11 @@ export function dayChoicesOf(state: State): DayChoices {
   const now = parseStoryTime(state.clock);
   const skips: Skip[] = [];
   if (now) {
-    // On the Day View's own day a time is said without the day, as a Happening's is.
+    // On the Day View's own day a time is said without the day, as a Happening's is, and each says how many days off it
+    // is, for the phone to say a week or more (openspec day-view: The player chooses where to be).
     const say = (at: StoryTime) => at.day === now.day ? sayTime(at) : sayStoryTime(at, state.dayOneWeekday);
     for (const later of laterTimes(now, state.dayOneWeekday)) {
-      skips.push({ label: later.label, in_sentence: later.inSentence, at: formatStoryTime(later.at), time: say(later.at) });
+      skips.push({ label: later.label, in_sentence: later.inSentence, at: formatStoryTime(later.at), time: say(later.at), days_away: later.at.day - now.day });
     }
     const landmark = state.landmarks
       .flatMap(item => {
@@ -87,7 +97,7 @@ export function dayChoicesOf(state: State): DayChoices {
         return at && minutesOf(at) > minutesOf(now) ? [{ item, at }] : [];
       })
       .sort((left, right) => minutesOf(left.at) - minutesOf(right.at))[0];
-    if (landmark) skips.push({ label: landmark.item.name, in_sentence: landmark.item.name, at: landmark.item.at, time: say(landmark.at) });
+    if (landmark) skips.push({ label: landmark.item.name, in_sentence: landmark.item.name, at: landmark.item.at, time: say(landmark.at), days_away: landmark.at.day - now.day });
   }
   return { follow, places: state.world.places.map(place => place.name), skips };
 }

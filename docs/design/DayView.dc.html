@@ -119,6 +119,16 @@ button{font:inherit;cursor:pointer}
       </div>
     </section>
 
+    <!-- Skip to later, opened (play-check-fixes): a week or more away says how far, in the pick's amber. -->
+    <section aria-label="Skip to later, opened" style="display:flex;flex-direction:column;gap:4px;padding:12px 20px 16px;border-radius:24px 24px 0 0;background:#1E1B24;border:1px solid #34303D">
+      <span style="align-self:center;width:36px;height:4px;border-radius:2px;background:#3A3544;margin-bottom:8px"></span>
+      <h3 style="margin:0 0 4px;font-family:Literata,Georgia,serif;font-size:22px;font-weight:600">Skip to later</h3>
+      <div style="display:flex;flex-direction:column;gap:4px;padding:12px 14px"><span style="font-size:15px">Tomorrow</span><span style="font-size:14px;color:#B3ACC0">Saturday 7:30 am</span></div>
+      <div style="display:flex;flex-direction:column;gap:4px;padding:12px 14px"><span style="font-size:15px">Next week</span><span style="font-size:14px;color:#B3ACC0">Friday 7:30 am · <span style="color:#E9B95C;font-weight:600">in 7 days</span></span></div>
+      <div style="display:flex;flex-direction:column;gap:4px;padding:12px 14px"><span style="font-size:15px">The Halloween troll</span><span style="font-size:14px;color:#B3ACC0">Thursday 7:00 pm · <span style="color:#E9B95C;font-weight:600">in 48 days</span></span></div>
+      <span style="align-self:flex-end;font-size:14px;color:#B3ACC0;padding:12px">Back</span>
+    </section>
+
     <div style="display:flex;gap:10px;align-items:flex-end;margin-top:4px">
       <label style="flex:1;display:flex">
         <span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Your own Move</span>
@@ -131,7 +141,7 @@ button{font:inherit;cursor:pointer}
   </main>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1680}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":2000}}'>
 class Component extends DCLogic {
   renderVals() { return {}; }
 }

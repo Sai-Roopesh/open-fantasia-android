@@ -6,7 +6,7 @@ import type { Engagement, Entry, Happened, Happening, LeadMove, Life, MeanwhileI
 import type { ModelChoice, State } from "../story/state.js";
 import type { World } from "../story/world.js";
 import { minutesOf, parseStoryTime, sayStoryTime, sayTime } from "../time.js";
-import { nameIndex } from "./names.js";
+import { nameIndex, storyName } from "./names.js";
 import { answerWithOneRepair, type Checked } from "./repair.js";
 
 /**
@@ -174,7 +174,7 @@ export function checkWeave(ask: WeaveAsk, raw: unknown): Checked<WeaveRecord> {
   const fatal: string[] = [];
   const people = nameIndex(Object.values(state.people));
   const groups = new Map(state.groups.map(group => [group.name.toLocaleLowerCase(), group.name]));
-  const named = (name: string) => groups.get(name.trim().toLocaleLowerCase()) ?? people.get(name.trim().toLocaleLowerCase()) ?? null;
+  const named = (name: string) => groups.get(name.trim().toLocaleLowerCase()) ?? storyName(people, name);
 
   // Lives: a person's or a Group's, never the Player Character's; a person in a Group lives through the Group.
   const lives: Life[] = [];
@@ -193,7 +193,11 @@ export function checkWeave(ask: WeaveAsk, raw: unknown): Checked<WeaveRecord> {
   const landmarkNames = new Map(state.landmarks.map(landmark => [landmark.name.toLocaleLowerCase(), landmark.name]));
   const ids = new Map<string, Happened>();
   const outstanding = ask.stretch?.moves ?? [];
-  const happened: Happened[] = raw.happened.flatMap(item => {
+  const happened: Happened[] = raw.happened.flatMap(raw => {
+    // What he missed is on record: its time and place are the record's, whatever the answer says (docs/adr/0012).
+    const label = /^G(\d+)$/i.exec(raw.missed?.trim() ?? "")?.[1];
+    const was = label ? ask.missed?.[Number(label) - 1] : undefined;
+    const item = was ? { ...raw, at: was.at, where: was.place } : raw;
     const at = parseStoryTime(item.at);
     if (!at) return (dropped.push(`happened: ${item.id} is at "${item.at}", which is not a time like "Day 4 06:30"`), []);
     if (from && until && (minutesOf(at) < minutesOf(from) || minutesOf(at) > minutesOf(until))) {
@@ -209,7 +213,7 @@ export function checkWeave(ask: WeaveAsk, raw: unknown): Checked<WeaveRecord> {
     // A Lead's move this Stretch, made off-screen: only a Lead with one still to make carries the mark.
     const mover = item.move ? named(item.move) : null;
     const move = mover && outstanding.some(lead => lead.who === mover) ? mover : null;
-    if (item.move && !move) dropped.push(`happened: ${item.id} is marked as ${mover ?? item.move.trim()}'s move, but ${mover ?? item.move.trim()} has none to make off-screen; it is an ordinary happening`);
+    // A mark on someone with no move to make carries nothing: cleared, and the happening kept (docs/adr/0012).
     const checked = { id: `h-${randomUUID().slice(0, 8)}`, what: item.what.trim(), at: item.at.trim(), where: item.where.trim(), knownTo: [...new Set(knownTo)], landmark, move };
     ids.set(item.id.trim(), checked);
     return [checked];
@@ -390,7 +394,8 @@ export function weaverPrompt(ask: WeaveAsk): { system: string; prompt: string; f
     return at && from && minutesOf(from) - minutesOf(at) <= LATELY_MINUTES;
   });
   // What was on that he was not at, labelled for the Weaver to answer (G1 …).
-  const missedLines = (ask.missed ?? []).map((item, index) => `- G${index + 1} ${sayTime(parseStoryTime(item.at) ?? { day: 0, minuteOfDay: 0 })}, ${item.place}: ${item.what} With ${item.who.join(", ")}${item.expected ? "; he was expected" : ""}.`);
+  // Said with its day: a span of days has more than one 2:00 pm (play-check-fixes design decision 4).
+  const missedLines = (ask.missed ?? []).map((item, index) => `- G${index + 1} ${sayStoryTime(parseStoryTime(item.at) ?? { day: 0, minuteOfDay: 0 }, state.dayOneWeekday)}, ${item.place}: ${item.what} With ${item.who.join(", ")}${item.expected ? "; he was expected" : ""}.`);
   const spanStart = parseStoryTime(ask.from);
   const spanEnd = parseStoryTime(ask.until);
   const days = spanStart && spanEnd ? Math.floor((minutesOf(spanEnd) - minutesOf(spanStart)) / (24 * 60)) : 0;

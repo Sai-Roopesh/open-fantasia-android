@@ -24,9 +24,16 @@ export function nameIndex(people: Person[]): Map<string, string> {
   return new Map([...shorter, ...full]);
 }
 
-/** The Story's name for [name], or null. */
+/** A title a model puts before a name ("Madam Hooch", "Professor McGonagall"), with or without a full stop. */
+const TITLE = /^(professor|prof|madam|madame|mr|mrs|ms|miss|mister|dr|doctor|sir|dame|lord|lady|master)\.?\s+/i;
+
+/**
+ * The Story's name for [name], or null: as written, or without one title before it (play-check-fixes design decision
+ * 3). A title before a surname two people share is still nobody's.
+ */
 export function storyName(index: Map<string, string>, name: string): string | null {
-  return index.get(name.trim().toLocaleLowerCase()) ?? null;
+  const key = name.trim().toLocaleLowerCase();
+  return index.get(key) ?? index.get(key.replace(TITLE, "")) ?? null;
 }
 
 /** Whether [text] names [person]: by full name, an alias, or any word of their name. */

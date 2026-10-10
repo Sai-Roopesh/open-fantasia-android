@@ -10,7 +10,7 @@ import { writeBeat, WriterFailed } from "../agents/writer.js";
 import { LinkError } from "../link/errors.js";
 import type { Mac } from "../mac.js";
 import { actorOf, jobModels } from "../models/jobs.js";
-import { nameIndex } from "../agents/names.js";
+import { nameIndex, storyName } from "../agents/names.js";
 import { writePlan } from "../agents/director.js";
 import { directionDue, planForWriter } from "./directing.js";
 import { checkPerson, portraitExtension } from "./people.js";
@@ -228,7 +228,7 @@ export class Engine {
   setKnown(storyId: string, person: string, text: string, after: string, traceId: string): Accepted {
     const path = this.pathHead(storyId, after);
     const state = this.mac.states.at(path.headEntryId);
-    const name = nameIndex(Object.values(state.people)).get(person.trim().toLocaleLowerCase());
+    const name = storyName(nameIndex(Object.values(state.people)), person);
     if (!name) throw new LinkError("invalid", `${person.trim()} is not in this Story.`);
     if (name === state.playerCharacter) throw new LinkError("invalid", `${name} is the Player Character; what he knows of himself is not kept.`);
     if (!text.trim()) throw new LinkError("invalid", `Say what he knows of ${name}.`);
@@ -252,7 +252,7 @@ export class Engine {
   setLead(storyId: string, person: string, lead: boolean, after: string, traceId: string): Accepted {
     const path = this.pathHead(storyId, after);
     const state = this.mac.states.at(path.headEntryId);
-    const name = nameIndex(Object.values(state.people)).get(person.trim().toLocaleLowerCase());
+    const name = storyName(nameIndex(Object.values(state.people)), person);
     if (!name) throw new LinkError("invalid", `${person.trim()} is not in the Story.`);
     if (name === state.playerCharacter) throw new LinkError("invalid", `${name} is the Player Character, not a Lead.`);
     const entry = this.write(storyId, path, { kind: "lead_set", person: name, lead });
@@ -267,7 +267,7 @@ export class Engine {
   setPortrait(storyId: string, person: string, image: Buffer, type: string, after: string, traceId: string): Accepted {
     const path = this.pathHead(storyId, after);
     const state = this.mac.states.at(path.headEntryId);
-    const name = nameIndex(Object.values(state.people)).get(person.trim().toLocaleLowerCase());
+    const name = storyName(nameIndex(Object.values(state.people)), person);
     if (!name) throw new LinkError("invalid", `${person.trim()} is not in the Story.`);
     const extension = portraitExtension(image, type);
     const file = `${randomUUID()}${extension}`;

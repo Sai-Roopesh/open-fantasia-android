@@ -8,7 +8,7 @@ import type { Entry } from "../story/entries.js";
 import type { Beat, ModelChoice, PendingDirection, SceneCall, State } from "../story/state.js";
 import { minutesOf, parseStoryTime, sayStoryTime } from "../time.js";
 import { decidesForPlayer, playerNames } from "./deciding.js";
-import { nameIndex, namedIn, names } from "./names.js";
+import { nameIndex, namedIn, names, storyName } from "./names.js";
 import { sayBetween, sayWords, type Recall } from "./recall.js";
 
 /**
@@ -213,7 +213,7 @@ export function checkWriterAnswer(ask: WriterAsk, raw: unknown): Checked {
   // Scene starts with nobody besides the player's character. Someone already here coming in, or someone not here
   // going, changes nothing.
   const story = (field: "comes_in" | "goes") => raw[field].flatMap(name => {
-    const known = index.get(name.trim().toLocaleLowerCase());
+    const known = storyName(index, name);
     if (!known) return (problems.push(`${field}: ${name.trim() || "a blank name"} is not in the story; use a name from the people, and leave walk-ons unnamed`), []);
     if (known === pc) return (problems.push(`${field}: ${pc} is the player's character, who is always here; leave them out`), []);
     return [known];

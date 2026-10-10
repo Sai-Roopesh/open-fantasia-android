@@ -27,6 +27,9 @@ const MAX_QUOTES = 3;
 const MAX_SUMMARY_WORDS = 45;
 /** What he knows of someone: who they are to him and what he has seen, whole, in sixty words or fewer (lasting-records). */
 const MAX_KNOWN_WORDS = 60;
+/** A Bond's lines are asked for in forty and twenty-five words; refused only when far past it (docs/adr/0012). */
+const REFUSED_STANDING_WORDS = Math.floor(MAX_STANDING_WORDS * 1.5);
+const REFUSED_TURN_WORDS = Math.floor(MAX_TURN_WORDS * 1.5);
 
 const text = { type: "string", minLength: 1 } as const;
 
@@ -300,8 +303,8 @@ export function checkChronicle(ask: ChronicleAsk, raw: unknown): Checked<Chronic
     if (bonded.has(who)) return (drop(`bonds: two rows for ${who}; write one`), []);
     const standing = row.standing.trim();
     const turn = row.turn.trim();
-    if (wordCount(standing) > MAX_STANDING_WORDS) return (drop(`bonds: where things stand with ${who} is ${wordCount(standing)} words; say it in forty or fewer`), []);
-    if (wordCount(turn) > MAX_TURN_WORDS) return (drop(`bonds: the turn with ${who} is ${wordCount(turn)} words; say it in twenty-five or fewer`), []);
+    if (wordCount(standing) > REFUSED_STANDING_WORDS) return (drop(`bonds: where things stand with ${who} is ${wordCount(standing)} words; say it in forty or fewer`), []);
+    if (wordCount(turn) > REFUSED_TURN_WORDS) return (drop(`bonds: the turn with ${who} is ${wordCount(turn)} words; say it in twenty-five or fewer`), []);
     bonded.add(who);
     return [{ who, standing, turn }];
   });

@@ -12,9 +12,10 @@ const HALLOWEEN = "The Halloween feast";
 const TRIWIZARD = "The Triwizard Tournament";
 
 /** The Malfoy Problem on its first night, Friday Day 1 at 9:40 pm, with Halloween and the Tournament ahead. */
-function ask(changes: Partial<DirectorAsk> = {}): DirectorAsk {
+function ask(changes: Partial<DirectorAsk> = {}, people: { name: string; who_they_are: string }[] = []): DirectorAsk {
   const mac = freshHome();
   const story = malfoyProblemStoryFile();
+  story.people = [...story.people!, ...people] as typeof story.people;
   story.landmarks = [{ name: HALLOWEEN, at: "Day 61 19:00", what: "The feast, and the troll." }, ...story.landmarks!];
   const imported = importStoryFile(writeStoryFile(story), mac);
   if (!imported.ok) throw new Error("import failed");
@@ -129,6 +130,18 @@ describe("the Director", () => {
       "scenes: S4 is at Day 1 08:00, before now (Day 1 21:40)",
       "scenes: S5 is at \"Thursday\", which is not a time like \"Day 4 14:00\""
     ]);
+  });
+
+  // GIVEN the Story has Rolanda Hooch and Minerva McGonagall
+  // WHEN the plan's flying lesson names "Madam Hooch" and "Professor McGonagall"
+  // THEN the Scene that matters has Rolanda Hooch and Minerva McGonagall in it, and nothing is left out or asked again
+  it("living-world › Moments are remembered from one record › Named with a title", () => {
+    const staff = [{ name: "Rolanda Hooch", who_they_are: "The flying instructor." }, { name: "Minerva McGonagall", who_they_are: "Head of Gryffindor." }];
+    const checked = checkPlan(ask({}, staff), plan({ scenes: [charms, { ...pitch, who: ["Harry Potter", "Madam Hooch", "Professor McGonagall"] }] }));
+    expect(checked.ok).toBe(true);
+    if (!checked.ok) return;
+    expect(checked.value.scenes[1]!.who).toEqual(["Harry Potter", "Rolanda Hooch", "Minerva McGonagall"]);
+    expect(checked.dropped ?? []).toEqual([]);
   });
 
   it("refuses a plan with no Scene that matters it can keep, or with too few or too many", () => {

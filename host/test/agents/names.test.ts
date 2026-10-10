@@ -18,4 +18,14 @@ describe("names", () => {
   it("gives a surname two people share to nobody", () => {
     expect(storyName(index, "Malfoy")).toBeNull();
   });
+
+  it("knows people named with a title, and a title before a shared surname is still nobody's (play-check-fixes design decision 3)", () => {
+    const staff = nameIndex([person("Rolanda Hooch"), person("Minerva McGonagall"), person("Filius Flitwick"), person("Argus Filch"), person("Draconia Malfoy"), person("Lucius Malfoy")]);
+    expect(storyName(staff, "Madam Hooch")).toBe("Rolanda Hooch");
+    expect(storyName(staff, "Professor McGonagall")).toBe("Minerva McGonagall");
+    expect(storyName(staff, "Prof. Flitwick")).toBe("Filius Flitwick");
+    expect(storyName(staff, "Mr Filch")).toBe("Argus Filch");
+    expect(storyName(staff, "Mr. Malfoy")).toBeNull();
+    expect(storyName(staff, "Professor Snape")).toBeNull();
+  });
 });

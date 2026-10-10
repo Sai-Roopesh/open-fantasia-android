@@ -71,6 +71,39 @@ describe("the Story's pick is the Stretch's next Scene that matters (story-in-st
   });
 });
 
+describe("the pick and an Engagement are one card (play-check-fixes design decision 1)", () => {
+  // GIVEN he promised Hermione to meet her in the library at seven tonight, and the Stretch's next Scene that matters
+  //   is that meeting
+  // THEN the Day View's first offer is the library at 7:00 pm with Hermione, the Story's pick, marked "You're
+  //   expected", and it is offered once
+  // WHEN the player chooses it
+  // THEN the next Scene opens in the library at seven, and the meeting is kept
+  it("day-view › Up to four Happenings › The Scene that matters is one he promised", async () => {
+    const story = fridayNight();
+    const meeting = { id: "S1", at: "Day 4 19:00", place: "The library", who: ["Hermione Granger"], for: "He tells her what he can about the train.", lead: "Hermione Granger" };
+    const plan = charmsWeek(story, { scenes: [meeting, charmsWeek(story).scenes[0]], leads: [{ who: "Draconia Malfoy", move: "Corners him after Charms.", scene: "S2" }, { who: "Hermione Granger", move: "Hears him out.", scene: "S1" }] });
+    plan.scenes[1] = { ...plan.scenes[1]!, id: "S2" };
+    const { engine, storyId, head, play, view, mac } = playable(story, { director: [{ answer: JSON.stringify(plan) }], weaver: [{ from: fakeWeaveAnswer }, { from: fakeWeaveAnswer }] });
+    const opening = mac.tree.pathTo(head()).find(entry => entry.payload.kind === "scene_opened")!;
+    const promise = { id: "g-promise", what: "He is to tell Hermione what he can about the train.", at: "Day 4 19:00", place: "The library", who: ["Hermione Granger"], expected: true, every: null, quotes: [{ entry: "E1", text: "x" }] };
+    mac.tree.append(storyId, opening.id, { kind: "chronicle", scene: opening.id, summary: null, sceneEnded: false, moments: [], told: [], engagements: [promise], callId: "c", model: { provider: "claude", model: "claude-sonnet-5-5" } });
+    await play("I promise Hermione I will meet her in the library at seven tomorrow.");
+    engine.endScene(storyId, head(), "end");
+    await engine.woven(storyId);
+
+    const day = view().day_view!;
+    const planned = (mac.tree.recordsOn(head(), "director_plan").at(-1)!.payload as { scenes: { id: string }[] }).scenes[0]!.id;
+    expect(day.happenings[0]).toMatchObject({ at: "Day 4 19:00", place: "The library", who: ["Hermione Granger"], pick: true, expected: true, scene: planned });
+    expect(day.happenings.filter(item => item.place === "The library")).toHaveLength(1);
+
+    engine.choose(storyId, { after: head(), kind: "story", happening: null, gap: null }, "go");
+    await engine.settled(storyId);
+    expect(mac.states.at(head()).scene).toMatchObject({ number: 2, at: "Day 4 19:00", place: "The library" });
+    const move = mac.tree.pathTo(head()).findLast(entry => entry.payload.kind === "move")!.payload as { choice?: Record<string, unknown> };
+    expect(move.choice).toMatchObject({ scene: planned, engagement: "g-promise" });
+  });
+});
+
 describe("Leads act every Stretch, on screen or off (story-in-stretches design decision 4)", () => {
   const seating = "Draconia had his name taken off the Charms seating plan.";
   const told = "Neville says Draconia had your name taken off the Charms seating plan.";
@@ -257,7 +290,7 @@ describe("skipping a week (story-in-stretches design decision 6)", () => {
     await engine.woven(storyId);
     // Saturday 7:30 am: next week is the Saturday after, on waking.
     const next = view().day_view!.choices.skips.find(skip => skip.label === "Next week")!;
-    expect(next).toMatchObject({ in_sentence: "next week", at: "Day 11 07:30", time: "Saturday 7:30 am" });
+    expect(next).toMatchObject({ in_sentence: "next week", at: "Day 11 07:30", time: "Saturday 7:30 am", days_away: 7 });
     engine.choose(storyId, { after: head(), kind: "skip", at: next.at, gap: null }, "skip");
     await engine.settled(storyId);
     expect(mac.states.at(head()).scene).toMatchObject({ number: 2, at: "Day 11 07:30" });

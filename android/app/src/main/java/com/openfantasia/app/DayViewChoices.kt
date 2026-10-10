@@ -147,7 +147,14 @@ internal enum class DayPicker(val title: String) { Follow("Follow someone"), Som
                 Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     val skip = day.choices.skips.firstOrNull { picker == DayPicker.Skip && it.at == option }
                     Text(skip?.label ?: option, style = FantasiaType.plain, color = FantasiaText)
-                    skip?.let { Text(it.time, style = FantasiaType.metadata, color = FantasiaSecondary) }
+                    // A week or more away says how far, as a Scene that matters days away does (DayView.dc.html).
+                    skip?.let {
+                        if (it.daysAway >= 7) Text(buildAnnotatedString {
+                            append("${it.time} · ")
+                            withStyle(SpanStyle(color = FailureAmber, fontWeight = FontWeight.SemiBold)) { append("in ${it.daysAway} days") }
+                        }, style = FantasiaType.metadata, color = FantasiaSecondary)
+                        else Text(it.time, style = FantasiaType.metadata, color = FantasiaSecondary)
+                    }
                 }
             }
         }

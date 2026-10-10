@@ -194,7 +194,21 @@ describe("Leads act off-screen (story-in-stretches design decision 4)", () => {
     const stretch = await ask({ stretch: { next: null, moves: [seating], movesBy: "Day 10 15:00" } });
     const checked = checkWeave(stretch, answer({ happened: [made, { ...made, id: "H2", what: "Hermione re-read her notes.", known_to: ["Hermione Granger"], move: "Hermione Granger" }], meanwhile: [] }));
     expect(checked.ok && checked.value.happened.map(item => item.move)).toEqual(["Draconia Malfoy", null]);
-    expect(checked.ok && checked.dropped).toEqual(["happened: H2 is marked as Hermione Granger's move, but Hermione Granger has none to make off-screen; it is an ordinary happening"]);
+    // Set right, not left out (docs/adr/0012): the happening is kept, and nothing is asked again.
+    expect(checked.ok && checked.dropped).toEqual([]);
+  });
+
+  // GIVEN no Lead has a move to make off-screen
+  // WHEN the World's record marks Harry's evening in the common room as his move
+  // THEN it is kept as an ordinary happening, and the World is not asked again
+  it("living-world › Moments are remembered from one record › Set right, not asked again", async () => {
+    const played = playable();
+    const evening = { id: "H4", what: "Harry spent the evening in the common room with Ron.", at: "Day 3 22:30", where: "the Gryffindor common room", known_to: ["Harry Potter"], landmark: null, move: "Harry Potter" };
+    const runner = new ScriptedRunner([{ answer: JSON.stringify(answer({ happened: [...answer().happened, evening] })) }]);
+    const record = await writeWeave(new Models(played.mac.db, { claude: runner }), SONNET, await ask({ stretch: { next: null, moves: [], movesBy: null } }), "story", "trace-w", new AbortController().signal);
+    expect(record.value.happened.find(item => item.what === evening.what)).toMatchObject({ move: null });
+    expect(record.dropped).toEqual([]);
+    expect(runner.requests).toHaveLength(1);
   });
 
   it("asks for every move still to make once the span reaches the Stretch's last Scene that matters, and keeps the rest without it", async () => {
@@ -202,6 +216,26 @@ describe("Leads act off-screen (story-in-stretches design decision 4)", () => {
     expect(checkWeave(due, answer({ meanwhile: [] }))).toMatchObject({ ok: true, dropped: ["happened: Draconia Malfoy's move this Stretch is still to make, and the Stretch's last Scene that matters is here: make it now (Has his name taken off the Charms seating plan.), with move \"Draconia Malfoy\""] });
     const early = await ask({ stretch: { next: null, moves: [seating], movesBy: "Day 10 15:00" } });
     expect(checkWeave(early, answer({ meanwhile: [] }))).toMatchObject({ ok: true, dropped: [] });
+  });
+});
+
+describe("what he missed keeps its time (play-check-fixes design decision 4)", () => {
+  const trials = { id: "p-trials", at: "Day 4 06:00", place: "The library", what: "Draconia at the back table in the Charms stacks.", who: ["Draconia Malfoy"], expected: false, pick: true };
+
+  // GIVEN Draconia's library Scene was on Sunday at 2:00 pm
+  // WHEN the player skips to next week, and the World writes it going on without him on Saturday
+  // THEN it went on on Sunday at 2:00 pm, in the library
+  it("day-view › Missing something has consequences › What he missed keeps its time", async () => {
+    const gap = await ask({ gap: true, missed: [trials] });
+    const without = { id: "H9", what: "Draconia waited at the back table; he did not come.", at: "Day 3 23:00", where: "the Slytherin common room", known_to: ["Draconia Malfoy"], landmark: null, missed: "G1" };
+    const checked = checkWeave(gap, answer({ happened: [without], meanwhile: [] }));
+    expect(checked.ok && checked.value.happened[0]).toMatchObject({ at: "Day 4 06:00", where: "The library" });
+    expect(checked.ok && checked.dropped).toEqual([]);
+  });
+
+  it("says the day of what he missed, so a span of days names the right one", async () => {
+    const { prompt } = weaverPrompt(await ask({ gap: true, missed: [trials] }));
+    expect(prompt).toContain("- G1 Saturday 6:00 am, The library:");
   });
 });
 

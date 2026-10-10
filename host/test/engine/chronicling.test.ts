@@ -223,8 +223,8 @@ describe("records that degrade, never vanish (lasting-records)", () => {
       moments: [{ what: "He catches her as everything floats.", quotes: [{ entry: "E2", text: move }], there: ["Draconia Malfoy"], weight: 4 }],
       told: [],
       bonds: [
-        { who: "Draconia Malfoy", standing: "word ".repeat(41).trim(), turn: "She let him." },
-        { who: "Draconia Malfoy", standing: "She lets him close.", turn: "word ".repeat(26).trim() },
+        { who: "Draconia Malfoy", standing: "word ".repeat(61).trim(), turn: "She let him." },
+        { who: "Draconia Malfoy", standing: "She lets him close.", turn: "word ".repeat(38).trim() },
         { who: "Harry Potter", standing: "Friends.", turn: "They talked." }
       ]
     }) })) });
@@ -234,11 +234,32 @@ describe("records that degrade, never vanish (lasting-records)", () => {
     const [chronicle] = chronicles(mac, head());
     expect(chronicle!.moments).toHaveLength(1);
     expect(chronicle!.dropped).toEqual([
-      "bonds: where things stand with Draconia Malfoy is 41 words; say it in forty or fewer",
-      "bonds: the turn with Draconia Malfoy is 26 words; say it in twenty-five or fewer",
+      "bonds: where things stand with Draconia Malfoy is 61 words; say it in forty or fewer",
+      "bonds: the turn with Draconia Malfoy is 38 words; say it in twenty-five or fewer",
       "bonds: Harry Potter was not in this Scene"
     ]);
     expect(bondsOn(mac, head()).has("Draconia Malfoy")).toBe(false);
+  });
+
+  // WHEN the record's turn with Draconia comes back 29 words long, where 25 were asked
+  // THEN it is kept as written
+  it("living-world › Moments are remembered from one record › A line a little long is kept", async () => {
+    const move = "I catch you as everything floats.";
+    const turn = "She floated in his arms, ordered him to put her down, and did not even thank him; she straightened his collar instead, as if that settled what was owed.";
+    expect(turn.split(/\s+/)).toHaveLength(29);
+    const classroom = hogwartsStoryFile({ title: "Twenty-nine minutes", place: "An empty classroom", who: ["Draconia Malfoy"], prose: "Draconia sets out her notes." });
+    const { play, engine, storyId, head, mac, models } = playable(classroom, { chronicler: [{ answer: JSON.stringify({
+      summary: "In the classroom Draconia floated in his arms.",
+      moments: [{ what: "He catches her as everything floats.", quotes: [{ entry: "E2", text: move }], there: ["Draconia Malfoy"], weight: 4 }],
+      told: [],
+      bonds: [{ who: "Draconia Malfoy", standing: "She lets him close, and calls it business.", turn }]
+    }) }] });
+    await play(move);
+    engine.endScene(storyId, head(), "t-end");
+    await engine.chronicled(storyId);
+    expect(chronicles(mac, head())[0]!.dropped).toEqual([]);
+    expect(bondsOn(mac, head()).get("Draconia Malfoy")!.turns.at(-1)!.text).toBe(turn);
+    expect(models.chronicler.requests).toHaveLength(1);
   });
 
   // GIVEN the record of the library Scene could not be made

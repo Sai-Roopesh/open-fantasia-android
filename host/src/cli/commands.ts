@@ -413,7 +413,7 @@ export async function person(mac: Mac, engine: Engine, storyId: string, name: st
   const path = mac.tree.currentPath(storyId);
   if (!path) return (out(`No Story ${storyId} on this Mac.`), false);
   const state = mac.states.at(path.headEntryId);
-  const found = nameIndex(Object.values(state.people)).get(name.trim().toLocaleLowerCase());
+  const found = storyName(nameIndex(Object.values(state.people)), name);
   const existing = found ? state.people[found] : undefined;
   if (!existing && !options.who) return (out(`Say who ${name.trim()} is with --who: they are not in the Story yet.`), false);
   const base = existing ?? { name: name.trim(), aliases: [], whoTheyAre: "", known: null, appearance: "", after: "", knows: [], voice: [], group: null };

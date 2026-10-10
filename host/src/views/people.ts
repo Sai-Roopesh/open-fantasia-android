@@ -3,7 +3,7 @@ import type { Mac } from "../mac.js";
 import type { PeopleView, PersonDetail } from "../protocol/generated/link.js";
 import { bondsOn } from "../story/bonds.js";
 import { knownOn } from "../story/known.js";
-import { nameIndex } from "../agents/names.js";
+import { nameIndex, storyName } from "../agents/names.js";
 import { portraitUrl } from "./scene.js";
 import { betweenOf } from "./world.js";
 
@@ -32,7 +32,7 @@ export function peopleView(mac: Mac, storyId: string, traceId: string): PeopleVi
 /** A person as the Story keeps them, what nobody knows included: for the person editor only. */
 export function personDetail(mac: Mac, storyId: string, person: string, traceId: string): PersonDetail {
   const { head, state } = current(mac, storyId);
-  const name = nameIndex(Object.values(state.people)).get(person.trim().toLocaleLowerCase());
+  const name = storyName(nameIndex(Object.values(state.people)), person);
   const who = name ? state.people[name] : undefined;
   if (!name || !who) throw new LinkError("not_found", `${person.trim()} is not in the Story.`);
   return {

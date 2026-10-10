@@ -408,6 +408,13 @@ data class Skip (
     val at: String,
 
     /**
+     * How many days off it is: 0 today, 1 tomorrow; the skip says "in 48 days" a week or more
+     * away.
+     */
+    @SerialName("days_away")
+    val daysAway: Long,
+
+    /**
      * The label as it reads inside a sentence: "this evening", "tomorrow", "the weekend", or
      * the Landmark's name as named.
      */

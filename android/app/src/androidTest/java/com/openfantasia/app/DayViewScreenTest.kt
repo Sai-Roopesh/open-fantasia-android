@@ -33,6 +33,7 @@ class DayViewScreenTest : DayViewUiChecks() {
     @Test fun backDiscardsGapAndBlankSendsNullCheck() = backDiscardsGapAndBlankSendsNull()
     @Test fun somewhereIsNowCheck() = somewhereIsNow()
     @Test fun skipHasGapAcrossDaysCheck() = skipHasGapAcrossDays()
+    @Test fun landmarkWeeksAwayCheck() = landmarkWeeksAway()
     @Test fun laterPickHasGapCheck() = laterPickHasGap()
     @Test fun unavailableOptionsAreHiddenAndOfflineDisabledCheck() = unavailableOptionsAreHiddenAndOfflineDisabled()
 }

@@ -84,9 +84,9 @@ describe("the Day View", () => {
       follow: ["Hermione Granger", "Draconia Malfoy"],
       places: ["The library", "Hagrid's hut"],
       skips: [
-        { label: "Tomorrow", in_sentence: "tomorrow", at: "Day 6 07:30", time: "Monday 7:30 am" },
-        { label: "Next week", in_sentence: "next week", at: "Day 12 07:30", time: "Sunday 7:30 am" },
-        { label: "Draconia's flying test", in_sentence: "Draconia's flying test", at: "Day 8 10:00", time: "Wednesday 10:00 am" }
+        { label: "Tomorrow", in_sentence: "tomorrow", at: "Day 6 07:30", time: "Monday 7:30 am", days_away: 1 },
+        { label: "Next week", in_sentence: "next week", at: "Day 12 07:30", time: "Sunday 7:30 am", days_away: 7 },
+        { label: "Draconia's flying test", in_sentence: "Draconia's flying test", at: "Day 8 10:00", time: "Wednesday 10:00 am", days_away: 3 }
       ]
     });
   });
@@ -102,5 +102,20 @@ describe("the Day View", () => {
       ["Next week", "next week", "Friday 7:30 am"],
       ["Draconia's flying test", "Draconia's flying test", "Wednesday 10:00 am"]
     ]);
+  });
+
+  // GIVEN it is Friday, and the next Landmark, the Halloween troll, is on a Thursday 48 days on
+  // THEN Skip to later offers it as "Thursday 7:00 pm · in 48 days", and next week as "Friday 7:30 am · in 7 days"
+  it("day-view › The player chooses where to be › A Landmark weeks away", async () => {
+    const friday = hogwartsStoryFile({ title: "Friday morning", place: "The Gryffindor common room", at: "Day 3 09:00", who: ["Hermione Granger"] });
+    friday.landmarks = [{ name: "The Halloween troll", at: "Day 51 19:00", what: "A troll in the dungeons." }];
+    const { play, engine, storyId, head, view } = playable(friday);
+    await play("I say goodbye.");
+    engine.endScene(storyId, head(), "trace-end");
+    // The phone says "in N days" a week or more away, from days_away (DayView.dc.html).
+    const skips = view().day_view!.choices.skips;
+    expect(skips.find(skip => skip.label === "The Halloween troll")).toMatchObject({ time: "Thursday 7:00 pm", days_away: 48 });
+    expect(skips.find(skip => skip.label === "Next week")).toMatchObject({ time: "Friday 7:30 am", days_away: 7 });
+    expect(skips.find(skip => skip.label === "Tomorrow")).toMatchObject({ time: "Saturday 7:30 am", days_away: 1 });
   });
 });

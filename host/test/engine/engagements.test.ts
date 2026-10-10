@@ -136,6 +136,32 @@ describe("what he has arranged is on (openspec day-view)", () => {
     ]);
   });
 
+  // GIVEN it is Friday morning, he is expected in the library at 7:00 pm and at Charms at 9:00 am, and the Story's pick
+  //   is Sunday's
+  // THEN the Day View offers Sunday's first, then Charms at 9:00 am, then the library at 7:00 pm
+  it("day-view › Up to four Happenings › In time order", async () => {
+    // Thursday night (Day 2; Day 1 was a Wednesday), the World moving on to Friday 7:30 am.
+    const story = hogwartsWorldStoryFile({ title: "After curfew", place: "The Gryffindor common room", at: "Day 2 22:40", who: ["Hermione Granger"] });
+    const promise = { what: "He is to tell Hermione what he can about the train.", at: "Day 3 19:00", place: "The library", who: ["Hermione Granger"], expected: true, every: null };
+    const weave = {
+      lives: [], threads: [],
+      happened: [{ ...noteSeen, at: "Day 3 07:00", what: "Hermione left a note on his bed.", known_to: ["Hermione Granger", "Roopesh Gantasala"] }],
+      meanwhile: [{ text: "Hermione's note: \"Library, seven. You promised.\"", how: "seen", happened: "H1", told_by: null, engagement: promise }],
+      happenings: [
+        { id: "P1", at: "Day 5 14:00", place: "The Quidditch pitch", what: "Draconia is watching the Slytherin trials.", who: ["Draconia Malfoy"], expected: false, pick: true },
+        { id: "P2", at: "Day 3 09:00", place: "The Charms classroom", what: "The Charms lecture, then the practical.", who: ["Neville Longbottom"], expected: true, pick: false }
+      ]
+    };
+    const { play, engine, storyId, head, view } = playable(story, { weaver: [{ answer: JSON.stringify(weave) }], unplanned: true });
+    await play("I say goodnight to Hermione and go up.");
+    engine.endScene(storyId, head(), "end");
+    await engine.woven(storyId);
+    expect(view().day_view!.at).toBe("Day 3 07:30");
+    expect(view().day_view!.happenings.map(item => [item.time, item.place])).toEqual([
+      ["Sunday 2:00 pm", "The Quidditch pitch"], ["9:00 am", "The Charms classroom"], ["7:00 pm", "The library"]
+    ]);
+  });
+
   it("keeps one card for an Engagement the Weaver also offered", async () => {
     const { play, engine, storyId, head, view } = fridayNight({ happened: [noteSeen], meanwhile: [note(atTen)],
       happenings: [{ id: "P1", at: "Day 4 10:15", place: "the library", what: "Draconia is in the library.", who: ["Draconia Malfoy"], expected: false, pick: false }] });
@@ -214,7 +240,7 @@ describe("kept or missed (openspec day-view: Missing something has consequences)
     const evening = view().day_view!.choices.skips.find(skip => skip.label === "This evening")!;
     engine.choose(storyId, { after: head(), kind: "skip", at: evening.at, gap: null }, "skip");
     await engine.settled(storyId);
-    expect(models.weaver.requests.at(-1)!.prompt).toMatch(/G1 9:00 am, McGonagall's office: McGonagall wants his account of the troll\..*he was expected/);
+    expect(models.weaver.requests.at(-1)!.prompt).toMatch(/G1 Sunday 9:00 am, McGonagall's office: McGonagall wants his account of the troll\..*he was expected/);
     const world = mac.tree.recordsOn(head(), "world_moved").at(-1)!.payload as WorldMoved;
     expect(world.happened.find(item => item.what.includes("went on without him"))).toMatchObject({ knownTo: ["Minerva McGonagall"] });
   });
@@ -233,7 +259,7 @@ describe("kept or missed (openspec day-view: Missing something has consequences)
     await play("I play Ron at chess until the clock strikes the quarter past eight.");
     engine.endScene(storyId, head(), "end");
     await engine.woven(storyId);
-    expect(models.weaver.requests.at(-1)!.prompt).toMatch(/G1 7:30 pm, The library: Draconia's hour on the Charms practical\..*he was expected/);
+    expect(models.weaver.requests.at(-1)!.prompt).toMatch(/G1 Wednesday 7:30 pm, The library: Draconia's hour on the Charms practical\..*he was expected/);
     const world = mac.tree.recordsOn(head(), "world_moved").at(-1)!.payload as WorldMoved;
     expect(world.happened.find(item => item.what.includes("went on without him"))).toMatchObject({ knownTo: ["Draconia Malfoy"] });
   });
@@ -248,7 +274,7 @@ describe("kept or missed (openspec day-view: Missing something has consequences)
     await play("I work through the wrist movement with her until a quarter past eight.");
     engine.endScene(storyId, head(), "end");
     await engine.woven(storyId);
-    expect(models.weaver.requests.at(-1)!.prompt).not.toMatch(/G1 7:30 pm/);
+    expect(models.weaver.requests.at(-1)!.prompt).not.toMatch(/G1 Wednesday 7:30 pm/);
   });
 });
 

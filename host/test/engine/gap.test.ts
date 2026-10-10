@@ -37,7 +37,7 @@ describe("the Gap", () => {
     // The Gap is woven before the Writer plans the Scene, and McGonagall's summons goes on without him, noticed.
     const order = models.requests.filter(request => ["weaver", "writer"].includes(request.agent)).map(request => request.agent);
     expect(order.slice(-3)).toEqual(["weaver", "weaver", "writer"]);
-    expect(models.weaver.requests.at(-2)!.prompt).toMatch(/G1 9:00 am, McGonagall's office: Your account of the troll\..*he was expected/);
+    expect(models.weaver.requests.at(-2)!.prompt).toMatch(/G1 Saturday 9:00 am, McGonagall's office: Your account of the troll\..*he was expected/);
     expect(models.weaver.requests.at(-1)!.prompt).toMatch(/happened: McGonagall's office at 9:00 am went on without him, and he was expected/);
     const [gap] = mac.tree.recordsOn(head(), "world_moved").filter(entry => entry.parentId === move.id);
     expect(gap!.payload as WorldMoved).toMatchObject({ from: "Day 4 07:30", until: "Day 4 11:00" });
