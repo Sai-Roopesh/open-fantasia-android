@@ -84,6 +84,8 @@ export interface Choice {
   who: string[];
   /** The Scene that matters it opens, when it is one (docs/adr/0010). */
   scene?: string | null;
+  /** The Engagement it keeps, when it is the next time of one (docs/adr/0011). */
+  engagement?: string | null;
 }
 
 /**

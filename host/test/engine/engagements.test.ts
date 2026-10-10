@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Script } from "../../src/models/scripted.js";
-import type { Chronicle, Entry } from "../../src/story/entries.js";
+import type { Chronicle, Entry, WorldMoved } from "../../src/story/entries.js";
 import { engagementsOn } from "../../src/story/engagements.js";
 import { playable } from "../support/play.js";
 import { hogwartsStoryFile, hogwartsWorldStoryFile } from "../support/story-files.js";
@@ -192,6 +192,75 @@ describe("weekly, and called off (openspec day-view: What he has arranged is on)
     await engine.chronicled(storyId);
     await engine.woven(storyId);
     expect(view().day_view!.happenings.some(item => item.place === "The library")).toBe(false);
+  });
+});
+
+describe("kept or missed (openspec day-view: Missing something has consequences)", () => {
+  const summons = { what: "McGonagall wants his account of the troll.", at: "Day 5 09:00", place: "McGonagall's office", who: ["Minerva McGonagall"], expected: true, every: null };
+
+  // GIVEN Meanwhile told him McGonagall wants his account in her office at nine on Sunday
+  // WHEN the player skips to Sunday afternoon
+  // THEN McGonagall took the accounts without him and noticed he did not come
+  // (Sunday's later times on offer are "This evening"; it passes nine all the same.)
+  it("day-view › Missing something has consequences › A summons he only heard of is still missed", async () => {
+    const story = hogwartsWorldStoryFile({ title: "Saturday night", place: "The Gryffindor common room", at: "Day 4 22:40", who: ["Hermione Granger"] });
+    const told = { answer: JSON.stringify({ lives: [], threads: [], happenings: [],
+      happened: [{ id: "H1", what: "McGonagall sent word for his account.", at: "Day 5 07:00", where: "The Gryffindor common room", known_to: ["Minerva McGonagall", "Hermione Granger", "Roopesh Gantasala"], landmark: null }],
+      meanwhile: [{ text: "Hermione says McGonagall wants your account in her office at nine.", how: "told", happened: "H1", told_by: "Hermione Granger", engagement: summons }] }) };
+    const { play, engine, storyId, head, view, models, mac } = playable(story, { weaver: [told], unplanned: true });
+    await play("I say goodnight to Hermione and go up.");
+    engine.endScene(storyId, head(), "end");
+    await engine.woven(storyId);
+    const evening = view().day_view!.choices.skips.find(skip => skip.label === "This evening")!;
+    engine.choose(storyId, { after: head(), kind: "skip", at: evening.at, gap: null }, "skip");
+    await engine.settled(storyId);
+    expect(models.weaver.requests.at(-1)!.prompt).toMatch(/G1 9:00 am, McGonagall's office: McGonagall wants his account of the troll\..*he was expected/);
+    const world = mac.tree.recordsOn(head(), "world_moved").at(-1)!.payload as WorldMoved;
+    expect(world.happened.find(item => item.what.includes("went on without him"))).toMatchObject({ knownTo: ["Minerva McGonagall"] });
+  });
+
+  // GIVEN he is expected in Draconia's library session at 7:30 pm
+  // WHEN a Scene in the common room runs from 7:00 pm to 8:15 pm
+  // THEN the library session went on without him, and Draconia noticed
+  it("day-view › Missing something has consequences › Missed while in another Scene", async () => {
+    const story = hogwartsWorldStoryFile({ title: "Chess", place: "The Gryffindor common room", at: "Day 8 19:00", who: ["Ron Weasley"] });
+    const session = { id: "g-session", what: "Draconia's hour on the Charms practical.", at: "Day 8 19:30", place: "The library", who: ["Draconia Malfoy"], expected: true, every: "week" as const, quotes: [{ entry: "E1", text: "x" }] };
+    const late = { answer: JSON.stringify({ leaves_scene: false, frame: { title: "Chess", place: "The Gryffindor common room", purpose: "p", exit: "e" }, comes_in: ["Ron Weasley"], goes: [], beats: [{ text: "a", status: "in_play" }, { text: "b", status: "pending" }, { text: "c", status: "pending" }], note: "n", call: "continue", intensity: 2, arc_moved: true, clock: "Day 8 20:15", taste: null, in_play: [] }) };
+    const { play, engine, storyId, head, models, mac } = playable(story, { writer: [late], unplanned: true });
+    // The session was made in an earlier Scene; it hangs off the opening here, as a record would.
+    const opening = mac.tree.pathTo(head()).find(entry => entry.payload.kind === "scene_opened")!;
+    mac.tree.append(storyId, opening.id, { kind: "chronicle", scene: opening.id, summary: null, sceneEnded: false, moments: [], told: [], engagements: [session], callId: "c", model: { provider: "claude", model: "claude-sonnet-5-5" } });
+    await play("I play Ron at chess until the clock strikes the quarter past eight.");
+    engine.endScene(storyId, head(), "end");
+    await engine.woven(storyId);
+    expect(models.weaver.requests.at(-1)!.prompt).toMatch(/G1 7:30 pm, The library: Draconia's hour on the Charms practical\..*he was expected/);
+    const world = mac.tree.recordsOn(head(), "world_moved").at(-1)!.payload as WorldMoved;
+    expect(world.happened.find(item => item.what.includes("went on without him"))).toMatchObject({ knownTo: ["Draconia Malfoy"] });
+  });
+
+  it("is kept when he chose it, or when a Scene at its place ran over its time", async () => {
+    const story = hogwartsWorldStoryFile({ title: "The library", place: "The library", at: "Day 8 19:00", who: ["Draconia Malfoy"] });
+    const session = { id: "g-session", what: "Draconia's hour on the Charms practical.", at: "Day 8 19:30", place: "The library", who: ["Draconia Malfoy"], expected: true, every: "week" as const, quotes: [{ entry: "E1", text: "x" }] };
+    const late = { answer: JSON.stringify({ leaves_scene: false, frame: { title: "The library", place: "The library", purpose: "p", exit: "e" }, comes_in: ["Draconia Malfoy"], goes: [], beats: [{ text: "a", status: "in_play" }, { text: "b", status: "pending" }, { text: "c", status: "pending" }], note: "n", call: "continue", intensity: 2, arc_moved: true, clock: "Day 8 20:15", taste: null, in_play: [] }) };
+    const { play, engine, storyId, head, models, mac } = playable(story, { writer: [late], unplanned: true });
+    const opening = mac.tree.pathTo(head()).find(entry => entry.payload.kind === "scene_opened")!;
+    mac.tree.append(storyId, opening.id, { kind: "chronicle", scene: opening.id, summary: null, sceneEnded: false, moments: [], told: [], engagements: [session], callId: "c", model: { provider: "claude", model: "claude-sonnet-5-5" } });
+    await play("I work through the wrist movement with her until a quarter past eight.");
+    engine.endScene(storyId, head(), "end");
+    await engine.woven(storyId);
+    expect(models.weaver.requests.at(-1)!.prompt).not.toMatch(/G1 7:30 pm/);
+  });
+});
+
+describe("the Writer is told what he has arranged (engagements design decision 7)", () => {
+  it("carries his Engagements ahead into the Writer's prompt, expected ones marked", async () => {
+    const story = hogwartsWorldStoryFile({ title: "Supper", place: "The Great Hall", at: "Day 8 19:10", who: ["Ron Weasley"] });
+    const session = { id: "g-session", what: "Draconia's hour on the Charms practical.", at: "Day 8 19:30", place: "The library", who: ["Draconia Malfoy"], expected: true, every: "week" as const, quotes: [{ entry: "E1", text: "x" }] };
+    const { play, storyId, head, models, mac } = playable(story, { unplanned: true });
+    const opening = mac.tree.pathTo(head()).find(entry => entry.payload.kind === "scene_opened")!;
+    mac.tree.append(storyId, opening.id, { kind: "chronicle", scene: opening.id, summary: null, sceneEnded: false, moments: [], told: [], engagements: [session], callId: "c", model: { provider: "claude", model: "claude-sonnet-5-5" } });
+    await play("I finish my pudding.");
+    expect(models.writer.requests[0]!.prompt).toContain("<his_engagements>\n- Wednesday 7:30 pm (Day 8 19:30), every week, The library: Draconia's hour on the Charms practical. With Draconia Malfoy. He is expected.\n</his_engagements>");
   });
 });
 

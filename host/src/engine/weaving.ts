@@ -1,11 +1,12 @@
 import { currentPlan, PEAK } from "./directing.js";
 import type { WeaveAsk } from "../agents/weaver.js";
 import type { Mac } from "../mac.js";
-import type { Entry, SceneOpened, WorldMoved } from "../story/entries.js";
+import type { Entry, Happening, SceneOpened, WorldMoved } from "../story/entries.js";
 import { sceneSpans } from "../story/spans.js";
 import { worldOn } from "../story/world.js";
 import { onAhead } from "../story/day.js";
-import { engagementsOn } from "../story/engagements.js";
+import { engagementsKept, engagementsOn, occurrencesBetween } from "../story/engagements.js";
+import { samePlace } from "../story/places.js";
 import { minutesOf, parseStoryTime } from "../time.js";
 
 /** A Scene's end the Weaver owes: the Scene, the entry its record hangs off, and the span to move the World over. */
@@ -62,6 +63,8 @@ export function weaveAsk(mac: Mac, due: DueWeave): WeaveAsk {
     // The Writer rated the Scene that ended at a peak: the Story's next pick is a quiet one (openspec long-run).
     afterPeak: due.entries.some(entry => entry.payload.kind === "beat_note" && entry.payload.intensity >= PEAK),
     stillOn: onAhead(mac, due.through.id, due.until).filter(item => !item.engagement),
+    // An Engagement whose time the Scene ran past, away from its place, was missed (engagements design decision 4).
+    missed: missedEngagements(mac, due.through.id, due.from, due.until),
     engagementsOn: engagementsOn(mac, due.through.id, due.until),
     ...stretchAfter(mac, due.through.id, due.until)
   };
@@ -108,6 +111,31 @@ export function emptySpan(ask: WeaveAsk): boolean {
   return true;
 }
 
+/**
+ * Every time an Engagement fell from [from] up to [until] on the Path at [head] that he did not keep (engagements
+ * design decision 4), as a Happening to go on without him. He kept a time when the choice that opened a Scene was for
+ * it, or when a Scene at its place ran over it.
+ */
+export function missedEngagements(mac: Mac, head: string, from: string, until: string): Happening[] {
+  const path = mac.tree.pathTo(head);
+  const scenes = sceneSpans(path).map((span, index, spans) => {
+    const next = spans[index + 1];
+    const ends = next ? next.opened.payload.at : mac.states.at(head).clock;
+    return { place: span.opened.payload.place, from: minutesAt(span.opened.payload.at), until: minutesAt(ends) };
+  });
+  const chosen = path.flatMap(entry => (entry.payload.kind === "move" && entry.payload.choice?.engagement ? [`${entry.payload.choice.engagement}@${entry.payload.choice.at}`] : []));
+  return engagementsKept(mac, head).flatMap(engagement => occurrencesBetween(engagement, from, until).flatMap(at => {
+    const minutes = minutesAt(at);
+    const kept = chosen.includes(`${engagement.id}@${at}`) || scenes.some(scene => samePlace(scene.place, engagement.place) && scene.from <= minutes && minutes <= scene.until);
+    return kept ? [] : [{ id: `e-${engagement.id}-${at.replace(/\W+/g, "")}`, at, place: engagement.place, what: engagement.what, who: engagement.who, expected: engagement.expected, pick: false, engagement: engagement.id, every: engagement.every }];
+  }));
+}
+
+const minutesAt = (at: string) => {
+  const time = parseStoryTime(at);
+  return time ? minutesOf(time) : 0;
+};
+
 /** A Gap shorter than this with nothing on in it passes without the Weaver: nothing in it will reach anyone. */
 const QUIET_GAP_MINUTES = 60;
 
@@ -127,15 +155,17 @@ export function gapAsk(mac: Mac, move: Entry): WeaveAsk | null {
   const start = parseStoryTime(from);
   const end = parseStoryTime(until);
   if (!start || !end || minutesOf(end) <= minutesOf(start)) return null;
-  const missed = onAhead(mac, move.parentId, from).filter(item => {
+  // What was on in the Gap goes on without him: the Weaver's Happenings, and every time an Engagement fell in it.
+  const offered = onAhead(mac, move.parentId, from).filter(item => {
     const at = parseStoryTime(item.at);
     const chosen = item.at === until && item.place === choice.place;
-    return at !== null && minutesOf(at) < minutesOf(end) && !chosen;
+    return !item.engagement && at !== null && minutesOf(at) < minutesOf(end) && !chosen;
   });
+  const missed = [...offered, ...missedEngagements(mac, move.parentId, from, until)].sort((left, right) => minutesAt(left.at) - minutesAt(right.at));
   // The Leads' off-screen moves can be made in a Gap as anywhere (docs/adr/0010); one that is due keeps a short Gap.
   const stretch = stretchAfter(mac, move.parentId, until);
   const by = stretch.stretch?.movesBy ? parseStoryTime(stretch.stretch.movesBy) : null;
   const movesDue = (stretch.stretch?.moves?.length ?? 0) > 0 && by !== null && minutesOf(end) >= minutesOf(by);
   if (missed.length === 0 && !movesDue && minutesOf(end) - minutesOf(start) < QUIET_GAP_MINUTES) return null;
-  return { state, world, scene: [move], from, until, inScene: [], gap: { missed }, ...stretch };
+  return { state, world, scene: [move], from, until, inScene: [], gap: true, missed, ...stretch };
 }

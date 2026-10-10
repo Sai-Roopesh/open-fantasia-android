@@ -44,11 +44,11 @@ Scenarios this change builds:
   Happenings › What he is expected at is never crowded out`.
 - [x] 2.2 Weekly and called off. Test first: `day-view › What he has arranged is on › Wednesday evenings in the
   library` (offered days away and again the next week) and `› Called off`.
-- [ ] 2.3 Kept or missed (design decision 4): a choice carries its Engagement; kept by the choice or by a Scene at its
+- [x] 2.3 Kept or missed (design decision 4): a choice carries its Engagement; kept by the choice or by a Scene at its
   place over its time; every span's missed Engagements passed to the Weaver. Test first: `day-view › Missing
   something has consequences › A summons he only heard of is still missed` and `› Missed while in another Scene`.
   "Skipping a summons" and "McGonagall answers the absence" must stay passing.
-- [ ] 2.4 The Writer is told his Engagements ahead (design decision 7). Test: the Writer's prompt in a Scene on
+- [x] 2.4 The Writer is told his Engagements ahead (design decision 7). Test: the Writer's prompt in a Scene on
   Wednesday at 7:10 pm carries the library at 7:30 pm, marked expected.
 
 ## 3. The link and the phone

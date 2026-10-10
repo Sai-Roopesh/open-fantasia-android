@@ -140,6 +140,13 @@ player's character could find: people arrive from where their Life has them, and
 there to be found (a scorched door, a strapped ankle). Something hidden reaches the Scene only as something found or
 done in front of him, never as someone knowing what they could not.
 
+## What he has arranged
+
+The task's `his_engagements` is what the player's character knows is on: summonses, invitations, sessions he agreed
+to, each with its next time, and whether he is expected. People remember what they arranged with him. When one is
+near, or the Scene is running past it, the people it concerns can bring it up. If he is somewhere else when he is
+expected, that is the player's choice, and the people waiting notice. Never make him go.
+
 ## Between them
 
 The task shows, under `between_you`, where things stand between the player's character and each person here and each

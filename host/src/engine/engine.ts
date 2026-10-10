@@ -21,6 +21,7 @@ import type { StoryPath } from "../store/tree.js";
 import type { Entry, EntryKind, Payload } from "../story/entries.js";
 import type { ModelChoice, Person, State } from "../story/state.js";
 import { entryEvent, sceneEntries } from "../views/scene.js";
+import { engagementsOn } from "../story/engagements.js";
 import { chronicleAsk, dueChronicle, endedScenesOn, gapsOn, markForRetry, RECORD_TRIES, STEPPED_AWAY_MS } from "./chronicling.js";
 import { dueWeave, emptySpan, gapAsk, weaveAsk } from "./weaving.js";
 import { chosen } from "./choosing.js";
@@ -823,7 +824,7 @@ export class Engine {
     const model = turn.models.writer;
     const text = turn.move.payload.kind === "move" ? turn.move.payload.text : "";
     const { plan, callId } = await writeBeat(this.models, model,
-      { state, scene: moveAt >= 0 ? entries.slice(0, moveAt) : entries, move: text, direction: state.pendingDirection, recall: recall(this.mac, head.id, state.scene?.here ?? []), world: worldOn(this.mac, head.id), choice: turn.move.payload.kind === "move" ? turn.move.payload.choice ?? null : null, plan: planForWriter(this.mac, head.id) },
+      { state, scene: moveAt >= 0 ? entries.slice(0, moveAt) : entries, move: text, direction: state.pendingDirection, recall: recall(this.mac, head.id, state.scene?.here ?? []), world: worldOn(this.mac, head.id), choice: turn.move.payload.kind === "move" ? turn.move.payload.choice ?? null : null, plan: planForWriter(this.mac, head.id), engagements: engagementsOn(this.mac, head.id, state.clock) },
       turn.storyId, turn.traceId, turn.abort.signal);
 
     const written = this.mac.db.transaction(() => {

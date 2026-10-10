@@ -51,7 +51,7 @@ export const WEAVER_SCHEMA = {
         required: ["id", "what", "at", "where", "known_to", "landmark"],
         properties: {
           id: text, what: text, at: { ...text, description: "A story time in the span, \"Day N HH:MM\"." }, where: text, known_to: names, landmark: { type: ["string", "null"] },
-          missed: { type: ["string", "null"], description: "In a Gap: the id (G1) of what was on that this is, going on without him." },
+          missed: { type: ["string", "null"], description: "The id (G1) of what was on that he was not at, that this is, going on without him." },
           move: { type: ["string", "null"], description: "When this is a Lead's move this Stretch, made off-screen: the Lead's name; null otherwise." }
         }
       }
@@ -117,8 +117,10 @@ export interface WeaveAsk {
   inScene: string[];
   /** The Scene that ended peaked, so the Story's pick is quiet (openspec long-run: Rest is deliberate). */
   afterPeak?: boolean;
-  /** When the span is a Gap the player chose to skip: what was on in it, which goes on without him. */
-  gap?: { missed: Happening[] };
+  /** The span is a Gap the player chose to skip. */
+  gap?: true;
+  /** What was on in the span that he was not at, a Gap's or a Scene's: it goes on without him (docs/adr/0011). */
+  missed?: Happening[];
   /** What was on already and is still ahead: the Day View keeps it, so it is not offered again. */
   stillOn?: Happening[];
   /**
@@ -213,7 +215,7 @@ export function checkWeave(ask: WeaveAsk, raw: unknown): Checked<WeaveRecord> {
     return [checked];
   });
   // In a Gap, what was on goes on without him; where he was expected, the people there notice (openspec day-view).
-  for (const [index, missed] of (ask.gap?.missed ?? []).entries()) {
+  for (const [index, missed] of (ask.missed ?? []).entries()) {
     const label = `G${index + 1}`;
     if (!missed.expected) continue;
     const answered = raw.happened.some(item => item.missed?.trim() === label && item.known_to.some(name => missed.who.includes(named(name) ?? "")));
@@ -387,6 +389,8 @@ export function weaverPrompt(ask: WeaveAsk): { system: string; prompt: string; f
     const at = parseStoryTime(item.at);
     return at && from && minutesOf(from) - minutesOf(at) <= LATELY_MINUTES;
   });
+  // What was on that he was not at, labelled for the Weaver to answer (G1 …).
+  const missedLines = (ask.missed ?? []).map((item, index) => `- G${index + 1} ${sayTime(parseStoryTime(item.at) ?? { day: 0, minuteOfDay: 0 })}, ${item.place}: ${item.what} With ${item.who.join(", ")}${item.expected ? "; he was expected" : ""}.`);
   const spanStart = parseStoryTime(ask.from);
   const spanEnd = parseStoryTime(ask.until);
   const days = spanStart && spanEnd ? Math.floor((minutesOf(spanEnd) - minutesOf(spanStart)) / (24 * 60)) : 0;
@@ -412,12 +416,13 @@ export function weaverPrompt(ask: WeaveAsk): { system: string; prompt: string; f
       ? section("the_gap", [
         `${pc} chose to be elsewhere later, and spent the time until then as his Move says:`,
         sceneThatEnded(ask.scene, pc),
-        ask.gap.missed.length ? `What was on in the Gap goes on without him:\n${ask.gap.missed.map((item, index) => `- G${index + 1} ${sayTime(parseStoryTime(item.at) ?? { day: 0, minuteOfDay: 0 })}, ${item.place}: ${item.what} With ${item.who.join(", ")}${item.expected ? "; he was expected" : ""}.`).join("\n")}` : ""
+        missedLines.length ? `What was on in the Gap goes on without him:\n${missedLines.join("\n")}` : ""
       ].filter(Boolean).join("\n\n"))
       : section(`scene_that_ended title="${scene?.title ?? ""}" place="${scene?.place ?? ""}" from="${say(state, opened)}" until="${say(state, ended)}" with="${ask.inScene.join(", ") || "nobody else"}"`, [
         `The Scene ran from ${sayAt(opened)} to ${sayAt(ended)}: what happened in it happened then. Before ${sayAt(opened)}, ${pc} was off-screen, and only the player says where he was and what he did: nothing you write has him anywhere, doing anything or knowing anything before then that the Scene does not say.`,
-        sceneThatEnded(ask.scene, pc)
-      ].join("\n\n")),
+        sceneThatEnded(ask.scene, pc),
+        missedLines.length ? `What was on in the span that he was not at goes on without him:\n${missedLines.join("\n")}` : ""
+      ].filter(Boolean).join("\n\n")),
     section("still_on", (ask.stillOn ?? []).map(item => `- ${item.at}, ${item.place}: ${item.what}`).join("\n")),
     section("engagements_on", (ask.engagementsOn ?? []).map(({ engagement, next }) => `- ${next}${engagement.every === "week" ? " (every week)" : ""}, ${engagement.place}: ${engagement.what}${engagement.expected ? " He is expected." : ""}`).join("\n")),
     ask.stretch?.moves?.length ? section(`lead_moves_offscreen by="${ask.stretch.movesBy ? say(state, ask.stretch.movesBy) : "the Stretch's end"}"`, ask.stretch.moves.map(lead => `- ${lead.who}: ${lead.move}`).join("\n")) : null,
@@ -437,7 +442,7 @@ export function weaverPrompt(ask: WeaveAsk): { system: string; prompt: string; f
     next: nextScene ? { id: nextScene.id, at: nextScene.at, place: nextScene.place, who: nextScene.who } : null,
     moves: (ask.stretch?.moves ?? []).map(lead => ({ who: lead.who, move: lead.move })),
     movesDue: movesDueBy(ask),
-    missed: (ask.gap?.missed ?? []).map((item, index) => ({ label: `G${index + 1}`, at: item.at, place: item.place, who: item.who, expected: item.expected })) };
+    missed: (ask.missed ?? []).map((item, index) => ({ label: `G${index + 1}`, at: item.at, place: item.place, who: item.who, expected: item.expected })) };
   return { system: storyPrompt(state), prompt, facts };
 }
 

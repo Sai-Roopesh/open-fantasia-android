@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import type { Models } from "../models/model-call.js";
 import type { World } from "../story/world.js";
-import type { Choice, DirectorPlan } from "../story/entries.js";
+import type { Choice, DirectorPlan, Engagement } from "../story/entries.js";
 import { answerWithOneRepair } from "./repair.js";
 import type { Entry } from "../story/entries.js";
 import type { Beat, ModelChoice, PendingDirection, SceneCall, State } from "../story/state.js";
@@ -119,6 +119,8 @@ export interface WriterAsk {
   choice?: Choice | null;
   /** The Director's plan for this stretch, and how many of its Scenes are left (openspec long-run), once there is one. */
   plan?: { plan: DirectorPlan; scenesLeft: number } | null;
+  /** What he has arranged ahead, each with its next time (docs/adr/0011). */
+  engagements?: { engagement: Engagement; next: string }[];
 }
 
 /** A new Scene's frame. */
@@ -455,6 +457,10 @@ export function writerPrompt(ask: WriterAsk): { system: string; prompt: string; 
     section("remembered", ask.recall.moments.map((moment, position) => section(`moment id="M${position + 1}" scene="${moment.scene}" known_to="${moment.knownTo.join(", ")}"`, `${moment.what}\n${sayWords(moment.words)}`)).join("\n\n")),
     section("between_you", sayBetween([...ask.recall.between, ...ask.recall.leads.filter(lead => !ask.recall.between.some(bond => bond.who === lead.who))])),
     section("world", worldPrompt(state, ask.world)),
+    section("his_engagements", (ask.engagements ?? []).map(({ engagement, next }) => {
+      const at = parseStoryTime(next);
+      return `- ${at ? sayStoryTime(at, state.dayOneWeekday) : next} (${next})${engagement.every === "week" ? ", every week" : ""}, ${engagement.place}: ${engagement.what}${engagement.who.length ? ` With ${engagement.who.join(", ")}.` : ""}${engagement.expected ? " He is expected." : ""}`;
+    }).join("\n")),
     section(opening === "day_view" ? "last_scene_so_far" : "scene_so_far", sceneSoFar(ask.scene, pc)),
     opening === "day_view" ? null : section("shown_not_here", shownNotHere(ask).join(", ")),
     section(`move by="${pc}"`, move),

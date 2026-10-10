@@ -31,8 +31,10 @@ export function chosen(mac: Mac, head: string, request: ChooseRequest): { choice
       const happening = request.kind === "story" ? today.find(item => item.pick) : today.find(item => item.id === request.happening);
       if (!happening) throw new LinkError("invalid", request.kind === "story" ? "The Story has no pick today." : "That is not on today.");
       // A Happening that is the Stretch's Scene that matters opens it, with what the plan says it is for.
-      const scene = onAhead(mac, head, state.clock).find(item => item.id === happening.id)?.scene ?? null;
-      choice = { kind: request.kind, place: happening.place, at: happening.at, who: happening.who, ...(scene ? { scene } : {}) };
+      const on = onAhead(mac, head, state.clock).find(item => item.id === happening.id);
+      const scene = on?.scene ?? null;
+      const engagement = on?.engagement ?? null;
+      choice = { kind: request.kind, place: happening.place, at: happening.at, who: happening.who, ...(scene ? { scene } : {}), ...(engagement ? { engagement } : {}) };
       line = `I go along at ${happening.time}: ${happening.place}.`;
       break;
     }
