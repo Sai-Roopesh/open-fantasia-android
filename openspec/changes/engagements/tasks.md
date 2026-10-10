@@ -58,7 +58,7 @@ Scenarios this change builds:
 - [x] 3.2 `record_written` from the engine when a record adds or changes an Engagement on the Path the phone shows.
   Test first: `presence › Between Scenes is quiet, and shows progress › An Engagement fills in`, on the host (the
   event after a late Chronicle, and the Day View read again shows the session).
-- [ ] 3.3 The phone: read the Scene again on `record_written`, and the weekly card built to the approved drawing.
+- [x] 3.3 The phone: read the Scene again on `record_written`, and the weekly card built to the approved drawing.
   Shared checks on the JVM and the device.
 
 ## 4. Together
@@ -67,7 +67,7 @@ Scenarios this change builds:
   (Draconia's Wednesday, Hermione's invitation, Flitwick's practical) and Meanwhile lines (McGonagall's summons, the
   note under the door). At least four of the five are recorded with the right day, place and expected flag, and none
   invented. Run with `npm run test:real`.
-- [ ] 4.2 Run `scripts/scenarios.mjs --strict`, the host suite and lint, the Android JVM and device suites, and
+- [x] 4.2 Run `scripts/scenarios.mjs --strict`, the host suite and lint, the Android JVM and device suites, and
   `openspec validate --all --strict`, and verify all pass.
 - [ ] 4.3 With the player's agreement, import The Malfoy Problem again on the Mac. Play on a test copy over adb until
   an arrangement is made on the page. Check the next Day View offers it, and that skipping past it has it noticed
