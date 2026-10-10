@@ -63,8 +63,17 @@ export function chosen(mac: Mac, head: string, request: ChooseRequest): { choice
   // The player's words stay theirs; a Gap left without its full stop gets one, so the choice reads as its own sentence.
   const gap = written && !/[.!?…]["'”’)]*$/.test(written) ? `${written}.` : written;
   const later = choice.at !== null && isLater(choice.at, state);
-  const before = gap ?? (later ? `I spend the time until then quietly in ${inSentence(scene.place)}.` : null);
+  // Left blank, he spends it quietly: where he was within the day, going about his days past a night (openspec day-view).
+  const blank = choice.at !== null && pastANight(choice.at, state) ? "I go about my days quietly until then." : `I spend the time until then quietly in ${inSentence(scene.place)}.`;
+  const before = gap ?? (later ? blank : null);
   return { choice, text: before ? `${before} ${line}` : line };
+}
+
+/** Whether [at] is on a later Story day than the clock: the Gap runs past a night. */
+function pastANight(at: string, state: State): boolean {
+  const then = parseStoryTime(at);
+  const now = parseStoryTime(state.clock);
+  return then !== null && now !== null && then.day > now.day;
 }
 
 function isLater(at: string, state: State): boolean {

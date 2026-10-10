@@ -48,6 +48,8 @@ Two to five, in order, each:
   front of Flitwick". Never what anyone says, and never what the player's character does: the player decides that.
 - `lead`: the Lead it is about, or null.
 - `engagement`: when it is one of his Engagements, its label ("E1"); otherwise null.
+- `headline`: the Scene in one line of ten words or fewer, as a note on a calendar: "Charms: Flitwick pairs him with
+  Draconia". The player reads it Backstage.
 
 A Scene is one thing happening between its people. Plan fewer, fuller ones, and leave the player room: they can always
 choose something else. Three is the usual week; two for a quiet one; four only when the week builds to a Landmark; five

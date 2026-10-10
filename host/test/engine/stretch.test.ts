@@ -71,6 +71,30 @@ describe("the Story's pick is the Stretch's next Scene that matters (story-in-st
   });
 });
 
+describe("Backstage's Stretch, a line each (blank-gaps-and-headlines design decision 2)", () => {
+  // GIVEN the Director's Stretch has Charms on Monday as a Scene that matters
+  // WHEN the player opens Backstage
+  // THEN it lists Monday's Scene in one short line, such as "Charms: Flitwick pairs him with Draconia", and not the
+  //   Director's note to the Writer
+  it("outside-the-scene › Backstage shows everything else, only when visited › The Stretch, a line each", async () => {
+    const story = fridayNight();
+    const note = "Flitwick pairs him with Draconia for the practical, and she has to be civil in front of the whole class while Pansy watches from the next bench.";
+    const plan = charmsWeek(story, { scenes: [
+      { id: "S1", at: "Day 6 09:00", place: "The Charms classroom", who: ["Draconia Malfoy"], for: note, lead: "Draconia Malfoy", headline: "Charms: Flitwick pairs him with Draconia" },
+      { id: "S2", at: "Day 10 15:00", place: "The library", who: ["Hermione Granger"], for: "Hermione's flying notes.", lead: "Hermione Granger" }
+    ] });
+    const { engine, storyId, head, play, mac } = playable(story, { director: [{ answer: JSON.stringify(plan) }], weaver: [{ from: fakeWeaveAnswer }] });
+    await play("I say goodnight to Hermione and go up.");
+    engine.endScene(storyId, head(), "end");
+    await engine.woven(storyId);
+    const scenes = backstageView(mac, storyId, "t").director!.stretch!.scenes;
+    expect(scenes[0]!.purpose).toBe("Charms: Flitwick pairs him with Draconia");
+    expect(JSON.stringify(scenes)).not.toContain(note);
+    // A Scene with no headline shows the note, as before.
+    expect(scenes[1]!.purpose).toBe("Hermione's flying notes.");
+  });
+});
+
 describe("the pick and an Engagement are one card (play-check-fixes design decision 1)", () => {
   // GIVEN he promised Hermione to meet her in the library at seven tonight, and the Stretch's next Scene that matters
   //   is that meeting

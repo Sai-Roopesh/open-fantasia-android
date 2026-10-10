@@ -190,7 +190,10 @@ internal enum class DayPicker(val title: String) { Follow("Follow someone"), Som
                 textStyle = FantasiaType.direction.copy(color = FantasiaText), cursorBrush = SolidColor(FantasiaLabel),
                 modifier = Modifier.fillMaxWidth().testTag("gap-text").semantics { contentDescription = "What $name did" })
         }
-        Text("Left blank, $name spends it quietly in ${day.place.replaceFirst(Regex("^The "), "the ")}.", style = FantasiaType.caption, color = FantasiaCaption)
+        // Left blank: where he was within the day, going about his days past a night (Gap.dc.html; openspec day-view).
+        val pastANight = storyMinute(choice.at) / 1440 > storyMinute(day.at) / 1440
+        Text(if (pastANight) "Left blank, $name goes about his days quietly." else "Left blank, $name spends it quietly in ${day.place.replaceFirst(Regex("^The "), "the ")}.",
+            style = FantasiaType.caption, color = FantasiaCaption)
         problem?.let { Text(it, style = FantasiaType.small, color = FailureAmber, modifier = Modifier.testTag("gap-problem")) }
         Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End)) {
             TextButton(onClick = dismiss, modifier = Modifier.height(48.dp), shape = FantasiaShapes.round,

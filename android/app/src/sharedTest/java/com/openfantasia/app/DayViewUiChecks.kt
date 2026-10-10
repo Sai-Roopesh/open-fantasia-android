@@ -226,6 +226,20 @@ open class DayViewUiChecks : WorldUiChecks() {
         assertTrue("Saturday's library comes before Sunday's", first.top < second.top)
     }
 
+    // GIVEN he is in the Three Broomsticks on Friday night
+    // WHEN the player skips to next week and leaves the Gap blank
+    // THEN the Gap says he goes about his days quietly, and nowhere says he spent the week in the Three Broomsticks
+    fun blankWeek() {
+        val nextWeek = Skip(label = "Next week", inSentence = "next week", at = "Day 10 07:30", time = "Friday 7:30 am", daysAway = 7)
+        ready(skips = listOf(tomorrow, nextWeek))
+        compose.runOnIdle { link.current.value = link.current.value.copy(dayView = link.current.value.dayView!!.copy(place = "The Three Broomsticks")) }
+        tap("Skip to later")
+        compose.onNodeWithText("Next week").performClick()
+        compose.onNodeWithText("Left blank, Roopesh goes about his days quietly.").assertIsDisplayed()
+        compose.onNodeWithText("the Three Broomsticks", substring = true).assertDoesNotExist()
+        compose.preview("Gap · a blank week")
+    }
+
     fun laterPickHasGap() {
         ready()
         tap("Let the Story choose")

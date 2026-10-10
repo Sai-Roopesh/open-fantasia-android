@@ -205,6 +205,21 @@ describe("the Director", () => {
   });
 });
 
+describe("a headline for each Scene that matters (blank-gaps-and-headlines design decision 2)", () => {
+  it("keeps a short headline, and lets one too long or none fall back to the note, without asking again", () => {
+    const checked = checkPlan(ask(), plan({ scenes: [
+      { ...charms, headline: "Charms: Flitwick pairs him with Draconia" },
+      { ...pitch, headline: "word ".repeat(16).trim() },
+      { ...pitch, id: "S3", at: "Day 7 10:00" }
+    ] }));
+    expect(checked.ok).toBe(true);
+    if (!checked.ok) return;
+    expect(checked.value.scenes.map(scene => scene.headline)).toEqual(["Charms: Flitwick pairs him with Draconia", null, null]);
+    expect(checked.dropped).toEqual([]);
+    expect(directorPrompt(ask()).system).toContain("`headline`");
+  });
+});
+
 describe("the Director knows what he has arranged (director-knows-engagements)", () => {
   const library = { id: "g-library", what: "Draconia, about the train and what she owes.", at: "Day 2 10:00", place: "The library", who: ["Draconia Malfoy"], expected: true, every: null, quotes: [] };
   const sessions = { id: "g-sessions", what: "Hermione's Charms revision.", at: "Day 3 19:30", place: "The library's end table", who: ["Hermione Granger"], expected: false, every: "week" as const, quotes: [] };

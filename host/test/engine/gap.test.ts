@@ -23,10 +23,29 @@ async function saturday(weaver: object[], writer: object[] = []) {
   return { ...played, id };
 }
 
+describe("a blank Gap depends on the day (blank-gaps-and-headlines design decision 1)", () => {
+  // GIVEN he is in the Three Broomsticks on Friday night
+  // WHEN the player skips to next week and leaves the Gap blank
+  // THEN the Gap says he goes about his days quietly, and nowhere says he spent the week in the Three Broomsticks
+  it("day-view › The Gap is the player's, and everything in it goes on without them › A blank week", async () => {
+    const played = playable(hogwartsWorldStoryFile({ title: "Freshers' Friday", place: "The Three Broomsticks", at: "Day 3 21:40", who: ["Hermione Granger"] }),
+      { weaver: [{ answer: JSON.stringify({ ...quiet, happenings: [] }) }, { answer: JSON.stringify(quiet) }], unplanned: true });
+    await played.play("I finish my butterbeer.");
+    played.engine.endScene(played.storyId, played.head(), "trace-end");
+    await played.engine.woven(played.storyId);
+    const week = played.view().day_view!.choices.skips.find(skip => skip.label === "Next week")!;
+    played.engine.choose(played.storyId, { after: played.head(), kind: "skip", at: week.at, gap: null }, "trace-skip");
+    await played.engine.settled(played.storyId);
+    const move = (played.mac.tree.pathTo(played.head()).filter(entry => entry.payload.kind === "move").at(-1)!.payload as MoveWritten).text;
+    expect(move).toMatch(/^I go about my days quietly until then\. I let the time pass until next week/);
+    expect(move).not.toContain("Three Broomsticks");
+  });
+});
+
 describe("the Gap", () => {
   // GIVEN it is 7:40 am, McGonagall expects the Player Character at 9:00, and Draconia is in the hospital wing at 11:00
   // WHEN the player goes to the hospital wing at 11:00 and leaves the Gap blank
-  // THEN he spent the morning in his room
+  // THEN he spent the morning quietly where he was
   // AND McGonagall took the accounts without him and noticed his absence
   it("day-view › The Gap is the player's, and everything in it goes on without them › Skipping a summons", async () => {
     const { engine, storyId, head, id, mac, models } = await saturday([quiet, noticed]);

@@ -22,6 +22,8 @@ const PROMPT = readFileSync(new URL("./DIRECTOR.md", import.meta.url), "utf8");
 /** A Stretch runs five to nine days, with two to five Scenes that matter (story-in-stretches design decision 1). */
 export const STRETCH_DAYS = { min: 5, max: 9 } as const;
 export const SCENES_THAT_MATTER = { min: 2, max: 5 } as const;
+/** A Scene's headline is asked for in ten words; past fifteen it is not kept (docs/adr/0012). */
+const MAX_HEADLINE_WORDS = 15;
 
 const text = { type: "string", minLength: 1 } as const;
 
@@ -45,7 +47,8 @@ export const DIRECTOR_SCHEMA = {
         type: "object", additionalProperties: false, required: ["id", "at", "place", "who", "for", "lead"],
         properties: {
           id: text, at: text, place: text, who: { type: "array", items: { type: "string" } }, for: text, lead: { type: ["string", "null"] },
-          engagement: { type: ["string", "null"], description: "When it is one of his Engagements (E1 …), its label: it is at that Engagement's time and place. Otherwise null." }
+          engagement: { type: ["string", "null"], description: "When it is one of his Engagements (E1 …), its label: it is at that Engagement's time and place. Otherwise null." },
+          headline: { type: "string", description: "The Scene in one line of ten words or fewer, for Backstage: \"Charms: Flitwick pairs him with Draconia\"." }
         }
       }
     },
@@ -77,7 +80,7 @@ interface AnswerPlan {
   toward: string;
   landmark: string | null;
   phase: DirectorPlan["phase"];
-  scenes: { id: string; at: string; place: string; who: string[]; for: string; lead: string | null; engagement?: string | null }[];
+  scenes: { id: string; at: string; place: string; who: string[]; for: string; lead: string | null; engagement?: string | null; headline?: string }[];
   arcs: ArcStep[];
   leads: { who: string; move: string; scene: string | null }[];
   roadmap: RoadmapPoint[];
@@ -196,7 +199,11 @@ export function checkPlan(ask: DirectorAsk, raw: unknown): Checked<RawPlan> {
     if (scene.lead !== null && !lead) dropped.push(`scenes: ${label}, lead: ${scene.lead.trim()} is not a Lead; name one of the Leads (${state.leads.join(", ")}), or null`);
     const id = `s-${randomUUID().slice(0, 8)}`;
     sceneIds.set(label, id);
-    return [{ id, at: scene.at.trim(), place: scene.place.trim(), who, for: scene.for.trim(), lead, engagement: on?.engagement.id ?? null }];
+    // Only Backstage reads the headline: one missing or too long falls back to the note, and is not asked for again
+    // (blank-gaps-and-headlines design decision 2).
+    const line = scene.headline?.trim() ?? "";
+    const headline = line && line.split(/\s+/).length <= MAX_HEADLINE_WORDS ? line : null;
+    return [{ id, at: scene.at.trim(), place: scene.place.trim(), who, for: scene.for.trim(), lead, engagement: on?.engagement.id ?? null, headline }];
   });
   if (scenes.length === 0) fatal.push(`scenes: none of the Scenes that matter can be kept; plan two to five within the Stretch`);
 

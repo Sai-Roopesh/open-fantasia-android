@@ -41,6 +41,8 @@ class DayViewUiJvmTest : DayViewUiChecks() {
     @Test fun landmarkWeeksAwayCheck() = landmarkWeeksAway()
     @Scenario("day-view › The Gap is the player's, and everything in it goes on without them › What goes on without him, in time order")
     @Test fun gapInTimeOrderCheck() = gapInTimeOrder()
+    @Scenario("day-view › The Gap is the player's, and everything in it goes on without them › A blank week")
+    @Test fun blankWeekCheck() = blankWeek()
     @Test fun laterPickHasGapCheck() = laterPickHasGap()
     @Test fun unavailableOptionsAreHiddenAndOfflineDisabledCheck() = unavailableOptionsAreHiddenAndOfflineDisabled()
 }

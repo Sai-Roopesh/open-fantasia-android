@@ -142,8 +142,8 @@ export function fakeDirectorAnswer(request: ModelRequest): Script {
       from: day(0), until: day(6),
       toward: facts.afterPeak ? "what comes after the rest" : "what comes next", landmark: null, phase: facts.afterPeak ? "rest" : "build",
       scenes: [
-        { id: "S1", at: `${day(1)} 10:00`, place: "the Great Hall", who: lead ? [lead] : [], for: facts.afterPeak ? "A quiet morning after." : "A step for the Story.", lead },
-        { id: "S2", at: `${day(2)} 15:00`, place: "the library", who: [], for: "Something else in his life.", lead: null }
+        { id: "S1", at: `${day(1)} 10:00`, place: "the Great Hall", who: lead ? [lead] : [], for: facts.afterPeak ? "A quiet morning after." : "A step for the Story.", lead, headline: "The Great Hall: a step for the Story" },
+        { id: "S2", at: `${day(2)} 15:00`, place: "the library", who: [], for: "Something else in his life.", lead: null, headline: "The library: something else in his life" }
       ],
       arcs: facts.arcs.map(arc => ({ arc, now: "where it stands", next: "one step", not_yet: "anything more" })),
       leads: facts.leads.map((who, index) => ({ who, move: `${who} does something about him.`, scene: index === 0 ? "S1" : null })),

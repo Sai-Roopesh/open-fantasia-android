@@ -81,7 +81,8 @@ function stretchOf(mac: Mac, head: string, entry: Entry<DirectorPlan>): StretchV
     const at = parseStoryTime(scene.at);
     const when = at ? `${sayDay(at, weekday).slice(0, 3)} ${sayTime(at)}` : scene.at;
     const state = played.has(scene.id) ? "played" : at && now && minutesOf(at) <= minutesOf(now) ? "passed" : "ahead";
-    return { time: when, place: scene.place, purpose: scene.for, who: scene.who, state };
+    // One short line each, as drawn; a Scene planned without a headline shows its note (blank-gaps-and-headlines).
+    return { time: when, place: scene.place, purpose: scene.headline ?? scene.for, who: scene.who, state };
   });
   // The Leads' off-screen moves, as the World recorded them after this plan; and how each reached him, if it did.
   const records = (mac.tree.recordsOn(head, "world_moved") as Entry<WorldMoved>[]).filter(record => record.seq > entry.seq);
