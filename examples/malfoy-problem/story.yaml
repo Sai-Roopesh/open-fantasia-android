@@ -55,7 +55,7 @@ actor:
   effort: high
 clock:
   starts: Day 6 21:40
-  day_one_weekday: sunday
+  day_one: "1991-09-01"
 world:
   summary: >-
     Hogwarts in 1991, as a university: students arrive at eighteen with no wand and leave four years later, and

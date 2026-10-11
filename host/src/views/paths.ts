@@ -14,7 +14,7 @@ interface Laid {
 
 function say(state: State, at: string): string {
   const time = parseStoryTime(at);
-  return time ? sayStoryTime(time, state.dayOneWeekday) : at;
+  return time ? sayStoryTime(time, state.dayOne) : at;
 }
 
 const scenes = (count: number) => `${count} ${count === 1 ? "Scene" : "Scenes"}`;

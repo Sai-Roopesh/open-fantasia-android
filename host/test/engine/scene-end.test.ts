@@ -35,7 +35,7 @@ const weave = (changes: Record<string, unknown> = {}): Script => ({ answer: JSON
 function plan(scenes: Record<string, unknown>[], changes: Record<string, unknown> = {}): Script {
   return { answer: JSON.stringify({
     days: 5, toward: "the flying test", landmark: null, phase: "build",
-    scenes: scenes.map((scene, index) => ({ id: `S${index + 1}`, day: 1, time: "10:00", place: "The Great Hall", who: [], for: "A step for the Story.", offer: "Something is on.", headline: "A step", lead: null, engagement: null, quiet: false, ...scene })),
+    scenes: scenes.map((scene, index) => ({ id: `S${index + 1}`, date: "1991-09-07", time: "10:00", place: "The Great Hall", who: [], for: "A step for the Story.", offer: "Something is on.", headline: "A step", lead: null, engagement: null, quiet: false, ...scene })),
     new: [{ kind: "mystery", what: "A locked door nobody admits to.", scene: null, person: null }],
     leads: [], arcs: [], roadmap: [], premise: "Some Scenes serve it.", ...changes
   }) };
@@ -123,7 +123,7 @@ describe("a Scene's end, step by step (docs/adr/0016)", () => {
     expect(models.requests.map(request => request.agent).filter(agent => agent !== "writer" && agent !== "actor")).toEqual(["chronicler", "director", "weaver"]);
     expect(afterClose(path())).toEqual(["scene_closed", "chronicle", "director_plan", "world_moved"]);
     // The Weaver moves the World on toward the plan's Scenes that matter.
-    expect(models.weaver.requests[0]!.prompt).toContain("The plan's Scenes that matter ahead:\n- s1.1 Day 4 10:00 (Saturday 10:00 am), the Great Hall, with Draconia Malfoy: A step for the Story.");
+    expect(models.weaver.requests[0]!.prompt).toContain("The plan's Scenes that matter ahead:\n- s1.1 Saturday 7 September 1991, 10:00 am, the Great Hall, with Draconia Malfoy: A step for the Story.");
   });
 
   // GIVEN the Director's model and its second model both fail while planning the next Stretch
@@ -340,7 +340,7 @@ describe("what the World may write (openspec living-world)", () => {
     const tournament = { name: "the Triwizard Tournament", at: "Day 4 06:00", what: "The Goblet of Fire is lit in the Great Hall." };
     const begins = weave({ happened: [{ id: "H1", what: "The Goblet of Fire was lit in the Great Hall; the Tournament began.", at: "Day 4 06:00", where: "the Great Hall", known_to: [], landmark: "the Triwizard Tournament", move: null, missed: null }] });
     const { models, state, view } = await night([weave(), begins], [tournament]);
-    expect(models.weaver.requests[1]!.prompt).toContain("happened: the Triwizard Tournament falls in the span (Day 4 06:00) and has not happened; write it, with landmark set to its name");
+    expect(models.weaver.requests[1]!.prompt).toContain("happened: the Triwizard Tournament falls in the span (Saturday 7 September 1991, 6:00 am) and has not happened; write it, with landmark set to its name");
     expect(state().facts.filter(fact => fact.landmark)).toEqual([expect.objectContaining({ landmark: "the Triwizard Tournament", at: "Day 4 06:00" })]);
     expect(view().day_view!.scene_end).toEqual({ step: null, failed: null });
   });
@@ -411,9 +411,9 @@ describe("the Director at a Scene's end (openspec long-run)", () => {
     // Monday night, Day 6: Day 1 was a Wednesday.
     const story = hogwartsStoryFile({ title: "Monday night", place: "The Gryffindor common room", at: "Day 6 21:40" });
     const week = plan([
-      { day: 1, time: "16:00", place: "The Charms classroom", who: ["Draconia Malfoy"], lead: "Draconia Malfoy", headline: "Charms: she is paired with him and hates it" },
-      { day: 3, time: "14:00", place: "The library", who: ["Hermione Granger"], lead: "Hermione Granger", headline: "The library: Hermione's flying notes" },
-      { day: 5, time: "10:00", place: "The Quidditch pitch", who: ["Draconia Malfoy"], lead: "Draconia Malfoy", headline: "The flying test" }
+      { date: "1991-09-10", time: "16:00", place: "The Charms classroom", who: ["Draconia Malfoy"], lead: "Draconia Malfoy", headline: "Charms: she is paired with him and hates it" },
+      { date: "1991-09-12", time: "14:00", place: "The library", who: ["Hermione Granger"], lead: "Hermione Granger", headline: "The library: Hermione's flying notes" },
+      { date: "1991-09-14", time: "10:00", place: "The Quidditch pitch", who: ["Draconia Malfoy"], lead: "Draconia Malfoy", headline: "The flying test" }
     ], { days: 6, toward: "the flying test on Saturday" });
     const { engine, storyId, head, play, view, state, models } = playable(story, { director: [week] });
     await play("I say goodnight.");
@@ -440,8 +440,8 @@ describe("the Director at a Scene's end (openspec long-run)", () => {
   it("long-run › The Director shapes the long run around Arcs and Landmarks › Off the plan", async () => {
     // Friday night; Monday is Day 6, three days on.
     const week = plan([
-      { day: 3, time: "08:00", place: "The Great Hall", who: ["Draconia Malfoy"], lead: "Draconia Malfoy", headline: "Breakfast: Draconia sits down opposite him" },
-      { day: 4, time: "15:00", place: "The library", who: ["Hermione Granger"], lead: "Hermione Granger" }
+      { date: "1991-09-09", time: "08:00", place: "The Great Hall", who: ["Draconia Malfoy"], lead: "Draconia Malfoy", headline: "Breakfast: Draconia sits down opposite him" },
+      { date: "1991-09-10", time: "15:00", place: "The library", who: ["Hermione Granger"], lead: "Hermione Granger" }
     ]);
     // From the Day View at 9:42 pm on Friday, his Move takes him to Tuesday morning by the lake.
     const tuesday = writer(5058, { frame: { title: "The lake", place: "The Black Lake", purpose: "p", exit: "e" } });
@@ -457,12 +457,12 @@ describe("the Director at a Scene's end (openspec long-run)", () => {
     engine.endScene(storyId, head(), "end-tuesday");
     await engine.ended(storyId);
     expect(models.director.requests).toHaveLength(2);
-    expect(models.director.requests[1]!.prompt).toContain("The player went off the plan: Breakfast: Draconia sits down opposite him (Day 6 08:00 (Monday 8:00 am)) passed without him. Plan from where the story now is. Plan the next Stretch, from today, Day 7.");
+    expect(models.director.requests[1]!.prompt).toContain("The player went off the plan: Breakfast: Draconia sits down opposite him (Monday 9 September 1991, 8:00 am) passed without him. Plan from where the story now is. Plan the next Stretch, from today, Tuesday 10 September 1991.");
     expect(state().plan).toMatchObject({ number: 2, from: 7, afterScene: 2 });
   });
 
   it("gives the plan to the Writer and the Weaver, and to no other agent", async () => {
-    const week = plan([{ day: 1, time: "10:00", place: "The Quidditch pitch", who: ["Draconia Malfoy"], lead: "Draconia Malfoy", for: "A step toward the test." }], { toward: "the flying test on Wednesday" });
+    const week = plan([{ date: "1991-09-07", time: "10:00", place: "The Quidditch pitch", who: ["Draconia Malfoy"], lead: "Draconia Malfoy", for: "A step toward the test." }], { toward: "the flying test on Wednesday" });
     const { engine, storyId, head, play, models } = playable(hogwartsStoryFile(), { director: [week] });
     await play("I say goodnight.");
     engine.endScene(storyId, head(), "end-1");
@@ -503,8 +503,8 @@ describe("the Director at a Scene's end (openspec long-run)", () => {
   it("long-run › Rest is deliberate › The rest the Director planned", async () => {
     // A plan already stands; the second Scene peaks, and the Director plans a rest.
     const rest = plan([
-      { day: 3, time: "08:00", place: "The Great Hall", who: ["Hermione Granger"], for: "Breakfast, and nothing at stake.", offer: "Breakfast in the Great Hall.", headline: "Monday breakfast", quiet: true },
-      { day: 4, time: "15:00", place: "The Quidditch pitch", who: ["Draconia Malfoy"], lead: "Draconia Malfoy" }
+      { date: "1991-09-09", time: "08:00", place: "The Great Hall", who: ["Hermione Granger"], for: "Breakfast, and nothing at stake.", offer: "Breakfast in the Great Hall.", headline: "Monday breakfast", quiet: true },
+      { date: "1991-09-10", time: "15:00", place: "The Quidditch pitch", who: ["Draconia Malfoy"], lead: "Draconia Malfoy" }
     ], { phase: "rest", toward: "the flying test" });
     const { engine, storyId, head, play, view, state, models } = playable(hogwartsStoryFile(), { writer: [{ from: fakeWriterAnswer }, peaked], director: [plan([{}]), rest] });
     await play("I say goodnight.");
@@ -557,8 +557,8 @@ describe("the Director at a Scene's end (openspec long-run)", () => {
     const story = hogwartsStoryFile();
     story.leads = ["Draconia Malfoy", "Hermione Granger", "Harry Potter"];
     const stretch = plan([
-      { day: 1, time: "10:00", place: "The Charms classroom", who: ["Draconia Malfoy"], lead: "Draconia Malfoy" },
-      { day: 2, time: "15:00", place: "The greenhouses", who: ["Neville Longbottom"], lead: null, for: "Neville's Mimbulus finally flowers." }
+      { date: "1991-09-07", time: "10:00", place: "The Charms classroom", who: ["Draconia Malfoy"], lead: "Draconia Malfoy" },
+      { date: "1991-09-08", time: "15:00", place: "The greenhouses", who: ["Neville Longbottom"], lead: null, for: "Neville's Mimbulus finally flowers." }
     ], { arcs: story.arcs!.map(arc => ({ arc, now: "where it was", next: "a step", not_yet: "anything declared" })), leads: [
       { who: "Draconia Malfoy", move: "Corners him after Charms.", scene: "S1" },
       { who: "Hermione Granger", move: "Asks Ron, not him, to the study group.", scene: null },
@@ -581,9 +581,9 @@ describe("the Director at a Scene's end (openspec long-run)", () => {
   // THEN it brings in something he has not met, such as a stranger asking about the train in Hogsmeade, and a Scene
   //   that matters or a line of Meanwhile puts it in front of him
   it("long-run › Something new every Stretch › A stranger in Hogsmeade", async () => {
-    const nothingNew = plan([{ day: 1, time: "10:00", place: "The Great Hall", who: ["Draconia Malfoy"], lead: "Draconia Malfoy" }], { new: [] });
+    const nothingNew = plan([{ date: "1991-09-07", time: "10:00", place: "The Great Hall", who: ["Draconia Malfoy"], lead: "Draconia Malfoy" }], { new: [] });
     const stranger = plan([
-      { day: 1, time: "14:00", place: "Hogsmeade high street", who: [], offer: "A stranger in Hogsmeade is asking about the train.", headline: "Hogsmeade: a stranger asks about the train" }
+      { date: "1991-09-07", time: "14:00", place: "Hogsmeade high street", who: [], offer: "A stranger in Hogsmeade is asking about the train.", headline: "Hogsmeade: a stranger asks about the train" }
     ], { new: [{ kind: "person", what: "A stranger in a travelling cloak, asking about the train in Hogsmeade.", scene: "S1", person: { name: "Corvin Ashby", who_they_are: "A stranger in a travelling cloak who asks everyone about the night the train stopped.", appearance: "Grey cloak, mud to the knee." } }] });
     const { engine, storyId, head, play, view, state, models, mac } = playable(hogwartsStoryFile(), { director: [nothingNew, stranger] });
     await play("I say goodnight.");
@@ -601,7 +601,7 @@ describe("the Director at a Scene's end (openspec long-run)", () => {
 
 describe("someone new in the Story (openspec stories: The Director can bring someone new into the Story)", () => {
   const elspeth = { name: "Elspeth Vane", who_they_are: "A seventh-year who runs the Hogsmeade duelling club.", appearance: "Tall, with a duelling scar through one eyebrow." };
-  const bringsHer = plan([{ day: 1, time: "14:00", place: "The Hogsmeade duelling club", who: [], offer: "The duelling club is taking names.", headline: "Hogsmeade: Elspeth Vane's duelling club" }],
+  const bringsHer = plan([{ date: "1991-09-07", time: "14:00", place: "The Hogsmeade duelling club", who: [], offer: "The duelling club is taking names.", headline: "Hogsmeade: Elspeth Vane's duelling club" }],
     { new: [{ kind: "person", what: "Elspeth Vane, who runs the Hogsmeade duelling club.", scene: "S1", person: elspeth }] });
   const club = { title: "The duelling club", place: "The Hogsmeade duelling club", purpose: "p", exit: "e" };
 
@@ -611,7 +611,7 @@ describe("someone new in the Story (openspec stories: The Director can bring som
   it("stories › The Director can bring someone new into the Story › A new person stays", async () => {
     const list = "Elspeth Vane writes his name at the top of the list. \"Thursday. Don't be late.\"";
     // The second plan brings her in again, with something else new: she is already in the Story, and is not.
-    const again = plan([{ day: 2, time: "10:00", place: "The Great Hall", who: ["Elspeth Vane"] }], { new: [
+    const again = plan([{ date: "1991-09-09", time: "10:00", place: "The Great Hall", who: ["Elspeth Vane"] }], { new: [
       { kind: "person", what: "Elspeth Vane again.", scene: null, person: elspeth },
       { kind: "secret", what: "The duelling club meets where it should not.", scene: null, person: null }
     ] });

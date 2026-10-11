@@ -13,7 +13,7 @@ actor:
   model: claude-opus-5-5
 clock:
   starts: Day 1 22:40
-  day_one_weekday: thursday
+  day_one: "2026-07-16"
 world:
   summary: >-
     The Howrah–Kalka Mail, second-class sleeper, somewhere in the dark between Delhi and Ambala. Rain on the

@@ -32,7 +32,7 @@ class StoryLinkTest {
             each { mac.client.dropLandmark("story", "The Yule Ball", DropLandmarkRequest(after = "head")) }
             each { mac.client.setPlace("story", "The owlery", PlaceRequest(after = "head", description = "Cold.", institution = false, create = false)) }
             each { mac.client.setWorld("story", WorldRequest(after = "head", summary = "Hogwarts.", history = "")) }
-            each { mac.client.setClock("story", ClockRequest(after = "head", at = "Day 4 09:00", dayOneWeekday = null)) }
+            each { mac.client.setClock("story", ClockRequest(after = "head", at = "Day 4 09:00", dayOne = null)) }
             each { mac.client.rewordTaste("story", RewordTasteRequest(after = "head", line = "Old.", text = "New.")) }
             assertEquals(listOf(
                 "GET /stories/story/story", "PUT /stories/story/premise", "PUT /stories/story/style", "PUT /stories/story/reply-length",
@@ -40,7 +40,7 @@ class StoryLinkTest {
                 "PUT /stories/story/places/The%20owlery", "PUT /stories/story/world", "PUT /stories/story/clock", "POST /stories/story/taste/reword"
             ), sent.map { "${it.first} ${it.second}" })
             assertTrue(sent.drop(1).all { it.third.contains("\"after\":\"head\"") })
-            assertTrue(sent.first { it.second.endsWith("/clock") }.third.contains("\"day_one_weekday\":null"))
+            assertTrue(sent.first { it.second.endsWith("/clock") }.third.contains("\"day_one\":null"))
             assertTrue(sent.first { it.second.endsWith("/reply-length") }.third.contains("\"length\":\"short\""))
         }
     }

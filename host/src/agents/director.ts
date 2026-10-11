@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import type { Models } from "../models/model-call.js";
 import type { DirectorPlan } from "../story/entries.js";
 import type { ArcStep, LeadMove, ModelChoice, NewThing, Person, PlannedScene, RoadmapPoint, State } from "../story/state.js";
-import { formatStoryTime, minutesOf, parseStoryTime, sayDay } from "../time.js";
+import { formatDate, formatStoryTime, minutesOf, parseStoryTime, sayDate } from "../time.js";
 import { engagementsAhead } from "../story/day.js";
 import { calendarPart, castPart, factsPart, join, nowPart, say, section, steeringPart, storyPart, storySoFarPart, threadsPart } from "../context/lens.js";
 import { matches, namer, nullable, oneOf, peopleEnum, text } from "./format.js";
@@ -29,7 +29,7 @@ interface Raw {
   toward: string;
   landmark: string | null;
   phase: "build" | "peak" | "rest";
-  scenes: { id: string; day: number; time: string; place: string; who: string[]; for: string; offer: string; headline: string; lead: string | null; engagement: string | null; quiet: boolean }[];
+  scenes: { id: string; date: string; time: string; place: string; who: string[]; for: string; offer: string; headline: string; lead: string | null; engagement: string | null; quiet: boolean }[];
   new: { kind: NewThing["kind"]; what: string; scene: string | null; person: { name: string; who_they_are: string; appearance: string } | null }[];
   leads: { who: string; move: string; scene: string | null }[];
   arcs: { arc: string; now: string; next: string; not_yet: string }[];
@@ -68,8 +68,8 @@ export function directorFormat(state: State) {
       toward: text,
       landmark: { anyOf: [oneOf(state.landmarks.map(landmark => landmark.name)), { type: "null" }] },
       phase: { type: "string", enum: ["build", "peak", "rest"] },
-      scenes: { type: "array", items: { type: "object", additionalProperties: false, required: ["id", "day", "time", "place", "who", "for", "offer", "headline", "lead", "engagement", "quiet"], properties: {
-        id: text, day: { type: "integer", minimum: 0, maximum: STRETCH_DAYS.max - 1 }, time: { ...text, description: "HH:MM" }, place: text,
+      scenes: { type: "array", items: { type: "object", additionalProperties: false, required: ["id", "date", "time", "place", "who", "for", "offer", "headline", "lead", "engagement", "quiet"], properties: {
+        id: text, date: oneOf(stretchDates(state)), time: { ...text, description: "HH:MM" }, place: text,
         who: { type: "array", items: peopleEnum(state) }, for: text, offer: text, headline: text,
         lead: { anyOf: [oneOf(state.leads), { type: "null" }] }, engagement: { anyOf: [oneOf(engagements), { type: "null" }] }, quiet: { type: "boolean" }
       } } },
@@ -83,6 +83,12 @@ export function directorFormat(state: State) {
       premise: text
     }
   } as const;
+}
+
+/** The dates a Stretch from today may use, as agents write them: "1991-09-06", or "Day 6" without a calendar. */
+export function stretchDates(state: State): string[] {
+  const today = parseStoryTime(state.clock)?.day ?? 1;
+  return Array.from({ length: STRETCH_DAYS.max }, (_, offset) => formatDate(today + offset, state.dayOne));
 }
 
 /** The Story's Landmarks from today on, soonest first. */
@@ -100,7 +106,8 @@ function theRun(state: State): string {
   if (!now) return "";
   const ahead = landmarksAhead(state);
   const end = ahead.at(-1);
-  return [`Today is Day ${now.day} (${sayDay(now, state.dayOneWeekday)}).`, end ? `The Story runs to ${end.name}, ${say(state, end.at)}.` : "", ahead.length ? `Next: ${ahead.slice(0, 2).map(landmark => `${landmark.name}, ${say(state, landmark.at)}`).join("; then ")}.` : ""].filter(Boolean).join(" ");
+  const dates = stretchDates(state).map((date, offset) => `${date} (${sayDate({ day: now.day + offset, minuteOfDay: 0 }, state.dayOne)})`);
+  return [`Today is ${sayDate(now, state.dayOne, true)}.`, `The dates a Stretch from today can use: ${dates.join(", ")}.`, end ? `The Story runs to ${end.name}, ${say(state, end.at)}.` : "", ahead.length ? `Next: ${ahead.slice(0, 2).map(landmark => `${landmark.name}, ${say(state, landmark.at)}`).join("; then ")}.` : ""].filter(Boolean).join(" ");
 }
 
 export function directorPrompt(state: State, reason: string): { system: string; prompt: string } {
@@ -120,7 +127,7 @@ export function directorPrompt(state: State, reason: string): { system: string; 
       factsPart(state, "omniscient", []),
       section("recent_stretches", recent.map((scenes, index) => `Stretch ${index + 1}:\n${scenes.map(scene => `- ${scene.headline} (${scene.place}; ${scene.who.join(", ") || "nobody else"})`).join("\n")}`).join("\n")),
       plan ? section("last_plan", [...plan.arcs.map(arc => `- ${arc.arc}: was ${arc.now}; next ${arc.next}; not yet ${arc.notYet}`), ...plan.roadmap.map(point => `- Roadmap: ${point.arc}, by ${point.by}: ${point.stands}`)].join("\n")) : null,
-      section("task", `${reason} Plan the next Stretch, from today, Day ${parseStoryTime(state.clock)?.day ?? 1}.`)
+      section("task", `${reason} Plan the next Stretch, from today, ${(() => { const now = parseStoryTime(state.clock); return now ? sayDate(now, state.dayOne, true) : state.clock; })()}.`)
     ])
   };
 }
@@ -161,7 +168,8 @@ export function checkPlan(state: State, answer: unknown): Checked<DirectorRecord
   const scenes: PlannedScene[] = raw.scenes.slice(0, SCENES.max).flatMap(scene => {
     const label = scene.id.trim();
     const time = /^(\d{1,2}):(\d{2})$/.exec(scene.time.trim());
-    let at = time ? formatStoryTime({ day: from + Math.min(scene.day, days - 1), minuteOfDay: Number(time[1]) * 60 + Number(time[2]) }) : null;
+    const offset = stretchDates(state).indexOf(scene.date.trim());
+    let at = time && offset >= 0 ? formatStoryTime({ day: from + Math.min(offset, days - 1), minuteOfDay: Number(time[1]) * 60 + Number(time[2]) }) : null;
     let place = scene.place.trim();
     const engagement = scene.engagement ? shown[Number(scene.engagement.slice(1)) - 1] : undefined;
     if (engagement) {
@@ -169,6 +177,7 @@ export function checkPlan(state: State, answer: unknown): Checked<DirectorRecord
       place = engagement.engagement.place;
     }
     const when = at ? parseStoryTime(at) : null;
+    if (!engagement && offset < 0) return (dropped.push(`scenes: ${label} is on ${scene.date.trim()}, which is not one of the Stretch's dates`), []);
     if (!when || minutesOf(when) <= minutesOf(now)) return (dropped.push(`scenes: ${label} is not at a time after now`), []);
     const id = `s${(state.plan?.number ?? 0) + 1}.${labels.size + 1}`;
     labels.set(label, id);
@@ -205,7 +214,7 @@ export function checkPlan(state: State, answer: unknown): Checked<DirectorRecord
 
 export async function writePlan(models: Models, choices: ModelChoice[], state: State, reason: string, storyId: string, traceId: string, signal: AbortSignal): Promise<{ value: DirectorRecord; callId: string; model: ModelChoice; dropped: string[] }> {
   const { system, prompt } = directorPrompt(state, reason);
-  return runAgent(models, choices, { agent: "director", system, prompt, schema: directorFormat(state), facts: { clock: state.clock, reason, leads: state.leads, arcs: state.arcs, coming: landmarksAhead(state).slice(0, 2).map(landmark => landmark.name), plan: state.plan?.number ?? 0, afterPeak: (state.curve.at(-1)?.peak ?? 0) >= PEAK }, traceId, storyId }, answer => checkPlan(state, answer), TIMEOUT_MS.plan, signal);
+  return runAgent(models, choices, { agent: "director", system, prompt, schema: directorFormat(state), facts: { clock: state.clock, dates: stretchDates(state), reason, leads: state.leads, arcs: state.arcs, coming: landmarksAhead(state).slice(0, 2).map(landmark => landmark.name), plan: state.plan?.number ?? 0, afterPeak: (state.curve.at(-1)?.peak ?? 0) >= PEAK }, traceId, storyId }, answer => checkPlan(state, answer), TIMEOUT_MS.plan, signal);
 }
 
 void (null as unknown as Person);

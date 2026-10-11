@@ -171,17 +171,10 @@
         "starts": {
           "$ref": "#/$defs/StoryTime"
         },
-        "day_one_weekday": {
+        "day_one": {
+          "description": "The date of the Story's first day, Day 1, as YYYY-MM-DD: every day after it is a date, and its weekday follows.",
           "type": "string",
-          "enum": [
-            "monday",
-            "tuesday",
-            "wednesday",
-            "thursday",
-            "friday",
-            "saturday",
-            "sunday"
-          ]
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
         }
       }
     },

@@ -31,7 +31,7 @@ describe("the parts of every prompt (one-truth design decision 3)", () => {
     const before = storyPart(story.state());
     expect(before).toContain("Title: After Curfew");
     expect(before).toContain("- Draconia comes round to Roopesh, slowly, against everything she was raised to be.");
-    expect(before).toContain("- Draconia's flying test, Day 8 10:00 (Wednesday 10:00 am): Madam Hooch tests the first-years on brooms.");
+    expect(before).toContain("- Draconia's flying test, Wednesday 11 September 1991, 10:00 am: Madam Hooch tests the first-years on brooms.");
     expect(before).toContain('<player_character name="Roopesh Gantasala">\nA Muggle-born from Bangalore with powers he hides.\n</player_character>');
     expect(before).toContain("<leads>\nDraconia Malfoy, Hermione Granger\n</leads>");
     expect(before).not.toMatch(/<people>[^]*- Roopesh Gantasala/);
@@ -54,11 +54,11 @@ describe("the parts of every prompt (one-truth design decision 3)", () => {
     story.fold({ into: "chapter", count: 0, from: "Day 1 08:00", until: "Day 2 22:00", text: "The first chapter." });
     expect(storySoFarPart(story.state())).toBe([
       "<story_so_far>",
-      "Chapters:\nDay 1 08:00 (Wednesday 8:00 am) to Day 2 22:00 (Thursday 10:00 pm): The first chapter.",
+      "Chapters:\nWednesday 4 September 1991, 8:00 am to Thursday 5 September 1991, 10:00 pm: The first chapter.",
       "",
-      "Weeks:\nDay 1 08:00 (Wednesday 8:00 am) to Day 2 22:00 (Thursday 10:00 pm): The first days.",
+      "Weeks:\nWednesday 4 September 1991, 8:00 am to Thursday 5 September 1991, 10:00 pm: The first days.",
       "",
-      "Scenes:\nScene 1, After curfew (Day 3 21:40 (Friday 9:40 pm)): Hermione caught him out after curfew, and he lied about where he had been.",
+      "Scenes:\nScene 1, After curfew (Friday 6 September 1991, 9:40 pm): Hermione caught him out after curfew, and he lied about where he had been.",
       "</story_so_far>"
     ].join("\n"));
   });
@@ -84,9 +84,9 @@ describe("the parts of every prompt (one-truth design decision 3)", () => {
     story.chronicle({ engagements: [{ id: "g-1", what: "Revision with Hermione.", at: "Day 4 19:30", place: "The library's end table", who: ["Hermione Granger"], expected: true, every: "week", quotes: [] }] });
     story.plan({ scenes: [{ id: "s1.1", at: "Day 4 10:00", place: "The Great Hall", who: ["Draconia Malfoy"], for: "She claims him in front of Slytherin.", offer: "Draconia is at breakfast.", headline: "Breakfast: Draconia", lead: "Draconia Malfoy", engagement: null, quiet: false }] });
     const author = calendarPart(story.state(), "author")!;
-    expect(author).toContain("- E1 Day 4 19:30 (Saturday 7:30 pm), every week, The library's end table: Revision with Hermione. With Hermione Granger. He is expected.");
-    expect(author).toContain("Landmarks next:\n- The Halloween feast, Day 5 19:00 (Sunday 7:00 pm)\n- Draconia's flying test, Day 8 10:00 (Wednesday 10:00 am)");
-    expect(author).toContain("- s1.1 Day 4 10:00 (Saturday 10:00 am), The Great Hall, with Draconia Malfoy: She claims him in front of Slytherin.");
+    expect(author).toContain("- E1 Saturday 7 September 1991, 7:30 pm, every week, The library's end table: Revision with Hermione. With Hermione Granger. He is expected.");
+    expect(author).toContain("Landmarks next:\n- The Halloween feast, Sunday 8 September 1991, 7:00 pm\n- Draconia's flying test, Wednesday 11 September 1991, 10:00 am");
+    expect(author).toContain("- s1.1 Saturday 7 September 1991, 10:00 am, The Great Hall, with Draconia Malfoy: She claims him in front of Slytherin.");
     expect(calendarPart(story.state(), "character")).not.toContain("She claims him");
   });
 
@@ -100,7 +100,7 @@ describe("the parts of every prompt (one-truth design decision 3)", () => {
       { id: "o-3", at: "Day 4 10:00", place: "The library", what: "Hermione at the end table.", who: ["Hermione Granger"] }
     ] });
     const omniscient = calendarPart(story.state(), "omniscient")!;
-    expect(omniscient).toContain("What is on ahead:\n- Day 4 10:00 (Saturday 10:00 am), The library: Hermione at the end table. (with Hermione Granger)\n- Day 4 20:00 (Saturday 8:00 pm), The Three Broomsticks: The twins buy a round for anyone who saw the troll. (with Harry Potter)");
+    expect(omniscient).toContain("What is on ahead:\n- Saturday 7 September 1991, 10:00 am, The library: Hermione at the end table. (with Hermione Granger)\n- Saturday 7 September 1991, 8:00 pm, The Three Broomsticks: The twins buy a round for anyone who saw the troll. (with Harry Potter)");
     expect(omniscient).not.toContain("Breakfast, early.");
     expect(calendarPart(story.state(), "character") ?? "").not.toContain("What is on ahead");
   });
@@ -122,7 +122,7 @@ describe("what each lens knows (openspec living-world: Characters know only what
       { id: "h-note", what: "McGonagall left a note under his door.", at: "Day 4 06:30", where: "the dormitory", knownTo: ["Minerva McGonagall", "Roopesh Gantasala"], landmark: null, move: null }
     ] });
     const state = story.state();
-    expect(factsPart(state, "author", ["Hermione Granger"])).toContain("- h-seat Day 4 06:00 (Saturday 6:00 am), Flitwick's office: Draconia had his name taken off the Charms seating plan. Known to: Draconia Malfoy, Neville Longbottom.");
+    expect(factsPart(state, "author", ["Hermione Granger"])).toContain("- h-seat Saturday 7 September 1991, 6:00 am, Flitwick's office: Draconia had his name taken off the Charms seating plan. Known to: Draconia Malfoy, Neville Longbottom.");
     expect(factsPart(state, "character", ["Hermione Granger"])).toBeNull();
     expect(factsPart(state, "character", ["Neville Longbottom"])).toContain("seating plan");
     expect(factsPart(state, "character", ["Neville Longbottom"])).not.toContain("a note under his door");

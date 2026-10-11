@@ -336,8 +336,8 @@ export class Engine {
   }
 
   /** Moves the clock on, never back; the World catches up over the time passed when it next moves, as over a Gap. */
-  setClock(storyId: string, at: string, weekday: string | null | undefined, after: string, traceId: string): Accepted {
-    return this.edited(storyId, after, traceId, state => clockSet(state, at, weekday));
+  setClock(storyId: string, at: string, dayOne: string | null | undefined, after: string, traceId: string): Accepted {
+    return this.edited(storyId, after, traceId, state => clockSet(state, at, dayOne));
   }
 
   rewordTaste(storyId: string, line: string, text: string, after: string, traceId: string): Accepted {

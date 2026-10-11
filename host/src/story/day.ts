@@ -123,8 +123,8 @@ export function todayOn(state: State): DayHappening[] {
   return offersOn(state).flatMap(item => {
     const at = parseStoryTime(item.at);
     if (!at) return [];
-    const every = item.every === "week" ? sayDay(at, state.dayOneWeekday) : null;
-    const time = every ? sayTime(at) : at.day === now.day ? sayTime(at) : at.day === now.day + 1 ? `Tomorrow ${sayTime(at)}` : sayStoryTime(at, state.dayOneWeekday);
+    const every = item.every === "week" ? sayDay(at, state.dayOne) : null;
+    const time = every ? sayTime(at) : at.day === now.day ? sayTime(at) : at.day === now.day + 1 ? `Tomorrow ${sayTime(at)}` : sayStoryTime(at, state.dayOne);
     return [{ id: item.id, at: item.at, time, every, days_away: Math.max(0, at.day - now.day), scene: item.scene, place: item.place, what: item.what, who: item.who, expected: item.expected, pick: item.pick }];
   });
 }
@@ -139,8 +139,8 @@ export function dayChoicesOf(state: State): DayChoices {
   const now = parseStoryTime(state.clock);
   const skips: Skip[] = [];
   if (now) {
-    const say = (at: StoryTime) => (at.day === now.day ? sayTime(at) : sayStoryTime(at, state.dayOneWeekday));
-    for (const later of laterTimes(now, state.dayOneWeekday)) {
+    const say = (at: StoryTime) => (at.day === now.day ? sayTime(at) : sayStoryTime(at, state.dayOne));
+    for (const later of laterTimes(now, state.dayOne)) {
       skips.push({ label: later.label, in_sentence: later.inSentence, at: formatStoryTime(later.at), time: say(later.at), days_away: later.at.day - now.day });
     }
     const landmark = state.landmarks

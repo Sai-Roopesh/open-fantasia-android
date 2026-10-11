@@ -7,7 +7,7 @@ import { hogwartsWorldStoryFile } from "../support/story-files.js";
 /** The Director's plan: Saturday's Scene that matters is the hospital wing at 11:00, about Draconia. */
 const plan = {
   days: 4, toward: "Draconia's flying test", landmark: null, phase: "build",
-  scenes: [{ id: "S1", day: 0, time: "11:00", place: "Outside the hospital wing", who: ["Draconia Malfoy", "Severus Snape"], for: "Draconia needs a witness.", offer: "Draconia is fighting Snape for her bed back.", headline: "The hospital wing: Draconia wants out", lead: "Draconia Malfoy", engagement: null, quiet: false }],
+  scenes: [{ id: "S1", date: "1991-09-07", time: "11:00", place: "Outside the hospital wing", who: ["Draconia Malfoy", "Severus Snape"], for: "Draconia needs a witness.", offer: "Draconia is fighting Snape for her bed back.", headline: "The hospital wing: Draconia wants out", lead: "Draconia Malfoy", engagement: null, quiet: false }],
   new: [{ kind: "mystery", what: "Who hexed Draconia's broom.", scene: "S1", person: null }],
   leads: [{ who: "Draconia Malfoy", move: "She makes him her witness.", scene: "S1" }, { who: "Hermione Granger", move: "She asks where he was.", scene: "S1" }],
   arcs: [], roadmap: [], premise: "The romance turns on a debt."
@@ -145,7 +145,7 @@ describe("the Scene a choice opens", () => {
     engine.choose(storyId, { after: head(), kind: "story", gap: null }, "trace-story");
     await engine.settled(storyId);
     const asked = models.writer.requests.at(-1)!.prompt;
-    expect(asked).toContain("The player chose at the Day View: go to Outside the hospital wing at Day 4 11:00 with Draconia Malfoy, Severus Snape. Open the Scene it begins.");
+    expect(asked).toContain("The player chose at the Day View: go to Outside the hospital wing on Saturday 7 September 1991 at 11:00 am with Draconia Malfoy, Severus Snape. Open the Scene it begins.");
     expect(asked).toMatch(/<scene_that_matters>\nDraconia needs a witness\. It is about Draconia Malfoy\.\nDraconia Malfoy's move in it: She makes him her witness\./);
     expect(view().scene).toMatchObject({ place: "Outside the hospital wing", at: "Day 4 11:00" });
     expect(view().scene.people.map(person => person.name)).toEqual(["Draconia Malfoy", "Severus Snape"]);

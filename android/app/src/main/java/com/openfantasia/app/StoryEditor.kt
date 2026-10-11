@@ -5,8 +5,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -15,25 +13,25 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.openfantasia.protocol.*
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 /** What the editor sends: one call on the model for each kind of edit. */
 class StoryActions(
     val premise: (String) -> Unit = {},
     val style: (String) -> Unit = {},
     val world: (String, String) -> Unit = { _, _ -> },
-    val clock: (String, DayOneWeekday?) -> Unit = { _, _ -> },
+    val clock: (String, String?) -> Unit = { _, _ -> },
     val arc: (Int?, String) -> Unit = { _, _ -> },
     val dropArc: (Int) -> Unit = {},
     val landmark: (String, Boolean, String, String) -> Unit = { _, _, _, _ -> },
@@ -72,7 +70,7 @@ class StoryActions(
     var name by rememberSaveable(key) { mutableStateOf("") }
     var day by rememberSaveable(key) { mutableStateOf(clockAt?.let(::dayOf)?.toString() ?: story?.clock?.at?.let(::dayOf)?.plus(1)?.toString().orEmpty()) }
     var minute by rememberSaveable(key) { mutableIntStateOf(clockAt?.let(::minuteOf) ?: 10 * 60) }
-    var weekday by rememberSaveable(key) { mutableStateOf(story?.clock?.dayOneWeekday) }
+    var dayOne by rememberSaveable(key) { mutableStateOf(story?.clock?.dayOne.orEmpty()) }
     var pickingTime by remember(key) { mutableStateOf(false) }
     val creating = when (target) {
         is StoryEdit.Arc -> target.index == null
@@ -92,8 +90,11 @@ class StoryActions(
         is StoryEdit.Brief -> "Your brief" to "What you want more of and less of, one to a line. The Director plans every Stretch from it."
     }
     val at = day.trim().toIntOrNull()?.takeIf { it > 0 }?.let { "Day $it ${"%02d:%02d".format(minute / 60, minute % 60)}" }
+    // Day 1's date: blank for no calendar; otherwise it has to be a date before the clock can be saved.
+    val dayOneDate = dateOf(dayOne)
+    val dayOneProblem = dayOne.isNotBlank() && dayOneDate == null
     val ready = !editing.saving && enabled && when (target) {
-        StoryEdit.Clock -> at != null
+        StoryEdit.Clock -> at != null && !dayOneProblem
         is StoryEdit.Landmark -> at != null && first.isNotBlank() && (!creating || name.isNotBlank())
         is StoryEdit.Place -> first.isNotBlank() && (!creating || name.isNotBlank())
         StoryEdit.World, is StoryEdit.Brief -> true
@@ -104,7 +105,7 @@ class StoryActions(
             StoryEdit.Premise -> actions.premise(first.trim())
             StoryEdit.Style -> actions.style(first.trim())
             StoryEdit.World -> actions.world(first.trim(), history.trim())
-            StoryEdit.Clock -> at?.let { actions.clock(it, weekday) }
+            StoryEdit.Clock -> at?.let { actions.clock(it, dayOneDate?.toString()) }
             is StoryEdit.Arc -> actions.arc(target.index, first.trim())
             is StoryEdit.Landmark -> at?.let { actions.landmark(target.name ?: name.trim(), creating, it, first.trim()) }
             is StoryEdit.Place -> actions.place(target.name ?: name.trim(), target.institution, creating, first.trim())
@@ -126,27 +127,28 @@ class StoryActions(
             }
             if (creating && (target is StoryEdit.Landmark || target is StoryEdit.Place)) SheetField("Name", name, "story-name") { name = it }
             if (target is StoryEdit.Landmark || target is StoryEdit.Clock) {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("Day", style = FantasiaType.fieldLabel, color = FantasiaSecondary)
-                        Row(Modifier.height(48.dp).fillMaxWidth().background(FantasiaBackground, FantasiaShapes.field).border(1.dp, FantasiaAccent, FantasiaShapes.field)
-                            .padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("Day", style = FantasiaType.fieldLabel, color = FantasiaSecondary)
                             BasicTextField(value = day, onValueChange = { typed -> day = typed.filter(Char::isDigit).take(5) }, singleLine = true,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), textStyle = FantasiaType.plain.copy(color = FantasiaText),
-                                cursorBrush = SolidColor(FantasiaLabel), modifier = Modifier.weight(1f).testTag("story-day").semantics { contentDescription = "Day" })
-                            weekdayOf(day.toIntOrNull(), weekday)?.let { Text(it, style = FantasiaType.meta, color = FantasiaCaption) }
+                                cursorBrush = SolidColor(FantasiaLabel), modifier = Modifier.height(48.dp).fillMaxWidth().testTag("story-day").semantics { contentDescription = "Day" }
+                                    .background(FantasiaBackground, FantasiaShapes.field).border(1.dp, FantasiaAccent, FantasiaShapes.field).padding(horizontal = 14.dp),
+                                decorationBox = { field -> Box(contentAlignment = Alignment.CenterStart) { field() } })
+                        }
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("Time", style = FantasiaType.fieldLabel, color = FantasiaSecondary)
+                            Surface(onClick = { pickingTime = true }, shape = FantasiaShapes.field, color = FantasiaBackground, border = BorderStroke(1.dp, FantasiaStrongLine),
+                                modifier = Modifier.height(48.dp).fillMaxWidth().semantics { contentDescription = "Time" }) {
+                                Box(Modifier.padding(horizontal = 14.dp), contentAlignment = Alignment.CenterStart) { Text(sayMinute(minute), style = FantasiaType.plain) }
+                            }
                         }
                     }
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("Time", style = FantasiaType.fieldLabel, color = FantasiaSecondary)
-                        Surface(onClick = { pickingTime = true }, shape = FantasiaShapes.field, color = FantasiaBackground, border = BorderStroke(1.dp, FantasiaStrongLine),
-                            modifier = Modifier.height(48.dp).fillMaxWidth().semantics { contentDescription = "Time" }) {
-                            Box(Modifier.padding(horizontal = 14.dp), contentAlignment = Alignment.CenterStart) { Text(sayMinute(minute), style = FantasiaType.plain) }
-                        }
-                    }
+                    sayDay(day.toIntOrNull(), dayOneDate)?.let { Text(it, style = FantasiaType.meta, color = FantasiaCaption) }
                 }
             }
-            if (target is StoryEdit.Clock) Weekdays(weekday) { weekday = it }
+            if (target is StoryEdit.Clock) DayOne(dayOne, dayOneDate) { dayOne = it }
             when (target) {
                 StoryEdit.Clock -> {}
                 StoryEdit.World -> {
@@ -206,22 +208,27 @@ class StoryActions(
     }
 }
 
-/** Which weekday Day 1 was, as seven chips, or none. */
-@Composable private fun Weekdays(chosen: DayOneWeekday?, choose: (DayOneWeekday?) -> Unit) {
+/** Day 1's date, YYYY-MM-DD, said back in words; blank for a Story with no calendar, and a clear problem when it isn't a date. */
+@Composable private fun DayOne(text: String, date: LocalDate?, change: (String) -> Unit) {
+    val problem = text.isNotBlank() && date == null
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text("Day 1 was a", style = FantasiaType.fieldLabel, color = FantasiaSecondary)
-        Row(Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            for (each in WEEK) {
-                val on = each == chosen
-                Surface(shape = FantasiaShapes.round, color = if (on) FantasiaAccent else FantasiaBackground, border = BorderStroke(1.dp, if (on) FantasiaAccent else FantasiaStrongLine),
-                    modifier = Modifier.height(36.dp).weight(1f).selectable(selected = on, role = Role.RadioButton) { choose(if (on) null else each) }
-                        .semantics { contentDescription = each.value.replaceFirstChar(Char::uppercase) }) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(each.value.take(2).replaceFirstChar(Char::uppercase), style = FantasiaType.meta.copy(fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal),
-                            color = if (on) Color.White else FantasiaSecondary)
-                    }
+        Text("Day 1 was", style = FantasiaType.fieldLabel, color = FantasiaSecondary)
+        BasicTextField(value = text, onValueChange = { typed -> change(typed.filter { it.isDigit() || it == '-' }.take(10)) }, singleLine = true,
+            // The ordinary keyboard: not every number pad has a dash.
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii), textStyle = FantasiaType.plain.copy(color = FantasiaText),
+            cursorBrush = SolidColor(FantasiaLabel), modifier = Modifier.height(48.dp).fillMaxWidth().testTag("story-day-one").semantics { contentDescription = "Day 1 was" }
+                .background(FantasiaBackground, FantasiaShapes.field).border(1.dp, if (problem) FailureAmber else FantasiaStrongLine, FantasiaShapes.field).padding(horizontal = 14.dp),
+            decorationBox = { field ->
+                Box(contentAlignment = Alignment.CenterStart) {
+                    if (text.isEmpty()) Text("YYYY-MM-DD", style = FantasiaType.plain, color = FantasiaCaption)
+                    field()
                 }
-            }
+            })
+        when {
+            problem -> Text("Not a date. Write it as YYYY-MM-DD, such as 1991-09-01, or leave it blank.",
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }, style = FantasiaType.caption, color = FailureAmber)
+            date != null -> Text(sayDay(1, date).orEmpty(), style = FantasiaType.meta, color = FantasiaCaption)
+            else -> Text("No calendar: the Story says its days by number.", style = FantasiaType.meta, color = FantasiaCaption)
         }
     }
 }
@@ -238,12 +245,13 @@ internal fun sayMinute(minute: Int): String {
     return "${if (hour % 12 == 0) 12 else hour % 12}:${"%02d".format(minute % 60)} ${if (hour < 12) "am" else "pm"}"
 }
 
-/** The weekday of [day], when the Story says which weekday Day 1 was. */
-internal fun weekdayOf(day: Int?, dayOne: DayOneWeekday?): String? {
+/** A date written YYYY-MM-DD, such as Day 1's, or null when [text] isn't one. */
+internal fun dateOf(text: String): LocalDate? = runCatching { LocalDate.parse(text.trim()) }.getOrNull()
+
+/** Day [day] as a date, "Monday 9 September 1991", when the Story's calendar has Day 1 on [dayOne]. */
+internal fun sayDay(day: Int?, dayOne: LocalDate?): String? {
     if (day == null || day < 1 || dayOne == null) return null
-    return WEEK[(WEEK.indexOf(dayOne) + day - 1) % 7].value.replaceFirstChar(Char::uppercase)
+    return dayOne.plusDays(day - 1L).format(DAY_AS_DATE)
 }
 
-/** The week in its own order; the generated enum is alphabetical. */
-private val WEEK: List<DayOneWeekday> = listOf(DayOneWeekday.Monday, DayOneWeekday.Tuesday, DayOneWeekday.Wednesday, DayOneWeekday.Thursday,
-    DayOneWeekday.Friday, DayOneWeekday.Saturday, DayOneWeekday.Sunday)
+private val DAY_AS_DATE: DateTimeFormatter = DateTimeFormatter.ofPattern("EEEE d MMMM yyyy", Locale.ENGLISH)

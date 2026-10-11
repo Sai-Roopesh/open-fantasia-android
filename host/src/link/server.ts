@@ -319,9 +319,9 @@ export function buildLink(options: LinkOptions): FastifyInstance {
     return edited(request.params.id, request.traceId, () => engine.setWorld(request.params.id, summary, history, after, request.traceId));
   });
   app.put<{ Params: { id: string } }>("/stories/:id/clock", async request => {
-    if (!validClock(request.body)) throw new LinkError("invalid", "Moving the clock needs the time, which weekday Day 1 was, and the entry the phone last saw.");
-    const { at, day_one_weekday: weekday, after } = request.body;
-    return edited(request.params.id, request.traceId, () => engine.setClock(request.params.id, at, weekday ?? null, after, request.traceId));
+    if (!validClock(request.body)) throw new LinkError("invalid", "Moving the clock needs the time, the date of Day 1, and the entry the phone last saw.");
+    const { at, day_one: dayOne, after } = request.body;
+    return edited(request.params.id, request.traceId, () => engine.setClock(request.params.id, at, dayOne ?? null, after, request.traceId));
   });
   app.post<{ Params: { id: string } }>("/stories/:id/taste/reword", async request => {
     if (!validRewordTaste(request.body)) throw new LinkError("invalid", "Rewording a lesson needs the line, its new words, and the entry the phone last saw.");

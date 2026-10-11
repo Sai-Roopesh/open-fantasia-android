@@ -31,11 +31,11 @@ describe("editing the Story over the link (editing-the-story design decision 4)"
       world_summary: "Hogwarts as a university; everyone is eighteen.",
       places: [{ name: "The Three Broomsticks", description: "A pub in Hogsmeade." }],
       institutions: [],
-      clock: { at: "Day 1 21:40", at_label: "Friday 9:40 pm", day_one_weekday: "friday" },
+      clock: { at: "Day 1 21:40", at_label: "Friday 6 September, 9:40 pm", day_one: "1991-09-06" },
       world_stands: "Day 1 21:40",
       head_entry_id: await head()
     });
-    expect(view.landmarks).toEqual([{ name: "The Triwizard Tournament", at: "Day 720 18:00", at_label: "Wednesday 6:00 pm · Day 720", when: expect.any(String), what: "The Tournament begins.", passed: false }]);
+    expect(view.landmarks).toEqual([{ name: "The Triwizard Tournament", at: "Day 720 18:00", at_label: "Wednesday 25 August 1993, 6:00 pm", when: expect.any(String), what: "The Tournament begins.", passed: false }]);
   });
 
   it("answers each edit with The Story as it now stands, from the head the phone saw", async () => {
@@ -51,15 +51,15 @@ describe("editing the Story over the link (editing-the-story design decision 4)"
     expect((await answer(await send("PUT", "places/The%20Ministry%20of%20Magic", { description: "Slow and proud.", institution: true, create: true }))).institutions)
       .toEqual([{ name: "The Ministry of Magic", description: "Slow and proud." }]);
     expect((await answer(await send("PUT", "world", { summary: "Hogwarts, 1991.", history: "The war is over." }))).world_history).toBe("The war is over.");
-    const clock = await answer(await send("PUT", "clock", { at: "Day 2 09:00", day_one_weekday: "friday" }));
-    expect(clock.clock).toEqual({ at: "Day 2 09:00", at_label: "Saturday 9:00 am", day_one_weekday: "friday" });
+    const clock = await answer(await send("PUT", "clock", { at: "Day 2 09:00", day_one: "1991-09-06" }));
+    expect(clock.clock).toEqual({ at: "Day 2 09:00", at_label: "Saturday 7 September, 9:00 am", day_one: "1991-09-06" });
     expect(clock.head_entry_id).toBe(await head());
   });
 
   it("marks a Landmark the World has reached as passed, and refuses moving it, with the reason", async () => {
     const { send, story, message } = await mac();
     await send("PUT", "landmarks/The%20morning%20post", { at: "Day 2 08:00", what: "Owls.", create: true });
-    await send("PUT", "clock", { at: "Day 2 09:00", day_one_weekday: "friday" });
+    await send("PUT", "clock", { at: "Day 2 09:00", day_one: "1991-09-06" });
     const view = await story();
     expect(view.world_stands).toBe("Day 2 09:00");
     expect(view.landmarks[0]).toMatchObject({ name: "The morning post", passed: true, when: null });
@@ -75,7 +75,7 @@ describe("editing the Story over the link (editing-the-story design decision 4)"
     expect(await message(missing)).toBe("Taste has no such line.");
     const stale = await call(`/stories/${storyId}/premise`, { method: "PUT", body: JSON.stringify({ premise: "A romance.", after: "an-old-head" }) });
     expect(stale.status).toBe(409);
-    const back = await send("PUT", "clock", { at: "Day 1 08:00", day_one_weekday: null });
+    const back = await send("PUT", "clock", { at: "Day 1 08:00", day_one: null });
     expect(await message(back)).toBe("The clock only moves on.");
     const malformed = await send("PUT", "reply-length", { length: "long" });
     expect(malformed.status).toBe(400);

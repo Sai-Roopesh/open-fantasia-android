@@ -7,7 +7,7 @@ import { minutesOf, parseStoryTime } from "../time.js";
 import { engagementsAhead } from "../story/day.js";
 import { join, recallFacts, say, section, storyPart, storySoFarPart } from "../context/lens.js";
 import { claimsAboutPlayer, playerNames } from "./deciding.js";
-import { matches, namer, nullable, oneOf, peopleEnum, storyTime, text, wordCount } from "./format.js";
+import { matches, namer, nullable, oneOf, peopleEnum, storyTime, text, timeFormat, wordCount } from "./format.js";
 import { runAgent, TIMEOUT_MS, type Checked } from "./step.js";
 
 const PROMPT = readFileSync(new URL("./CHRONICLER.md", import.meta.url), "utf8");
@@ -96,8 +96,8 @@ export function chronicleFormat(state: State, labels: string[], moments: Fact[],
       told: { type: "array", items: { type: "object", additionalProperties: false, required: ["moment", "to"], properties: { moment: oneOf(moments.map((_, index) => `M${index + 1}`)), to: { type: "array", items: people } } } },
       known: { type: "array", items: { type: "object", additionalProperties: false, required: ["who", "now"], properties: { who: people, now: text } } },
       bonds: { type: "array", items: { type: "object", additionalProperties: false, required: ["who", "standing", "turn"], properties: { who: people, standing: text, turn: text } } },
-      engagements: { type: "array", items: { type: "object", additionalProperties: false, required: ["what", "at", "place", "who", "expected", "every", "quotes"], properties: { what: text, at: { ...text, description: "Day N HH:MM" }, place: text, who: { type: "array", items: people }, expected: { type: "boolean" }, every: { type: ["string", "null"], enum: ["week", null] }, quotes: { type: "array", items: quote } } } },
-      changed: { type: "array", items: { type: "object", additionalProperties: false, required: ["engagement", "to", "quotes"], properties: { engagement: oneOf(engagements), to: { ...text, description: "Day N HH:MM, or off" }, quotes: { type: "array", items: quote } } } }
+      engagements: { type: "array", items: { type: "object", additionalProperties: false, required: ["what", "at", "place", "who", "expected", "every", "quotes"], properties: { what: text, at: timeFormat(state), place: text, who: { type: "array", items: people }, expected: { type: "boolean" }, every: { type: ["string", "null"], enum: ["week", null] }, quotes: { type: "array", items: quote } } } },
+      changed: { type: "array", items: { type: "object", additionalProperties: false, required: ["engagement", "to", "quotes"], properties: { engagement: oneOf(engagements), to: timeFormat(state, ", or off"), quotes: { type: "array", items: quote } } } }
     }
   } as const;
 }
@@ -154,7 +154,7 @@ export function checkChronicle(ask: ChronicleAsk, moments: Fact[], answer: unkno
     return fact ? [{ fact: fact.id, to: named(item.to) }] : [];
   });
   const engagements: Engagement[] = raw.engagements.flatMap((item, index) => {
-    const at = storyTime(item.at);
+    const at = storyTime(item.at, state.dayOne);
     const time = at ? parseStoryTime(at) : null;
     if (!time || (sceneStart && minutesOf(time) < minutesOf(sceneStart))) return (dropped.push(`engagements[${index}]: "${item.at}" is not a time after the Scene began`), []);
     const quotes = quotesOf(`engagements[${index}]`, item.quotes);
@@ -163,7 +163,7 @@ export function checkChronicle(ask: ChronicleAsk, moments: Fact[], answer: unkno
   });
   const changed = raw.changed.flatMap(item => {
     const on = shown[Number(item.engagement.slice(1)) - 1];
-    const to = item.to.trim().toLowerCase() === "off" ? "off" : storyTime(item.to);
+    const to = item.to.trim().toLowerCase() === "off" ? "off" : storyTime(item.to, state.dayOne);
     if (!on || !to) return (dropped.push(`changed: ${item.engagement} to "${item.to}" is not a change of one shown`), []);
     return [{ engagement: on.engagement.id, to }];
   });

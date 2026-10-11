@@ -175,7 +175,7 @@ describe("Engagements in the record (docs/adr/0011)", () => {
     const walk: Engagement = { id: "g-walk", what: "A walk on the Ridge.", at: "Day 3 07:00", place: "The Ridge", who: ["Meera Kulkarni"], expected: false, every: "week", quotes: [] };
     const story = scene(before => before.add({ kind: "chronicle", scene: 1, summary: "", paragraph: "", moments: [], told: [], known: [], bonds: [], engagements: [canteen, walk], changed: [], dropped: [], callId: "c", model: SONNET }));
     const given = ask(story);
-    expect(chroniclerPrompt(given, []).prompt).toContain("<engagements_on>\nE1: Tea at the canteen. Day 2 18:00 (Friday 6:00 pm), The Shimla station canteen\nE2: A walk on the Ridge. Day 3 07:00 (Saturday 7:00 am), every week, The Ridge\n</engagements_on>");
+    expect(chroniclerPrompt(given, []).prompt).toContain("<engagements_on>\nE1: Tea at the canteen. Friday 17 July 2026, 6:00 pm, The Shimla station canteen\nE2: A walk on the Ridge. Saturday 18 July 2026, 7:00 am, every week, The Ridge\n</engagements_on>");
     const words = [{ entry: "P5", text: "Meera laughs into her collar." }];
     const checked = checkChronicle(given, [], answer({ changed: [{ engagement: "E1", to: "off", quotes: words }, { engagement: "E2", to: "Day 3 08:00", quotes: words }, { engagement: "E7", to: "off", quotes: words }] }));
     expect(checked.ok && checked.value.changed).toEqual([{ engagement: "g-canteen", to: "off" }, { engagement: "g-walk", to: "Day 3 08:00" }]);
@@ -195,7 +195,7 @@ describe("the Chronicler's call", () => {
     expect(system).toContain("Title: The Night Train to Kalka");
     expect(prompt).toContain("<story_so_far>\nScenes:\nScene 1, The wrong berth");
     expect(prompt).toContain("Ishaan boarded late, in the rain.");
-    expect(prompt).toContain(`<scene title="The wrong berth" place="The sleeper bay" from="Day 1 22:40 (Thursday 10:40 pm)" until="Day 1 22:40 (Thursday 10:40 pm)">\n[P1 move by Ishaan Mehra]\n${TOLD}\n\n[P2]\nMeera takes out`);
+    expect(prompt).toContain(`<scene title="The wrong berth" place="The sleeper bay" from="Thursday 16 July 2026, 10:40 pm" until="Thursday 16 July 2026, 10:40 pm">\n[P1 move by Ishaan Mehra]\n${TOLD}\n\n[P2]\nMeera takes out`);
     expect(prompt).toMatch(/<\/scene>\n\n<task>\nThe Scene has ended\. Record it\.\n<\/task>$/);
   });
 

@@ -94,8 +94,11 @@ import com.openfantasia.protocol.*
                             horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text(story.clock.atLabel, style = FantasiaType.plain.copy(fontWeight = FontWeight.SemiBold))
-                                Text(listOfNotNull(dayOf(story.clock.at)?.let { "Day $it" }, story.clock.dayOneWeekday?.let { "Day 1 was a ${it.value.replaceFirstChar(Char::uppercase)}" })
-                                    .joinToString(" · "), style = FantasiaType.meta, color = FantasiaCaption)
+                                // The clock's date from Day 1's date, or its day number when the Story has no calendar.
+                                val day = dayOf(story.clock.at)
+                                (sayDay(day, story.clock.dayOne?.let(::dateOf)) ?: day?.let { "Day $it" })?.let {
+                                    Text(it, style = FantasiaType.meta, color = FantasiaCaption)
+                                }
                             }
                             Surface(onClick = { edit(StoryEdit.Clock) }, enabled = enabled, shape = FantasiaShapes.round, color = FantasiaRaised) {
                                 Text("Move the clock on", modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp), style = FantasiaType.metadata,

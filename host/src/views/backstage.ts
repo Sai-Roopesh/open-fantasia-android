@@ -27,7 +27,7 @@ export function backstageView(mac: Mac, storyId: string, traceId: string): Backs
   for (const fact of hidden) {
     const at = parseStoryTime(fact.at);
     if (!at || (now && at.day <= now.day - DAYS)) continue;
-    const day = sayDay(at, state.dayOneWeekday);
+    const day = sayDay(at, state.dayOne);
     let group = days.find(entry => entry.day === day);
     if (!group) days.push(group = { day, items: [] });
     group.items.unshift({ time: sayTime(at), what: fact.what, known_to: fact.knownTo });
@@ -62,12 +62,12 @@ export function directorLine(state: State): DirectorLine | null {
 function stretchOf(state: State): StretchView {
   const plan = state.plan;
   if (!plan) throw new Error("No plan");
-  const weekday = state.dayOneWeekday;
+  const dayOne = state.dayOne;
   const now = parseStoryTime(state.clock);
-  const day = (n: number) => sayDay({ day: n, minuteOfDay: 0 }, weekday);
+  const day = (n: number) => sayDay({ day: n, minuteOfDay: 0 }, dayOne);
   const scenes: StretchScene[] = plan.scenes.map(scene => {
     const at = parseStoryTime(scene.at);
-    const when = at ? `${sayDay(at, weekday).slice(0, 3)} ${sayTime(at)}` : scene.at;
+    const when = at ? `${sayDay(at, dayOne).slice(0, 3)} ${sayTime(at)}` : scene.at;
     const played = state.played.includes(scene.id);
     return { time: when, place: scene.place, purpose: scene.headline || scene.for, who: scene.who, state: played ? "played" : at && now && minutesOf(at) <= minutesOf(now) ? "passed" : "ahead" };
   });
@@ -75,14 +75,14 @@ function stretchOf(state: State): StretchView {
     if (lead.scene !== null) {
       const planned = plan.scenes.find(item => item.id === lead.scene);
       const at = planned ? parseStoryTime(planned.at) : null;
-      return { who: lead.who, move: lead.move, on_screen: true, label: `On screen · ${planned?.place ?? "a Scene that matters"}${at ? `, ${sayDay(at, weekday)}` : ""}` };
+      return { who: lead.who, move: lead.move, on_screen: true, label: `On screen · ${planned?.place ?? "a Scene that matters"}${at ? `, ${sayDay(at, dayOne)}` : ""}` };
     }
     const made = state.facts.find(fact => fact.move === lead.who && fact.scene >= plan.afterScene);
     if (!made) return { who: lead.who, move: lead.move, on_screen: false, label: "Off-screen · still to come" };
     const at = parseStoryTime(made.at);
     const told = state.meanwhile.find(line => line.fact === made.id);
     const reached = !told ? "" : told.how === "seen" ? " · he saw it" : told.how === "rumour" ? " · he heard it as a rumour" : ` · he heard it from ${told.toldBy ?? "someone"}`;
-    return { who: lead.who, move: lead.move, on_screen: false, label: `Off-screen${at ? `, ${sayDay(at, weekday)}` : ""}${reached}` };
+    return { who: lead.who, move: lead.move, on_screen: false, label: `Off-screen${at ? `, ${sayDay(at, dayOne)}` : ""}${reached}` };
   });
   return { from_label: day(plan.from), until_label: day(plan.until), scenes, leads };
 }

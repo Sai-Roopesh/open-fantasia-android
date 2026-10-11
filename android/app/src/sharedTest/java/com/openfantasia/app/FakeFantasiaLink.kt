@@ -3,6 +3,8 @@ package com.openfantasia.app
 import com.openfantasia.protocol.*
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.*
+import java.time.format.TextStyle
+import java.util.Locale
 
 class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
     override val hostName get() = pairedInvite?.hostName ?: "Sai's MacBook Air"
@@ -203,10 +205,10 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
     override suspend fun setClock(storyID: String, request: ClockRequest) = storyEdit("clock", request, request.after) { story ->
         if (minutes(request.at) <= minutes(story.clock.at)) throw LinkFailure("The clock only moves on.")
         val day = dayOf(request.at)
-        val weekday = weekdayOf(day, request.dayOneWeekday) ?: ""
+        val weekday = request.dayOne?.let(::dateOf)?.let { dayOne -> day?.let { dayOne.plusDays(it - 1L).dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ENGLISH) } } ?: ""
         val time = sayMinute(minuteOf(request.at) ?: 0)
         current.value.dayView?.let { dayView -> current.value = current.value.copy(dayView = dayView.copy(at = request.at, atLabel = "$weekday $time", day = weekday, time = time)) }
-        story.copy(clock = StoryClock(at = request.at, atLabel = "$weekday $time", dayOneWeekday = request.dayOneWeekday), worldStands = request.at)
+        story.copy(clock = StoryClock(at = request.at, atLabel = "$weekday $time", dayOne = request.dayOne), worldStands = request.at)
     }
     override suspend fun rewordTaste(storyID: String, request: RewordTasteRequest) = storyEdit("taste/reword", request, request.after) { story ->
         if (request.line !in backstageView.taste) throw LinkFailure("Taste has no such line.")
@@ -330,7 +332,7 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
             places = listOf(StoryPlace(name = "The Gryffindor common room", description = "Red and gold, a fire that never goes out."),
                 StoryPlace(name = "The owlery", description = "Cold stone, straw, and every owl in the school.")),
             institutions = listOf(StoryPlace(name = "The Ministry of Magic", description = "Fudge's Ministry: slow, proud, and easily bought.")),
-            clock = StoryClock(at = "Day 1 21:40", atLabel = "Friday 9:40 pm", dayOneWeekday = DayOneWeekday.Friday),
+            clock = StoryClock(at = "Day 1 21:40", atLabel = "Friday 9:40 pm", dayOne = "1991-09-06"),
             worldStands = "Day 1 21:40", headEntryID = "reply")
         fun personDetail(name: String, people: PeopleView = peopleFixture()): PersonDetail {
             val summary = people.people.first { it.name == name }

@@ -1683,10 +1683,13 @@ export interface StoryClock {
    */
   at: string;
   /**
-   * "Saturday 9:40 pm".
+   * "Saturday 7 September, 9:40 pm".
    */
   at_label: string;
-  day_one_weekday: "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday" | null;
+  /**
+   * The date of Day 1, YYYY-MM-DD, or null when the Story has no calendar.
+   */
+  day_one: string | null;
 }
 /**
  * Everything The Story screen shows, as it stands on the current Path (editing-the-story design decision 4).
@@ -1832,7 +1835,7 @@ export interface WorldRequest {
   history: string;
 }
 /**
- * Moves the clock on, and says which weekday Day 1 was.
+ * Moves the clock on, and says the date of Day 1.
  *
  * This interface was referenced by `Link`'s JSON-Schema
  * via the `definition` "ClockRequest".
@@ -1846,7 +1849,10 @@ export interface ClockRequest {
    * "Day N HH:MM", later than the clock.
    */
   at: string;
-  day_one_weekday: "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday" | null;
+  /**
+   * The date of Day 1, YYYY-MM-DD, or null for no calendar.
+   */
+  day_one: string | null;
 }
 /**
  * Rewords a lesson in Taste, in its place.

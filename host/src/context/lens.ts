@@ -1,4 +1,4 @@
-import { minutesOf, parseStoryTime, sayStoryTime, sayTime } from "../time.js";
+import { formatDated, minutesOf, parseStoryTime, sayFull } from "../time.js";
 import { engagementsAhead, plannedAhead } from "../story/day.js";
 import type { Fact, Person, State, Told } from "../story/state.js";
 
@@ -20,9 +20,16 @@ export function join(parts: (string | null)[]): string {
   return parts.filter((part): part is string => part !== null).join("\n\n");
 }
 
+/** A Story time as agents read it: "Friday 6 September 1991, 9:40 pm" (openspec stories: Story time is told as dates). */
 export function say(state: State, at: string): string {
   const time = parseStoryTime(at);
-  return time ? `${at} (${sayStoryTime(time, state.dayOneWeekday)})` : at;
+  return time ? sayFull(time, state.dayOne) : at;
+}
+
+/** A Story time as agents write it back: "1991-09-06 21:40", or the Story's own "Day N HH:MM" without a calendar. */
+export function written(state: State, at: string): string {
+  const time = parseStoryTime(at);
+  return time ? formatDated(time, state.dayOne) : at;
 }
 
 const minutesAt = (at: string) => {
@@ -190,5 +197,5 @@ export function steeringPart(state: State): string | null {
 /** Now, as people say it. */
 export function nowPart(state: State): string {
   const time = parseStoryTime(state.clock);
-  return section("now", `It is ${say(state, state.clock)}.${time ? ` (${sayTime(time)})` : ""}`) ?? "";
+  return section("now", `It is ${say(state, state.clock)}${time ? ` (${formatDated(time, state.dayOne)})` : ""}.`) ?? "";
 }

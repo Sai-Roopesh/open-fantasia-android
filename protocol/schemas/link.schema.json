@@ -2571,7 +2571,7 @@
       "required": [
         "at",
         "at_label",
-        "day_one_weekday"
+        "day_one"
       ],
       "properties": {
         "at": {
@@ -2580,23 +2580,15 @@
         },
         "at_label": {
           "type": "string",
-          "description": "\"Saturday 9:40 pm\"."
+          "description": "\"Saturday 7 September, 9:40 pm\"."
         },
-        "day_one_weekday": {
+        "day_one": {
+          "description": "The date of Day 1, YYYY-MM-DD, or null when the Story has no calendar.",
           "type": [
             "string",
             "null"
           ],
-          "enum": [
-            "monday",
-            "tuesday",
-            "wednesday",
-            "thursday",
-            "friday",
-            "saturday",
-            "sunday",
-            null
-          ]
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
         }
       }
     },
@@ -2859,13 +2851,13 @@
       }
     },
     "ClockRequest": {
-      "description": "Moves the clock on, and says which weekday Day 1 was.",
+      "description": "Moves the clock on, and says the date of Day 1.",
       "type": "object",
       "additionalProperties": false,
       "required": [
         "after",
         "at",
-        "day_one_weekday"
+        "day_one"
       ],
       "properties": {
         "after": {
@@ -2876,21 +2868,13 @@
           "type": "string",
           "description": "\"Day N HH:MM\", later than the clock."
         },
-        "day_one_weekday": {
+        "day_one": {
+          "description": "The date of Day 1, YYYY-MM-DD, or null for no calendar.",
           "type": [
             "string",
             "null"
           ],
-          "enum": [
-            "monday",
-            "tuesday",
-            "wednesday",
-            "thursday",
-            "friday",
-            "saturday",
-            "sunday",
-            null
-          ]
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
         }
       }
     },

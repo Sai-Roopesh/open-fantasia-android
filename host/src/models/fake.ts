@@ -92,6 +92,8 @@ export function fakeWeaveAnswer(request: ModelRequest): Script {
 
 interface DirectorFacts {
   clock: string;
+  /** The dates the Stretch may use, today first. */
+  dates: string[];
   leads: string[];
   arcs: string[];
   coming: string[];
@@ -109,8 +111,8 @@ export function fakeDirectorAnswer(request: ModelRequest): Script {
     answer: JSON.stringify({
       days: 5, toward: "what comes next", landmark: null, phase: "build",
       scenes: [
-        { id: "S1", day: 1, time: "10:00", place: "the Great Hall", who: lead ? [lead] : [], for: facts.afterPeak ? "A quiet morning after." : "A step for the Story.", offer: "Something is going on there that matters to him.", headline: "The Great Hall: a step for the Story", lead, engagement: null, quiet: facts.afterPeak },
-        { id: "S2", day: 2, time: "15:00", place: "the library", who: [], for: "Something else in his life.", offer: "The library is quiet, for once.", headline: "The library: something else in his life", lead: null, engagement: null, quiet: false }
+        { id: "S1", date: facts.dates[1] ?? "", time: "10:00", place: "the Great Hall", who: lead ? [lead] : [], for: facts.afterPeak ? "A quiet morning after." : "A step for the Story.", offer: "Something is going on there that matters to him.", headline: "The Great Hall: a step for the Story", lead, engagement: null, quiet: facts.afterPeak },
+        { id: "S2", date: facts.dates[2] ?? "", time: "15:00", place: "the library", who: [], for: "Something else in his life.", offer: "The library is quiet, for once.", headline: "The library: something else in his life", lead: null, engagement: null, quiet: false }
       ],
       new: [{ kind: "mystery", what: "A locked door nobody admits to.", scene: "S2", person: null }],
       leads: facts.leads.map((who, index) => ({ who, move: `${who} does something about him.`, scene: index === 0 ? "S1" : null })),

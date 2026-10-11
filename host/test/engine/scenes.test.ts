@@ -25,7 +25,7 @@ describe("a turn with the Writer", () => {
     await play("after an hour, I'm still sitting on her broom, holding on");
     expect(state().clock).toBe("Day 2 17:05");
     const actor = models.actor.requests[0]!;
-    expect(actor.prompt.slice(actor.prompt.indexOf("holding on"))).toContain("Thursday, 5:05 pm");
+    expect(actor.prompt.slice(actor.prompt.indexOf("holding on"))).toContain("Thursday 5 September 1991, 5:05 pm");
   });
 
   it("sends a Writer's answer it cannot use back once, and takes the repair", async () => {

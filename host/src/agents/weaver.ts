@@ -5,7 +5,7 @@ import type { Entry, WorldMoved } from "../story/entries.js";
 import type { Engagement, LeadMove, ModelChoice, State } from "../story/state.js";
 import { minutesOf, parseStoryTime } from "../time.js";
 import { calendarPart, castPart, factsPart, join, nowPart, salience, say, section, storyPart, storySoFarPart, threadsPart } from "../context/lens.js";
-import { clampTime, matches, namer, nullable, oneOf, peopleEnum, storyTime, text } from "./format.js";
+import { clampTime, matches, namer, nullable, oneOf, peopleEnum, storyTime, text, timeFormat } from "./format.js";
 import { runAgent, TIMEOUT_MS, type Checked } from "./step.js";
 
 const PROMPT = readFileSync(new URL("./WEAVER.md", import.meta.url), "utf8");
@@ -62,15 +62,15 @@ export function weaverFormat(state: State, ask: WeaveAsk) {
       lives: { type: "array", items: { type: "object", additionalProperties: false, required: ["who", "where", "doing", "after"], properties: { who: oneOf([...full, ...nearby, ...state.groups.map(group => group.name)]), where: text, doing: text, after: text } } },
       threads: { type: "array", items: { type: "object", additionalProperties: false, required: ["name", "now"], properties: { name: text, now: text } } },
       happened: { type: "array", items: { type: "object", additionalProperties: false, required: ["id", "what", "at", "where", "known_to", "landmark", "move", "missed"], properties: {
-        id: text, what: text, at: { ...text, description: "Day N HH:MM, in the span" }, where: text, known_to: { type: "array", items: peopleEnum(state, true) },
+        id: text, what: text, at: timeFormat(state, ", in the span"), where: text, known_to: { type: "array", items: peopleEnum(state, true) },
         landmark: { anyOf: [oneOf(state.landmarks.map(landmark => landmark.name)), { type: "null" }] }, move: { anyOf: [oneOf(state.leads), { type: "null" }] },
         missed: { anyOf: [oneOf(ask.missed.map((_, index) => `G${index + 1}`)), { type: "null" }] }
       } } },
       meanwhile: { type: "array", items: { type: "object", additionalProperties: false, required: ["text", "how", "happened", "told_by", "about", "engagement"], properties: {
         text, how: { type: "string", enum: ["seen", "told", "rumour"] }, happened: text, told_by: { anyOf: [people, { type: "null" }] }, about: { type: "array", items: people },
-        engagement: nullable({ type: "object", additionalProperties: false, required: ["what", "at", "place", "who", "expected", "every"], properties: { what: text, at: text, place: text, who: { type: "array", items: people }, expected: { type: "boolean" }, every: { type: ["string", "null"], enum: ["week", null] } } })
+        engagement: nullable({ type: "object", additionalProperties: false, required: ["what", "at", "place", "who", "expected", "every"], properties: { what: text, at: timeFormat(state, ", after the span"), place: text, who: { type: "array", items: people }, expected: { type: "boolean" }, every: { type: ["string", "null"], enum: ["week", null] } } })
       } } },
-      on: { type: "array", items: { type: "object", additionalProperties: false, required: ["at", "place", "what", "who"], properties: { at: text, place: text, what: text, who: { type: "array", items: people } } } }
+      on: { type: "array", items: { type: "object", additionalProperties: false, required: ["at", "place", "what", "who"], properties: { at: timeFormat(state, ", after the span"), place: text, what: text, who: { type: "array", items: people } } } }
     }
   } as const;
 }
@@ -138,14 +138,14 @@ export function checkWeave(ask: WeaveAsk, answer: unknown): Checked<WeaveRecord>
   const ids = new Map<string, string>();
   const happened = raw.happened.flatMap((item, index) => {
     const missed = item.missed ? ask.missed[Number(item.missed.slice(1)) - 1] : undefined;
-    const at = missed?.at ?? clampTime(item.at, ask.from, ask.until);
+    const at = missed?.at ?? clampTime(item.at, ask.from, ask.until, state.dayOne);
     if (!at) return (dropped.push(`happened[${index}]: "${item.at}" is not a story time`), []);
     const id = `h${randomUUID().slice(0, 8)}`;
     ids.set(item.id.trim(), id);
     return [{ id, what: item.what.trim(), at, where: missed?.place ?? item.where.trim(), knownTo: named(item.known_to, true), landmark: landmarkOf(item.landmark), move: moveOf(item.move) }];
   });
   for (const landmark of landmarksIn(ask)) {
-    if (!happened.some(item => item.landmark === landmark.name)) problems.push(`happened: ${landmark.name} falls in the span (${landmark.at}) and has not happened; write it, with landmark set to its name`);
+    if (!happened.some(item => item.landmark === landmark.name)) problems.push(`happened: ${landmark.name} falls in the span (${say(state, landmark.at)}) and has not happened; write it, with landmark set to its name`);
   }
   ask.missed.forEach((missed, index) => {
     if (missed.expected && !raw.happened.some(item => item.missed === `G${index + 1}`)) problems.push(`happened: G${index + 1}, ${missed.place}, went on without him and he was expected; write it, with the people there noticing he did not come (missed: "G${index + 1}")`);
@@ -157,7 +157,7 @@ export function checkWeave(ask: WeaveAsk, answer: unknown): Checked<WeaveRecord>
     if (!fact) return (dropped.push(`meanwhile[${index}]: ${line.happened} is not one of the happenings`), []);
     let engagement: Engagement | null = null;
     if (line.engagement) {
-      const at = storyTime(line.engagement.at);
+      const at = storyTime(line.engagement.at, state.dayOne);
       const until = parseStoryTime(ask.until);
       const time = at ? parseStoryTime(at) : null;
       if (at && time && until && minutesOf(time) >= minutesOf(until)) engagement = { id: `g-${randomUUID().slice(0, 8)}`, what: line.engagement.what.trim(), at, place: line.engagement.place.trim(), who: named(line.engagement.who), expected: line.engagement.expected, every: line.engagement.every, quotes: [] };
@@ -167,7 +167,7 @@ export function checkWeave(ask: WeaveAsk, answer: unknown): Checked<WeaveRecord>
   });
   const until = parseStoryTime(ask.until);
   const on = ask.gap ? [] : raw.on.slice(0, MAX_ON).flatMap((item, index) => {
-    const at = storyTime(item.at);
+    const at = storyTime(item.at, state.dayOne);
     const time = at ? parseStoryTime(at) : null;
     if (!at || !time || !until || minutesOf(time) < minutesOf(until)) return (dropped.push(`on[${index}]: "${item.at}" is not after the span`), []);
     return [{ id: `o${randomUUID().slice(0, 8)}`, at, place: item.place.trim(), what: item.what.trim(), who: named(item.who) }];

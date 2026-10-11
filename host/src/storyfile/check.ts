@@ -6,7 +6,7 @@ import schema from "../../../protocol/schemas/story-file.schema.json" with { typ
 import type { StoryFile } from "../protocol/generated/story-file.js";
 /** Where things stand between him and someone is said in forty words or fewer. */
 const MAX_STANDING_WORDS = 40;
-import { parseStoryTime } from "../time.js";
+import { isDate, parseStoryTime } from "../time.js";
 
 /** The Story File formats this app understands. */
 export const FORMATS = [1];
@@ -129,9 +129,11 @@ function bondProblems(story: StoryFile): Problem[] {
 }
 
 function timeProblems(story: StoryFile): Problem[] {
+  const dayOne = story.clock?.day_one;
+  const calendar: Problem[] = dayOne && !isDate(dayOne) ? [{ where: "clock.day_one", message: `"${dayOne}" is not a date on the calendar` }] : [];
   const starts = story.clock?.starts ? parseStoryTime(story.clock.starts) : null;
   const opens = parseStoryTime(story.opening.at);
-  if (!starts || !opens) return [];
+  if (!starts || !opens) return calendar;
   const before = opens.day < starts.day || (opens.day === starts.day && opens.minuteOfDay < starts.minuteOfDay);
-  return before ? [{ where: "opening.at", message: `The opening Scene is at ${story.opening.at}, before the clock starts at ${story.clock?.starts}` }] : [];
+  return before ? [...calendar, { where: "opening.at", message: `The opening Scene is at ${story.opening.at}, before the clock starts at ${story.clock?.starts}` }] : calendar;
 }

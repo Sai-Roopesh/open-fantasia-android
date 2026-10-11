@@ -93,7 +93,7 @@ describe("an Engagement is recorded where it is made (openspec living-world)", (
     await play("Later, I find her in the corridor.");
     engine.endScene(storyId, head(), "end-2");
     await engine.ended(storyId);
-    expect(models.chronicler.requests.at(-1)!.prompt).toContain("<engagements_on>\nE1: Draconia's hour on the Charms practical, in the library. Day 8 19:30 (Wednesday 7:30 pm), every week, The library\n</engagements_on>");
+    expect(models.chronicler.requests.at(-1)!.prompt).toContain("<engagements_on>\nE1: Draconia's hour on the Charms practical, in the library. Wednesday 11 September 1991, 7:30 pm, every week, The library\n</engagements_on>");
   });
 });
 
@@ -110,7 +110,7 @@ function fridayNight(weave: Record<string, unknown>, director: Script[] = []) {
 function plan(scenes: Record<string, unknown>[], changes: Record<string, unknown> = {}): Script {
   return { answer: JSON.stringify({
     days: 6, toward: "the flying test", landmark: null, phase: "build",
-    scenes: scenes.map((scene, index) => ({ id: `S${index + 1}`, day: 1, time: "10:00", place: "The Great Hall", who: [], for: "A step for the Story.", offer: "Something is on.", headline: "A step", lead: null, engagement: null, quiet: false, ...scene })),
+    scenes: scenes.map((scene, index) => ({ id: `S${index + 1}`, date: "1991-09-08", time: "10:00", place: "The Great Hall", who: [], for: "A step for the Story.", offer: "Something is on.", headline: "A step", lead: null, engagement: null, quiet: false, ...scene })),
     new: [{ kind: "mystery", what: "A locked door nobody admits to.", scene: null, person: null }],
     leads: [], arcs: [], roadmap: [], premise: "Some Scenes serve it.", ...changes
   }) };
@@ -152,7 +152,7 @@ describe("what he has arranged is on (openspec day-view)", () => {
     const on = (at: string, place: string) => ({ at, place, what: `${place}.`, who: ["Harry Potter"] });
     const summons = { what: "McGonagall wants his account of the troll.", at: "Day 4 09:00", place: "McGonagall's office", who: ["Minerva McGonagall"], expected: true, every: null };
     // Saturday's Day View: the Stretch's next Scene that matters is Thursday's, five days on.
-    const thursday = plan([{ day: 5, time: "10:00", place: "The Charms corridor", who: ["Draconia Malfoy"], lead: "Draconia Malfoy" }]);
+    const thursday = plan([{ date: "1991-09-12", time: "10:00", place: "The Charms corridor", who: ["Draconia Malfoy"], lead: "Draconia Malfoy" }]);
     const { play, engine, storyId, head, view } = fridayNight({
       happened: [happened({ what: "McGonagall sent for him.", known_to: ["Minerva McGonagall", "Roopesh Gantasala"] })],
       meanwhile: [{ text: "A note from McGonagall: her office, nine o'clock.", how: "seen", happened: "H1", told_by: null, about: ["Minerva McGonagall"], engagement: summons }],
@@ -183,7 +183,7 @@ describe("what he has arranged is on (openspec day-view)", () => {
       ]
     });
     // Friday's Day View: the Story's pick is Sunday afternoon, at the pitch.
-    const sunday = plan([{ day: 2, time: "14:00", place: "The Quidditch pitch", who: ["Draconia Malfoy"], lead: "Draconia Malfoy" }]);
+    const sunday = plan([{ date: "1991-09-08", time: "14:00", place: "The Quidditch pitch", who: ["Draconia Malfoy"], lead: "Draconia Malfoy" }]);
     const { play, engine, storyId, head, view } = playable(story, { weaver: [weave], director: [sunday] });
     await play("I say goodnight to Hermione and go up.");
     engine.endScene(storyId, head(), "end");
@@ -300,7 +300,7 @@ describe("kept or missed (openspec day-view: Missing something has consequences)
     const evening = view().day_view!.choices.skips.find(skip => skip.label === "This evening")!;
     engine.choose(storyId, { after: head(), kind: "skip", at: evening.at, gap: null }, "skip");
     await engine.settled(storyId);
-    expect(models.weaver.requests.at(-1)!.prompt).toMatch(/G1 Day 5 09:00 \(Sunday 9:00 am\), McGonagall's office: McGonagall wants his account of the troll\..*He was expected\./);
+    expect(models.weaver.requests.at(-1)!.prompt).toMatch(/G1 Sunday 8 September 1991, 9:00 am, McGonagall's office: McGonagall wants his account of the troll\..*He was expected\./);
     const gap = state().facts.filter(fact => fact.source === "world" && fact.what.includes("went on without him"));
     expect(gap).toEqual([expect.objectContaining({ at: "Day 5 09:00", where: "McGonagall's office", knownTo: ["Minerva McGonagall"] })]);
   });
@@ -310,7 +310,7 @@ describe("kept or missed (openspec day-view: Missing something has consequences)
   // THEN the library session went on without him, and Draconia noticed
   it("day-view › Missing something has consequences › Missed while in another Scene", async () => {
     const { models, state } = await wednesdayEvening("The Gryffindor common room", "Ron Weasley");
-    expect(models.weaver.requests.at(-1)!.prompt).toMatch(/G1 Day 8 19:30 \(Wednesday 7:30 pm\), The library: Draconia's hour on the Charms practical\..*He was expected\./);
+    expect(models.weaver.requests.at(-1)!.prompt).toMatch(/G1 Wednesday 11 September 1991, 7:30 pm, The library: Draconia's hour on the Charms practical\..*He was expected\./);
     const missed = state().facts.filter(fact => fact.source === "world" && fact.what.includes("went on without him"));
     expect(missed).toEqual([expect.objectContaining({ at: "Day 8 19:30", where: "The library", knownTo: ["Draconia Malfoy"] })]);
   });
@@ -330,7 +330,7 @@ describe("the Writer is told what he has arranged (engagements design decision 7
     engine.endScene(storyId, head(), "end");
     await engine.ended(storyId);
     await play("I go to supper.");
-    expect(models.writer.requests.at(-1)!.prompt).toContain("What he has arranged:\n- E1 Day 8 19:30 (Wednesday 7:30 pm), every week, The library: Draconia's hour on the Charms practical. With Draconia Malfoy. He is expected.");
+    expect(models.writer.requests.at(-1)!.prompt).toContain("What he has arranged:\n- E1 Wednesday 11 September 1991, 7:30 pm, every week, The library: Draconia's hour on the Charms practical. With Draconia Malfoy. He is expected.");
   });
 });
 

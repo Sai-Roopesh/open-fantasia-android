@@ -10,7 +10,7 @@ const writer = (changes: Record<string, unknown>) => ({ answer: JSON.stringify({
 /** The Director's plan: Saturday's Scene that matters is the hospital wing at 11:00, about Draconia. */
 const plan = {
   days: 4, toward: "Draconia's flying test", landmark: null, phase: "build",
-  scenes: [{ id: "S1", day: 0, time: "11:00", place: "Outside the hospital wing", who: ["Draconia Malfoy", "Severus Snape"], for: "Draconia needs a witness.", offer: "Draconia is fighting Snape for her bed back.", headline: "The hospital wing: Draconia wants out", lead: "Draconia Malfoy", engagement: null, quiet: false }],
+  scenes: [{ id: "S1", date: "1991-09-07", time: "11:00", place: "Outside the hospital wing", who: ["Draconia Malfoy", "Severus Snape"], for: "Draconia needs a witness.", offer: "Draconia is fighting Snape for her bed back.", headline: "The hospital wing: Draconia wants out", lead: "Draconia Malfoy", engagement: null, quiet: false }],
   new: [{ kind: "mystery", what: "Who hexed Draconia's broom.", scene: "S1", person: null }],
   leads: [{ who: "Draconia Malfoy", move: "She makes him her witness.", scene: "S1" }, { who: "Hermione Granger", move: "She asks where he was.", scene: "S1" }],
   arcs: [], roadmap: [], premise: "The romance turns on a debt."
@@ -72,7 +72,7 @@ describe("the Gap", () => {
     // The Gap is woven before the Writer plans the Scene, and McGonagall's summons goes on without him, noticed.
     const order = models.requests.filter(request => ["weaver", "writer"].includes(request.agent)).map(request => request.agent);
     expect(order.slice(-2)).toEqual(["weaver", "writer"]);
-    expect(models.weaver.requests.at(-1)!.prompt).toContain("- G1 Day 4 09:00 (Saturday 9:00 am), McGonagall's office: Your account of the troll. With Minerva McGonagall, Hermione Granger. He was expected.");
+    expect(models.weaver.requests.at(-1)!.prompt).toContain("- G1 Saturday 7 September 1991, 9:00 am, McGonagall's office: Your account of the troll. With Minerva McGonagall, Hermione Granger. He was expected.");
     // The World's move over the Gap is on the Path right after the Move, and what was missed keeps its time and place.
     const gap = mac.tree.pathTo(head()).find(entry => entry.parentId === move.id)!;
     expect(gap.payload).toMatchObject({ kind: "world_moved", gap: true, from: "Day 4 07:30", until: "Day 4 11:00",

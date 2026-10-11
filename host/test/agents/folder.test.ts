@@ -59,7 +59,7 @@ describe("the Folder's call", () => {
     expect(recap.prompt).toContain("Scene 4, Scene 4: Scene 4 happened.\n\nScene 5, Scene 5: Scene 5 happened.");
     const chapter = folderPrompt(state, { into: "chapter", parts: [week(1), week(8)] });
     expect(chapter.system).toContain("Fold the weeks below into one chapter, about one hundred and fifty words");
-    expect(chapter.prompt).toContain("Day 1 08:00 (Wednesday 8:00 am) to Day 7 22:00 (Tuesday 10:00 pm): The week from Day 1.");
+    expect(chapter.prompt).toContain("Wednesday 4 September 1991, 8:00 am to Tuesday 10 September 1991, 10:00 pm: The week from Day 1.");
   });
 
   it("takes a fold that is text, and sends back one that is not", () => {

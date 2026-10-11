@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import type { Models } from "../models/model-call.js";
 import type { Choice, Entry } from "../story/entries.js";
 import type { Beat, Fact, ModelChoice, SceneCall, State } from "../story/state.js";
-import { minutesOf, parseStoryTime } from "../time.js";
+import { minutesOf, parseStoryTime, sayDate, sayTime } from "../time.js";
 import { calendarPart, castPart, factsPart, join, momentsPart, nowPart, recallFacts, section, steeringPart, storyPart, storySoFarPart, threadsPart } from "../context/lens.js";
 import { decidesForPlayer, playerNames } from "./deciding.js";
 import { addMinutes, matches, namer, nullable, oneOf, peopleEnum, text } from "./format.js";
@@ -129,7 +129,7 @@ export function writerPrompt(ask: WriterAsk, moments: Fact[]): { system: string;
   const opening = openingOf(state);
   const present = opening === "day_view" ? ask.choice?.who ?? [] : scene?.here ?? [];
   const tasks: string[] = [];
-  if (opening === "day_view") tasks.push(ask.choice ? `The player chose at the Day View: ${describeChoice(ask.choice)}. Open the Scene it begins.` : "The last Scene has closed: the Move opens a new one. Frame it.");
+  if (opening === "day_view") tasks.push(ask.choice ? `The player chose at the Day View: ${describeChoice(state, ask.choice)}. Open the Scene it begins.` : "The last Scene has closed: the Move opens a new one. Frame it.");
   if (opening === "unplanned") tasks.push("This Scene opened without a plan: frame it as it stands, keeping its title and place.");
   // While the player Lingers, nothing pushes the Scene along (openspec scenes: Linger holds the moment).
   const pushing = scene && !scene.closed && !scene.linger;
@@ -166,9 +166,10 @@ export function writerPrompt(ask: WriterAsk, moments: Fact[]): { system: string;
   };
 }
 
-function describeChoice(choice: Choice): string {
+function describeChoice(state: State, choice: Choice): string {
   const parts = [choice.kind === "follow" ? `follow ${choice.who.join(", ")}` : choice.kind === "somewhere" ? `go to ${choice.place}` : choice.kind === "skip" ? "skip ahead" : `go to ${choice.place ?? "what is on"}`];
-  if (choice.at) parts.push(`at ${choice.at}`);
+  const at = choice.at ? parseStoryTime(choice.at) : null;
+  if (at) parts.push(`on ${sayDate(at, state.dayOne, true)} at ${sayTime(at)}`);
   if (choice.who.length && choice.kind !== "follow") parts.push(`with ${choice.who.join(", ")}`);
   return parts.join(" ");
 }

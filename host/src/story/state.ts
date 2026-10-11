@@ -1,4 +1,3 @@
-import type { Weekday } from "../time.js";
 
 /** Which model does a job: the provider and the id it lists the model under. */
 export interface ModelChoice {
@@ -276,7 +275,8 @@ export interface State {
   style: string;
   replyLength: "short" | "medium" | "full";
   actor: ModelChoice;
-  dayOneWeekday: Weekday | null;
+  /** The date of Day 1, "YYYY-MM-DD", when the Story has a calendar (openspec stories: Story time is told as dates). */
+  dayOne: string | null;
   clock: string;
   /**
    * Where the World stands: the time it was last moved on to, or the Story's start before that. The clock moved on

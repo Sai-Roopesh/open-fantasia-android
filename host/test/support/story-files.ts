@@ -53,7 +53,7 @@ export function malfoyProblemStoryFile(): StoryFile {
     style: "Young-adult romance with Game of Thrones politics underneath. British English, 1991.",
     reply_length: "full",
     actor: { provider: "claude", model: "claude-opus-5-5" },
-    clock: { starts: "Day 1 21:40", day_one_weekday: "friday" },
+    clock: { starts: "Day 1 21:40", day_one: "1991-09-06" },
     world: { summary: "Hogwarts as a university; everyone is eighteen.", places: [{ name: "The Three Broomsticks", description: "A pub in Hogsmeade." }] },
     people: [...named, ...others] as StoryFile["people"],
     groups: [{ name: "Crabbe and Goyle", description: "The most background of background characters." }],
@@ -95,7 +95,7 @@ export function hogwartsStoryFile(opening: Partial<StoryFile["opening"]> = {}): 
     title: "After Curfew",
     premise: "An enemies-to-lovers romance with Draconia Malfoy at Hogwarts as a university.",
     style: "Close third person, British English, 1991.",
-    clock: { starts: opening.at ?? "Day 3 21:40", day_one_weekday: "wednesday" },
+    clock: { starts: opening.at ?? "Day 3 21:40", day_one: "1991-09-04" },
     people: [
       { name: "Roopesh Gantasala", who_they_are: "A Muggle-born from Bangalore with powers he hides.", aliases: ["Roo"] },
       { name: "Hermione Granger", who_they_are: "Muggle-born, Gryffindor, top of every class." },

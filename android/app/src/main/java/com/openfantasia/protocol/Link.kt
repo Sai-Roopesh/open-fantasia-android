@@ -2097,25 +2097,17 @@ data class StoryClock (
     val at: String,
 
     /**
-     * "Saturday 9:40 pm".
+     * "Saturday 7 September, 9:40 pm".
      */
     @SerialName("at_label")
     val atLabel: String,
 
-    @SerialName("day_one_weekday")
-    val dayOneWeekday: DayOneWeekday? = null
+    /**
+     * The date of Day 1, YYYY-MM-DD, or null when the Story has no calendar.
+     */
+    @SerialName("day_one")
+    val dayOne: String? = null
 )
-
-@Serializable
-enum class DayOneWeekday(val value: String) {
-    @SerialName("friday") Friday("friday"),
-    @SerialName("monday") Monday("monday"),
-    @SerialName("saturday") Saturday("saturday"),
-    @SerialName("sunday") Sunday("sunday"),
-    @SerialName("thursday") Thursday("thursday"),
-    @SerialName("tuesday") Tuesday("tuesday"),
-    @SerialName("wednesday") Wednesday("wednesday");
-}
 
 /**
  * A place or an institution: its name and what it is.
@@ -2282,7 +2274,7 @@ data class WorldRequest (
 )
 
 /**
- * Moves the clock on, and says which weekday Day 1 was.
+ * Moves the clock on, and says the date of Day 1.
  */
 @Serializable
 data class ClockRequest (
@@ -2296,8 +2288,11 @@ data class ClockRequest (
      */
     val at: String,
 
-    @SerialName("day_one_weekday")
-    val dayOneWeekday: DayOneWeekday? = null
+    /**
+     * The date of Day 1, YYYY-MM-DD, or null for no calendar.
+     */
+    @SerialName("day_one")
+    val dayOne: String? = null
 )
 
 /**

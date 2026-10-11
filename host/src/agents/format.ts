@@ -1,5 +1,5 @@
 import { Ajv2020 } from "ajv/dist/2020.js";
-import { formatStoryTime, minutesOf, parseStoryTime } from "../time.js";
+import { formatStoryTime, minutesOf, parseAnyTime, parseStoryTime } from "../time.js";
 import type { State } from "../story/state.js";
 import { nameIndex, storyName } from "./names.js";
 
@@ -66,15 +66,18 @@ export function namer(state: State, dropped: string[], where: string, extra: str
   }))];
 }
 
-/** A Story time as "Day N HH:MM", or null when [value] is not one. */
-export function storyTime(value: string): string | null {
-  const time = parseStoryTime(value.trim());
+/**
+ * The Story time an agent wrote, as the Story keeps it ("Day N HH:MM"): agents write dates ("1991-09-14 20:00") when
+ * the Story has a calendar ([dayOne]); null when [value] is not a time at all.
+ */
+export function storyTime(value: string, dayOne: string | null): string | null {
+  const time = parseAnyTime(value, dayOne);
   return time ? formatStoryTime(time) : null;
 }
 
-/** [value] kept within [from] and [until], as "Day N HH:MM"; null when it is not a time at all. */
-export function clampTime(value: string, from: string, until: string): string | null {
-  const time = parseStoryTime(value.trim());
+/** [value] kept within [from] and [until], as the Story keeps it; null when it is not a time at all. */
+export function clampTime(value: string, from: string, until: string, dayOne: string | null): string | null {
+  const time = parseAnyTime(value, dayOne);
   const start = parseStoryTime(from);
   const end = parseStoryTime(until);
   if (!time || !start || !end) return null;
@@ -94,4 +97,7 @@ export function addMinutes(at: string, minutes: number): string {
 
 export const wordCount = (value: string) => value.trim().split(/\s+/).filter(Boolean).length;
 
-export const timeFormat = { type: "string", description: "A story time, \"Day N HH:MM\"." } as const;
+/** How an agent writes a time in this Story: a date and time when it has a calendar. */
+export function timeFormat(state: State, more = "") {
+  return { type: "string", description: `${state.dayOne ? "A date and time, \"YYYY-MM-DD HH:MM\"" : "A story time, \"Day N HH:MM\""}${more}` } as const;
+}

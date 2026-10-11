@@ -324,7 +324,8 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
     fun savePremise(premise: String) = storyChange { link.setPremise(it.storyID, PremiseRequest(after = it.headEntryID, premise = premise)) }
     fun saveStyle(style: String) = storyChange { link.setStyle(it.storyID, StyleRequest(after = it.headEntryID, style = style)) }
     fun saveWorld(summary: String, history: String) = storyChange { link.setWorld(it.storyID, WorldRequest(after = it.headEntryID, summary = summary, history = history)) }
-    fun saveClock(at: String, weekday: DayOneWeekday?) = storyChange { link.setClock(it.storyID, ClockRequest(after = it.headEntryID, at = at, dayOneWeekday = weekday)) }
+    /** Moves the clock on to [at], with Day 1's date (YYYY-MM-DD), or null for a Story with no calendar. */
+    fun saveClock(at: String, dayOne: String?) = storyChange { link.setClock(it.storyID, ClockRequest(after = it.headEntryID, at = at, dayOne = dayOne)) }
     fun saveLandmark(name: String, creating: Boolean, at: String, what: String) =
         storyChange { link.setLandmark(it.storyID, name, LandmarkRequest(after = it.headEntryID, at = at, what = what, create = creating)) }
     fun dropLandmark(name: String) = storyChange { link.dropLandmark(it.storyID, name, DropLandmarkRequest(after = it.headEntryID)) }

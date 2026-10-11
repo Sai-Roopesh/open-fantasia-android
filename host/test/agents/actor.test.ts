@@ -69,7 +69,7 @@ describe("the Actor's prompt", () => {
     expect(first!.system).not.toContain("Student 12");
     expect(first!.system + first!.prompt).not.toContain("enemies-to-lovers");
     expect(first!.system + first!.prompt).not.toContain("comes round to Roopesh");
-    expect(first!.system).toContain("The insult. The Three Broomsticks, Friday, 9:40 pm.");
+    expect(first!.system).toContain("The insult. The Three Broomsticks, Friday 6 September 1991, 9:40 pm.");
   });
 
   it("gives The Story So Far only as far as the people here lived it", () => {
@@ -116,7 +116,7 @@ describe("the Actor's prompt for one Reply", () => {
   it("adds the time, the Beat Note, Focus, Linger and Taste after the Move, and never the beats, purpose or exit", () => {
     const { system, prompt } = planned({ focus: true, linger: true, taste: ["Keep Uncle Bhalla to the edges."] });
     const afterMove = prompt.slice(prompt.indexOf("I offer her the window seat."));
-    expect(afterMove).toContain("It is Thursday, 10:52 pm.");
+    expect(afterMove).toContain("It is Thursday 16 July 2026, 10:52 pm.");
     expect(afterMove).toContain("What happens next: Bhalla rules for Meera. She sits anyway, opposite, and asks about Shimla.");
     expect(afterMove).toContain("Stay close beside Meera Kulkarni");
     expect(afterMove).toMatch(/Nobody new comes in unless the Move brings them/);
@@ -177,7 +177,7 @@ describe("what each person here knows (openspec living-world: Characters know on
     story.note({ here: ["Hermione Granger", "Neville Longbottom"] });
     story.move("I ask Neville why he looks so worried.");
     const withNeville = actorPrompt(story.state(), story.scene());
-    expect(withNeville.prompt).toContain(`<lately>\n(Day 4 08:00 (Saturday 8:00 am); known to Draconia Malfoy, Neville Longbottom) ${seating}\n</lately>`);
+    expect(withNeville.prompt).toContain(`<lately>\n(Saturday 7 September 1991, 8:00 am; known to Draconia Malfoy, Neville Longbottom) ${seating}\n</lately>`);
     expect(withNeville.system).toMatch(new RegExp(`<person name="Neville Longbottom">[^<]*Knows of late: ${seating}`));
     expect(withNeville.system).not.toMatch(new RegExp(`<person name="Hermione Granger">[^<]*seating plan`));
 

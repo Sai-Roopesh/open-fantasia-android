@@ -49,4 +49,4 @@ placeholders; the app shows the real images (openspec stories: Portraits are rea
 | `Backstage.dc.html` | Backstage, Taste, The record and the Director's Stretch included | Backstage, lasting records, story in stretches |
 | `Paths.dc.html` | Paths | Paths |
 | `Models.dc.html` | Models | the Models screen |
-| `Story.dc.html`, `StoryEdit.dc.html` | The Story: its Premise, Style and reply length, Arcs, Landmarks, World, places and institutions, and the time; and the sheet that edits each, Taste's lines included | editing the Story |
+| `Story.dc.html`, `StoryEdit.dc.html` | The Story: its Premise, Style and reply length, Arcs, Landmarks, World, places and institutions, and the time as a date; and the sheet that edits each, Taste's lines included, the clock's with Day 1's date | editing the Story; story-calendar |

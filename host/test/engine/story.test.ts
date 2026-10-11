@@ -67,9 +67,9 @@ describe("editing the Story on the Path (editing-the-story design decisions 1 an
     expect(after.world).toMatchObject({ summary: "Hogwarts, 1991.", history: "" });
 
     after = at(() => engine.setClock(storyId, "Day 4 09:00", undefined, head(), "t"));
-    expect([after.clock, after.dayOneWeekday]).toEqual(["Day 4 09:00", "wednesday"]);
-    after = at(() => engine.setClock(storyId, "Day 4 10:00", "friday", head(), "t"));
-    expect([after.clock, after.dayOneWeekday]).toEqual(["Day 4 10:00", "friday"]);
+    expect([after.clock, after.dayOne]).toEqual(["Day 4 09:00", "1991-09-04"]);
+    after = at(() => engine.setClock(storyId, "Day 4 10:00", "1991-09-06", head(), "t"));
+    expect([after.clock, after.dayOne]).toEqual(["Day 4 10:00", "1991-09-06"]);
   });
 
   it("refuses what would leave the Story blank, doubled, or contradicting what already happened, in words the phone shows", () => {
@@ -97,7 +97,7 @@ describe("editing the Story on the Path (editing-the-story design decisions 1 an
 
     expect(refused(() => engine.setClock(storyId, "tomorrow", undefined, head(), "t"))).toBe("\"tomorrow\" is not a time like \"Day 40 10:00\".");
     expect(refused(() => engine.setClock(storyId, "Day 3 21:40", undefined, head(), "t"))).toBe("The clock only moves on.");
-    expect(refused(() => engine.setClock(storyId, "Day 4 09:00", "funday", head(), "t"))).toBe("\"funday\" is not a day of the week.");
+    expect(refused(() => engine.setClock(storyId, "Day 4 09:00", "funday", head(), "t"))).toBe("\"funday\" is not a date like \"1991-09-01\".");
 
     expect(refused(() => engine.rewordTaste(storyId, "keep Ron in the background", "x", head(), "t"))).toBe("Taste has no such line.");
     expect(refused(() => engine.setPremise(storyId, "A romance.", "not-the-head", "t"))).toBe("The Story has moved on since you last looked. Nothing was changed.");
@@ -224,17 +224,17 @@ describe("stories › Anything can be edited or created in the app: the time", (
   // THEN the Day View is waiting on Sunday at 9:00 am, with nothing on before then among its choices
   // AND once the player has chosen, what happened in the World between Saturday and Sunday is in Backstage
   it("stories › Anything can be edited or created in the app › Moving the clock on", async () => {
-    const story = { ...storyFile(), clock: { starts: "Day 3 22:40", day_one_weekday: "wednesday" as const }, opening: { ...storyFile().opening, at: "Day 3 22:40" } };
+    const story = { ...storyFile(), clock: { starts: "Day 3 22:40", day_one: "1991-09-04" }, opening: { ...storyFile().opening, at: "Day 3 22:40" } };
     const { mac, engine, storyId, head, view } = playable(story, { weaver: [{ answer: JSON.stringify(overnight) }] });
     engine.endScene(storyId, head(), "end");
     await engine.ended(storyId);
-    expect(view().day_view).toMatchObject({ at: "Day 4 07:30", day: "Saturday" });
+    expect(view().day_view).toMatchObject({ at: "Day 4 07:30", day: "Saturday 7 September" });
     // The Story's pick (the Director's, on Sunday), then McGonagall's summons and the owlery in time order.
     expect(view().day_view!.happenings.map(item => item.place)).toEqual(["the Great Hall", "McGonagall's office", "The owlery"]);
 
     engine.setClock(storyId, "Day 5 09:00", undefined, head(), "on");
     const sunday = view().day_view!;
-    expect(sunday).toMatchObject({ at: "Day 5 09:00", day: "Sunday", time: "9:00 am" });
+    expect(sunday).toMatchObject({ at: "Day 5 09:00", day: "Sunday 8 September", time: "9:00 am" });
     expect(sunday.happenings.map(item => item.place)).toEqual(["the Great Hall", "The owlery"]);
 
     const owlery = sunday.happenings.find(item => item.place === "The owlery")!;

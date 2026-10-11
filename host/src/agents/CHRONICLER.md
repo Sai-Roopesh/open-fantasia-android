@@ -74,8 +74,9 @@ When the Scene arranges something the player's character knows is on at a time a
 week. Give:
 
 - `what`: one line of what it is, for the player: "Draconia's hour on the Charms practical, at the end table."
-- `at`: when, as "Day N HH:MM", worked out from the Scene's own day and time. "Wednesday, half past seven" said on
-  Sunday, Day 5, is Day 8 19:30. When only the day is said, take the usual hour for such a thing.
+- `at`: when, as a date and time, "YYYY-MM-DD HH:MM", worked out from the Scene's own date. "Wednesday, half past
+  seven" said on Sunday 8 September 1991 is 1991-09-11 19:30. When only the day is said, take the usual hour for
+  such a thing.
 - `place`: where, as the story names places.
 - `who`: who will be there, besides him.
 - `expected`: true when his Move agreed to it, or someone with the standing to expect him summoned or ordered him

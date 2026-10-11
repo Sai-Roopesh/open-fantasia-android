@@ -19,7 +19,7 @@ describe("the Day View", () => {
     expect(view().day_view).toEqual({
       at: "Day 5 19:00",
       at_label: "Sunday 7:00 pm",
-      day: "Sunday",
+      day: "Sunday 8 September",
       time: "7:00 pm",
       place: "The Gryffindor common room",
       closed_by: "player",
@@ -59,7 +59,7 @@ describe("the Day View", () => {
     await play("I land and hand back the broom.");
     engine.endScene(storyId, head(), "trace-end");
     await engine.ended(storyId);
-    expect(view().day_view).toMatchObject({ at: "Day 2 17:20", day: "Thursday", time: "5:20 pm" });
+    expect(view().day_view).toMatchObject({ at: "Day 2 17:20", day: "Thursday 5 September", time: "5:20 pm" });
   });
 
   // GIVEN the Scene "After curfew" ends at 11:05 pm on Friday
@@ -73,13 +73,13 @@ describe("the Day View", () => {
     await play("I say goodnight to Hermione and go up.");
     engine.endScene(storyId, head(), "trace-end");
     await engine.ended(storyId);
-    expect(view().day_view).toMatchObject({ at: "Day 4 07:30", day: "Saturday", time: "7:30 am" });
+    expect(view().day_view).toMatchObject({ at: "Day 4 07:30", day: "Saturday 7 September", time: "7:30 am" });
     expect(state().scene?.endedAt).toBe("Day 3 23:05");
     // The World moved on over the night, to Saturday morning.
     expect(models.weaver.requests.at(-1)!.facts).toMatchObject({ from: "Day 3 23:05", until: "Day 4 07:30", gap: false });
     // The night has passed: the next Move is planned from Saturday morning, and never before it.
     await play("I go down to breakfast.");
-    expect(models.writer.requests.at(-1)!.prompt).toContain("It is Day 4 07:30 (Saturday 7:30 am).");
+    expect(models.writer.requests.at(-1)!.prompt).toContain("It is Saturday 7 September 1991, 7:30 am (1991-09-07 07:30).");
   });
 
   it("has no Happenings until every step of the Scene's end is done, then the Story's pick first, in the Director's words", async () => {

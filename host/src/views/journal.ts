@@ -29,7 +29,7 @@ export function journalView(mac: Mac, storyId: string, traceId: string): Journal
   for (const span of sceneSpans(entries)) {
     const opened = span.opened;
     const at = parseStoryTime(opened.payload.at);
-    const day = at ? sayDay(at, state.dayOneWeekday) : "";
+    const day = at ? sayDay(at, state.dayOne) : "";
     // What he heard over the Gap before this Scene, then the Scene, then what he heard after it ended.
     if (previous !== null) add(days.at(-1)?.day ?? day, heard(previous, true));
     const now = opened.id === state.scene?.openedBy;

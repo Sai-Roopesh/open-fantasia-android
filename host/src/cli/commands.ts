@@ -105,7 +105,7 @@ function describe(payload: Payload): string {
     case "landmark_dropped": return `The Landmark ${payload.name} dropped`;
     case "place_set": return `The ${payload.institution ? "institution" : "place"} ${payload.place.name}: ${payload.place.description}`;
     case "world_set": return `The World: ${payload.summary}`;
-    case "clock_set": return `The clock moved on to ${payload.clock}${payload.dayOneWeekday ? `, Day 1 a ${payload.dayOneWeekday}` : ""}`;
+    case "clock_set": return `The clock moved on to ${payload.clock}${payload.dayOne ? `, Day 1 on ${payload.dayOne}` : ""}`;
     case "brief_set": return `Brief: more ${payload.more.join(" / ") || "nothing"}; less ${payload.less.join(" / ") || "nothing"}`;
     case "routine_set": return `Routine: ${payload.routine.join(" / ")}`;
     case "reaction_set": return `Scene ${payload.scene}: ${payload.reaction ?? "no reaction"}`;
@@ -230,7 +230,7 @@ export function world(mac: Mac, storyId: string, out: Out): boolean {
   const state = mac.states.at(path.headEntryId);
   const when = (at: string) => {
     const time = parseStoryTime(at);
-    return time ? `${at} (${sayStoryTime(time, state.dayOneWeekday)})` : at;
+    return time ? `${at} (${sayStoryTime(time, state.dayOne)})` : at;
   };
   out(`It is ${when(state.clock)}.`);
   out("Lives:");

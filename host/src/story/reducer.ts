@@ -1,5 +1,5 @@
 import type { StoryFile } from "../protocol/generated/story-file.js";
-import { nextFreeAfter, type Weekday } from "../time.js";
+import { nextFreeAfter } from "../time.js";
 import type { BeatNote, Chronicle, DirectorPlan, Entry, SceneOpened, StoryFolded, StorySetUp, WorldMoved } from "./entries.js";
 import type { Beat, CurrentScene, Fact, ModelChoice, Person, SceneEndStep, State, Told } from "./state.js";
 
@@ -103,7 +103,7 @@ export function apply(state: State | null, entry: Entry): State {
     case "world_set":
       return { ...state, world: { ...state.world, summary: payload.summary, history: payload.history } };
     case "clock_set":
-      return { ...state, clock: payload.clock, dayOneWeekday: payload.dayOneWeekday };
+      return { ...state, clock: payload.clock, dayOne: payload.dayOne };
     case "brief_set":
       return { ...state, brief: { more: payload.more, less: payload.less } };
     case "routine_set":
@@ -274,7 +274,7 @@ function setUp({ storyFile, portraits }: StorySetUp): State {
   return {
     title: file.title, premise: file.premise, style: file.style, replyLength: file.reply_length ?? "full",
     actor: file.actor ? withoutUndefined(file.actor) : DEFAULT_ACTOR,
-    dayOneWeekday: (file.clock?.day_one_weekday ?? null) as Weekday | null,
+    dayOne: file.clock?.day_one ?? null,
     clock: file.clock?.starts ?? file.opening.at,
     // The World as the Story File sets it stands at the opening Scene.
     worldAt: file.opening.at,

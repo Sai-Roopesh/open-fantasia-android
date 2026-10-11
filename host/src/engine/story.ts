@@ -1,7 +1,7 @@
 import { LinkError } from "../link/errors.js";
 import type { ArcsSet, ClockSet, LandmarkDropped, LandmarkSet, PlaceSet, PremiseSet, ReplyLengthSet, StyleSet, TasteSet, WorldSet } from "../story/entries.js";
 import type { State } from "../story/state.js";
-import { formatStoryTime, minutesOf, parseStoryTime, type Weekday } from "../time.js";
+import { formatStoryTime, isDate, minutesOf, parseStoryTime } from "../time.js";
 
 // The checks an edit to the Story passes before it lands on the Path (editing-the-story design decision 2). Each
 // returns the entry to write, tidied, or refuses with the reason in words the phone shows.
@@ -9,7 +9,6 @@ import { formatStoryTime, minutesOf, parseStoryTime, type Weekday } from "../tim
 const refuse = (reason: string): never => { throw new LinkError("invalid", reason); };
 
 const LENGTHS: readonly State["replyLength"][] = ["short", "medium", "full"];
-const WEEK: readonly Weekday[] = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 
 export function premiseSet(premise: string): PremiseSet {
   return { kind: "premise_set", premise: premise.trim() || refuse("Say what the Story is for.") };
@@ -88,15 +87,15 @@ export function worldSet(summary: string, history: string): WorldSet {
   return { kind: "world_set", summary: summary.trim(), history: history.trim() };
 }
 
-/** Moves the clock on; [weekday] left out keeps which weekday Day 1 was, and null says the Story does not say. */
-export function clockSet(state: State, at: string, weekday?: string | null): ClockSet {
+/** Moves the clock on; [dayOne] left out keeps Day 1's date, and null says the Story has no calendar. */
+export function clockSet(state: State, at: string, dayOne?: string | null): ClockSet {
   const time = parseStoryTime(at) ?? refuse(`"${at.trim()}" is not a time like "Day 40 10:00".`);
   const now = parseStoryTime(state.clock);
   if (now && minutesOf(time) <= minutesOf(now)) refuse("The clock only moves on.");
-  const day = weekday === undefined ? state.dayOneWeekday
-    : weekday === null || !weekday.trim() ? null
-    : WEEK.find(each => each === weekday.trim().toLowerCase()) ?? refuse(`"${weekday.trim()}" is not a day of the week.`);
-  return { kind: "clock_set", clock: formatStoryTime(time), dayOneWeekday: day };
+  const day = dayOne === undefined ? state.dayOne
+    : dayOne === null || !dayOne.trim() ? null
+    : isDate(dayOne) ? dayOne.trim() : refuse(`"${dayOne.trim()}" is not a date like "1991-09-01".`);
+  return { kind: "clock_set", clock: formatStoryTime(time), dayOne: day };
 }
 
 export function tasteReworded(state: State, line: string, text: string): TasteSet {

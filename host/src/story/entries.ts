@@ -1,5 +1,4 @@
 import type { StoryFile } from "../protocol/generated/story-file.js";
-import type { Weekday } from "../time.js";
 import type { ArcStep, Beat, Engagement, Landmark, LeadMove, ModelChoice, NewThing, Person, Place, PlannedScene, Quote, RoadmapPoint, SceneCall, State } from "./state.js";
 
 /**
@@ -144,7 +143,7 @@ export interface LandmarkSet { kind: "landmark_set"; landmark: Landmark }
 export interface LandmarkDropped { kind: "landmark_dropped"; name: string }
 export interface PlaceSet { kind: "place_set"; place: Place; institution: boolean }
 export interface WorldSet { kind: "world_set"; summary: string; history: string }
-export interface ClockSet { kind: "clock_set"; clock: string; dayOneWeekday: Weekday | null }
+export interface ClockSet { kind: "clock_set"; clock: string; /** Day 1's date, "YYYY-MM-DD", or null for no calendar. */ dayOne: string | null }
 /** What the player wants more of and less of (openspec long-run: The player steers with a brief and reactions). */
 export interface BriefSet { kind: "brief_set"; more: string[]; less: string[] }
 export interface RoutineSet { kind: "routine_set"; routine: string[] }

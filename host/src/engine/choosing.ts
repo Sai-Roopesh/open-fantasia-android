@@ -52,7 +52,7 @@ export function chosen(mac: Mac, head: string, request: ChooseRequest): { choice
       if (!skip) throw new LinkError("invalid", "That is not one of the times to skip to.");
       choice = { kind: "skip", place: null, at: skip.at, who: [], scene: null, engagement: null };
       const at = parseStoryTime(skip.at);
-      line = `I let the time pass until ${skip.in_sentence}: ${at ? sayStoryTime(at, state.dayOneWeekday) : skip.time}.`;
+      line = `I let the time pass until ${skip.in_sentence}: ${at ? sayStoryTime(at, state.dayOne) : skip.time}.`;
       break;
     }
   }
@@ -75,7 +75,7 @@ function whenOf(at: string, state: State): string {
   const now = parseStoryTime(state.clock);
   if (!then || !now) return `at ${at}`;
   const days = then.day - now.day;
-  const onDay = `on ${sayDay(then, state.dayOneWeekday)} at ${sayTime(then)}`;
+  const onDay = `on ${sayDay(then, state.dayOne)} at ${sayTime(then)}`;
   return days <= 0 ? `at ${sayTime(then)}` : days === 1 ? `tomorrow at ${sayTime(then)}` : days < 7 ? onDay : `in ${days} days, ${onDay}`;
 }
 

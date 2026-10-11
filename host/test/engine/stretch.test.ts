@@ -24,8 +24,8 @@ function charmsWeek(story: StoryFile, changes: Record<string, unknown> = {}): Sc
   return { answer: JSON.stringify({
     days: 6, toward: "the flying test", landmark: null, phase: "build",
     scenes: [
-      { id: "S1", day: 5, time: "10:00", place: "The corridor outside Charms", who: ["Draconia Malfoy"], for: CORNERS, offer: "Draconia is waiting outside Charms.", headline: "Charms: she corners him", lead: "Draconia Malfoy", engagement: null, quiet: false },
-      { id: "S2", day: 5, time: "15:00", place: "The library", who: ["Hermione Granger"], for: "Hermione's flying notes.", offer: "Hermione is in the library with her flying notes.", headline: "The library: Hermione's notes", lead: "Hermione Granger", engagement: null, quiet: false }
+      { id: "S1", date: "1991-09-12", time: "10:00", place: "The corridor outside Charms", who: ["Draconia Malfoy"], for: CORNERS, offer: "Draconia is waiting outside Charms.", headline: "Charms: she corners him", lead: "Draconia Malfoy", engagement: null, quiet: false },
+      { id: "S2", date: "1991-09-12", time: "15:00", place: "The library", who: ["Hermione Granger"], for: "Hermione's flying notes.", offer: "Hermione is in the library with her flying notes.", headline: "The library: Hermione's notes", lead: "Hermione Granger", engagement: null, quiet: false }
     ],
     new: [{ kind: "mystery", what: "Someone keeps changing the Charms seating plan.", scene: "S1", person: null }],
     leads: [{ who: "Draconia Malfoy", move: "Corners him after Charms.", scene: "S1" }, { who: "Hermione Granger", move: "Lends him her notes.", scene: "S2" }],
@@ -36,7 +36,7 @@ function charmsWeek(story: StoryFile, changes: Record<string, unknown> = {}): Sc
 }
 
 /** A Scene that matters, as the Director writes one, changed as a scenario needs. */
-const scene = (changes: Record<string, unknown>) => ({ id: "S1", day: 1, time: "10:00", place: "The Great Hall", who: [], for: "A step.", offer: "Something is on.", headline: "A step", lead: null, engagement: null, quiet: false, ...changes });
+const scene = (changes: Record<string, unknown>) => ({ id: "S1", date: "1991-09-08", time: "10:00", place: "The Great Hall", who: [], for: "A step.", offer: "Something is on.", headline: "A step", lead: null, engagement: null, quiet: false, ...changes });
 
 /** The World as the fakes move it, with [happened] and [meanwhile] added and the fakes' Lead moves left out. */
 function worldWith(happened: Record<string, unknown>[], meanwhile: Record<string, unknown>[]): Script {
@@ -76,7 +76,7 @@ describe("the Story's pick is the Stretch's next Scene that matters (one-truth d
     const planned = state().plan!.scenes[0]!;
     expect(day.happenings[0]).toMatchObject({ at: "Day 9 10:00", time: "Thursday 10:00 am", days_away: 5, scene: planned.id, place: "The corridor outside Charms", who: ["Draconia Malfoy"], what: "Draconia is waiting outside Charms.", pick: true });
     expect(JSON.stringify(day)).not.toContain(CORNERS);
-    expect(models.weaver.requests[0]!.prompt).toContain(`- ${planned.id} Day 9 10:00 (Thursday 10:00 am), The corridor outside Charms, with Draconia Malfoy: ${CORNERS}`);
+    expect(models.weaver.requests[0]!.prompt).toContain(`- ${planned.id} Thursday 12 September 1991, 10:00 am, The corridor outside Charms, with Draconia Malfoy: ${CORNERS}`);
 
     // Chosen: the days pass as a Gap, and the Scene opens on Thursday.
     engine.choose(storyId, { after: head(), kind: "go", happening: day.happenings[0]!.id, gap: null }, "go");
@@ -97,8 +97,8 @@ describe("Backstage's Stretch, a line each (blank-gaps-and-headlines design deci
     const note = "Flitwick pairs him with Draconia for the practical, and she has to be civil in front of the whole class while Pansy watches from the next bench.";
     // Monday is Day 6, two days on from Saturday.
     const plan = charmsWeek(story, { scenes: [
-      scene({ day: 2, time: "09:00", place: "The Charms classroom", who: ["Draconia Malfoy"], for: note, headline: "Charms: Flitwick pairs him with Draconia", lead: "Draconia Malfoy" }),
-      scene({ id: "S2", day: 5, time: "15:00", place: "The library", who: ["Hermione Granger"], for: "Hermione's flying notes.", headline: "The library: Hermione's notes", lead: "Hermione Granger" })
+      scene({ date: "1991-09-09", time: "09:00", place: "The Charms classroom", who: ["Draconia Malfoy"], for: note, headline: "Charms: Flitwick pairs him with Draconia", lead: "Draconia Malfoy" }),
+      scene({ id: "S2", date: "1991-09-12", time: "15:00", place: "The library", who: ["Hermione Granger"], for: "Hermione's flying notes.", headline: "The library: Hermione's notes", lead: "Hermione Granger" })
     ] });
     const { engine, storyId, head, play, mac } = playable(story, { director: [plan] });
     await play("I say goodnight to Hermione and go up.");
@@ -124,8 +124,8 @@ describe("the pick and an Engagement are one card (play-check-fixes design decis
       engagements: [{ what: "He is to tell Hermione what he can about the train.", at: "Day 4 19:00", place: "The library", who: ["Hermione Granger"], expected: true, every: null, quotes: [{ entry: "P2", text: promise }] }] }) };
     // The Director plans the meeting as his Engagement, wherever it first put it.
     const plan = charmsWeek(story, { scenes: [
-      scene({ day: 0, time: "18:00", place: "The library", who: ["Hermione Granger"], for: "He tells her what he can about the train.", offer: "Hermione is waiting in the library.", lead: "Hermione Granger", engagement: "E1" }),
-      scene({ id: "S2", day: 5, time: "10:00", place: "The corridor outside Charms", who: ["Draconia Malfoy"], for: CORNERS, lead: "Draconia Malfoy" })
+      scene({ date: "1991-09-07", time: "18:00", place: "The library", who: ["Hermione Granger"], for: "He tells her what he can about the train.", offer: "Hermione is waiting in the library.", lead: "Hermione Granger", engagement: "E1" }),
+      scene({ id: "S2", date: "1991-09-12", time: "10:00", place: "The corridor outside Charms", who: ["Draconia Malfoy"], for: CORNERS, lead: "Draconia Malfoy" })
     ], leads: [{ who: "Draconia Malfoy", move: "Corners him after Charms.", scene: "S2" }, { who: "Hermione Granger", move: "Hears him out.", scene: "S1" }] });
     const { engine, storyId, head, play, view, state, mac } = playable(story, { chronicler: [recorded], director: [plan] });
     await play(promise);
@@ -160,15 +160,15 @@ describe("the Director builds on what he has arranged (director-knows-engagement
       engagements: [{ what: "Draconia, about the train and what she owes.", at: "Day 4 10:00", place: "The library", who: ["Draconia Malfoy"], expected: true, every: null, quotes: [{ entry: "P2", text: told }] }] }) };
     // The Director puts the talk about the debt on Sunday afternoon at the back tables, and names it as his Engagement.
     const plan = charmsWeek(story, { scenes: [
-      scene({ day: 1, time: "14:00", place: "The back tables", who: ["Draconia Malfoy"], for: "The debt, away from Pansy.", lead: "Draconia Malfoy", engagement: "E1" }),
-      scene({ id: "S2", day: 5, time: "15:00", place: "The library", who: ["Hermione Granger"], for: "Hermione's flying notes.", lead: "Hermione Granger" })
+      scene({ date: "1991-09-08", time: "14:00", place: "The back tables", who: ["Draconia Malfoy"], for: "The debt, away from Pansy.", lead: "Draconia Malfoy", engagement: "E1" }),
+      scene({ id: "S2", date: "1991-09-12", time: "15:00", place: "The library", who: ["Hermione Granger"], for: "Hermione's flying notes.", lead: "Hermione Granger" })
     ] });
     const { engine, storyId, head, play, view, state, models } = playable(story, { chronicler: [recorded], director: [plan] });
     await play(told);
     engine.endScene(storyId, head(), "end");
     await engine.ended(storyId);
 
-    expect(models.director.requests[0]!.prompt).toContain("What he has arranged:\n- E1 Day 4 10:00 (Saturday 10:00 am), The library: Draconia, about the train and what she owes. With Draconia Malfoy. He is expected.");
+    expect(models.director.requests[0]!.prompt).toContain("What he has arranged:\n- E1 Saturday 7 September 1991, 10:00 am, The library: Draconia, about the train and what she owes. With Draconia Malfoy. He is expected.");
     const engagement = state().calendar[0]!;
     expect(state().plan!.scenes[0]).toMatchObject({ at: "Day 4 10:00", place: "The library", engagement: engagement.id });
     expect(state().plan!.scenes.filter(item => item.who.includes("Draconia Malfoy"))).toHaveLength(1);
@@ -190,8 +190,8 @@ describe("Leads act every Stretch, on screen or off (story-in-stretches design d
     const story = fridayNight();
     const offScreen = charmsWeek(story, {
       scenes: [
-        scene({ day: 5, time: "10:00", place: "The library", who: ["Hermione Granger"], for: "Hermione's flying notes.", lead: "Hermione Granger" }),
-        scene({ id: "S2", day: 5, time: "16:00", place: "The Quidditch pitch", who: ["Harry Potter"], for: "Harry shows him how to hold a broom." })
+        scene({ date: "1991-09-12", time: "10:00", place: "The library", who: ["Hermione Granger"], for: "Hermione's flying notes.", lead: "Hermione Granger" }),
+        scene({ id: "S2", date: "1991-09-12", time: "16:00", place: "The Quidditch pitch", who: ["Harry Potter"], for: "Harry shows him how to hold a broom." })
       ],
       leads: [{ who: "Draconia Malfoy", move: "Has his name taken off the Charms seating plan.", scene: null }, { who: "Hermione Granger", move: "Lends him her notes.", scene: "S1" }]
     });
@@ -236,8 +236,8 @@ describe("Leads act every Stretch, on screen or off (story-in-stretches design d
     ], [{ text: letter, how: "told", happened: "H8", told_by: "Pansy Parkinson", about: ["Draconia Malfoy"] }]);
     // Monday is Day 6: the Stretch runs from it, with her move made off-screen.
     const week = charmsWeek(story, { scenes: [
-      scene({ day: 2, time: "10:00", place: "The Charms classroom", who: ["Draconia Malfoy"], for: "She is back, and pretends she was never gone.", lead: "Draconia Malfoy" }),
-      scene({ id: "S2", day: 4, time: "15:00", place: "The library", who: ["Hermione Granger"], for: "Hermione's flying notes.", lead: "Hermione Granger" })
+      scene({ date: "1991-09-11", time: "10:00", place: "The Charms classroom", who: ["Draconia Malfoy"], for: "She is back, and pretends she was never gone.", lead: "Draconia Malfoy" }),
+      scene({ id: "S2", date: "1991-09-13", time: "15:00", place: "The library", who: ["Hermione Granger"], for: "Hermione's flying notes.", lead: "Hermione Granger" })
     ], leads: [{ who: "Draconia Malfoy", move: "Writes to Pansy from home to ask after him.", scene: null }, { who: "Hermione Granger", move: "Lends him her notes.", scene: "S2" }] });
     const { engine, storyId, head, play, view, state, models, mac } = playable(story, { director: [week], weaver: [away] });
     await play("I say goodnight to Hermione and go up.");
@@ -308,7 +308,7 @@ describe("spans: only what reaches him (story-in-stretches design decision 4)", 
     engine.choose(storyId, { after: head(), kind: "go", happening: view().day_view!.happenings[0]!.id, gap: null }, "go");
     await engine.settled(storyId);
     const request = models.weaver.requests.at(-1)!;
-    expect(request.prompt).toContain('<span from="Day 4 07:30 (Saturday 7:30 am)" until="Day 9 10:00 (Thursday 10:00 am)">');
+    expect(request.prompt).toContain('<span from="Saturday 7 September 1991, 7:30 am" until="Thursday 12 September 1991, 10:00 am">');
     expect(request.system).toContain("let ordinary days pass without listing them: no meal, lesson or night's sleep that changed nothing.");
     expect(request.prompt).toContain("<lead_moves_offscreen>\n- Draconia Malfoy: Has his name taken off the Charms seating plan.\n- Hermione Granger: Lends him her notes.\n</lead_moves_offscreen>");
     const gap = gapOf(path());
@@ -332,7 +332,7 @@ describe("the Writer frames a Scene that matters from the plan (story-in-stretch
     const move = mac.tree.pathTo(head()).filter(entry => entry.payload.kind === "move").at(-1)!;
     expect(move.payload).toMatchObject({ choice: { scene: planned.id } });
     const prompt = models.writer.requests[writes]!.prompt;
-    expect(prompt).toContain("The player chose at the Day View: go to The corridor outside Charms at Day 9 10:00 with Draconia Malfoy. Open the Scene it begins.");
+    expect(prompt).toContain("The player chose at the Day View: go to The corridor outside Charms on Thursday 12 September 1991 at 10:00 am with Draconia Malfoy. Open the Scene it begins.");
     expect(prompt).toContain(`<scene_that_matters>\n${CORNERS} It is about Draconia Malfoy.`);
     expect(prompt).toContain("Corners him after Charms.");
     expect(view().scene).toMatchObject({ number: 2 });

@@ -29,7 +29,7 @@ function whereItStands(state: State): { standing: string; detail: string } {
   const scene = state.scene;
   if (!scene) return { standing: "Not begun", detail: "" };
   const now = parseStoryTime(state.clock);
-  const when = now ? sayStoryTime(now, state.dayOneWeekday) : state.clock;
+  const when = now ? sayStoryTime(now, state.dayOne) : state.clock;
   if (scene.closed) return { standing: `${when} · choosing where to go`, detail: `${scene.number} ${scene.number === 1 ? "Scene" : "Scenes"} played` };
   const firstNames = scene.here.map(name => name.split(/\s+/)[0]);
   const company = firstNames.length === 0 ? "alone"

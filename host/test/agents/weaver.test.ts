@@ -96,7 +96,7 @@ describe("the Weaver's move of the World (one-truth design decision 6)", () => {
 
   it("is sent back while a Landmark in the span has not happened, and takes it named as the Story names it", () => {
     const story = ended(before => before.add({ kind: "landmark_set", landmark: { name: "The Halloween feast", at: "Day 3 23:00", what: "The Great Hall feast, and the troll." } }));
-    expect(checkWeave(ask(story), answer())).toEqual({ ok: false, problems: ["happened: The Halloween feast falls in the span (Day 3 23:00) and has not happened; write it, with landmark set to its name"] });
+    expect(checkWeave(ask(story), answer())).toEqual({ ok: false, problems: ["happened: The Halloween feast falls in the span (Friday 6 September 1991, 11:00 pm) and has not happened; write it, with landmark set to its name"] });
     const feast = happening("H4", "The troll came into the dungeons during the feast.", "Day 3 23:00", "the Great Hall", ["Minerva McGonagall"], { landmark: "the halloween feast" });
     const checked = checkWeave(ask(story), answer({ happened: [...answer().happened, feast] }));
     expect(checked.ok && checked.value.happened.at(-1)).toMatchObject({ landmark: "The Halloween feast", at: "Day 3 23:00" });
@@ -174,7 +174,7 @@ describe("what he missed (openspec day-view: Missing something has consequences)
 
   it("says the day of what he missed, and is sent back when what he was expected at did not go on", () => {
     const gap = skipped();
-    expect(weaverPrompt(gap).prompt).toContain("<missed>\n- G1 Day 5 14:00 (Sunday 2:00 pm), The library: Draconia's library session. With Draconia Malfoy. He was expected.\n</missed>");
+    expect(weaverPrompt(gap).prompt).toContain("<missed>\n- G1 Sunday 8 September 1991, 2:00 pm, The library: Draconia's library session. With Draconia Malfoy. He was expected.\n</missed>");
     expect(checkWeave(gap, answer({ meanwhile: [] }))).toEqual({ ok: false, problems: ["happened: G1, The library, went on without him and he was expected; write it, with the people there noticing he did not come (missed: \"G1\")"] });
   });
 
@@ -207,12 +207,12 @@ describe("the Weaver's call", () => {
     expect(system).toContain("# The Weaver");
     expect(system.replace(/\s+/g, " ")).toContain("give again each item still ahead that is still going on, as it was, or it is gone.");
     expect(system).toContain("- Crabbe and Goyle: Draconia's errands, and whatever she wants hit.");
-    expect(prompt).toContain('<span from="Day 3 22:10 (Friday 10:10 pm)" until="Day 4 07:30 (Saturday 7:30 am)">');
+    expect(prompt).toContain('<span from="Friday 6 September 1991, 10:10 pm" until="Saturday 7 September 1991, 7:30 am">');
     expect(prompt).toContain("Hermione would not say what she was reading.");
     expect(prompt).toContain("- Quirrell and the third-floor door: Quirrell is testing the wards on the third-floor door, at night, alone");
-    expect(prompt).toContain("What is on ahead:\n- Day 4 20:00 (Saturday 8:00 pm), The Three Broomsticks: The twins buy a round. (with Harry Potter)");
-    expect(prompt).toContain('<scene_that_ended title="After curfew" place="The Gryffindor common room" from="Day 3 21:40 (Friday 9:40 pm)" until="Day 3 22:10 (Friday 10:10 pm)">\n<move by="Roopesh Gantasala">\nI say goodnight to Hermione and go up.\n</move>\n\nHermione doesn\'t look up from her book.\n</scene_that_ended>');
-    expect(prompt).toContain("<landmarks_in_span>\n- The Halloween feast, Day 3 23:00 (Friday 11:00 pm): The Great Hall feast.\n</landmarks_in_span>");
+    expect(prompt).toContain("What is on ahead:\n- Saturday 7 September 1991, 8:00 pm, The Three Broomsticks: The twins buy a round. (with Harry Potter)");
+    expect(prompt).toContain('<scene_that_ended title="After curfew" place="The Gryffindor common room" from="Friday 6 September 1991, 9:40 pm" until="Friday 6 September 1991, 10:10 pm">\n<move by="Roopesh Gantasala">\nI say goodnight to Hermione and go up.\n</move>\n\nHermione doesn\'t look up from her book.\n</scene_that_ended>');
+    expect(prompt).toContain("<landmarks_in_span>\n- The Halloween feast, Friday 6 September 1991, 11:00 pm: The Great Hall feast.\n</landmarks_in_span>");
   });
 
   // GIVEN the World last stood at 7:40 am at Kalka, and a Scene at Barog opens at 9:05 am and ends with Ishaan still on
@@ -232,7 +232,7 @@ describe("the Weaver's call", () => {
     expect(story.state().facts.at(-1)).toMatchObject({ at: "Day 2 09:05", where: "Barog station platform, hill mist, the toy train's engine taking water" });
     const weave = ask(story, { until: "Day 2 13:00" });
     const { system, prompt } = weaverPrompt(weave);
-    expect(prompt).toContain('<scene_that_ended title="Water at Barog" place="Barog station platform, hill mist, the toy train\'s engine taking water" from="Day 2 09:05 (Friday 9:05 am)" until="Day 2 09:40 (Friday 9:40 am)">');
+    expect(prompt).toContain('<scene_that_ended title="Water at Barog" place="Barog station platform, hill mist, the toy train\'s engine taking water" from="Friday 17 July 2026, 9:05 am" until="Friday 17 July 2026, 9:40 am">');
     expect(system.replace(/\s+/g, " ")).toContain("Before the Scene opened he was off-screen; the World moves on around him, not with him.");
     // Nothing the World writes is before the Scene ended, and nothing has him anywhere.
     const checked = checkWeave(weave, answer({

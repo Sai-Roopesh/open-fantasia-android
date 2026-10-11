@@ -53,7 +53,8 @@ even as a closing line; those belong to the Scenes after it. A breath is a Scene
 
 Two to five, in order, as the Stretch needs, each:
 - `id`: "S1", "S2"; new things and Lead moves name it.
-- `day`: which day of the Stretch, 0 for today; `time`: "HH:MM", after now when it is today.
+- `date`: which day of the Stretch, one of the dates you are given ("1991-09-07"); `time`: "HH:MM", after now when
+  it is today. Mind the weekday: lectures are on weekdays, Hogsmeade at the weekend.
 - `place`: where, as the story names places, or a new one.
 - `who`: who is there besides the player's character, from the story's people; anyone else there stays unnamed.
 - `for`: the turn it is built around, said as an author to an author: "she is paired with him and has to be civil in

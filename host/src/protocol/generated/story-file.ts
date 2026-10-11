@@ -79,7 +79,10 @@ export interface ModelChoice {
  */
 export interface ClockSetup {
   starts: StoryTime;
-  day_one_weekday?: "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
+  /**
+   * The date of the Story's first day, Day 1, as YYYY-MM-DD: every day after it is a date, and its weekday follows.
+   */
+  day_one?: string;
 }
 /**
  * This interface was referenced by `StoryFile`'s JSON-Schema

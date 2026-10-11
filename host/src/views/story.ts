@@ -2,8 +2,8 @@ import { LinkError } from "../link/errors.js";
 import type { Mac } from "../mac.js";
 import type { StoryLandmark, StoryView } from "../protocol/generated/link.js";
 import { passed, worldStands } from "../engine/story.js";
-import { minutesOf, parseStoryTime } from "../time.js";
-import { countdown, say } from "./scene.js";
+import { minutesOf, parseStoryTime, sayDate, sayTime } from "../time.js";
+import { countdown, sayClock } from "./scene.js";
 
 /**
  * Everything The Story screen shows, as it stands on the current Path (editing-the-story design decision 4): what the
@@ -22,7 +22,7 @@ export function storyView(mac: Mac, storyId: string, traceId: string): StoryView
     return {
       name: landmark.name,
       at: landmark.at,
-      at_label: at ? `${say(state, landmark.at)} · Day ${at.day}` : landmark.at,
+      at_label: at ? `${sayDate(at, state.dayOne, true)}, ${sayTime(at)}` : landmark.at,
       when: !gone && at && now ? countdown(now, at, landmark.name).when : null,
       what: landmark.what,
       passed: gone,
@@ -41,7 +41,7 @@ export function storyView(mac: Mac, storyId: string, traceId: string): StoryView
     world_history: state.world.history,
     places: state.world.places.map(place => ({ name: place.name, description: place.description })),
     institutions: state.world.institutions.map(place => ({ name: place.name, description: place.description })),
-    clock: { at: state.clock, at_label: say(state, state.clock), day_one_weekday: state.dayOneWeekday },
+    clock: { at: state.clock, at_label: sayClock(state, state.clock), day_one: state.dayOne },
     world_stands: stands,
     head_entry_id: head,
     trace_id: traceId

@@ -8,7 +8,7 @@ import { lastPlayed } from "../story/played.js";
 import type { Entry } from "../story/entries.js";
 import { sceneSpans } from "../story/spans.js";
 import type { State } from "../story/state.js";
-import { minutesOf, parseStoryTime, sayDay, sayStoryTime, sayTime, type StoryTime } from "../time.js";
+import { minutesOf, parseStoryTime, sayDate, sayStoryTime, sayTime, type StoryTime } from "../time.js";
 
 /** How many Landmarks ahead the Day View counts down to. */
 const COUNTDOWNS = 3;
@@ -20,7 +20,13 @@ export function portraitUrl(storyId: string, file: string): string {
 
 export function say(state: State, at: string): string {
   const time = parseStoryTime(at);
-  return time ? sayStoryTime(time, state.dayOneWeekday) : at;
+  return time ? sayStoryTime(time, state.dayOne) : at;
+}
+
+/** A Story time with its date, as the phone says it where the day matters: "Saturday 7 September, 9:40 pm". */
+export function sayClock(state: State, at: string): string {
+  const time = parseStoryTime(at);
+  return time ? `${sayDate(time, state.dayOne)}, ${sayTime(time)}` : at;
 }
 
 /**
@@ -92,7 +98,7 @@ export function dayView(state: State, sceneEnd: SceneEnd = { step: null, failed:
   return {
     at: state.clock,
     at_label: say(state, state.clock),
-    day: now ? sayDay(now, state.dayOneWeekday) : state.clock,
+    day: now ? sayDate(now, state.dayOne) : state.clock,
     time: now ? sayTime(now) : "",
     place: state.scene.place,
     closed_by: state.scene.closed === "story" ? "story" : "player",
@@ -111,8 +117,8 @@ function sceneSpan(state: State, began: string, ended: string): string {
   const start = parseStoryTime(began);
   const end = parseStoryTime(ended);
   if (!start || !end) return `${began} – ${ended}`;
-  const close = start.day === end.day ? sayTime(end) : sayStoryTime(end, state.dayOneWeekday);
-  return `${sayStoryTime(start, state.dayOneWeekday)} – ${close}`;
+  const close = start.day === end.day ? sayTime(end) : sayStoryTime(end, state.dayOne);
+  return `${sayStoryTime(start, state.dayOne)} – ${close}`;
 }
 
 /**

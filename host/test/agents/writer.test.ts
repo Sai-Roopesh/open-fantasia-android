@@ -204,7 +204,7 @@ describe("the Writer's call", () => {
     expect(prompt).toContain("<story_so_far>\nScenes:\nScene 1, The wrong berth");
     expect(prompt).toContain("Meera's mother rang the station master at Kalka. Known to: Meera Kulkarni.");
     expect(prompt).toContain("<move by=\"Ishaan Mehra\">\nI look for her on the platform.\n</move>");
-    expect(prompt).toContain("The player chose at the Day View: go to The platform at Kalka at Day 2 07:30 with Meera Kulkarni. Open the Scene it begins.");
+    expect(prompt).toContain("The player chose at the Day View: go to The platform at Kalka on Friday 17 July 2026 at 7:30 am with Meera Kulkarni. Open the Scene it begins.");
   });
 
   it("is one step: an answer that decides for him is sent back once, with what was wrong", async () => {

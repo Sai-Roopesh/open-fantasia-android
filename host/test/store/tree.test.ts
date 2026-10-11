@@ -49,7 +49,7 @@ describe("the reducer", () => {
     expect(state.people["Draconia Malfoy"]?.portrait).toBe("draconia.png");
     expect(state.people["Crabbe"]?.group).toBe("Crabbe and Goyle");
     expect(state.clock).toBe("Day 1 21:40");
-    expect(state.dayOneWeekday).toBe("friday");
+    expect(state.dayOne).toBe("1991-09-06");
     expect(state.scene).toBeNull();
   });
 

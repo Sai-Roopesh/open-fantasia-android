@@ -107,6 +107,11 @@ spends it however the player says, or quietly if they say nothing, and everythin
 them.
 _Avoid_: Time skip, downtime, idle time
 
+**Calendar**:
+The date of a Story's first day, from which every day of the Story is a date with its weekday. Agents and the player
+read Story time as dates; day numbers are only the Story's bookkeeping.
+_Avoid_: Day N, timestamp, epoch
+
 **Day View**:
 Where the player chooses what to do next after a Scene the Story closed or the player ended: what their character
 knows has happened meanwhile, and what is happening that they could go to. A Move that goes somewhere else

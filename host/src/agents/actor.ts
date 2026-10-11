@@ -1,7 +1,7 @@
 import type { ModelAnswer, Models } from "../models/model-call.js";
 import type { Entry } from "../story/entries.js";
 import type { Fact, ModelChoice, Person, State } from "../story/state.js";
-import { parseStoryTime, sayDay, sayTime, type StoryTime, type Weekday } from "../time.js";
+import { parseStoryTime, sayFull, type StoryTime } from "../time.js";
 import { BUDGET, join, recallFacts, say, section } from "../context/lens.js";
 import { inPlayFacts } from "./writer.js";
 
@@ -43,7 +43,7 @@ export function actorPrompt(state: State, scene: Entry[]): { system: string; pro
     section("world", [state.world.summary, state.world.history].filter(Boolean).join("\n\n")),
     section(`player_character name="${pc}"`, describe(state, state.people[pc], false)),
     section("people_here", herePeople.map(person => `<person name="${person.name}">\n${describe(state, person, true)}\n</person>`).join("\n\n") || `Nobody besides ${pc}.`),
-    section("scene", `${state.scene.title}. ${state.scene.place}, ${at ? sayDayAndTime(at, state.dayOneWeekday) : state.scene.at}.`)
+    section("scene", `${state.scene.title}. ${state.scene.place}, ${at ? sayDayAndTime(at, state.dayOne) : state.scene.at}.`)
   ].filter(part => part !== null).join("\n");
 
   const recalled = recallFacts(state, here);
@@ -84,7 +84,7 @@ function scenePrompt(state: State, scene: Entry[]): string {
   const now = parseStoryTime(state.clock);
   const call = current?.call ? CALL[current.call] : null;
   const thisReply = [
-    `It is ${now ? sayDayAndTime(now, state.dayOneWeekday) : state.clock}.`,
+    `It is ${now ? sayDayAndTime(now, state.dayOne) : state.clock}.`,
     current?.note ? `What happens next: ${current.note}` : "",
     call ? (current?.call === "end" ? `${call}${pc}'s.` : call) : "",
     current?.focus ? `Stay close beside ${current.focus}: mostly their words, actions and thoughts. Nobody new comes in unless the Move brings them.` : "",
@@ -116,8 +116,8 @@ function describe(state: State, person: Person | undefined, withVoice: boolean):
   ].filter(Boolean).join("\n");
 }
 
-function sayDayAndTime(time: StoryTime, dayOneWeekday: Weekday | null): string {
-  return `${sayDay(time, dayOneWeekday)}, ${sayTime(time)}`;
+function sayDayAndTime(time: StoryTime, dayOne: string | null): string {
+  return sayFull(time, dayOne);
 }
 
 /** Writes the Reply to the Scene's latest Move, streaming its words through [onText]. */
