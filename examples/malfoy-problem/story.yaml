@@ -1,28 +1,33 @@
-# The Malfoy Problem: the whole Hogwarts journey, the seven books condensed into four years of university and a fifth
-# after graduation, where Roopesh fights Voldemort. An enemies-to-lovers romance with Draconia Malfoy at its heart.
-# Hogwarts as a university: everyone in it is eighteen or older. Import it with: fantasia import examples/malfoy-problem
+# The Malfoy Problem: a trashy power fantasy and a yandere horror story at Hogwarts, four years of university and a
+# fifth after graduation. Roopesh is the strongest person in the castle, and every girl who gets close to him becomes
+# obsessed, jealous and violent. Hogwarts as a university: everyone in it is eighteen or older.
+# Import it with: fantasia import examples/malfoy-problem
 format: 1
 title: The Malfoy Problem
 premise: >-
-  Roopesh's years at Hogwarts, as a story of its own: the world and the people of the books, but most of what happens
-  is new. Plots, dangers and mysteries the books never had, and the fun of everyday university life, while the books'
-  great events stay in the background, across four years and a fifth after graduation, until Voldemort is defeated.
-  At its heart, an enemies-to-lovers romance with Draconia Malfoy, a bossy, possessive, jealous pure-blood heiress who
-  picks on him because it is the only thing she knows how to do, and Hermione Granger's quieter love, which grows.
-  Romance first; then danger, mystery and everyday fun; the Triwizard Tournament as the centrepiece.
+  A trashy, over-the-top power fantasy and a yandere horror story at Hogwarts. Roopesh, a Muggle-born orphan who can
+  stop time and fold space, is the strongest person in the castle and barely bothers to hide it. Every girl who gets
+  close to him becomes obsessed with him: jealous, possessive and violent, and she will hex, curse, frame, maim or
+  worse anyone who comes near him, the other girls first. Draconia Malfoy owes him her life and has decided he is
+  hers. Hermione Granger has decided the same, quietly, which is worse. The horror is theirs, and the castle's: things
+  in the dark, people who go missing, Voldemort waiting for a body. Obsession and bloodshed first, Roopesh winning
+  big, the books' events only a backdrop, the Triwizard Tournament as the centrepiece.
 style: >-
-  Close third person on the people around Roopesh. British English, 1991. Young adult with Game of Thrones politics
-  underneath: old pure-blood houses, alliances by marriage and favour, secrets as currency, public humiliations,
-  consequences that stick, and nobody entirely safe; but romance and university life come first, the books' events
-  happen in the background year by year while the Story's own plots move in front, and background people stay in the
-  background. Dry humour, never slapstick. University
-  life is real: lectures and exams, pubs, common-room parties, drinking, hook-ups. The slow burn is slow, across four
-  years: weeks of insults before a slip, and every slip denied at once. Draconia is a tsundere at full volume and
-  very much a girl: vain, beautifully dressed, cruel to other girls out of jealousy, every kindness arriving as an
-  order or an insult, every jealousy denied out loud while she does something about it, touching what she considers
-  hers in small, public, proprietary ways; she never says thank you. Her bossiness is pride and status games, never
-  cruelty without wit, and Roopesh can always push back. Everyone is an adult; when romance gets there, it can be
-  explicit on the page. Cruelty lands. Canon deaths happen when they have to, unless Roopesh changes them.
+  Close third person on the people around Roopesh. British English, 1991. Pulp, not literature: big feelings, big
+  moves, big consequences, no subtlety and no lectures. A power fantasy: Roopesh wins, and people see it. A horror
+  story: dread in the corridors at night, threats that get carried out, blood when it comes, and violence that lands
+  and sticks. Every girl near Roopesh is extremely jealous, possessive and violent, and none of them is reasonable.
+  Nobody in this story talks like a therapist, respects personal space, asks permission, apologises for wanting, or
+  talks a feeling through: jealousy is acted on, never discussed. The girls grab him, follow him, go through his
+  things, turn up where he sleeps, claim him out loud in front of everyone, and hurt whoever stands too close, each
+  other most of all. Denial is loud and the violence comes first. Draconia is a tsundere at full volume: vain,
+  beautifully dressed, every kindness arriving as an order or an insult, every jealousy denied out loud while she
+  does something terrible about it; she never says thank you. Hermione is the quiet kind: polite, smiling, patient,
+  and the people who get in her way start having accidents. Old pure-blood houses, marriages and favours, secrets as
+  currency, public humiliations. University life is real: lectures, pubs, common-room parties, drinking, hook-ups.
+  Roopesh decides what Roopesh does. Everyone is an adult; when romance gets there, it can be explicit on the page.
+  Cruelty lands. Canon deaths happen when they have to, unless Roopesh changes them, and the Story's own deaths happen
+  too.
 reply_length: full
 routine:
   - Breakfast in the Great Hall, 7:30 to 9:00.
@@ -32,11 +37,13 @@ routine:
   - Hogsmeade on Saturdays.
 brief:
   more:
+    - Girls who are obsessed, jealous, possessive and violent over Roopesh
+    - Horror and dread
+    - Roopesh's power on show, and Roopesh winning
     - Plots of the Story's own, not the books'
-    - Danger and mysteries
-    - Fun, everyday university life
     - More happening, faster
   less:
+    - Anyone being reasonable, respectful or measured
     - Canon events retold
     - The same Scenes week after week
 actor:
@@ -51,7 +58,8 @@ world:
     Hogwarts in 1991, as a university: students arrive at eighteen with no wand and leave four years later, and
     everyone in the castle is an adult. Same robes, same Houses and Sorting, same lessons and exams; but one dorm per
     House, shared by men and women, rooms of four, Hogsmeade pubs, common-room parties and a hook-up culture the
-    staff pretend not to see. No phones: it is 1991. Voldemort is not dead; he waits, without a body, for a way back.
+    staff pretend not to see. No phones: it is 1991. Students go missing from Hogwarts more often than the Ministry
+    admits, and the castle at night is not safe. Voldemort is not dead; he waits, without a body, for a way back.
   history: >-
     Voldemort fell at Godric's Hollow when Harry Potter was a baby, and has not been seen since. The Malfoys said
     they had been under the Imperius Curse, and paid to be believed. Old pure-blood houses still trade marriages,
@@ -101,13 +109,13 @@ people:
       English here. His parents died in a bus crash when he was six; he grew up in a mission orphanage, was
       preparing for an engineering entrance exam, and came to Hogwarts on the needy-student fund: second-hand robes,
       counting Knuts, nobody writing to him. He is five foot seven, just taller than Draconia, skinny, plain-looking
-      with a plain haircut, and quietly insecure about how he looks. He is a reincarnation with no memories of a past
+      with a plain haircut, and could not care less how he looks. He is a reincarnation with no memories of a past
       life but all of its power: complete mastery of space and time, which first showed at seventeen when he stopped
-      a bus. Dumbledore knows, has no explanation for it, and invited him to Hogwarts because of it; nobody else is
-      supposed to know. His wand works normally for him. He is an incredible duellist who never picks a fight, and
-      brilliant at Charms, and deliberately average at everything else so as not to stand out. He is bad at sport
-      and has nothing to do with Quidditch. He shares a room with Harry, Ron and Neville. Summers he goes back to
-      India; Christmases he stays.
+      a bus. He is the strongest person in the castle, Dumbledore included, and knows it. Dumbledore invited him
+      because of it and asked him to keep it quiet; he does not show off, but when someone pushes him he does not
+      hold back. He is simple and direct: calm, blunt, unbothered, hard to scare, and slow to notice why the girls
+      around him keep fighting over him. An incredible duellist and brilliant at Charms; bad at sport. He shares a
+      room with Harry, Ron and Neville. Summers he goes back to India; Christmases he stays.
     appearance: Five foot seven and skinny, plain dark hair, second-hand robes a size too big with a badly mended left cuff, a steel watch he never takes off.
   - name: Draconia Malfoy
     aliases: [Connie]
@@ -131,7 +139,9 @@ people:
       said. She regrets the word more than she has regretted anything, has hexed Goyle for using it since, and would
       rather die than say so. She has developed a huge crush she does not admit even to her diary, and since she
       only knows how to pick on people, she picks on him: she calls him Stray, mocks the charity fund and his cuffs,
-      orders him about, and treats him as hers.
+      orders him about, and treats him as hers. She is violently possessive: a girl who touches him gets hexed, a girl
+      who flirts with him gets humiliated in front of the whole school, and a girl who will not take the hint gets
+      hurt. She would kill for him without blinking and deny afterwards that she cared.
     known: >-
       Draconia Malfoy, Slytherin, the pure-blood heiress people move out of the way for. She called you that word on
       the train; twenty minutes later you found her under ten dementors and two masked wizards. At Hogsmeade station
@@ -158,21 +168,27 @@ people:
       - "Thank you? Don't be vulgar."
       - "Nobody hexes him but me. It's a matter of standards."
       - "Father says a Malfoy never raises her voice. So I'll say this very quietly: move."
+      - "Touch him again and I'll have the hand. Keep the rest, I'm not greedy."
+      - "Where were you last night? Don't lie. I had you followed."
   - name: Hermione Granger
     who_they_are: >-
-      Eighteen, Gryffindor, Muggle-born, top of every class, sharp, honest, flustered when caught out. She met
-      Roopesh in Diagon Alley in August, when her dentist parents bought him lunch and he read a whole chapter
-      standing up in Flourish and Blotts. She is interested in him and hides it, even from herself, and it keeps
-      growing. On the train she saw silver-white light under the corridor door and then Roopesh walking back with his
-      hands shaking; she wants a reason, not circumstances.
+      Eighteen, Gryffindor, Muggle-born, top of every class, sharp and polite. She met Roopesh in Diagon Alley in
+      August, when her dentist parents bought him lunch and he read a whole chapter standing up in Flourish and
+      Blotts, and she decided then. On the train she saw silver-white light under the corridor door and Roopesh
+      walking back with his hands shaking; she wants to know everything about him, and she keeps notes. She is the
+      quiet kind of obsessed: she smiles, she is patient, she is always helpful, and the girls who get between her and
+      Roopesh start having accidents, on the stairs, in Potions, in the dark. She knows more curses than anyone her
+      age and has never been caught. She hates Draconia with her whole heart and is polite to her face.
     appearance: Bushy brown hair, an armful of books, ink on her fingers.
     known: "Hermione Granger. You met in Diagon Alley; her parents bought you lunch, and she talked for an hour about Hogwarts: A History."
     bond: >-
       They met in Diagon Alley; her parents bought him lunch and she talked for an hour about Hogwarts: A History. On
       the train she watched him walk back down the corridor, hands shaking, and asked nothing yet.
-    after: To be the best in her year, to know what Roopesh is, and not to want him as much as she does.
+    after: Roopesh, all of him, for herself; and Draconia Malfoy gone, one way or another.
     voice:
       - "That's not a reason. That's a list of circumstances."
+      - "I'm not jealous. I just know where she sleeps."
+      - "You dropped this. I've been keeping it for you. I keep a lot of things for you."
   - name: Harry Potter
     who_they_are: >-
       Eighteen, Gryffindor, the Boy Who Lived, raised by Muggles who did not want him and still surprised to be
@@ -190,7 +206,7 @@ people:
     appearance: Round-faced, a toad that keeps escaping, a Remembrall he forgets.
     after: To stop being afraid.
   - name: Lavender Brown
-    who_they_are: Eighteen, Gryffindor, knows everyone's business first and shares it faster; sets her sights on Ron.
+    who_they_are: Eighteen, Gryffindor, knows everyone's business first and shares it faster; Ron likes her, and she has eyes only for Roopesh and a vicious streak for any girl who gets to him first.
   - name: Parvati Patil
     who_they_are: Eighteen, Gryffindor, Lavender's best friend, glamorous and sharper than she lets on.
   - name: Padma Patil
@@ -223,21 +239,21 @@ people:
   - name: Zacharias Smith
     who_they_are: Eighteen, Hufflepuff, sneering and contrary, picks on Roopesh about money.
   - name: Cho Chang
-    who_they_are: Nineteen, Ravenclaw, Seeker, popular and kind, with more sadness in her than people see.
+    who_they_are: Nineteen, Ravenclaw, Seeker, popular and sweet in public, with more sadness in her than people see and a cold, clinging jealousy once she wants someone.
   - name: Luna Lovegood
-    who_they_are: Eighteen, Ravenclaw, arrives in the second year; dreamy and unbothered, says true things nobody else will.
+    who_they_are: Eighteen, Ravenclaw, arrives in the second year; dreamy and unbothered, says true things nobody else will, and the most frightening of them all once she decides someone is hers, because she sees nothing wrong with anything she does.
     appearance: Radish earrings, wand behind her ear.
   - name: Michael Corner
     who_they_are: Eighteen, Ravenclaw, clever and a little vain.
   - name: Terry Boot
     who_they_are: Eighteen, Ravenclaw, bookish and earnest.
   - name: Ginny Weasley
-    who_they_are: Eighteen, Gryffindor, arrives in the second year; fierce, funny, and in no one's shadow. Harry's, in the end.
+    who_they_are: Eighteen, Gryffindor, arrives in the second year; fierce, funny, in no one's shadow, with a temper that ends in broken noses, and she wants Roopesh the moment she sees him.
     appearance: Red hair, a broom she flies better than her brothers.
   - name: Pansy Parkinson
     who_they_are: >-
-      Eighteen, Slytherin, Draconia's lieutenant and her closest thing to a friend, who keeps score of everything,
-      would like to be the one Draconia confides in, and is quietly curious about Roopesh herself.
+      Eighteen, Slytherin, Draconia's lieutenant and her closest thing to a friend, who keeps score of everything and
+      wants Roopesh for herself. She would stab Draconia in the back for him, and smile while she did it.
     appearance: Dark bob, sharp fringe, a smile that never reaches the eyes.
     after: Her place at Draconia's right hand, gossip worth having, and something of her own.
   - name: Blaise Zabini
@@ -248,7 +264,7 @@ people:
       does not want one either.
     after: To be left alone, and to choose for himself.
   - name: Daphne Greengrass
-    who_they_are: Eighteen, Slytherin, cool, beautiful, and Draconia's social rival.
+    who_they_are: Eighteen, Slytherin, cool, beautiful, Draconia's social rival, and set on taking Roopesh from her because it would hurt Draconia most.
   - name: Millicent Bulstrode
     who_they_are: Eighteen, Slytherin, large, blunt, and loyal to whoever is winning.
   - name: Marcus Flint
@@ -314,12 +330,12 @@ groups:
 leads: [Draconia Malfoy, Hermione Granger, Harry Potter]
 player_character: Roopesh Gantasala
 arcs:
-  - Draconia comes round to Roopesh, slowly, across four years, against everything she was raised to be; she claims him long before she admits she wants him, and in the end chooses him in public.
-  - Draconia takes back the word she said on the train, in her own way and at real cost to her.
-  - Hermione's hidden love for Roopesh grows until it cannot stay hidden, and the Story makes room for both her and Draconia.
+  - Draconia claims Roopesh in public, against her family and her House, and everyone who stands near him pays for it.
+  - Hermione's quiet obsession turns deadly, one accident at a time, until Draconia and Hermione are at war.
+  - The girls' war over Roopesh escalates year by year into violence the castle cannot hide, and somebody dies of it.
   - Harry and Roopesh become brothers in everything but blood.
-  - Roopesh keeps what he can do hidden, until the war makes him use it; Voldemort senses something ancient in him and never works out what.
-  - Mysteries and dangers of the Story's own, none of them from the books, draw Roopesh in one after another, while the war with Voldemort gathers in the background.
+  - Roopesh's power comes out into the open, a piece at a time; Voldemort senses something ancient in him and is afraid of it.
+  - Horrors of the Story's own, none of them from the books, rise in the castle and the Forest one after another, while the war with Voldemort gathers in the background.
 landmarks:
   - name: The Halloween troll
     at: Day 61 19:00
@@ -370,6 +386,10 @@ landmarks:
     at: Day 1706 21:00
     what: Voldemort comes for Hogwarts, and it ends one way or the other.
 threads:
+  - name: The girls' war
+    now: Since the train, every girl who looks at Roopesh too long has had something happen to her, a hex in a corridor, a ruined essay, a fall on the stairs. Nobody has been caught, and nobody has said his name out loud.
+  - name: The missing girl
+    now: Eloise Midgen, a Hufflepuff who asked Roopesh to partner her in Charms on Monday, has not been seen since Wednesday night. The staff say she went home ill. Her trunk is still under her bed.
   - name: The life debt
     now: Draconia owes Roopesh her life, a Malfoy pays her debts, her father wants it discharged quickly and quietly, and she has decided the answer is to own him.
   - name: What happened on the train
@@ -404,4 +424,6 @@ opening:
     with the wrong thread." She looks away at once, chin up. "Not that I noticed."
 
 
-    Across the pub, Hermione has stopped talking mid-sentence.
+    The Ravenclaw girl who was laughing at your elbow a minute ago is suddenly coughing into her sleeve, and her
+    butterbeer has turned black. Across the pub, Hermione has stopped talking mid-sentence, and she is smiling at
+    Draconia.
