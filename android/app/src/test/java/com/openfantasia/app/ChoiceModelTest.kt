@@ -57,8 +57,8 @@ class ChoiceModelTest {
             model.openStory("story")
             advanceUntilIdle()
             val choice = ChooseRequest(after = "closed", kind = ChooseRequestKind.Story)
-            for (world in listOf(World.MovingOn, World.Failed)) {
-                fake.current.value = fake.current.value.copy(dayView = fake.current.value.dayView!!.copy(world = world))
+            for (end in listOf(SceneEnd(step = SceneEndStep.Weaver), SceneEnd(failed = SceneEndFailure(step = SceneEndStep.Weaver, reason = "Unavailable", traceID = "weaver")))) {
+                fake.current.value = fake.current.value.copy(dayView = fake.current.value.dayView!!.copy(sceneEnd = end))
                 advanceUntilIdle()
                 model.choose(choice)
                 advanceUntilIdle()

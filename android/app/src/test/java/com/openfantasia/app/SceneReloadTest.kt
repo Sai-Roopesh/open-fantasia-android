@@ -65,9 +65,9 @@ class SceneReloadTest {
 
     @Test fun `World moved reloads Meanwhile without changing the Path head`() = runBlocking {
         MacServer().use { mac ->
-            val initial = sceneFixture().copy(dayView = FakeFantasiaLink.dayView().copy(world = World.MovingOn),
+            val initial = sceneFixture().copy(dayView = FakeFantasiaLink.dayView().copy(sceneEnd = SceneEnd(step = SceneEndStep.Weaver)),
                 headEntryID = "closed", seq = 4, lastEventID = "4")
-            val snapshot = initial.copy(seq = 6, lastEventID = "6", dayView = initial.dayView!!.copy(world = World.Ready,
+            val snapshot = initial.copy(seq = 6, lastEventID = "6", dayView = initial.dayView!!.copy(sceneEnd = SceneEnd(),
                 meanwhile = listOf(MeanwhileItem(how = How.Rumour, text = "Lavender brings a rumour to breakfast."))))
             mac.enqueue(MockResponse().setHeader("Content-Type", "text/event-stream").setBody(
                 eventData("6", StoryEvent(kind = StoryEventKind.WorldMoved, seq = 6))))
@@ -80,39 +80,55 @@ class SceneReloadTest {
         }
     }
 
-    // openspec presence › Between Scenes is quiet, and shows progress › An Engagement fills in
-    @Test fun `A record written late reloads the Day View with what it put on`() = runBlocking {
+    // A step of a Scene's end follows an entry the stream does not carry (the record, here): the Scene is read again,
+    // so the Day View says the step and the head is the Mac's.
+    @Test fun `A step of the Scene's end reads the Scene again`() = runBlocking {
         MacServer().use { mac ->
-            val initial = sceneFixture().copy(dayView = FakeFantasiaLink.dayView().copy(world = World.Ready),
-                headEntryID = "closed", seq = 6, lastEventID = "6")
-            val library = Happening(id = "e-library", at = "Day 8 19:30", time = "7:30 pm", every = "Wednesday", daysAway = 3,
-                place = "The library", what = "Draconia's hour on the Charms practical.", who = listOf("Draconia Malfoy"), expected = true, pick = false)
-            val snapshot = initial.copy(seq = 8, lastEventID = "8", dayView = initial.dayView!!.copy(happenings = initial.dayView!!.happenings + library))
+            val initial = sceneFixture().copy(dayView = FakeFantasiaLink.dayView().copy(sceneEnd = SceneEnd(step = SceneEndStep.Chronicler)),
+                headEntryID = "closed", seq = 4, lastEventID = "4")
+            val snapshot = initial.copy(seq = 5, lastEventID = "5", headEntryID = "chronicle",
+                dayView = initial.dayView!!.copy(sceneEnd = SceneEnd(step = SceneEndStep.Director)))
             mac.enqueue(MockResponse().setHeader("Content-Type", "text/event-stream").setBody(
-                eventData("8.record_written", StoryEvent(kind = StoryEventKind.RecordWritten, seq = 8))))
+                eventData("5.step.director", StoryEvent(kind = StoryEventKind.SceneEndStep, seq = 5, step = SceneEndStep.Director))))
             mac.enqueue(MockResponse().setBody(linkJson.encodeToString(snapshot)))
             val view = withTimeout(5000) { StoryStream(loadScene = { mac.client.scene(it) }) { mac.client }.follow(initial).first() }
             assertEquals(snapshot, view)
-            assertEquals("closed", view.headEntryID)
+            assertEquals("chronicle", view.headEntryID)
             assertEquals("/stories/story/scene", mac.server.run { takeRequest(); takeRequest() }.path)
         }
     }
 
-    @Test fun `World failed reloads the reason and trace even at the same sequence`() = runBlocking {
+    @Test fun `A Scene's end that stopped shows its step and why, even at the same sequence`() = runBlocking {
         MacServer().use { mac ->
-            val initial = sceneFixture().copy(dayView = FakeFantasiaLink.dayView().copy(world = World.MovingOn),
-                headEntryID = "closed", seq = 4, lastEventID = "4")
-            val snapshot = initial.copy(dayView = initial.dayView!!.copy(world = World.Failed,
-                failure = WorldFailure(reason = "The Weaver is unavailable", traceID = "world-trace")))
+            val initial = sceneFixture().copy(dayView = FakeFantasiaLink.dayView().copy(sceneEnd = SceneEnd(step = SceneEndStep.Director)),
+                headEntryID = "chronicle", seq = 4, lastEventID = "4")
+            val failure = SceneEndFailure(step = SceneEndStep.Director, reason = "Opus 5.5 and Sonnet 5.5 both ran out of time.", traceID = "3f1c09ab")
+            val snapshot = initial.copy(dayView = initial.dayView!!.copy(sceneEnd = SceneEnd(failed = failure)))
             mac.enqueue(MockResponse().setHeader("Content-Type", "text/event-stream").setBody(
-                eventData("4.world_failed", StoryEvent(kind = StoryEventKind.WorldFailed, seq = 4,
-                    reason = "The Weaver is unavailable", traceID = "world-trace"))))
+                eventData("4.failed.director", StoryEvent(kind = StoryEventKind.SceneEndFailed, seq = 4, step = SceneEndStep.Director,
+                    reason = failure.reason, traceID = failure.traceID))))
             mac.enqueue(MockResponse().setBody(linkJson.encodeToString(snapshot)))
             val view = withTimeout(5000) { StoryStream(loadScene = { mac.client.scene(it) }) { mac.client }.follow(initial).first() }
             assertEquals(snapshot, view)
             assertEquals("/stories/story/events?path=path&head=${initial.headEntryID}", mac.server.takeRequest().path)
             assertEquals("/stories/story/scene", mac.server.takeRequest().path)
         }
+    }
+
+    // The projection says the step at once, before the Scene is read again; ids like "5.step.director" are no place
+    // in the order, so the cursor stays at the last entry.
+    @Test fun `A step and a stop change only the Scene's end`() {
+        val projection = SceneProjection(sceneFixture().copy(dayView = FakeFantasiaLink.dayView().copy(sceneEnd = SceneEnd(step = SceneEndStep.Chronicler)),
+            headEntryID = "closed", seq = 4, lastEventID = "4"))
+        val stepped = projection.apply(StoryEventEnvelope("5.step.weaver", StoryEvent(kind = StoryEventKind.SceneEndStep, seq = 5, step = SceneEndStep.Weaver)))
+        assertEquals(SceneEnd(step = SceneEndStep.Weaver), stepped.dayView!!.sceneEnd)
+        assertEquals("4", projection.lastEventID)
+        val stopped = projection.apply(StoryEventEnvelope("5.failed.weaver", StoryEvent(kind = StoryEventKind.SceneEndFailed, seq = 5,
+            step = SceneEndStep.Weaver, reason = "The Weaver is unavailable", traceID = "weaver-trace")))
+        assertEquals(SceneEnd(failed = SceneEndFailure(step = SceneEndStep.Weaver, reason = "The Weaver is unavailable", traceID = "weaver-trace")), stopped.dayView!!.sceneEnd)
+        val done = projection.apply(StoryEventEnvelope("6.step.done", StoryEvent(kind = StoryEventKind.SceneEndStep, seq = 6, step = null)))
+        assertEquals(SceneEnd(), done.dayView!!.sceneEnd)
+        assertEquals("4", projection.lastEventID)
     }
 
     // GIVEN a Scene in the Gryffindor common room

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Entry } from "../../src/story/entries.js";
+import { SCENE_END_KINDS, type Entry } from "../../src/story/entries.js";
 import { pathsView } from "../../src/views/paths.js";
 import { playable } from "../support/play.js";
 import { hogwartsStoryFile } from "../support/story-files.js";
@@ -10,8 +10,8 @@ type Played = ReturnType<typeof playable>;
 const passages = (played: Played) => played.mac.tree.pathTo(played.head()).flatMap(entry =>
   entry.payload.kind === "move" ? [`> ${entry.payload.text}`] : entry.payload.kind === "reply" ? [entry.payload.text] : []);
 const last = (played: Played, kind: "move" | "reply"): Entry => played.mac.tree.pathTo(played.head()).filter(entry => entry.payload.kind === kind).at(-1)!;
-const weaves = (played: Played) => played.models.requests.filter(request => request.agent === "weaver").length;
-const chronicles = (played: Played) => played.models.requests.filter(request => request.agent === "chronicler").length;
+/** How many calls each agent of a Scene's end has had. */
+const sceneEndCalls = (played: Played) => ["chronicler", "director", "weaver", "folder"].map(agent => played.models.requests.filter(request => request.agent === agent).length);
 
 describe("Editing", () => {
   // WHEN the player edits "Hermoine" to "Hermione" in the latest Reply
@@ -22,25 +22,24 @@ describe("Editing", () => {
     await played.play("I pass her the note.");
     engine.setFocus(storyId, head(), "Hermione Granger", "trace-focus");
     engine.endScene(storyId, head(), "trace-end");
-    await engine.woven(storyId);
-    await engine.chronicled(storyId);
+    await engine.ended(storyId);
     const main = mac.tree.currentPath(storyId)!;
-    const [woven, chronicled] = [weaves(played), chronicles(played)];
+    const ended = mac.tree.pathTo(head()).slice(-4).map(entry => entry.payload);
+    const calls = sceneEndCalls(played);
 
     const accepted = engine.edit(storyId, last(played, "reply").id, "Hermione folds the note in half.", head(), "trace-edit");
     expect(accepted).toEqual({ head_entry_id: head(), trace_id: "trace-edit" });
     expect(passages(played)).toEqual(["> I pass her the note.", "Hermione folds the note in half."]);
     expect(mac.tree.paths(storyId)).toEqual([expect.objectContaining({ id: main.id, name: "Main", isCurrent: true })]);
-    // What came after the Reply comes after the edit: Focus, the Scene's end, and the World that moved on.
-    expect(mac.tree.pathTo(head()).map(entry => entry.payload.kind).slice(-3)).toEqual(["reply", "focus_set", "scene_closed"]);
-    expect(view().day_view).toMatchObject({ world: "ready" });
-    expect(mac.tree.recordsOn(head(), "world_moved")).toHaveLength(1);
-    expect(mac.tree.recordsOn(head(), "chronicle").at(-1)!.payload).toMatchObject({ sceneEnded: true });
-    engine.weave(storyId);
-    engine.chronicle(storyId);
-    await engine.woven(storyId);
-    await engine.chronicled(storyId);
-    expect([weaves(played), chronicles(played)]).toEqual([woven, chronicled]);
+    // What came after the Reply comes after the edit, on the Path: Focus, the Scene's end, and what its end recorded.
+    expect(mac.tree.pathTo(head()).map(entry => entry.payload.kind).slice(-6)).toEqual(["reply", "focus_set", "scene_closed", "chronicle", "director_plan", "world_moved"]);
+    expect(mac.tree.pathTo(head()).slice(-4).map(entry => entry.payload)).toEqual(ended);
+    expect(mac.states.at(head()).scene!.ended).toEqual(["chronicler", "director", "weaver"]);
+    expect(view().day_view).toMatchObject({ scene_end: { step: null, failed: null } });
+    // The State is folded again from the Path: nothing of the Scene's end runs twice.
+    await engine.settled(storyId);
+    expect(engine.sceneEndOf(storyId)).toEqual({ step: null, failed: null });
+    expect(sceneEndCalls(played)).toEqual(calls);
   });
 
   // GIVEN the latest Move reads "I sit at the other end of the sofa" and has its Reply
@@ -80,5 +79,26 @@ describe("Editing", () => {
     expect(before.filter(passage => passage.startsWith(">"))).toHaveLength(11);
     expect(pathsView(mac, storyId, "trace").rows.filter(row => row.kind === "path").map(row => row.path!.label))
       .toEqual(["FROM SCENE 1 · EDITED · YOU ARE HERE", "MAIN"]);
+  });
+
+  it("folds everything again from the Path: an earlier edit leaves a Scene's end, and all it recorded, on the Path it was on", async () => {
+    const played = playable(hogwartsStoryFile());
+    const { engine, storyId, head, mac, state, models } = played;
+    await played.play("I pass her the note.");
+    await played.play("I wait for her to read it.");
+    engine.endScene(storyId, head(), "trace-end");
+    await engine.ended(storyId);
+    const main = mac.tree.currentPath(storyId)!;
+    expect(state()).toMatchObject({ recorded: [expect.objectContaining({ number: 1 })], plan: expect.objectContaining({ number: 1 }), storySoFar: { scenes: [expect.anything()] } });
+    const asked = models.requests.length;
+
+    const first = mac.tree.pathTo(head()).find(entry => entry.payload.kind === "move")!;
+    engine.edit(storyId, first.id, "I keep the note.", head(), "trace-edit");
+    await engine.settled(storyId);
+    expect(mac.tree.pathTo(head()).some(entry => SCENE_END_KINDS.has(entry.payload.kind))).toBe(false);
+    expect(state()).toMatchObject({ recorded: [], plan: null, facts: [], storySoFar: { scenes: [] }, curve: [], scene: { number: 1, closed: null } });
+    // Only the edited Move's turn ran: the Writer and the Actor, and nothing of a Scene's end.
+    expect(models.requests.slice(asked).map(request => request.agent)).toEqual(["writer", "actor"]);
+    expect(mac.states.at(mac.tree.path(main.id)!.headEntryId)).toMatchObject({ recorded: [expect.objectContaining({ number: 1 })], plan: expect.objectContaining({ number: 1 }) });
   });
 });

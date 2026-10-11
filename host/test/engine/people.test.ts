@@ -7,7 +7,7 @@ import { playable } from "../support/play.js";
 import { hogwartsWorldStoryFile, nightTrainStoryFile } from "../support/story-files.js";
 
 /** A person as the editor sends them. */
-const theo = (changes: Partial<Omit<Person, "portrait">> = {}): Omit<Person, "portrait"> => ({
+const theo = (changes: Partial<Omit<Person, "portrait" | "broughtIn">> = {}): Omit<Person, "portrait" | "broughtIn"> => ({
   name: "Theodore Nott", aliases: ["Theo"], whoTheyAre: "A quiet Slytherin who reads in the library.", known: null,
   appearance: "Thin, ink on his fingers.", after: "To be left alone.", knows: [], voice: ["Mm."], group: null, ...changes
 });
@@ -95,7 +95,7 @@ describe("the Story's people, as the player keeps them", () => {
     await play("I look for Theo in the library.");
     expect(models.writer.requests.at(-1)!.system).toMatch(/<leads>[\s\S]*Theodore Nott[\s\S]*<\/leads>/);
     engine.endScene(storyId, head(), "end");
-    await engine.woven(storyId);
+    await engine.ended(storyId);
     expect(models.weaver.requests.at(-1)!.system).toMatch(/<leads>[\s\S]*Theodore Nott/);
   });
 
@@ -108,7 +108,7 @@ describe("the Story's people, as the player keeps them", () => {
     for (let scene = 0; scene < 5; scene++) {
       await play(`I spend the morning with Neville again (${scene + 1}).`);
       engine.endScene(storyId, head(), `end-${scene}`);
-      await engine.directed(storyId);
+      await engine.ended(storyId);
       if (scene < 4) await play("I find Neville in the greenhouse.");
     }
     expect(state().leads).toEqual(leads);
@@ -125,7 +125,7 @@ describe("the Story's people, as the player keeps them", () => {
       { actor: [{ answer: "Goyle wades in without a word and hauls him out of the freezing water by his collar." }] });
     await play("I go through the ice.");
     engine.endScene(storyId, head(), "end");
-    await engine.directed(storyId);
+    await engine.ended(storyId);
     expect(state().people["Gregory Goyle"]!.group).toBe("Crabbe and Goyle");
     expect(mac.tree.pathTo(head()).some(entry => entry.payload.kind === "person_set")).toBe(false);
     // The player takes him out.

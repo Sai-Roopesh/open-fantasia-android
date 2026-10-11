@@ -7,7 +7,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ModelsLinkTest {
-    private val view = """{"stories":[],"jobs":[],"providers":[],"trace_id":"models"}"""
+    private val view = """{"stories":[],"jobs":[],"providers":[],"actor_backup":{"choice":{"provider":"claude","model":"claude-sonnet-5-5","effort":null},"label":"Sonnet 5.5"},"trace_id":"models"}"""
 
     @Test fun `the Models screen is read, a job's model and a Story's Actor are put, and Redo and Retry carry a model`() = runBlocking {
         MacServer().use { mac ->
@@ -21,6 +21,17 @@ class ModelsLinkTest {
                 assertEquals("PUT", it.method)
                 assertEquals("/models/jobs/weaver", it.path)
                 assertEquals("""{"model":{"effort":"high","model":"gpt-6.1-sol","provider":"codex"}}""", it.body.readUtf8())
+            }
+
+            // A second model: the Weaver's, and the Actor's for every Story.
+            for (job in listOf(ModelJob.Weaver, ModelJob.Actor)) {
+                mac.enqueue(MockResponse().setBody(view))
+                assertEquals("Sonnet 5.5", mac.client.setJobModel(job, SetJobModelRequest(model = ModelChoice(provider = ModelProvider.Claude, model = "claude-sonnet-5-5"), backup = true)).actorBackup.label)
+                mac.server.takeRequest().let {
+                    assertEquals("PUT", it.method)
+                    assertEquals("/models/jobs/${job.value}", it.path)
+                    assertEquals("""{"backup":true,"model":{"model":"claude-sonnet-5-5","provider":"claude"}}""", it.body.readUtf8())
+                }
             }
 
             mac.enqueue(MockResponse().setBody(view))

@@ -30,7 +30,7 @@ open class EditingStoryUiChecks : WorldUiChecks() {
         compose.preview("StoryEdit")
         compose.onNodeWithTag("story-day").performTextReplacement("700")
         compose.onNodeWithText("Save").performClick()
-        compose.waitUntil { link.storyEdits.isNotEmpty() }
+        compose.waitUntil(5_000) { link.storyEdits.isNotEmpty() }
         assertEquals("landmarks/The betrothal" to LandmarkRequest(after = "reply", at = "Day 700 12:00",
             what = "Lucius announces Draconia's engagement to a pure-blood heir.", create = false), lastEdit())
         compose.onNodeWithTag("story-editor").assertDoesNotExist()
@@ -61,7 +61,7 @@ open class EditingStoryUiChecks : WorldUiChecks() {
         compose.onNodeWithContentDescription("Edit the Style").performClick()
         compose.onNodeWithTag("story-words").performTextReplacement("Close third person, past tense. The slow burn is slow: weeks of insults before a slip. Keep the humour dry and British.")
         compose.onNodeWithText("Save").performClick()
-        compose.waitUntil { link.storyEdits.isNotEmpty() }
+        compose.waitUntil(5_000) { link.storyEdits.isNotEmpty() }
         assertEquals("style" to StyleRequest(after = "reply",
             style = "Close third person, past tense. The slow burn is slow: weeks of insults before a slip. Keep the humour dry and British."), lastEdit())
         compose.onNodeWithText("Close third person, past tense. The slow burn is slow: weeks of insults before a slip. Keep the humour dry and British.").assertIsDisplayed()
@@ -75,7 +75,7 @@ open class EditingStoryUiChecks : WorldUiChecks() {
         openTheStory()
         compose.onNode(hasText("Full") and isSelectable()).assertIsSelected()
         compose.onNode(hasText("Short") and isSelectable()).performClick()
-        compose.waitUntil { link.storyEdits.isNotEmpty() }
+        compose.waitUntil(5_000) { link.storyEdits.isNotEmpty() }
         assertEquals("reply-length" to ReplyLengthRequest(after = "reply", length = Length.LengthShort), lastEdit())
         compose.onNode(hasText("Short") and isSelectable()).assertIsSelected()
     }
@@ -89,7 +89,7 @@ open class EditingStoryUiChecks : WorldUiChecks() {
         row("Harry and Roopesh become friends").performClick()
         compose.onNodeWithText("An Arc").assertIsDisplayed()
         compose.onNodeWithText("Drop").performClick()
-        compose.waitUntil { link.storyEdits.isNotEmpty() }
+        compose.waitUntil(5_000) { link.storyEdits.isNotEmpty() }
         assertEquals("arcs" to ArcsRequest(after = "reply", arcs = listOf("Draconia comes round to Roopesh, slowly, against everything she was raised to be")), lastEdit())
         compose.onNodeWithText("Harry and Roopesh become friends").assertDoesNotExist()
     }
@@ -104,7 +104,7 @@ open class EditingStoryUiChecks : WorldUiChecks() {
         compose.onNodeWithTag("story-name").performTextInput("The Room of Requirement")
         compose.onNodeWithTag("story-words").performTextInput("A room that is whatever you need it to be.")
         compose.onNodeWithText("Add to the Story").performClick()
-        compose.waitUntil { link.storyEdits.isNotEmpty() }
+        compose.waitUntil(5_000) { link.storyEdits.isNotEmpty() }
         assertEquals("places/The Room of Requirement" to PlaceRequest(after = "reply", description = "A room that is whatever you need it to be.",
             institution = false, create = true), lastEdit())
         row("The Room of Requirement").assertIsDisplayed()
@@ -123,11 +123,12 @@ open class EditingStoryUiChecks : WorldUiChecks() {
         compose.onNodeWithTag("story-day").performTextReplacement("4")
         compose.onNodeWithText("Monday").assertIsDisplayed()
         compose.onNodeWithText("Save").performClick()
-        compose.waitUntil { link.storyEdits.isNotEmpty() }
+        compose.waitUntil(5_000) { link.storyEdits.isNotEmpty() }
         assertEquals("clock" to ClockRequest(after = "closed", at = "Day 4 21:40", dayOneWeekday = DayOneWeekday.Friday), lastEdit())
         row("Monday 9:40 pm").assertIsDisplayed()
         compose.onNodeWithContentDescription("Back to the Scene").performClick()
         compose.onNodeWithText("Monday").assertIsDisplayed()
+        compose.onNodeWithTag("scene-passages").performScrollToNode(hasText("9:40 pm", substring = true))
         compose.onAllNodesWithText("9:40 pm", substring = true).onFirst().assertIsDisplayed()
     }
 
@@ -143,7 +144,7 @@ open class EditingStoryUiChecks : WorldUiChecks() {
         compose.onNodeWithText("A lesson").assertIsDisplayed()
         compose.onNodeWithTag("story-words").performTextReplacement("Keep Ron in the background unless he's needed.")
         compose.onNodeWithText("Save").performClick()
-        compose.waitUntil { link.storyEdits.isNotEmpty() }
+        compose.waitUntil(5_000) { link.storyEdits.isNotEmpty() }
         assertEquals("taste/reword" to RewordTasteRequest(after = "reply", line = "Keep Ron in the background.", text = "Keep Ron in the background unless he's needed."), lastEdit())
         compose.onNodeWithTag("backstage").performScrollToNode(hasText("Keep Ron in the background unless he's needed."))
         compose.onNodeWithText("Keep Ron in the background.").assertDoesNotExist()

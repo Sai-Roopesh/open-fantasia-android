@@ -67,7 +67,6 @@ export function editInPlace(mac: Mac, path: StoryPath, entry: Entry, words: stri
     const copy = (original: Entry, parentId: string | null, payload: Payload): Entry => {
       const written = mac.tree.append(path.storyId, parentId, remapped(payload, renamed));
       renamed.set(original.id, written.id);
-      for (const record of mac.tree.recordsOf(original.id)) mac.tree.append(path.storyId, written.id, remapped(record.payload, renamed));
       return written;
     };
     let head = copy(entry, entry.parentId, reading(entry, words));

@@ -133,6 +133,18 @@ A short out-of-character note the player gives with a Redo, saying what the Stor
 leaning too much into Ron, move on". It shapes what comes next and never enters the Story itself.
 _Avoid_: Feedback, guidance, instruction, OOC note
 
+**Brief**:
+What the player wants more of and less of in a Story, which the Director plans by.
+_Avoid_: Preferences, settings, prompt
+
+**Reaction**:
+The player's word on a Scene that ended: more like this, or less.
+_Avoid_: Rating, feedback, like
+
+**Routine**:
+The Player Character's ordinary week (classes, meals, practice) that the Director builds on.
+_Avoid_: Schedule, timetable, calendar
+
 **Taste**:
 The short list of lasting lessons about what this player wants from this Story, learned from Directions that
 recur or that the player asks it to remember. The player can read and edit it.
@@ -173,8 +185,12 @@ is happening that they could go to.
 _Avoid_: World agent, simulator, world turn
 
 **Director**:
-Shapes the long run of the Story around its Arcs and Landmarks.
+Shapes the long run of the Story around its Arcs and Landmarks, a Stretch at a time, bringing something new each time.
 _Avoid_: Planner, showrunner, plot manager
+
+**Folder**:
+Folds the oldest of The Story So Far into a week, and old weeks into a chapter, so it stays short.
+_Avoid_: Summarizer, compressor
 
 ### The living World
 
@@ -203,6 +219,10 @@ Where things stand between the Player Character and one person he has history wi
 that brought it there, each one line from the Scene it happened in. Kept once, beside the Moments; nobody's secret
 feelings are in it.
 _Avoid_: Relationship meter, affinity, affection score, relationship memory
+
+**The Story So Far**:
+What has happened in the Story, a paragraph for each recent Scene, then weeks, then chapters. Every agent is given it.
+_Avoid_: Summary, recap, history, context
 
 ### What the player sees
 

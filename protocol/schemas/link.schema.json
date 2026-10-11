@@ -339,7 +339,8 @@
         "linger",
         "day_view",
         "previously",
-        "opening"
+        "opening",
+        "brief"
       ],
       "properties": {
         "story_id": {
@@ -428,6 +429,9 @@
               "type": "null"
             }
           ]
+        },
+        "brief": {
+          "$ref": "#/$defs/Brief"
         }
       }
     },
@@ -531,7 +535,7 @@
       }
     },
     "StoryEvent": {
-      "description": "One event on a Story's live stream. Entry events (scene_opened, move, reply, scene_closed, focus_set, linger_set, redo) are replayed after a reconnect; reply_started, reply_delta and reply_failed describe the turn under way; world_moved and world_failed say the World has moved on, or could not, after a Scene ended. record_written says a record of what happened was written after the Day View was ready, and may put more on it. path_changed says the Story is now on another Path, or its Path was moved back, or a Move or Reply on it was edited. After scene_opened, scene_closed, redo, world_moved, world_failed, record_written and path_changed, and after a move that opens the next Scene, the phone reads the Scene again, because they change more than one part of it.",
+      "description": "One event on a Story's live stream. Entry events (scene_opened, move, reply, scene_closed, focus_set, linger_set, redo, world_moved) are replayed after a reconnect; reply_started, reply_delta and reply_failed describe the turn under way; scene_end_step says which step of a Scene's end is under way, null when it is done, and scene_end_failed where it stopped and why (docs/adr/0016). path_changed says the Story is now on another Path, or its Path was moved back, or a Move or Reply on it was edited. After scene_opened, scene_closed, redo, world_moved, scene_end_step, scene_end_failed and path_changed, and after a move that opens the next Scene, the phone reads the Scene again, because they change more than one part of it.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -553,9 +557,9 @@
             "reply_delta",
             "reply_failed",
             "world_moved",
-            "world_failed",
             "path_changed",
-            "record_written"
+            "scene_end_step",
+            "scene_end_failed"
           ]
         },
         "seq": {
@@ -597,6 +601,17 @@
         "opening": {
           "description": "move: present when the Move is written at the Day View, the next Scene it opens. The Scene is then that Move's, under this card, until scene_opened.",
           "$ref": "#/$defs/NextScene"
+        },
+        "step": {
+          "description": "For scene_end_step and scene_end_failed: the step; null when the Scene's end is done.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/SceneEndStep"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     },
@@ -612,12 +627,12 @@
         "place",
         "closed_by",
         "countdowns",
-        "world",
         "scene_span",
         "meanwhile",
-        "failure",
         "happenings",
-        "choices"
+        "choices",
+        "scene_end",
+        "reaction"
       ],
       "properties": {
         "at": {
@@ -654,15 +669,6 @@
             "$ref": "#/$defs/Countdown"
           }
         },
-        "world": {
-          "description": "Whether the World has moved on to the Day View's time: moving_on while the Weaver works (the phone says so in one line and takes no Move), ready, or failed (with failure).",
-          "type": "string",
-          "enum": [
-            "moving_on",
-            "ready",
-            "failed"
-          ]
-        },
         "scene_span": {
           "description": "When the Scene that ended ran, as people say it: \"Friday 9:40 pm – 11:05 pm\".",
           "type": "string"
@@ -674,17 +680,6 @@
             "$ref": "#/$defs/MeanwhileItem"
           }
         },
-        "failure": {
-          "description": "Why the World could not move on, when world is failed; Retry is POST /stories/{id}/world/retry.",
-          "oneOf": [
-            {
-              "$ref": "#/$defs/WorldFailure"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "happenings": {
           "description": "What is on today that the Player Character could go to: at most four, the Story's pick first, once the World has moved on; empty before.",
           "type": "array",
@@ -694,6 +689,21 @@
         },
         "choices": {
           "$ref": "#/$defs/DayChoices"
+        },
+        "scene_end": {
+          "$ref": "#/$defs/SceneEnd"
+        },
+        "reaction": {
+          "description": "The player's reaction to the Scene that ended, or null.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "more",
+            "less",
+            null
+          ]
         }
       }
     },
@@ -738,23 +748,6 @@
             "told",
             "rumour"
           ]
-        }
-      }
-    },
-    "WorldFailure": {
-      "description": "The Weaver could not move the World on.",
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "reason",
-        "trace_id"
-      ],
-      "properties": {
-        "reason": {
-          "type": "string"
-        },
-        "trace_id": {
-          "type": "string"
         }
       }
     },
@@ -1280,7 +1273,9 @@
         "taste",
         "trace_id",
         "director",
-        "record"
+        "record",
+        "how_its_going",
+        "new_things"
       ],
       "properties": {
         "story_id": {
@@ -1341,6 +1336,15 @@
           "type": "array",
           "items": {
             "$ref": "#/$defs/RecordRow"
+          }
+        },
+        "how_its_going": {
+          "$ref": "#/$defs/HowItsGoing"
+        },
+        "new_things": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/NewThingRow"
           }
         }
       }
@@ -1689,7 +1693,8 @@
         "writer",
         "chronicler",
         "weaver",
-        "director"
+        "director",
+        "folder"
       ]
     },
     "ModelChoice": {
@@ -1766,7 +1771,8 @@
         "job",
         "title",
         "does",
-        "model"
+        "model",
+        "backup"
       ],
       "properties": {
         "job": {
@@ -1780,6 +1786,10 @@
           "type": "string"
         },
         "model": {
+          "$ref": "#/$defs/ChosenModel"
+        },
+        "backup": {
+          "description": "The job's second model, tried once when its own fails or runs too long.",
           "$ref": "#/$defs/ChosenModel"
         }
       }
@@ -1862,6 +1872,7 @@
       "additionalProperties": false,
       "required": [
         "stories",
+        "actor_backup",
         "jobs",
         "providers",
         "trace_id"
@@ -1872,6 +1883,10 @@
           "items": {
             "$ref": "#/$defs/StoryActor"
           }
+        },
+        "actor_backup": {
+          "description": "The Actor's second model, for every Story, tried once before any word of a Reply is written.",
+          "$ref": "#/$defs/ChosenModel"
         },
         "jobs": {
           "type": "array",
@@ -1900,6 +1915,13 @@
       "properties": {
         "model": {
           "$ref": "#/$defs/ModelChoice"
+        },
+        "backup": {
+          "description": "Sets the job's second model instead of its own.",
+          "type": [
+            "boolean",
+            "null"
+          ]
         }
       }
     },
@@ -1925,24 +1947,6 @@
     },
     "RetryRequest": {
       "description": "Writes the failed Reply again; with a model, the job that failed runs on it for this one try.",
-      "type": "object",
-      "additionalProperties": false,
-      "required": [],
-      "properties": {
-        "model": {
-          "oneOf": [
-            {
-              "$ref": "#/$defs/ModelChoice"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      }
-    },
-    "RetryWorldRequest": {
-      "description": "Moves the World on again; with a model, the Weaver runs on it for this one try.",
       "type": "object",
       "additionalProperties": false,
       "required": [],
@@ -2961,14 +2965,12 @@
       }
     },
     "RecordRow": {
-      "description": "A Scene in The record (lasting-records): one not yet recorded, or one recorded with parts left out.",
+      "description": "A Scene in The record that was kept with parts left out.",
       "type": "object",
       "additionalProperties": false,
       "required": [
         "scene_number",
         "scene_title",
-        "state",
-        "reason",
         "dropped"
       ],
       "properties": {
@@ -2978,45 +2980,12 @@
         "scene_title": {
           "type": "string"
         },
-        "state": {
-          "description": "waiting: it will be tried again after the next Scene; given_up: three tries failed, and Retry tries again; recorded: recorded, without the parts in dropped.",
-          "enum": [
-            "waiting",
-            "given_up",
-            "recorded"
-          ]
-        },
-        "reason": {
-          "description": "Why the last try failed; null for a recorded Scene.",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
         "dropped": {
           "description": "The parts of its record that were left out, and why.",
           "type": "array",
           "items": {
             "type": "string"
           }
-        }
-      }
-    },
-    "RecordRetryRequest": {
-      "description": "Tries the record of a Scene given up after three tries once more.",
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "after",
-        "scene_number"
-      ],
-      "properties": {
-        "after": {
-          "description": "The head the phone saw: the Path whose record it is.",
-          "type": "string"
-        },
-        "scene_number": {
-          "type": "integer"
         }
       }
     },
@@ -3075,12 +3044,7 @@
           }
         },
         "state": {
-          "description": "played: the player chose it; passed: its time went by without it; ahead: still to come.",
-          "enum": [
-            "played",
-            "passed",
-            "ahead"
-          ]
+          "$ref": "#/$defs/StretchSceneState"
         },
         "time": {
           "description": "When, as Backstage says it: \"Mon 2:00 pm\".",
@@ -3117,6 +3081,276 @@
           "type": "string"
         }
       }
+    },
+    "SceneEndStep": {
+      "description": "A step of a Scene's end, in order (docs/adr/0016).",
+      "type": "string",
+      "enum": [
+        "chronicler",
+        "director",
+        "weaver",
+        "folder"
+      ]
+    },
+    "SceneEndFailure": {
+      "description": "Why a Scene's end stopped, and at which step.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "step",
+        "reason",
+        "trace_id"
+      ],
+      "properties": {
+        "step": {
+          "$ref": "#/$defs/SceneEndStep"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "trace_id": {
+          "type": "string"
+        }
+      }
+    },
+    "SceneEnd": {
+      "description": "How the Scene's end stands: the step under way, or the one it stopped at; both null when it is done.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "step",
+        "failed"
+      ],
+      "properties": {
+        "step": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/SceneEndStep"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "failed": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/SceneEndFailure"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "Brief": {
+      "description": "What the player wants more of and less of (openspec long-run: The player steers with a brief and reactions).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "more",
+        "less"
+      ],
+      "properties": {
+        "more": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "less": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "BriefRequest": {
+      "description": "Sets the brief, from this moment on the Path.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after",
+        "more",
+        "less"
+      ],
+      "properties": {
+        "after": {
+          "type": "string"
+        },
+        "more": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "less": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "ReactionRequest": {
+      "description": "Reacts to a played Scene, or clears the reaction with null.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after",
+        "scene_number",
+        "reaction"
+      ],
+      "properties": {
+        "after": {
+          "type": "string"
+        },
+        "scene_number": {
+          "type": "integer"
+        },
+        "reaction": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "more",
+            "less",
+            null
+          ]
+        },
+        "note": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "JobHealth": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "job",
+        "calls",
+        "second_model",
+        "failed"
+      ],
+      "properties": {
+        "job": {
+          "$ref": "#/$defs/ModelJob"
+        },
+        "calls": {
+          "type": "integer"
+        },
+        "second_model": {
+          "description": "How often its second model had to step in.",
+          "type": "integer"
+        },
+        "failed": {
+          "description": "How often it failed on both.",
+          "type": "integer"
+        }
+      }
+    },
+    "PaceRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scene_number",
+        "title",
+        "intensity"
+      ],
+      "properties": {
+        "scene_number": {
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        },
+        "intensity": {
+          "type": "integer"
+        }
+      }
+    },
+    "HowItsGoing": {
+      "description": "How the Story's machinery is doing (openspec outside-the-scene: Backstage).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scene_end_seconds",
+        "jobs",
+        "pace",
+        "picks_offered",
+        "picks_taken",
+        "more",
+        "less"
+      ],
+      "properties": {
+        "scene_end_seconds": {
+          "description": "How long the last Scene ends took, newest last.",
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "jobs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/JobHealth"
+          }
+        },
+        "pace": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PaceRow"
+          }
+        },
+        "picks_offered": {
+          "type": "integer"
+        },
+        "picks_taken": {
+          "type": "integer"
+        },
+        "more": {
+          "type": "integer"
+        },
+        "less": {
+          "type": "integer"
+        }
+      }
+    },
+    "NewThingRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "what",
+        "stretch"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "what": {
+          "type": "string"
+        },
+        "stretch": {
+          "description": "Which Stretch brought it: \"This Stretch\", or \"Stretch 3\".",
+          "type": "string"
+        }
+      }
+    },
+    "StretchSceneState": {
+      "description": "played: the player chose it; passed: its time went by without it; ahead: still to come.",
+      "type": "string",
+      "enum": [
+        "played",
+        "passed",
+        "ahead"
+      ]
     }
   }
 }

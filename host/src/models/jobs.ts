@@ -4,7 +4,7 @@ import type { Mac } from "../mac.js";
 import type { ModelChoice } from "../story/state.js";
 
 /** The jobs whose model is the Mac's to choose for every Story. The Actor is each Story's own (docs/adr/0008). */
-export const JOBS = ["writer", "chronicler", "weaver", "director"] as const;
+export const JOBS = ["writer", "chronicler", "weaver", "director", "folder"] as const;
 export type Job = (typeof JOBS)[number];
 
 /** The Writer answers after every Move, before the Reply can start: a fast model keeps that wait short. */
@@ -15,11 +15,19 @@ export const DEFAULT_JOB_MODELS: Record<Job, ModelChoice> = {
   // The Day View waits for the Weaver, so it gets the faster model too.
   weaver: { provider: "claude", model: "claude-sonnet-5-5" },
   // The Director plans the long run, rarely and never in the player's way: the strongest model.
-  director: { provider: "claude", model: "claude-opus-5-5" }
+  director: { provider: "claude", model: "claude-opus-5-5" },
+  folder: { provider: "claude", model: "claude-haiku-4-5-20251001" }
 };
 
+/** A job's second model, tried once when its own fails or runs too long (openspec presence: Nothing fails silently). */
+const SONNET: ModelChoice = { provider: "claude", model: "claude-sonnet-5-5" };
+const SOL: ModelChoice = { provider: "codex", model: "gpt-6.1-sol" };
+export function defaultBackup(choice: ModelChoice): ModelChoice {
+  return choice.provider === "claude" && choice.model === SONNET.model ? SOL : SONNET;
+}
+
 /** models.json: a model per job at the top, as it has always been, and each Story's own Actor under `actors`. */
-type Saved = Partial<Record<Job, ModelChoice>> & { actors?: Record<string, ModelChoice> };
+type Saved = Partial<Record<Job, ModelChoice>> & { actors?: Record<string, ModelChoice>; backups?: Partial<Record<Job | "actor", ModelChoice>> };
 
 const file = (home: string) => join(home, "models.json");
 
@@ -42,6 +50,19 @@ function save(home: string, settings: Saved): void {
 export function jobModels(home: string): Record<Job, ModelChoice> {
   const settings = saved(home);
   return Object.fromEntries(JOBS.map(job => [job, settings[job] ?? DEFAULT_JOB_MODELS[job]])) as Record<Job, ModelChoice>;
+}
+
+/** Each job's second model, from models.json or the default for its model. */
+export function backupModels(home: string): Record<Job | "actor", ModelChoice> {
+  const settings = saved(home);
+  const models = jobModels(home);
+  const backup = (job: Job | "actor", of: ModelChoice) => settings.backups?.[job] ?? defaultBackup(of);
+  return { ...Object.fromEntries(JOBS.map(job => [job, backup(job, models[job])])), actor: settings.backups?.actor ?? SONNET } as Record<Job | "actor", ModelChoice>;
+}
+
+export function setBackupModel(home: string, job: Job | "actor", choice: ModelChoice): void {
+  const settings = saved(home);
+  save(home, { ...settings, backups: { ...(settings.backups ?? {}), [job]: choice } });
 }
 
 export function setJobModel(home: string, job: Job, choice: ModelChoice): void {

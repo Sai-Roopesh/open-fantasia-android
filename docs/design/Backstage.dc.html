@@ -16,7 +16,7 @@ a{color:#B9A4FF;text-decoration:none}a:hover{color:#D6C9FF}
 button{font:inherit;cursor:pointer}
 </style>
 </helmet>
-<div style="width:390px;min-height:1960px;box-sizing:border-box;background:#100E13;color:#EEEAF4;font-family:Manrope,system-ui,sans-serif;display:flex;flex-direction:column">
+<div style="width:390px;min-height:2500px;box-sizing:border-box;background:#100E13;color:#EEEAF4;font-family:Manrope,system-ui,sans-serif;display:flex;flex-direction:column">
   <header style="display:flex;align-items:center;gap:2px;padding:6px 4px;border-bottom:1px solid #24202A">
     <a href="Scene.dc.html" aria-label="Back to the Scene" style="display:flex;align-items:center;justify-content:center;width:44px;height:44px;color:#EEEAF4"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></a>
     <h1 style="flex:1;margin:0;font-family:Literata,Georgia,serif;font-size:20px;font-weight:600">Backstage</h1>
@@ -25,20 +25,58 @@ button{font:inherit;cursor:pointer}
   <main style="display:flex;flex-direction:column;gap:22px;padding:16px 16px 24px">
     <p style="margin:0;padding:12px 14px;border-radius:14px;background:#1C1823;border:1px dashed #4A4256;font-size:13px;line-height:1.5;color:#B3ACC0">Everything Roopesh doesn't know. Nothing here reaches the Scene, the Day View, the World or the Journal.</p>
 
+    <!-- The player's brief (one-truth, long-run: The player steers with a brief and reactions). Edit opens a sheet with
+         two fields, one line each: More of, Less of. -->
+    <section aria-label="Your brief" style="display:flex;flex-direction:column;gap:10px;padding:14px 16px;border-radius:16px;background:#1C1823">
+      <div style="display:flex;align-items:center">
+        <h2 style="flex:1;margin:0;font-size:12px;font-weight:700;letter-spacing:0.1em;color:#8E879C">YOUR BRIEF</h2>
+        <button style="height:32px;padding:0 14px;border-radius:16px;border:0;background:#2A2632;color:#EEEAF4;font-size:13px">Edit</button>
+      </div>
+      <span style="font-size:11px;font-weight:700;letter-spacing:0.08em;color:#63CDB5">MORE OF</span>
+      <span style="font-size:14px;line-height:1.45;color:#E2DDEA">Plots of the Story's own, not the books'</span>
+      <span style="font-size:14px;line-height:1.45;color:#E2DDEA">Danger and mysteries</span>
+      <span style="font-size:14px;line-height:1.45;color:#E2DDEA">Fun, everyday school life</span>
+      <span style="margin-top:4px;font-size:11px;font-weight:700;letter-spacing:0.08em;color:#E9B95C">LESS OF</span>
+      <span style="font-size:14px;line-height:1.45;color:#E2DDEA">Canon events retold</span>
+    </section>
+
+    <!-- How the Story's machinery is doing (one-truth, outside-the-scene: How it's going). -->
+    <section aria-label="How it's going" style="display:flex;flex-direction:column;gap:10px">
+      <h2 style="margin:0;font-size:12px;font-weight:700;letter-spacing:0.1em;color:#8E879C">HOW IT'S GOING</h2>
+      <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">
+        <div style="display:flex;flex-direction:column;gap:2px;padding:12px 14px;border-radius:14px;background:#1C1823;border:1px solid #2E2A36">
+          <span style="font-family:Literata,Georgia,serif;font-size:22px;font-weight:600">2 min 40</span>
+          <span style="font-size:12px;line-height:1.35;color:#B3ACC0">a Scene's end, lately</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:2px;padding:12px 14px;border-radius:14px;background:#1C1823;border:1px solid #2E2A36">
+          <span style="font-family:Literata,Georgia,serif;font-size:22px;font-weight:600">7 of 10</span>
+          <span style="font-size:12px;line-height:1.35;color:#B3ACC0">times you took the Story's pick</span>
+        </div>
+      </div>
+      <!-- The pace of the last ten Scenes, each bar a Scene's intensity, 1 to 5. -->
+      <div role="img" aria-label="Pace of the last ten Scenes" style="display:flex;align-items:flex-end;gap:6px;height:56px;padding:10px 14px;border-radius:14px;background:#1C1823;border:1px solid #2E2A36">
+        <span style="flex:1;height:20%;border-radius:3px;background:#4A4256"></span>
+        <span style="flex:1;height:40%;border-radius:3px;background:#4A4256"></span>
+        <span style="flex:1;height:60%;border-radius:3px;background:#6E5BA6"></span>
+        <span style="flex:1;height:100%;border-radius:3px;background:#B9A4FF"></span>
+        <span style="flex:1;height:20%;border-radius:3px;background:#4A4256"></span>
+        <span style="flex:1;height:60%;border-radius:3px;background:#6E5BA6"></span>
+        <span style="flex:1;height:80%;border-radius:3px;background:#8E7AD6"></span>
+        <span style="flex:1;height:40%;border-radius:3px;background:#4A4256"></span>
+        <span style="flex:1;height:80%;border-radius:3px;background:#8E7AD6"></span>
+        <span style="flex:1;height:100%;border-radius:3px;background:#B9A4FF"></span>
+      </div>
+      <span style="font-size:13px;line-height:1.45;color:#B3ACC0">The Weaver needed its second model twice; nothing failed on both. You said more like this to 3 Scenes, less to 1.</span>
+    </section>
+
+    <!-- Parts of a Scene's record that were left out, for a Scene recorded without them (living-world: One bad part does not lose the Scene). -->
     <section aria-label="The record" style="display:flex;flex-direction:column;gap:10px">
       <h2 style="margin:0;font-size:12px;font-weight:700;letter-spacing:0.1em;color:#8E879C">THE RECORD</h2>
-      <div style="display:flex;flex-direction:column;gap:6px;padding:12px 14px;border-radius:14px;background:#221C17;border:1px solid #5A4526">
-        <div style="display:flex;align-items:center;gap:10px">
-          <span style="flex:1;font-size:14px;font-weight:600;color:#EEEAF4">Scene 13 · A reason, not a list</span>
-          <button style="height:32px;padding:0 14px;border-radius:16px;border:0;background:#2A2632;color:#EEEAF4;font-size:13px">Retry</button>
-        </div>
-        <span style="font-size:13px;line-height:1.45;color:#E9B95C">Not recorded after three tries: the Chronicler could not be reached.</span>
-      </div>
       <div style="display:flex;flex-direction:column;gap:4px;padding:12px 14px;border-radius:14px;background:#1C1823;border:1px solid #2E2A36">
         <span style="font-size:14px;font-weight:600;color:#EEEAF4">Scene 11 · Twenty-nine minutes</span>
-        <span style="font-size:13px;line-height:1.45;color:#B3ACC0">Recorded, without one part: what you know of Draconia came back too long twice, so the earlier line stands.</span>
+        <span style="font-size:13px;line-height:1.45;color:#B3ACC0">Recorded without one Moment: its words were not on the page.</span>
       </div>
-      <span style="font-size:12px;color:#8E879C">Shown only while something is missing. Scene 14 is waiting to be recorded.</span>
+      <span style="font-size:12px;color:#8E879C">Shown only for Scenes recorded with a part left out.</span>
     </section>
 
     <section style="display:flex;flex-direction:column;gap:10px">
@@ -86,6 +124,16 @@ button{font:inherit;cursor:pointer}
           <span style="flex:none;font-size:12px;color:#8E879C">ahead</span>
         </div>
       </div>
+      <!-- Something new each Stretch (one-truth, long-run: Something new every Stretch). -->
+      <h3 style="margin:4px 0 0;font-size:11px;font-weight:700;letter-spacing:0.1em;color:#8E879C">NEW THIS STRETCH</h3>
+      <div style="display:flex;gap:10px;align-items:flex-start">
+        <span style="flex:none;padding:2px 8px;border-radius:8px;background:#2B2342;color:#D6C9FF;font-size:11px;font-weight:700">PERSON</span>
+        <span style="font-size:14px;line-height:1.45;color:#E2DDEA">Ilse Varga, a stranger in Hogsmeade asking about the night train</span>
+      </div>
+      <div style="display:flex;gap:10px;align-items:flex-start">
+        <span style="flex:none;padding:2px 8px;border-radius:8px;background:#30261A;color:#E9B95C;font-size:11px;font-weight:700">MYSTERY</span>
+        <span style="font-size:14px;line-height:1.45;color:#E2DDEA">Someone has been in the trophy room at night</span>
+      </div>
       <h3 style="margin:4px 0 0;font-size:11px;font-weight:700;letter-spacing:0.1em;color:#8E879C">THE LEADS THIS WEEK</h3>
       <div style="display:flex;flex-direction:column;gap:8px">
         <div style="display:flex;flex-direction:column;gap:2px">
@@ -119,7 +167,7 @@ button{font:inherit;cursor:pointer}
   </main>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1960}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":2500}}'>
 class Component extends DCLogic {
   renderVals() { return {}; }
 }

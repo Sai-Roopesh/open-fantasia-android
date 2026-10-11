@@ -9,15 +9,16 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
+import com.openfantasia.protocol.SceneEndFailure
 import com.openfantasia.protocol.SceneView
 import com.openfantasia.protocol.TurnStateKind
-import com.openfantasia.protocol.World
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.mapNotNull
+import kotlinx.coroutines.flow.onEach
 
 /** The app's one link to the Mac, shared by the Activity and the watch. */
 interface LinkHolder { val link: FantasiaLink }
@@ -28,35 +29,51 @@ enum class Watched { Reply, DayView }
 fun FantasiaState.watched(): Watched? {
     val scene = scene ?: return null
     return when {
-        scene.dayView?.world == World.MovingOn -> Watched.DayView
+        scene.dayView?.sceneEnd?.step != null -> Watched.DayView
         replyComing -> Watched.Reply
         else -> null
     }
 }
 
-/** Follows [updates] until what is [watched] is ready (true), fails or gives up (false). */
-suspend fun followUntilDone(updates: Flow<SceneView>, watched: Watched, giveUpAfterMillis: Long = WATCH_FOR_MILLIS): Boolean =
+/**
+ * How a watch ends: what it watched is ready, or a Scene's end stopped at a step, each said once; or quietly, for a
+ * failed Reply, which the app shows when opened, and for giving up.
+ */
+sealed interface WatchEnd {
+    data object Ready : WatchEnd
+    data class Stopped(val failure: SceneEndFailure) : WatchEnd
+    data object Quiet : WatchEnd
+}
+
+/** Follows [updates] until what is [watched] is ready, stops, fails or the watch gives up. */
+suspend fun followUntilDone(updates: Flow<SceneView>, watched: Watched, giveUpAfterMillis: Long = WATCH_FOR_MILLIS): WatchEnd =
     withTimeoutOrNull(giveUpAfterMillis) {
         updates.mapNotNull { view ->
             when (watched) {
                 Watched.Reply -> when {
-                    view.turn.kind == TurnStateKind.Failed -> false
-                    !view.replyComing -> true
+                    view.turn.kind == TurnStateKind.Failed -> WatchEnd.Quiet
+                    !view.replyComing -> WatchEnd.Ready
                     else -> null
                 }
-                Watched.DayView -> when (view.dayView?.world) {
-                    World.MovingOn -> null
-                    World.Ready -> true
-                    else -> false
+                Watched.DayView -> {
+                    val end = view.dayView?.sceneEnd
+                    val failed = end?.failed
+                    when {
+                        end == null -> WatchEnd.Quiet
+                        failed != null -> WatchEnd.Stopped(failed)
+                        end.step == null -> WatchEnd.Ready
+                        else -> null
+                    }
                 }
             }
         }.first()
-    } ?: false
+    } ?: WatchEnd.Quiet
 
 /**
  * A short foreground service that follows one Story while the app is away: a silent note while the Reply is being
- * written or the World moves on, then one notification when it is ready, and it stops. It stops without a sound
- * when the app comes back, after three minutes, or on a failure, which the app shows when opened.
+ * written or the Scene's end runs, naming its step, then one notification when it is ready or when the Scene's end
+ * stopped, and it stops. It stops without a sound when the app comes back, after three minutes, or on a failed Reply,
+ * which the app shows when opened.
  */
 class ReplyWatch : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -70,22 +87,34 @@ class ReplyWatch : Service() {
         if (storyID == null || watched == null) { stopSelf(); return START_NOT_STICKY }
         val title = intent.getStringExtra(TITLE) ?: "Open Fantasia"
         channels(this)
-        val quiet = Notification.Builder(this, WRITING_CHANNEL).setSmallIcon(android.R.drawable.stat_notify_sync)
-            .setContentTitle(title).setContentText(if (watched == Watched.Reply) "The Reply is being written" else "The World is moving on")
-            .setOngoing(true).setContentIntent(opening(storyID)).build()
-        if (Build.VERSION.SDK_INT >= 34) startForeground(WRITING_NOTE, quiet, ServiceInfo.FOREGROUND_SERVICE_TYPE_SHORT_SERVICE)
-        else startForeground(WRITING_NOTE, quiet)
+        fun quiet(text: String) = Notification.Builder(this, WRITING_CHANNEL).setSmallIcon(android.R.drawable.stat_notify_sync)
+            .setContentTitle(title).setContentText(text).setOngoing(true).setContentIntent(opening(storyID)).build()
+        val first = quiet(if (watched == Watched.Reply) "The Reply is being written" else "The Scene is ending")
+        if (Build.VERSION.SDK_INT >= 34) startForeground(WRITING_NOTE, first, ServiceInfo.FOREGROUND_SERVICE_TYPE_SHORT_SERVICE)
+        else startForeground(WRITING_NOTE, first)
         following?.cancel()
         following = scope.launch {
-            val ready = try {
+            val notes = getSystemService(NotificationManager::class.java)
+            var step: com.openfantasia.protocol.SceneEndStep? = null
+            val end = try {
                 val link = (application as LinkHolder).link
                 val initial = link.scene(storyID)
-                followUntilDone(flow { emit(initial); emitAll(link.watch(initial)) }, watched)
+                followUntilDone(flow { emit(initial); emitAll(link.watch(initial)) }.onEach { view ->
+                    // The quiet note names the step under way, as the Day View's line does.
+                    view.dayView?.sceneEnd?.step?.takeIf { watched == Watched.DayView && it != step }?.let {
+                        step = it
+                        notes.notify(WRITING_NOTE, quiet(sceneEndStepLine(it, underWay = true)))
+                    }
+                }, watched)
             } catch (e: CancellationException) { throw e
-            } catch (_: Exception) { false }
-            finish(if (!ready) null else Notification.Builder(this@ReplyWatch, READY_CHANNEL).setSmallIcon(android.R.drawable.stat_notify_chat)
-                .setContentTitle(title).setContentText(if (watched == Watched.Reply) "The Reply is ready" else "The Day View is ready")
-                .setAutoCancel(true).setContentIntent(opening(storyID)).build())
+            } catch (_: Exception) { WatchEnd.Quiet }
+            val text = when (end) {
+                WatchEnd.Quiet -> null
+                is WatchEnd.Stopped -> sceneEndFailureTitle(end.failure.step)
+                WatchEnd.Ready -> if (watched == Watched.Reply) "The Reply is ready" else "The Day View is ready"
+            }
+            finish(text?.let { Notification.Builder(this@ReplyWatch, READY_CHANNEL).setSmallIcon(android.R.drawable.stat_notify_chat)
+                .setContentTitle(title).setContentText(it).setAutoCancel(true).setContentIntent(opening(storyID)).build() })
         }
         return START_NOT_STICKY
     }
@@ -132,7 +161,7 @@ class ReplyWatch : Service() {
 
         private fun channels(context: Context) {
             val manager = context.getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(NotificationChannel(WRITING_CHANNEL, "While a Reply is written", NotificationManager.IMPORTANCE_LOW))
+            manager.createNotificationChannel(NotificationChannel(WRITING_CHANNEL, "While a Reply is written or a Scene ends", NotificationManager.IMPORTANCE_LOW))
             manager.createNotificationChannel(NotificationChannel(READY_CHANNEL, "A Reply or Day View is ready", NotificationManager.IMPORTANCE_DEFAULT))
         }
     }

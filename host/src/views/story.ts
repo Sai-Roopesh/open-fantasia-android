@@ -2,7 +2,6 @@ import { LinkError } from "../link/errors.js";
 import type { Mac } from "../mac.js";
 import type { StoryLandmark, StoryView } from "../protocol/generated/link.js";
 import { passed, worldStands } from "../engine/story.js";
-import { worldOn } from "../story/world.js";
 import { minutesOf, parseStoryTime } from "../time.js";
 import { countdown, say } from "./scene.js";
 
@@ -15,7 +14,7 @@ export function storyView(mac: Mac, storyId: string, traceId: string): StoryView
   if (!path) throw new LinkError("not_found", "That Story is not on this Mac.");
   const head = path.headEntryId;
   const state = mac.states.at(head);
-  const stands = worldStands(state, worldOn(mac, head).until);
+  const stands = worldStands(state, state.clock);
   const now = parseStoryTime(state.clock);
   const landmarks: (StoryLandmark & { minutes: number })[] = state.landmarks.map(landmark => {
     const at = parseStoryTime(landmark.at);

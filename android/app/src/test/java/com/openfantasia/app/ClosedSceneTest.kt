@@ -13,7 +13,7 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ClosedSceneTest {
-    // The Scene view the Mac sent on 5 October 2026 after the Story closed the Night Train's first Scene.
+    // The Scene view the Mac sent on 5 October 2026 after the Story closed the Night Train's first Scene, in contract 21's shape.
     private val closedScene = javaClass.getResource("/closed-scene-view.json")!!.readText()
 
     @Test fun `opening a Story whose Scene has closed shows its Day View`() = runTest {

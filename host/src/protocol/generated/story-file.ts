@@ -49,6 +49,17 @@ export interface StoryFile {
    */
   threads?: ThreadSetup[];
   opening: OpeningSetup;
+  /**
+   * The Story's daily routine, a line each: when lectures, meals and the like are, for the Director and the World to build on and break.
+   */
+  routine?: string[];
+  /**
+   * What the player wants more of and less of in the Story; the Director plans every Stretch from it.
+   */
+  brief?: {
+    more?: string[];
+    less?: string[];
+  };
 }
 /**
  * This interface was referenced by `StoryFile`'s JSON-Schema

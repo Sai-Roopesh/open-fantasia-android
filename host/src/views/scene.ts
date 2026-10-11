@@ -1,10 +1,11 @@
 import type { Countdown, DayView, Exchange, NextScene, PastScene, Previously, SceneCard, SceneView, StoryEvent } from "../protocol/generated/link.js";
 import { dayChoicesOf, todayOn } from "../story/day.js";
+import type { SceneEnd } from "../protocol/generated/link.js";
 import type { Engine } from "../engine/engine.js";
 import { LinkError } from "../link/errors.js";
 import type { Mac } from "../mac.js";
 import { lastPlayed } from "../story/played.js";
-import type { Chronicle, Entry, WorldMoved } from "../story/entries.js";
+import type { Entry } from "../story/entries.js";
 import { sceneSpans } from "../story/spans.js";
 import type { State } from "../story/state.js";
 import { minutesOf, parseStoryTime, sayDay, sayStoryTime, sayTime, type StoryTime } from "../time.js";
@@ -24,14 +25,16 @@ export function say(state: State, at: string): string {
 
 /**
  * The Move at the Day View that is opening the next Scene, while the Scene has not opened yet: the entries on [path]
- * after the closed Scene's `scene_closed`, from that Move on (openspec presence: Between Scenes is quiet). Null when
- * the Scene at [state] is open, or closed with nothing after it but the Day View.
+ * from the first Move after the closed Scene's `scene_closed` and its end's entries (openspec presence: Between Scenes
+ * is quiet). Null when the Scene at [state] is open, or closed with nothing after it but the Day View.
  */
 export function openingEntries(state: State, path: Entry[]): Entry[] | null {
   if (!state.scene?.closed) return null;
   const closedAt = path.findLastIndex(entry => entry.payload.kind === "scene_closed");
-  const after = path.slice(closedAt + 1);
-  return closedAt >= 0 && after[0]?.payload.kind === "move" ? after : null;
+  // A Move that left the Scene goes straight into the next: no Day View, only that Move while the Scene ends.
+  if (state.scene.closed === "move" && path[closedAt - 1]?.payload.kind === "move") return path.slice(closedAt - 1);
+  const move = path.findIndex((entry, index) => index > closedAt && entry.payload.kind === "move");
+  return closedAt >= 0 && move >= 0 ? path.slice(move) : null;
 }
 
 /** The card for the next Scene while it is being written: when it is, when the Move's choice set a time. */
@@ -73,7 +76,7 @@ export function countdown(now: StoryTime, at: StoryTime, name: string): Countdow
  * record for this Scene's end exists, then ready with what the Player Character learned meanwhile, or failed with why
  * (openspec presence: Between Scenes is quiet, and shows progress).
  */
-export function dayView(mac: Mac, state: State, head: string, failure: { reason: string; traceId: string } | null = null): DayView {
+export function dayView(state: State, sceneEnd: SceneEnd = { step: null, failed: null }): DayView {
   if (!state.scene?.closed) throw new Error("The Day View opens once a Scene has closed");
   const now = parseStoryTime(state.clock);
   const countdowns: Countdown[] = now === null ? [] : state.landmarks
@@ -84,27 +87,23 @@ export function dayView(mac: Mac, state: State, head: string, failure: { reason:
     .sort((left, right) => minutesOf(left.at) - minutesOf(right.at))
     .slice(0, COUNTDOWNS)
     .map(({ landmark, at }) => countdown(now, at, landmark.name));
+  const number = state.scene.number;
+  const ready = state.scene.ended.includes("weaver") && sceneEnd.step === null && sceneEnd.failed === null;
   return {
     at: state.clock,
     at_label: say(state, state.clock),
     day: now ? sayDay(now, state.dayOneWeekday) : state.clock,
     time: now ? sayTime(now) : "",
     place: state.scene.place,
-    closed_by: state.scene.closed,
+    closed_by: state.scene.closed === "story" ? "story" : "player",
     countdowns,
     scene_span: sceneSpan(state, state.scene.at, state.scene.endedAt ?? state.clock),
-    ...worldOfDay(mac, head, state.scene.openedBy, failure),
-    happenings: todayOn(mac, head, state),
+    scene_end: sceneEnd,
+    reaction: state.reactions.find(item => item.scene === number)?.reaction ?? null,
+    meanwhile: state.meanwhile.filter(line => line.scene === number && !line.gap).map(line => ({ text: line.text, how: line.how })),
+    happenings: ready ? todayOn(state) : [],
     choices: dayChoicesOf(state)
   };
-}
-
-
-function worldOfDay(mac: Mac, head: string, scene: string, failure: { reason: string; traceId: string } | null): Pick<DayView, "world" | "meanwhile" | "failure"> {
-  const record = mac.tree.recordsOn(head, "world_moved").map(entry => entry.payload as WorldMoved).find(moved => moved.scene === scene);
-  if (record) return { world: "ready", meanwhile: record.meanwhile.map(item => ({ text: item.text, how: item.how })), failure: null };
-  if (failure) return { world: "failed", meanwhile: [], failure: { reason: failure.reason, trace_id: failure.traceId } };
-  return { world: "moving_on", meanwhile: [], failure: null };
 }
 
 /** When a Scene ran, as people say it: "Friday 9:40 pm – 11:05 pm", naming the day again if it ended on another. */
@@ -153,13 +152,14 @@ export function sceneView(mac: Mac, engine: Engine, storyId: string, traceId: st
     player_character: state.playerCharacter,
     focus: scene.focus,
     linger: scene.linger,
-    day_view: scene.closed && !opening ? dayView(mac, state, path.headEntryId, engine.worldFailure(storyId, scene.openedBy)) : null,
+    day_view: scene.closed && !opening ? dayView(state, engine.sceneEndOf(storyId)) : null,
+    brief: state.brief,
     earlier_scenes: all.flatMap(entry => entry.payload.kind === "scene_opened" && (opening || entry.id !== scene.openedBy)
       ? [{ number: entry.payload.number, title: entry.payload.title, summary: summaries.get(entry.id) ?? "" }]
       : []),
     exchanges: exchanges(opening ?? entries),
     turn: engine.turnState(storyId),
-    previously: previously(mac, path.headEntryId, scene.openedBy, summaries, now),
+    previously: previously(mac, path.headEntryId, state, summaries, now),
     opening: opening?.[0] ? nextScene(state, opening[0]) : null,
     trace_id: traceId
   };
@@ -169,24 +169,29 @@ export function sceneView(mac: Mac, engine: Engine, storyId: string, traceId: st
 const AWAY_MS = 24 * 60 * 60 * 1000;
 
 /**
- * The Previously card, when the player last played more than a day before [now]: the latest summary of the Scene they
- * are in, or of the Scene that closed when they are at the Day View. A Scene with no summary yet has no card, rather
- * than an earlier Scene's words passed off as its own; the Mac writes one an hour after the player steps away.
+ * The Previously card, when the player last played more than a day before [now]: at the Day View, the Chronicler's
+ * line for the Scene that closed; mid-Scene, the Story So Far's newest paragraph and where this Scene stands, all
+ * from what the Story keeps, so opening never waits.
  */
-function previously(mac: Mac, head: string, scene: string, summaries: Map<string, string>, now: Date): Previously | null {
+function previously(mac: Mac, head: string, state: State, summaries: Map<string, string>, now: Date): Previously | null {
   const since = lastPlayed(mac, head);
-  if (!since || now.getTime() - Date.parse(since) <= AWAY_MS) return null;
-  const summary = summaries.get(scene);
-  return summary ? { summary, since } : null;
+  const scene = state.scene;
+  if (!since || !scene || now.getTime() - Date.parse(since) <= AWAY_MS) return null;
+  if (scene.closed) {
+    const summary = summaries.get(scene.openedBy);
+    return summary ? { summary, since } : null;
+  }
+  const before = state.storySoFar.scenes.at(-1)?.text;
+  const with_ = scene.met.filter(name => name !== state.playerCharacter);
+  const now_ = `Now: ${scene.title}, ${scene.place}${with_.length ? `, with ${with_.join(", ")}` : ""}.`;
+  return { summary: before ? `${before}\n\n${now_}` : now_, since };
 }
 
-/** The Chronicler's summary of each Scene on the Path at [head] that has one, by the Scene's opening entry. */
+/** The Chronicler's line for each Scene on the Path at [head], by the Scene's opening entry. */
 export function summariesOn(mac: Mac, head: string): Map<string, string> {
-  // Chronicles come oldest first, so each Scene keeps its latest: what happened in it once it has ended.
-  return new Map(mac.tree.recordsOn(head, "chronicle").flatMap(entry => {
-    const chronicle = entry.payload as Chronicle;
-    return chronicle.summary ? [[chronicle.scene, chronicle.summary] as const] : [];
-  }));
+  const state = mac.states.at(head);
+  const lines = new Map(state.recorded.map(row => [row.number, row.summary]));
+  return new Map(mac.tree.pathTo(head).flatMap(entry => (entry.payload.kind === "scene_opened" && lines.has(entry.payload.number) ? [[entry.id, lines.get(entry.payload.number) ?? ""] as const] : [])));
 }
 
 /** An earlier Scene on the Story's current Path, in full, for reading back (openspec scenes: Scrolling back). */
@@ -241,7 +246,7 @@ export function entryEvent(mac: Mac, storyId: string, entry: Entry): StoryEvent 
     case "reply":
       return { kind: "reply", seq: entry.seq, passage: { entry_id: entry.id, text: payload.text }, scene: sceneCard(storyId, mac.states.at(entry.id)) };
     case "scene_closed":
-      return { kind: "scene_closed", seq: entry.seq, day_view: dayView(mac, mac.states.at(entry.id), entry.id) };
+      return { kind: "scene_closed", seq: entry.seq, day_view: dayView(mac.states.at(entry.id), { step: "chronicler", failed: null }) };
     case "focus_set":
       return { kind: "focus_set", seq: entry.seq, focus: payload.on };
     case "linger_set":
@@ -264,12 +269,16 @@ export function entryEvent(mac: Mac, storyId: string, entry: Entry): StoryEvent 
     case "place_set":
     case "world_set":
     case "clock_set":
+    case "brief_set":
+    case "routine_set":
+    case "reaction_set":
       return { kind: "path_changed", seq: entry.seq };
+    case "world_moved":
+      return payload.gap ? null : { kind: "world_moved", seq: entry.seq };
     case "beat_note":
     case "chronicle":
-    case "world_moved":
     case "director_plan":
-    case "record_gap":
+    case "story_folded":
     case "story_set_up":
       return null;
   }

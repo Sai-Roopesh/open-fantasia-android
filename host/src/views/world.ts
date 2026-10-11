@@ -1,9 +1,8 @@
 import { LinkError } from "../link/errors.js";
 import type { Mac } from "../mac.js";
 import type { Between, CalendarItem, WorldPerson, WorldPlace, WorldView } from "../protocol/generated/link.js";
-import { type Bond, bondsOn } from "../story/bonds.js";
-import { onAhead } from "../story/day.js";
-import { heardOn, knownOn } from "../story/known.js";
+import { engagementsAhead } from "../story/day.js";
+import type { Bond, State } from "../story/state.js";
 import { samePlace } from "../story/places.js";
 import { minutesOf, parseStoryTime } from "../time.js";
 import { countdown, portraitUrl, say } from "./scene.js";
@@ -24,9 +23,9 @@ export function worldView(mac: Mac, storyId: string, traceId: string): WorldView
   if (!path) throw new LinkError("not_found", "That Story is not on this Mac.");
   const head = path.headEntryId;
   const state = mac.states.at(head);
-  const known = knownOn(mac, head);
-  const heard = heardOn(mac, head);
-  const bonds = bondsOn(mac, head);
+  const known = new Map(Object.entries(state.known));
+  const heard = heardOf(state);
+  const bonds = new Map(Object.entries(state.bonds));
   const pc = state.playerCharacter;
 
   const person = (name: string): WorldPerson | null => {
@@ -62,12 +61,21 @@ export function worldView(mac: Mac, storyId: string, traceId: string): WorldView
       const at = parseStoryTime(landmark.at);
       if (at && minutesOf(at) >= minutesOf(now)) ahead.push({ kind: "landmark", name: landmark.name, what: landmark.what, at_label: say(state, landmark.at), when: countdown(now, at, landmark.name).when, minutes: minutesOf(at) });
     }
-    for (const happening of onAhead(mac, head, state.clock)) {
-      const at = parseStoryTime(happening.at);
-      if (at) ahead.push({ kind: "happening", name: happening.place, what: happening.what, at_label: say(state, happening.at), when: countdown(now, at, happening.place).when, minutes: minutesOf(at) });
+    for (const { engagement, next } of engagementsAhead(state)) {
+      const at = parseStoryTime(next);
+      if (at) ahead.push({ kind: "happening", name: engagement.place, what: engagement.what, at_label: say(state, next), when: countdown(now, at, engagement.place).when, minutes: minutesOf(at) });
     }
   }
   const calendar: CalendarItem[] = ahead.sort((left, right) => left.minutes - right.minutes).map(({ minutes: _minutes, ...item }) => item);
 
   return { story_id: storyId, people, places, calendar, trace_id: traceId };
+}
+
+/** What he has heard of each person: every line of Meanwhile about them, newest first. */
+function heardOf(state: State): Map<string, { text: string; how: "seen" | "told" | "rumour" }[]> {
+  const heard = new Map<string, { text: string; how: "seen" | "told" | "rumour" }[]>();
+  for (const line of [...state.meanwhile].reverse()) {
+    for (const name of line.about) heard.set(name, [...(heard.get(name) ?? []), { text: line.text, how: line.how }]);
+  }
+  return heard;
 }

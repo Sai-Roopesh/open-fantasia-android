@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { readPayload, RECORD_KINDS, type Entry, type Payload, type RecordKind, type StoredPayload } from "../story/entries.js";
+import type { Entry, Payload } from "../story/entries.js";
 import type { Db } from "./db.js";
 
 interface EntryRow {
@@ -47,7 +47,7 @@ export interface StoryPath {
 }
 
 function toEntry(row: EntryRow): Entry {
-  return { seq: row.seq, id: row.id, storyId: row.story_id, parentId: row.parent_id, payload: readPayload(JSON.parse(row.payload) as StoredPayload), createdAt: row.created_at };
+  return { seq: row.seq, id: row.id, storyId: row.story_id, parentId: row.parent_id, payload: JSON.parse(row.payload) as Payload, createdAt: row.created_at };
 }
 
 function toPath(row: PathRow): StoryPath {
@@ -86,30 +86,6 @@ export class Tree {
       )
       SELECT entries.* FROM entries JOIN path ON path.id = entries.id ORDER BY path.depth DESC
     `).all(headId) as EntryRow[];
-    return rows.map(toEntry);
-  }
-
-  /**
-   * The records of [kind] a Path sees: those whose parent is on the Path from the root to [headId], in Path order
-   * (docs/adr/0007). They hang off the Path, so walking it never meets one.
-   */
-  /** The background records hanging off [entryId] itself, oldest first. */
-  recordsOf(entryId: string): Entry[] {
-    const rows = this.db.prepare(`SELECT * FROM entries WHERE parent_id = ? AND kind IN (${RECORD_KINDS.map(() => "?").join(", ")}) ORDER BY seq`).all(entryId, ...RECORD_KINDS) as EntryRow[];
-    return rows.map(toEntry);
-  }
-
-  recordsOn(headId: string, kind: RecordKind): Entry[] {
-    const rows = this.db.prepare(`
-      WITH RECURSIVE path(id, parent_id, depth) AS (
-        SELECT id, parent_id, 0 FROM entries WHERE id = ?
-        UNION ALL
-        SELECT e.id, e.parent_id, path.depth + 1 FROM entries e JOIN path ON path.parent_id = e.id
-      )
-      SELECT c.* FROM entries c JOIN path ON c.parent_id = path.id
-      WHERE c.kind = ?
-      ORDER BY path.depth DESC, c.seq
-    `).all(headId, kind) as EntryRow[];
     return rows.map(toEntry);
   }
 

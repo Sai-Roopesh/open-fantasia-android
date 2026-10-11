@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { BackstageView, WorldView } from "../../src/protocol/generated/link.js";
 import { runningMac } from "../support/link.js";
+import { playable } from "../support/play.js";
+import { served } from "./served.js";
 
 const closers: (() => Promise<unknown>)[] = [];
 afterEach(async () => {
@@ -20,24 +22,18 @@ describe("the World screen over the link", () => {
   });
 });
 
-describe("The record over the link (lasting-records design decision 7)", () => {
-  it("is on GET /stories/{id}/backstage, and POST /stories/{id}/record/retry tries a Scene given up once more", async () => {
-    const running = await runningMac();
-    closers.push(running.close);
-    const { mac, storyId, call } = running;
-    const head = mac.tree.currentPath(storyId)!.headEntryId;
-    const scene = mac.tree.pathTo(head).find(entry => entry.payload.kind === "scene_opened")!;
-    // The opening Scene's record was given up after three tries.
-    mac.tree.append(storyId, head, { kind: "record_gap", scene: scene.id, attempts: 3, reason: "Sonnet is overloaded", endedScenes: 0, givenUp: true });
-    const backstage = await (await call(`/stories/${storyId}/backstage`)).json() as BackstageView;
-    expect(backstage.record).toEqual([{ scene_number: 1, scene_title: expect.any(String), state: "given_up", reason: "Sonnet is overloaded", dropped: [] }]);
-
-    const bad = await call(`/stories/${storyId}/record/retry`, { method: "POST", body: JSON.stringify({ after: head }) });
-    expect(bad.status).toBe(400);
-    const stale = await call(`/stories/${storyId}/record/retry`, { method: "POST", body: JSON.stringify({ after: "an-old-head", scene_number: 1 }) });
-    expect(stale.status).toBe(409);
-    const retried = await call(`/stories/${storyId}/record/retry`, { method: "POST", body: JSON.stringify({ after: head, scene_number: 1 }) });
-    expect(retried.status).toBe(200);
-    expect(mac.tree.recordsOn(head, "record_gap").map(entry => entry.payload).at(-1)).toMatchObject({ attempts: 0, givenUp: false });
+describe("The record over the link", () => {
+  it("is on GET /stories/{id}/backstage: each Scene recorded with a part left out, and why", async () => {
+    // The Chronicler quotes words that are not on the page, so that Moment is left out of the record.
+    const recorded = { summary: "They said goodnight.", paragraph: "He said goodnight in the common room.", moments: [{ what: "Hermione promised to help.", quotes: [{ entry: "P2", text: "I promise I will help you." }], there: ["Hermione Granger"], weight: 3 }], told: [], known: [], bonds: [], engagements: [], changed: [] };
+    const story = await served(playable(undefined, { chronicler: [{ answer: JSON.stringify(recorded) }] }));
+    closers.push(story.close);
+    const { call, storyId, engine, play, head } = story;
+    const backstage = async () => await (await call(`/stories/${storyId}/backstage`)).json() as BackstageView;
+    expect((await backstage()).record).toEqual([]);
+    await play("I say goodnight.");
+    engine.endScene(storyId, head(), "end");
+    await engine.ended(storyId);
+    expect((await backstage()).record).toEqual([{ scene_number: 1, scene_title: "After curfew", dropped: expect.arrayContaining(["moments[0]: none of its words are on the page"]) }]);
   });
 });

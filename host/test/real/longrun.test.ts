@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { Engine } from "../../src/engine/engine.js";
-import { currentPlan } from "../../src/engine/directing.js";
 import { ClaudeRunner } from "../../src/models/claude.js";
 import { fakeWeaveAnswer } from "../../src/models/fake.js";
 import { Models, type ModelRunner } from "../../src/models/model-call.js";
@@ -11,8 +10,8 @@ import { freshHome } from "../support/host.js";
 import { malfoyProblemStoryFile, writeStoryFile } from "../support/story-files.js";
 
 // The long run, played as Scene openings: the real Writer frames each Scene from an open Move at the Day View, and the
-// real Director plans between them; the Actor, the Chronicler and the Weaver are scripted, and a Scene's record is
-// its purpose (the-director design decision 7). A judge reads what came of it. They run only with `npm run test:real`:
+// real Director plans between them; the Actor, the Chronicler and the Weaver are scripted, and a Scene's record (its
+// line and its paragraph of The Story So Far) is its purpose (the-director design decision 7). A judge reads what came of it. They run only with `npm run test:real`:
 // each plays many Scenes, spends quota and takes minutes.
 const token = readSecret(CLAUDE_TOKEN);
 const OPEN_MOVES = ["The next day.", "Later that week.", "The following morning.", "That evening.", "A few days later."];
@@ -32,7 +31,8 @@ async function season(count: number): Promise<{ scenes: Played[]; arcNow: string
     // What the Chronicler says of a Scene is what the Writer framed it for.
     chronicler: new ScriptedRunner([], () => {
       const scene = mac.states.at(head()).scene;
-      return { answer: JSON.stringify({ summary: `${scene?.title ?? "A Scene"}: ${scene?.purpose ?? "it passed"}`, moments: [], told: [] }) };
+      const said = `${scene?.title ?? "A Scene"}: ${scene?.purpose ?? "it passed"}`;
+      return { answer: JSON.stringify({ summary: said, paragraph: said, moments: [], told: [], known: [], bonds: [], engagements: [], changed: [] }) };
     }),
     weaver: new ScriptedRunner([], fakeWeaveAnswer)
   };
@@ -46,9 +46,11 @@ async function season(count: number): Promise<{ scenes: Played[]; arcNow: string
       if (!scene?.purpose) throw new Error(`Scene ${index + 1} was not framed: ${JSON.stringify(engine.turnState(storyId))}`);
       scenes.push({ title: scene.title, purpose: scene.purpose });
       engine.endScene(storyId, head(), `season-end-${index}`);
-      await engine.directed(storyId);
+      await engine.ended(storyId);
+      const failed = engine.sceneEndOf(storyId).failed;
+      if (failed) throw new Error(`Scene ${index + 1}'s end stopped at the ${failed.step}: ${failed.reason}`);
     }
-    return { scenes, arcNow: currentPlan(mac, head())?.entry.payload.arcs[0]?.now ?? null };
+    return { scenes, arcNow: mac.states.at(head()).plan?.arcs[0]?.now ?? null };
   } finally {
     claude.close();
   }

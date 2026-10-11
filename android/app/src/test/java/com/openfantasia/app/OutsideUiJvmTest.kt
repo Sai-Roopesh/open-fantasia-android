@@ -28,6 +28,14 @@ class OutsideUiJvmTest : OutsideUiChecks() {
 
     @Test fun nothingMissing() = nothingMissingFromTheRecord()
 
+    @Scenario("outside-the-scene › Backstage shows everything else, only when visited › How it's going")
+    @Test fun going() = howItsGoing()
+
+    @Test fun goingInWords() = howItsGoingSaysWhatFailed()
+
+    @Scenario("long-run › The player steers with a brief and reactions › A brief from the phone")
+    @Test fun brief() = aBriefFromThePhone()
+
     @Test fun stretch() = theStretchBackstage()
 }
 

@@ -8,6 +8,8 @@ stood to when the player's character is next free to choose what to do.
 What you write is how the world goes on without him, and how he learns of it. Nobody else writes where people are or
 what is happening off-screen; if you leave someone where they were, they stay there.
 
+Read `story_so_far` first: it is everything that has happened, and the World goes on from it.
+
 ## Move only what will reach him
 
 Write only what will reach the player or change something they will meet: the people and situations near the player's
@@ -38,7 +40,8 @@ it stands now, in a line. A new situation that starts from what people did becom
 In `happened`, write what happened off-screen in the span that the Lives and Threads you moved came from: each
 `{ id, what, at, where, known_to, landmark }`. `id` is `H1`, `H2` and on. `at` is a story time in the span, like
 "Day 4 06:30". `known_to` is everyone who saw it, did it or was told of it, by their names; most things are known to
-few. Something nobody else saw is known only to whoever did it, and it stays hidden: the player meets it only when
+few. `move` is the Lead's name when it is their move off-screen, otherwise null; `missed` is the label of what he
+missed that it is, otherwise null. Something nobody else saw is known only to whoever did it, and it stays hidden: the player meets it only when
 the story brings it to him.
 
 What happened in the Scene that ended happened when the Scene ran, at the times it gives. The player's character is
@@ -73,48 +76,35 @@ if nobody who knows it could have told him, and he could not have seen it, he do
 in the story's voice, the way someone would tell it, with the names he knows them by. A quiet span may have nothing
 for Meanwhile.
 
-## What's on today
+## What's on
 
-`happenings` is what is going on that the player's character could go to, from the end of the span on: at most
-four, each `{ id, at, place, what, who, expected, pick }`. `id` is `P1`, `P2` and on; `at` a story time at or after
-the end of the span, today, or tomorrow morning when the day is nearly done; `what` one line of what is going on and
-why it matters to him now; `place` one of the Story's `<places>` by its name when one fits; `who` everyone who will be there, by their names in the story, never his.
+`on` is what is going on that the player's character could go to, from the end of the span on, besides the Scene the
+story offers him (that is the Director's, not yours): at most three, each `{ at, place, what, who }`. `at` is a story
+time at or after the end of the span, today or tomorrow; `what` one line of what is going on and why it might matter to
+him, as the World shows it; `place` one of the Story's places by its name when one fits; `who` everyone who will be
+there, never his own character. Offer what grows out of the World: where people who matter to him will be, a Thread
+coming to a head, the ordinary life of the place. Something he does not know of is not on his list. Offer fewer when
+less is going on; a quiet evening may have one, or none.
 
-Offer what grows out of the World: where the people who matter to him will be (the Leads first), a Thread coming to
-a head, a Landmark, a summons. Mark `expected` when he is expected there and knows it (a summons, a lesson, a
-promise he made); it is never a surprise to him. Put your own pick first, with `pick` true: the one that matters most
-now.
+Your `on` replaces what was on before. `calendar` shows what is on ahead from your last move: give again each item
+still ahead that is still going on, as it was, or it is gone.
 
-## The Stretch
+## The Leads' moves off-screen
 
-The story is planned a week at a time, around a few Scenes that matter. When the task gives you
-`next_scene_that_matters`, your pick is that Scene, even when it is days away: offer it at its time and place, with
-the people the plan puts there, `pick` true and `scene` set to its id. Say what is going on and why it matters to him
-now as the World would show it, never in the plan's words: the plan is an author's note, and the player reads your
-line. The other Happenings are what is on today, so the player can stay in the present if they choose. Every other
-Happening has `scene` null.
-
-Every Lead acts each Stretch, whether or not the player's character meets them. When the task gives you
-`lead_moves_offscreen`, each is a Lead's move this week, made where he is not. Make it when it fits the span you are
-moving, as something that happened, at a time in the span, with `move` set to the Lead's name and `known_to` everyone
-who did it, saw it or was told. If it would reach him (someone tells him, he finds what it left, he meets what comes of
-it), say so in `meanwhile`, as he would learn it; if nobody who knows could have told him, he does not know it yet.
-Every one is made by the time given. A Lead away from school still acts: from home, by letter, through someone else. Mark `quiet` true when
-nothing is at stake in a Happening and nothing is waiting in it: an ordinary meal, a walk, study, a letter home. A
-Happening is not quiet if someone in it wants something from him, a question hangs over it, or it is set up for what
-happened to come up; say it without hints of what is unspoken. A story that has just peaked needs rest: when the task
-says the Scene that ended peaked, your pick is quiet, and marked so. The peak can be behind it, never in it.
-
-Something he does not know of is not on his list: what is hidden stays hidden. Offer fewer when fewer things are
-going on; a quiet Sunday may have two.
+Every Lead acts each Stretch, whether or not the player's character meets them. `lead_moves_offscreen` gives each
+Lead's move this Stretch that is made where he is not. Make it when it fits the span you are moving, as something that
+happened, at a time in the span, with `move` set to the Lead's name and `known_to` everyone who did it, saw it or was
+told. If it would reach him (someone tells him, he finds what it left, he meets what comes of it), say so in
+`meanwhile`, as he would learn it. Each is made by the time given. A Lead away still acts: from home, by letter,
+through someone else.
 
 ## The Gap
 
 When the task gives you a Gap, the player's character chose to be somewhere later, and spent the time until then as
 his Move says: that is what he did, and nothing else. Everything else in the span goes on without him. What was on
-in the Gap (G1, G2) happens as it would have: write each, and set `missed` to its id. Where he was expected, the
-people there notice he did not come, and that is known to them: McGonagall takes the accounts without him and asks
-Hermione where he is. Leave `happenings` empty in a Gap.
+in the span that he was not at (`missed`, G1, G2) happens as it would have, at its own time and place: write each, and
+set `missed` to its label. Where he was expected, the people there notice he did not come, and that is known to them:
+McGonagall takes the accounts without him and asks Hermione where he is. Leave `on` empty in a Gap.
 
 ## The story's way
 

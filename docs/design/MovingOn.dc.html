@@ -23,10 +23,17 @@ button{font:inherit;cursor:pointer}
   </header>
 
   <main style="flex:1;display:flex;flex-direction:column;gap:18px;padding:18px 16px">
+    <!-- The Scene that ended, with the player's reaction (one-truth: The player steers with a brief and reactions). -->
     <section style="display:flex;flex-direction:column;gap:6px;padding:14px 16px;border-radius:16px;background:#1A1720;border:1px solid #2A2632">
       <span style="font-size:11px;font-weight:700;letter-spacing:0.12em;color:#8E879C">SCENE 14 · ENDED</span>
       <span style="font-family:Literata,Georgia,serif;font-size:18px;font-weight:600">After curfew</span>
       <span style="font-size:13px;color:#B3ACC0">Friday 9:40 pm – 11:05 pm · The Gryffindor common room</span>
+      <div role="group" aria-label="Your reaction" style="display:flex;gap:8px;margin-top:8px">
+        <button aria-pressed="true" style="display:flex;align-items:center;gap:6px;height:36px;padding:0 14px;border-radius:18px;border:1px solid #7552DD;background:#2B2342;color:#D6C9FF;font-size:13px;font-weight:600">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>More like this</button>
+        <button aria-pressed="false" style="display:flex;align-items:center;gap:6px;height:36px;padding:0 14px;border-radius:18px;border:1px solid #3A3544;background:none;color:#B3ACC0;font-size:13px">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14"></path></svg>Less like this</button>
+      </div>
     </section>
 
     <div style="display:flex;flex-direction:column;gap:2px">
@@ -34,10 +41,18 @@ button{font:inherit;cursor:pointer}
       <span style="font-size:14px;color:#B3ACC0">7:10 am · you're in Gryffindor Tower</span>
     </div>
 
-    <div role="status" style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:14px;background:#1E1B24;font-size:14px;color:#E2DDEA">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#B9A4FF" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.2-8.6"></path></svg>
-      Recording the Scene. The World is moving on.
-    </div>
+    <!-- The Scene's end, step by step (one-truth: one queue per Story, docs/adr/0016). The Folder's row shows only when it runs. -->
+    <ol role="status" aria-label="The Scene's end" style="margin:0;padding:12px 14px;list-style:none;display:flex;flex-direction:column;gap:10px;border-radius:14px;background:#1E1B24;font-size:14px">
+      <li style="display:flex;align-items:center;gap:10px;color:#8E879C">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#63CDB5" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-10"></path></svg>
+        The Scene is recorded</li>
+      <li style="display:flex;align-items:center;gap:10px;color:#E2DDEA">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#B9A4FF" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.2-8.6"></path></svg>
+        The Director is planning the days ahead</li>
+      <li style="display:flex;align-items:center;gap:10px;color:#6E6879">
+        <span style="width:18px;height:18px;display:flex;align-items:center;justify-content:center"><span style="width:6px;height:6px;border-radius:3px;background:#4A4554"></span></span>
+        The World moves on</li>
+    </ol>
 
     <div aria-hidden="true" style="display:flex;flex-direction:column;gap:10px">
       <span style="font-size:12px;font-weight:700;letter-spacing:0.1em;color:#6E6879">MEANWHILE</span>

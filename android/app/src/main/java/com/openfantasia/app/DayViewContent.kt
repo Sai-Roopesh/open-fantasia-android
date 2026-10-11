@@ -1,18 +1,16 @@
 package com.openfantasia.app
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalDensity
@@ -20,29 +18,37 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.style.TextAlign
 import com.openfantasia.protocol.*
 
-@Composable internal fun DayViewContent(day: DayView, scene: SceneCard, modifier: Modifier = Modifier, failure: @Composable () -> Unit = {},
+/**
+ * The Day View (DayView.dc.html), and before it is ready the Scene's end (MovingOn.dc.html, SceneEndFailed.dc.html):
+ * the Scene that ended with the player's reaction (in a line once the Day View is ready), the day, the steps of its
+ * end, and where its choices will be.
+ */
+@Composable internal fun DayViewContent(day: DayView, scene: SceneCard, modifier: Modifier = Modifier,
+    stopped: @Composable (SceneEndFailure) -> Unit = {}, react: (Reaction?) -> Unit = {}, reaction: Reaction? = day.reaction, reactEnabled: Boolean = true,
     enabled: Boolean = true, go: (Happening) -> Unit = {}, picker: (DayPicker) -> Unit = {}, story: () -> Unit = {}) {
-    Column(modifier.padding(top = 4.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(if (day.world == World.Ready) 22.dp else 18.dp)) {
-        if (day.world != World.Ready) EndedSceneCard(scene, day.sceneSpan)
+    val end = day.sceneEnd
+    val ready = end.done
+    // The steps this phone has seen run, so the Director's row stays once he has planned.
+    var ran by rememberSaveable(scene.number) { mutableStateOf(listOf<String>()) }
+    end.step?.let { step -> LaunchedEffect(step) { if (step.value !in ran) ran = ran + step.value } }
+    Column(modifier.padding(top = 4.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(if (ready) 22.dp else 18.dp)) {
+        if (!ready) EndedSceneCard(scene, day.sceneSpan, reaction, reactEnabled, react)
+        else EndedSceneLine(scene, reaction, reactEnabled, react)
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(day.day, style = if (day.world == World.Ready) FantasiaType.day else FantasiaType.movingDay)
+            Text(day.day, style = if (ready) FantasiaType.day else FantasiaType.movingDay)
             Text("${day.time} · you're in ${day.place}", style = FantasiaType.metadata, color = FantasiaSecondary)
         }
-        if (day.world == World.MovingOn) {
-            Surface(shape = FantasiaShapes.field, color = FantasiaSurface) {
-                Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Canvas(Modifier.size(18.dp)) {
-                        drawArc(FantasiaLabel, -70f, 290f, false, style = Stroke(2.dp.toPx(), cap = StrokeCap.Round))
-                    }
-                    Text("Recording the Scene. The World is moving on.", style = FantasiaType.metadata,
-                        color = FantasiaProse, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
-                }
+        if (!ready) {
+            val seen = SceneEndStep.entries.filter { it.value in ran }.toSet()
+            val failed = end.failed
+            if (failed == null) SceneEndSteps(sceneEndRows(end, seen), framed = true)
+            else {
+                sceneEndRows(end, seen).filter { it.state == StepState.Done }.takeIf { it.isNotEmpty() }?.let { SceneEndSteps(it, framed = false) }
+                stopped(failed)
             }
             WorldPlaceholders()
         }
-        if (day.world == World.Failed) failure()
-        if (day.world == World.Ready) BoxWithConstraints(Modifier.fillMaxWidth()) {
+        if (ready) BoxWithConstraints(Modifier.fillMaxWidth()) {
             // Keep both tiles the same measured width even when a viewport has an odd number of pixels.
             val tileWidth = with(LocalDensity.current) { ((maxWidth.toPx().toInt() - 10.dp.roundToPx()) / 2).toDp() }
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -64,9 +70,9 @@ import com.openfantasia.protocol.*
                 }
             }
         }
-        if (day.world == World.Ready && day.meanwhile.isNotEmpty()) Meanwhile(day.meanwhile)
-        if (day.world == World.Ready && day.happenings.isNotEmpty()) Today(day, enabled, go)
-        if (day.world == World.Ready && (day.happenings.isNotEmpty() || day.choices.follow.isNotEmpty() ||
+        if (ready && day.meanwhile.isNotEmpty()) Meanwhile(day.meanwhile)
+        if (ready && day.happenings.isNotEmpty()) Today(day, enabled, go)
+        if (ready && (day.happenings.isNotEmpty() || day.choices.follow.isNotEmpty() ||
             day.choices.places.isNotEmpty() || day.choices.skips.isNotEmpty())) OtherChoices(day, enabled, picker, story)
     }
 }
@@ -86,17 +92,6 @@ import com.openfantasia.protocol.*
                     modifier = Modifier.width(58.dp).background(tint, RoundedCornerShape(8.dp)).semantics(mergeDescendants = true) { }.padding(vertical = 3.dp))
                 Text(item.text, style = FantasiaType.detail, color = FantasiaProse, modifier = Modifier.weight(1f))
             }
-        }
-    }
-}
-
-@Composable private fun EndedSceneCard(scene: SceneCard, span: String) {
-    Surface(Modifier.fillMaxWidth(), shape = FantasiaShapes.card, color = FantasiaFolded,
-        border = BorderStroke(1.dp, FantasiaRaised)) {
-        Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("SCENE ${scene.number} · ENDED", style = FantasiaType.eyebrow, color = FantasiaCaption)
-            Text(scene.title, style = FantasiaType.endedSceneTitle)
-            Text("$span · ${scene.place}", style = FantasiaType.meta, color = FantasiaSecondary)
         }
     }
 }

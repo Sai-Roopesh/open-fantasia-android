@@ -1,367 +1,271 @@
 import { describe, expect, it } from "vitest";
-import { checkWeave, weaverPrompt, WeaverFailed, writeWeave, type WeaveAsk } from "../../src/agents/weaver.js";
+import { AgentFailed } from "../../src/agents/step.js";
+import { checkWeave, movesDue, weaverPrompt, writeWeave, type WeaveAsk } from "../../src/agents/weaver.js";
 import { Models } from "../../src/models/model-call.js";
 import { ScriptedRunner } from "../../src/models/scripted.js";
-import { worldOn } from "../../src/story/world.js";
-import { playable } from "../support/play.js";
-import { hogwartsWorldStoryFile } from "../support/story-files.js";
+import { offersOn } from "../../src/story/day.js";
+import { hogwartsWorldStoryFile, nightTrainStoryFile } from "../support/story-files.js";
+import { ledger, SONNET, type Ledger } from "./ledger.js";
 
-const SONNET = { provider: "claude", model: "claude-sonnet-5-5" } as const;
-
-/** The common room Scene after curfew, played and ended; the World moves on to Saturday morning. */
-async function ended(landmarks: { name: string; at: string; what: string }[] = []) {
-  const story = hogwartsWorldStoryFile({ title: "After curfew", place: "The Gryffindor common room", at: "Day 3 21:40", who: ["Hermione Granger"] });
-  story.landmarks = [...(story.landmarks ?? []), ...landmarks];
-  const played = playable(story);
-  await played.play("I say goodnight to Hermione and go up.");
-  played.engine.endScene(played.storyId, played.head(), "trace-end");
-  return played;
+/** The common room after curfew, Friday Day 3, played to its end at 10:10 pm; he is next free on Saturday at 7:30 am. */
+function ended(before: (story: Ledger) => void = () => {}, peak = 2): Ledger {
+  const story = ledger(hogwartsWorldStoryFile());
+  before(story);
+  story.move("I say goodnight to Hermione and go up.");
+  story.note({ clock: "Day 3 22:10", intensity: peak });
+  story.reply("Hermione doesn't look up from her book.");
+  story.close();
+  story.chronicle();
+  return story;
 }
 
-async function ask(changes: Partial<WeaveAsk> = {}, landmarks: { name: string; at: string; what: string }[] = []): Promise<WeaveAsk> {
-  const played = await ended(landmarks);
-  const head = played.head();
-  return {
-    state: played.state(),
-    world: worldOn(played.mac, head),
-    scene: played.mac.tree.pathTo(head).slice(-4),
-    from: "Day 3 21:40",
-    until: "Day 4 07:30",
-    inScene: ["Hermione Granger"],
-    ...changes
-  };
+function ask(story: Ledger, changes: Partial<WeaveAsk> = {}): WeaveAsk {
+  const state = story.state();
+  return { state, from: state.scene!.endedAt!, until: state.clock, gap: false, scene: story.scene(), missed: [], ...changes };
 }
+
+const happening = (id: string, what: string, at: string, where: string, knownTo: string[], changes: Record<string, unknown> = {}) =>
+  ({ id, what, at, where, known_to: knownTo, landmark: null, move: null, missed: null, ...changes });
 
 function answer(changes: Record<string, unknown> = {}) {
   return {
     lives: [{ who: "Crabbe and Goyle", where: "the Slytherin common room", doing: "asleep after Draconia's errands", after: "Draconia's errands, and whatever she wants hit." }],
     threads: [{ name: "Quirrell and the third-floor door", now: "Quirrell has tried the wards twice and scorched the door" }],
     happened: [
-      { id: "H1", what: "Quirrell tested the third-floor door and scorched it.", at: "Day 4 02:00", where: "the third-floor corridor", known_to: ["Quirinus Quirrell"], landmark: null },
-      { id: "H2", what: "McGonagall slid a note under Roopesh's door asking for his account of the troll.", at: "Day 4 06:45", where: "the boys' dormitory", known_to: ["Minerva McGonagall", "Roopesh Gantasala"], landmark: null },
-      { id: "H3", what: "Lavender told everyone Selwyn's bones broke one after another.", at: "Day 4 06:55", where: "the Gryffindor common room", known_to: ["Lavender Brown", "Roopesh Gantasala"], landmark: null }
+      happening("H1", "Quirrell tested the third-floor door and scorched it.", "Day 4 02:00", "the third-floor corridor", ["Quirinus Quirrell"]),
+      happening("H2", "McGonagall slid a note under Roopesh's door asking for his account of the troll.", "Day 4 06:45", "the boys' dormitory", ["Minerva McGonagall", "Roopesh Gantasala"]),
+      happening("H3", "Lavender told everyone Selwyn's bones broke one after another.", "Day 4 06:55", "the Gryffindor common room", ["Lavender Brown"])
     ],
     meanwhile: [
-      { text: "A note under the door: \"My office, nine o'clock. Bring only what you saw.\" M. McGonagall.", how: "seen", happened: "H2", told_by: null },
-      { text: "Lavender says Selwyn's bones broke one after another, \"like someone snapping kindling\".", how: "rumour", happened: "H3", told_by: null }
+      { text: "A note under the door: \"My office, nine o'clock. Bring only what you saw.\" M. McGonagall.", how: "seen", happened: "H2", told_by: null, about: ["mcgonagall"], engagement: null },
+      { text: "Lavender says Selwyn's bones broke one after another, \"like someone snapping kindling\".", how: "rumour", happened: "H3", told_by: null, about: [], engagement: null }
     ],
-    happenings: [],
+    on: [{ at: "Day 4 20:00", place: "The Three Broomsticks", what: "The twins buy a round for anyone who saw the troll.", who: ["Harry Potter"] }],
     ...changes
   };
 }
 
-describe("the Weaver's answer", () => {
-  it("is taken when it keeps every rule, with names as the Story keeps them and what happened given ids of its own", async () => {
-    const checked = checkWeave(await ask(), answer({ lives: [{ who: "crabbe and goyle", where: "the dungeons", doing: "asleep", after: "Draconia's errands" }] }));
-    expect(checked.ok).toBe(true);
+describe("the Weaver's move of the World (one-truth design decision 6)", () => {
+  it("is taken with names as the Story keeps them, what happened given ids of the code's, and what is on after the span", () => {
+    const story = ended();
+    const checked = checkWeave(ask(story), answer({ lives: [{ who: "crabbe and goyle", where: "the dungeons", doing: "asleep", after: "Draconia's errands" }] }));
+    expect(checked).toMatchObject({ ok: true, dropped: [] });
     if (!checked.ok) return;
-    expect(checked.value.lives).toEqual([{ who: "Crabbe and Goyle", where: "the dungeons", doing: "asleep", after: "Draconia's errands" }]);
-    expect(checked.value.happened.map(item => item.knownTo)).toEqual([["Quirinus Quirrell"], ["Minerva McGonagall", "Roopesh Gantasala"], ["Lavender Brown", "Roopesh Gantasala"]]);
-    const ids = checked.value.happened.map(item => item.id);
+    const { value } = checked;
+    expect(value.lives).toEqual([{ who: "Crabbe and Goyle", where: "the dungeons", doing: "asleep", after: "Draconia's errands" }]);
+    expect(value.happened.map(item => [item.at, item.knownTo])).toEqual([["Day 4 02:00", ["Quirinus Quirrell"]], ["Day 4 06:45", ["Minerva McGonagall", "Roopesh Gantasala"]], ["Day 4 06:55", ["Lavender Brown"]]]);
+    const ids = value.happened.map(item => item.id);
     expect(new Set(ids).size).toBe(3);
-    expect(ids.some(id => /^H\d$/.test(id))).toBe(false);
-    expect(checked.value.meanwhile.map(item => item.happened)).toEqual([ids[1], ids[2]]);
+    expect(ids.every(id => /^h[0-9a-f]{8}$/.test(id))).toBe(true);
+    expect(value.meanwhile.map(line => [line.fact, line.how, line.about])).toEqual([[ids[1], "seen", ["Minerva McGonagall"]], [ids[2], "rumour", []]]);
+    expect(value.on).toEqual([{ id: expect.stringMatching(/^o/), at: "Day 4 20:00", place: "The Three Broomsticks", what: "The twins buy a round for anyone who saw the troll.", who: ["Harry Potter"] }]);
   });
 
-  it("names every rule an answer breaks, so one repair can fix them all, and refuses it while a Landmark in the span is missing", async () => {
-    const checked = checkWeave(await ask({}, [{ name: "the Halloween feast", at: "Day 3 23:00", what: "The Great Hall feast." }]), answer({
-      lives: [
-        { who: "Roopesh Gantasala", where: "bed", doing: "sleeping", after: "x" },
-        { who: "Vincent Crabbe", where: "the kitchens", doing: "eating", after: "x" },
-        { who: "Professor Dumbledore", where: "his office", doing: "thinking", after: "x" }
-      ],
+  // Records degrade, never vanish (openspec living-world: Moments are remembered from one record).
+  it("leaves out only the parts it cannot use, keeps happenings in the span, and asks nothing again", () => {
+    const story = ended();
+    const checked = checkWeave(ask(story), answer({
+      lives: [{ who: "Roopesh Gantasala", where: "bed", doing: "sleeping", after: "x" }, { who: "Professor Dumbledore", where: "his office", doing: "thinking", after: "x" }],
       happened: [
-        { id: "H1", what: "Quirrell tested the door.", at: "Day 5 10:00", where: "the third floor", known_to: ["Quirinus Quirrell"], landmark: null },
-        { id: "H2", what: "A note under the door.", at: "Day 4 06:45", where: "the dormitory", known_to: ["Minerva McGonagall", "Roopesh Gantasala"], landmark: null }
+        happening("H1", "Quirrell tested the door.", "Day 6 10:00", "the third floor", ["Quirinus Quirrell", "Lord Voldemort"]),
+        happening("H2", "A note under the door.", "the small hours", "the dormitory", ["Minerva McGonagall"])
       ],
       meanwhile: [
-        { text: "Someone has been at the third-floor door.", how: "seen", happened: "H1", told_by: null },
-        { text: "Hermione says there is a note.", how: "told", happened: "H2", told_by: "Hermione Granger" },
-        ...Array.from({ length: 5 }, () => ({ text: "A note.", how: "seen", happened: "H2", told_by: null }))
-      ]
-    }));
-    expect(checked.ok).toBe(false);
-    expect(checked.ok ? [] : checked.problems).toEqual(expect.arrayContaining([
-      expect.stringMatching(/^lives: Roopesh Gantasala is the player's character/),
-      expect.stringMatching(/^lives: Vincent Crabbe lives as one of Crabbe and Goyle/),
-      expect.stringMatching(/^lives: Professor Dumbledore is not in the story/),
-      expect.stringMatching(/^happened: H1 is at Day 5 10:00, outside the span/),
-      expect.stringMatching(/^happened: the Landmark the Halloween feast falls in the span/),
-      expect.stringMatching(/^meanwhile: item 1 tells of H1, which is not something that happened here/),
-      expect.stringMatching(/^meanwhile: item 2 is told by Hermione Granger, who does not know H2/),
-      expect.stringMatching(/^meanwhile: there are 7 items/)
-    ]));
-  });
-
-  it("offers at most four Happenings from the Day View on, the pick first, with names as the Story keeps them", async () => {
-    const summons = { id: "P1", at: "Day 4 09:00", place: "McGonagall's office", what: "Your account of the troll.", who: ["mcgonagall", "Hermione Granger"], expected: true, pick: true };
-    const twins = { id: "P2", at: "Day 4 20:00", place: "The Three Broomsticks", what: "The twins buy a round for anyone who saw the troll.", who: ["Harry Potter"], expected: false, pick: false };
-    const checked = checkWeave(await ask(), answer({ happenings: [summons, twins] }));
-    expect(checked.ok).toBe(true);
-    if (!checked.ok) return;
-    expect(checked.value.happenings.map(item => ({ who: item.who, expected: item.expected, pick: item.pick }))).toEqual([
-      { who: ["Minerva McGonagall", "Hermione Granger"], expected: true, pick: true },
-      { who: ["Harry Potter"], expected: false, pick: false }
-    ]);
-    expect(new Set(checked.value.happenings.map(item => item.id)).size).toBe(2);
-  });
-
-  it("leaves out the Happenings that break a rule, and keeps one pick, first", async () => {
-    const happening = (changes: Record<string, unknown>) => ({ id: "P1", at: "Day 4 09:00", place: "The library", what: "Reading.", who: ["Hermione Granger"], expected: false, pick: false, ...changes });
-    const checked = checkWeave(await ask(), answer({ happenings: [
-      happening({ id: "P1", at: "Day 4 06:00" }),
-      happening({ id: "P2", who: ["Roopesh Gantasala", "The Grey Lady"], pick: true }),
-      happening({ id: "P3", pick: true }),
-      happening({ id: "P4" }),
-      happening({ id: "P5" })
-    ] }));
-    expect(checked.ok).toBe(true);
-    if (!checked.ok) return;
-    expect(checked.value.happenings.map(item => ({ place: item.place, who: item.who, pick: item.pick }))).toEqual([
-      { place: "The library", who: [], pick: true },
-      { place: "The library", who: ["Hermione Granger"], pick: false },
-      { place: "The library", who: ["Hermione Granger"], pick: false }
-    ]);
-    expect(checked.dropped).toEqual(expect.arrayContaining([
-      expect.stringMatching(/^happenings: there are 5; offer at most four/),
-      expect.stringMatching(/^happenings: P1 is at Day 4 06:00, before the Day View \(Day 4 07:30\)/),
-      expect.stringMatching(/^happenings: P2, who: Roopesh Gantasala is the player's character/),
-      expect.stringMatching(/^happenings: P2, who: The Grey Lady is not in the story/),
-      expect.stringMatching(/^happenings: 2 are the pick; pick one, and put it first/)
-    ]));
-  });
-
-  it("is refused when it does not match the schema", async () => {
-    expect(checkWeave(await ask(), { lives: [] }).ok).toBe(false);
-  });
-
-  // Records degrade, never vanish (lasting-records design decision 3): a name not in the Story costs that name, not the
-  // World's record.
-  it("keeps a partly bad answer, leaving out only the parts that break a rule", async () => {
-    const checked = checkWeave(await ask(), answer({
-      lives: [{ who: "Professor Dumbledore", where: "his office", doing: "thinking", after: "x" }],
-      happened: [{ id: "H1", what: "Quirrell tested the door, for his master.", at: "Day 4 06:45", where: "the third floor", known_to: ["Quirinus Quirrell", "Lord Voldemort"], landmark: null }],
-      meanwhile: [{ text: "Someone was on the third floor.", how: "rumour", happened: "H1", told_by: null, about: ["Gilderoy Lockhart"] }]
+        { text: "Someone was on the third floor.", how: "rumour", happened: "H1", told_by: "Lavender", about: ["Gilderoy Lockhart"], engagement: null },
+        { text: "A note.", how: "seen", happened: "H2", told_by: null, about: [], engagement: null },
+        ...Array.from({ length: 6 }, () => ({ text: "More talk.", how: "rumour", happened: "H1", told_by: null, about: [], engagement: null }))
+      ],
+      on: [{ at: "Day 4 06:00", place: "The Great Hall", what: "Breakfast.", who: [] }]
     }));
     expect(checked.ok).toBe(true);
     if (!checked.ok) return;
     expect(checked.value.lives).toEqual([]);
-    expect(checked.value.happened.map(item => item.knownTo)).toEqual([["Quirinus Quirrell"]]);
+    expect(checked.value.happened).toMatchObject([{ at: "Day 4 07:30", knownTo: ["Quirinus Quirrell"] }]);
+    expect(checked.value.meanwhile).toHaveLength(5);
+    expect(checked.value.meanwhile[0]).toMatchObject({ toldBy: "Lavender Brown", about: [] });
+    expect(checked.value.on).toEqual([]);
     expect(checked.dropped).toEqual([
-      "lives: Professor Dumbledore is not in the story; use a name from the people or the Groups",
-      "happened: H1, known_to: Lord Voldemort is not in the story",
-      "meanwhile: item 1 tells of H1, which the player's character does not know: he did not see it and nobody told him; leave it out"
+      "people: Lord Voldemort is not in the Story",
+      "happened[1]: \"the small hours\" is not a story time",
+      "people: Gilderoy Lockhart is not in the Story",
+      "meanwhile[1]: H2 is not one of the happenings",
+      "on[0]: \"Day 4 06:00\" is not after the span",
+      "people: Professor Dumbledore is not in the Story"
     ]);
+  });
+
+  it("is sent back while a Landmark in the span has not happened, and takes it named as the Story names it", () => {
+    const story = ended(before => before.add({ kind: "landmark_set", landmark: { name: "The Halloween feast", at: "Day 3 23:00", what: "The Great Hall feast, and the troll." } }));
+    expect(checkWeave(ask(story), answer())).toEqual({ ok: false, problems: ["happened: The Halloween feast falls in the span (Day 3 23:00) and has not happened; write it, with landmark set to its name"] });
+    const feast = happening("H4", "The troll came into the dungeons during the feast.", "Day 3 23:00", "the Great Hall", ["Minerva McGonagall"], { landmark: "the halloween feast" });
+    const checked = checkWeave(ask(story), answer({ happened: [...answer().happened, feast] }));
+    expect(checked.ok && checked.value.happened.at(-1)).toMatchObject({ landmark: "The Halloween feast", at: "Day 3 23:00" });
+  });
+
+  it("is sent back when it does not keep to its format", () => {
+    expect(checkWeave(ask(ended()), { lives: [] }).ok).toBe(false);
+  });
+
+  it("is one step: an unusable move is sent back once, and the step fails only when neither model gives one", async () => {
+    const story = ended();
+    const runner = new ScriptedRunner([{ answer: JSON.stringify({ lives: [] }) }, { answer: JSON.stringify(answer()) }]);
+    const record = await writeWeave(new Models(story.mac.db, { claude: runner }), [SONNET], ask(story), story.storyId, "trace-w", new AbortController().signal);
+    expect(record.value.happened).toHaveLength(3);
+    expect(runner.requests[1]!.prompt).toContain("- answer: must have required property 'threads'");
+    const unusable = { answer: JSON.stringify({ lives: [] }) };
+    await expect(writeWeave(new Models(story.mac.db, { claude: new ScriptedRunner([unusable, unusable]) }), [SONNET], ask(story), story.storyId, "trace-w", new AbortController().signal)).rejects.toBeInstanceOf(AgentFailed);
   });
 });
 
-describe("the Weaver follows the Stretch (docs/adr/0010)", () => {
-  const next = { id: "s-thursday", at: "Day 9 10:00", place: "The corridor outside Charms", who: ["Draconia Malfoy"], for: "She corners him about the seating plan.", lead: "Draconia Malfoy" };
-  const offer = (changes: Record<string, unknown> = {}) => ({ id: "P1", at: "Day 9 10:00", place: "The corridor outside Charms", what: "Draconia has been waiting for Charms to end.", who: ["Draconia Malfoy"], expected: false, pick: true, scene: "s-thursday", ...changes });
+describe("the Leads' moves off-screen (openspec long-run: Leads act every Stretch)", () => {
+  const seating = "Draconia had his name taken off the Charms seating plan.";
 
-  it("is shown the next Scene that matters, and its pick is that Scene, at its time, days away or not", async () => {
-    const stretch = await ask({ stretch: { next } });
-    expect(weaverPrompt(stretch).prompt).toContain('<next_scene_that_matters id="s-thursday" at="Day 9 10:00 (Thursday 10:00 am)" place="The corridor outside Charms" with="Draconia Malfoy">\nShe corners him about the seating plan.');
-    const kept = checkWeave(stretch, answer({ happenings: [offer()] }));
-    expect(kept.ok && kept.value.happenings[0]).toMatchObject({ at: "Day 9 10:00", pick: true, scene: "s-thursday" });
-    expect(checkWeave(stretch, answer({ happenings: [offer({ scene: null })] }))).toMatchObject({ ok: false, problems: ["happenings: your pick is the next Scene that matters, s-thursday at Day 9 10:00; offer it, with scene \"s-thursday\" and pick true"] });
-    expect(checkWeave(stretch, answer({ happenings: [offer({ at: "Day 9 11:00" })] }))).toMatchObject({ ok: false, problems: ["happenings: the next Scene that matters is at Day 9 10:00; give your pick that time"] });
+  /** A Stretch in which Draconia's move is made off-screen. */
+  const stretch = () => ended(before => {
+    before.plan({ afterScene: 1, leads: [{ who: "Draconia Malfoy", move: "Has his name taken off the Charms seating plan.", scene: null }, { who: "Hermione Granger", move: "Asks him to revise.", scene: "s1.1" }] });
   });
 
-  it("does not offer the next Scene that matters again while it is on, and keeps any other Happening ordinary", async () => {
-    const on = { id: "p-old", at: "Day 9 10:00", place: "The corridor outside Charms", what: "Draconia waits.", who: ["Draconia Malfoy"], expected: false, pick: true, scene: "s-thursday" };
-    const stillOn = await ask({ stretch: { next }, stillOn: [on] });
-    expect(weaverPrompt(stillOn).prompt).not.toContain("<next_scene_that_matters");
-    const checked = checkWeave(stillOn, answer({ happenings: [offer(), offer({ id: "P2", at: "Day 4 20:00", place: "The Three Broomsticks", pick: false, scene: "s-other" })] }));
-    expect(checked.ok && checked.value.happenings.map(item => [item.place, item.scene])).toEqual([["The Three Broomsticks", null]]);
-    expect(checked.ok && checked.dropped).toEqual([
-      "happenings: P1 is the next Scene that matters, which is on already; leave it out",
-      "happenings: P2 names the Scene s-other, which is not the next Scene that matters; it is an ordinary Happening"
-    ]);
-  });
-});
-
-describe("Leads act off-screen (story-in-stretches design decision 4)", () => {
-  const seating = { who: "Draconia Malfoy", move: "Has his name taken off the Charms seating plan.", scene: null };
-  const made = { id: "H1", what: "Draconia had his name taken off the Charms seating plan.", at: "Day 4 06:00", where: "Flitwick's office", known_to: ["Draconia Malfoy", "Neville Longbottom"], landmark: null, move: "Draconia Malfoy" };
-
-  it("is given each Lead's move still to make off-screen, and by when", async () => {
-    const { prompt } = weaverPrompt(await ask({ stretch: { next: null, moves: [seating], movesBy: "Day 10 15:00" } }));
-    expect(prompt).toContain('<lead_moves_offscreen by="Day 10 15:00 (Friday 3:00 pm)">\n- Draconia Malfoy: Has his name taken off the Charms seating plan.');
-  });
-
-  it("keeps a move made, marked with its Lead, and leaves the mark off anything else", async () => {
-    const stretch = await ask({ stretch: { next: null, moves: [seating], movesBy: "Day 10 15:00" } });
-    const checked = checkWeave(stretch, answer({ happened: [made, { ...made, id: "H2", what: "Hermione re-read her notes.", known_to: ["Hermione Granger"], move: "Hermione Granger" }], meanwhile: [] }));
-    expect(checked.ok && checked.value.happened.map(item => item.move)).toEqual(["Draconia Malfoy", null]);
-    // Set right, not left out (docs/adr/0012): the happening is kept, and nothing is asked again.
-    expect(checked.ok && checked.dropped).toEqual([]);
+  it("is given each Lead's move still to make off-screen, and keeps one made with its Lead's mark", () => {
+    const story = stretch();
+    expect(movesDue(story.state()).map(move => move.who)).toEqual(["Draconia Malfoy"]);
+    expect(weaverPrompt(ask(story)).prompt).toContain("<lead_moves_offscreen>\n- Draconia Malfoy: Has his name taken off the Charms seating plan.\n</lead_moves_offscreen>");
+    const made = happening("H4", seating, "Day 4 06:00", "Flitwick's office", ["Draconia Malfoy", "Neville Longbottom"], { move: "draconia" });
+    const checked = checkWeave(ask(story), answer({ happened: [made] , meanwhile: [] }));
+    expect(checked).toMatchObject({ ok: true, dropped: [] });
+    if (!checked.ok) return;
+    expect(checked.value.happened[0]).toMatchObject({ move: "Draconia Malfoy", knownTo: ["Draconia Malfoy", "Neville Longbottom"] });
+    story.world({ happened: checked.value.happened });
+    expect(movesDue(story.state())).toEqual([]);
   });
 
   // GIVEN no Lead has a move to make off-screen
   // WHEN the World's record marks Harry's evening in the common room as his move
   // THEN it is kept as an ordinary happening, and the World is not asked again
   it("living-world › Moments are remembered from one record › Set right, not asked again", async () => {
-    const played = playable();
-    const evening = { id: "H4", what: "Harry spent the evening in the common room with Ron.", at: "Day 3 22:30", where: "the Gryffindor common room", known_to: ["Harry Potter"], landmark: null, move: "Harry Potter" };
+    const story = ended();
+    expect(movesDue(story.state())).toEqual([]);
+    const evening = happening("H4", "Harry spent the evening in the common room with Ron.", "Day 3 22:30", "the Gryffindor common room", ["Harry Potter"], { move: "Harry Potter" });
     const runner = new ScriptedRunner([{ answer: JSON.stringify(answer({ happened: [...answer().happened, evening] })) }]);
-    const record = await writeWeave(new Models(played.mac.db, { claude: runner }), SONNET, await ask({ stretch: { next: null, moves: [], movesBy: null } }), "story", "trace-w", new AbortController().signal);
+    const record = await writeWeave(new Models(story.mac.db, { claude: runner }), [SONNET], ask(story), story.storyId, "trace-w", new AbortController().signal);
     expect(record.value.happened.find(item => item.what === evening.what)).toMatchObject({ move: null });
     expect(record.dropped).toEqual([]);
     expect(runner.requests).toHaveLength(1);
   });
-
-  it("asks for every move still to make once the span reaches the Stretch's last Scene that matters, and keeps the rest without it", async () => {
-    const due = await ask({ stretch: { next: null, moves: [seating], movesBy: "Day 4 07:00" } });
-    expect(checkWeave(due, answer({ meanwhile: [] }))).toMatchObject({ ok: true, dropped: ["happened: Draconia Malfoy's move this Stretch is still to make, and the Stretch's last Scene that matters is here: make it now (Has his name taken off the Charms seating plan.), with move \"Draconia Malfoy\""] });
-    const early = await ask({ stretch: { next: null, moves: [seating], movesBy: "Day 10 15:00" } });
-    expect(checkWeave(early, answer({ meanwhile: [] }))).toMatchObject({ ok: true, dropped: [] });
-  });
 });
 
-describe("what he missed keeps its time (play-check-fixes design decision 4)", () => {
-  const trials = { id: "p-trials", at: "Day 4 06:00", place: "The library", what: "Draconia at the back table in the Charms stacks.", who: ["Draconia Malfoy"], expected: false, pick: true };
+describe("what he missed (openspec day-view: Missing something has consequences)", () => {
+  const library = { at: "Day 5 14:00", place: "The library", what: "Draconia's library session.", who: ["Draconia Malfoy"], expected: true };
+
+  /** He skips from Saturday morning to next week, Monday. */
+  const skipped = () => {
+    const story = ended();
+    return ask(story, { gap: true, from: "Day 4 07:30", until: "Day 6 07:30", scene: [story.move("I keep to myself until next week.")], missed: [library] });
+  };
 
   // GIVEN Draconia's library Scene was on Sunday at 2:00 pm
   // WHEN the player skips to next week, and the World writes it going on without him on Saturday
   // THEN it went on on Sunday at 2:00 pm, in the library
-  it("day-view › Missing something has consequences › What he missed keeps its time", async () => {
-    const gap = await ask({ gap: true, missed: [trials] });
-    const without = { id: "H9", what: "Draconia waited at the back table; he did not come.", at: "Day 3 23:00", where: "the Slytherin common room", known_to: ["Draconia Malfoy"], landmark: null, missed: "G1" };
-    const checked = checkWeave(gap, answer({ happened: [without], meanwhile: [] }));
-    expect(checked.ok && checked.value.happened[0]).toMatchObject({ at: "Day 4 06:00", where: "The library" });
-    expect(checked.ok && checked.dropped).toEqual([]);
+  it("day-view › Missing something has consequences › What he missed keeps its time", () => {
+    const without = happening("H9", "Draconia waited at the back table; he did not come.", "Day 4 10:00", "the Slytherin common room", ["Draconia Malfoy"], { missed: "G1" });
+    const checked = checkWeave(skipped(), answer({ happened: [without], meanwhile: [], on: [] }));
+    expect(checked).toMatchObject({ ok: true, dropped: [] });
+    expect(checked.ok && checked.value.happened[0]).toMatchObject({ at: "Day 5 14:00", where: "The library" });
   });
 
-  it("says the day of what he missed, so a span of days names the right one", async () => {
-    const { prompt } = weaverPrompt(await ask({ gap: true, missed: [trials] }));
-    expect(prompt).toContain("- G1 Saturday 6:00 am, The library:");
+  it("says the day of what he missed, and is sent back when what he was expected at did not go on", () => {
+    const gap = skipped();
+    expect(weaverPrompt(gap).prompt).toContain("<missed>\n- G1 Day 5 14:00 (Sunday 2:00 pm), The library: Draconia's library session. With Draconia Malfoy. He was expected.\n</missed>");
+    expect(checkWeave(gap, answer({ meanwhile: [] }))).toEqual({ ok: false, problems: ["happened: G1, The library, went on without him and he was expected; write it, with the people there noticing he did not come (missed: \"G1\")"] });
+  });
+
+  it("offers nothing on over a Gap", () => {
+    const checked = checkWeave(skipped(), answer({ happened: [happening("H9", "It went on.", "Day 5 14:00", "The library", ["Draconia Malfoy"], { missed: "G1" })], meanwhile: [] }));
+    expect(checked.ok && checked.value.on).toEqual([]);
   });
 });
 
-describe("an Engagement carried by Meanwhile (engagements design decision 1)", () => {
-  const note = { text: "A note under the door: \"My office, nine o'clock.\" M. McGonagall.", how: "seen", happened: "H2", told_by: null };
+describe("an Engagement carried by Meanwhile (docs/adr/0011)", () => {
+  const note = { text: "A note under the door: \"My office, nine o'clock.\" M. McGonagall.", how: "seen", happened: "H2", told_by: null, about: [] };
   const summons = { what: "McGonagall wants his account of the troll.", at: "Day 4 09:00", place: "McGonagall's office", who: ["mcgonagall"], expected: true, every: null };
 
-  it("keeps the Engagement a line of Meanwhile carries, with names as the Story keeps them", async () => {
-    const checked = checkWeave(await ask(), answer({ meanwhile: [{ ...note, engagement: summons }] }));
-    expect(checked).toMatchObject({ ok: true, dropped: [] });
-    expect(checked.ok && checked.value.meanwhile[0]!.engagement).toEqual({ id: expect.stringMatching(/^g-/), what: summons.what, at: "Day 4 09:00", place: "McGonagall's office", who: ["Minerva McGonagall"], expected: true, every: null });
-    expect(weaverPrompt(await ask()).system).toContain("`engagement`");
-  });
-
-  it("is told the Engagements on, so it does not offer them again", async () => {
-    const on = [{ engagement: { id: "g-1", what: "Draconia's hour in the library.", at: "Day 8 19:30", place: "The library", who: ["Draconia Malfoy"], expected: true, every: "week" as const }, next: "Day 8 19:30" }];
-    expect(weaverPrompt(await ask({ engagementsOn: on })).prompt).toContain("<engagements_on>\n- Day 8 19:30 (every week), The library: Draconia's hour in the library. He is expected.\n</engagements_on>");
-  });
-
-  it("leaves out an Engagement before the span's end, and a name not in the Story, and keeps the line", async () => {
-    const early = checkWeave(await ask(), answer({ meanwhile: [{ ...note, engagement: { ...summons, at: "Day 4 07:00" } }] }));
-    expect(early).toMatchObject({ ok: true, dropped: ["meanwhile: item 1, engagement: it is at Day 4 07:00, before the span ends (Day 4 07:30); it is not ahead of him"] });
-    expect(early.ok && early.value.meanwhile[0]).toMatchObject({ text: note.text });
-    expect(early.ok && early.value.meanwhile[0]!.engagement).toBeUndefined();
-    const stranger = checkWeave(await ask(), answer({ meanwhile: [{ ...note, engagement: { ...summons, who: ["Minerva McGonagall", "Gilderoy Lockhart"] } }] }));
-    expect(stranger).toMatchObject({ ok: true, dropped: ["meanwhile: item 1, engagement, who: Gilderoy Lockhart is not in the story"] });
-    expect(stranger.ok && stranger.value.meanwhile[0]!.engagement?.who).toEqual(["Minerva McGonagall"]);
+  it("keeps the Engagement a line of Meanwhile carries, after the span, and leaves out one before its end, keeping the line", () => {
+    const story = ended();
+    const kept = checkWeave(ask(story), answer({ meanwhile: [{ ...note, engagement: summons }] }));
+    expect(kept.ok && kept.value.meanwhile[0]!.engagement).toEqual({ id: expect.stringMatching(/^g-/), what: summons.what, at: "Day 4 09:00", place: "McGonagall's office", who: ["Minerva McGonagall"], expected: true, every: null, quotes: [] });
+    const early = checkWeave(ask(story), answer({ meanwhile: [{ ...note, engagement: { ...summons, at: "Day 4 07:00" } }] }));
+    expect(early).toMatchObject({ ok: true, dropped: ["meanwhile[0]: the engagement at \"Day 4 07:00\" is not after the span"] });
+    expect(early.ok && early.value.meanwhile[0]).toMatchObject({ text: note.text, engagement: null });
   });
 });
 
 describe("the Weaver's call", () => {
-  it("gives the span, the World as it stands, the Scene that ended and the Landmarks in the span", async () => {
-    const { system, prompt } = weaverPrompt(await ask({}, [{ name: "the Halloween feast", at: "Day 3 23:00", what: "The Great Hall feast." }]));
+  it("gives the span, The Story So Far, the World as it stands, what is on ahead, the Scene that ended and the Landmarks in the span", () => {
+    const story = ended(before => before.add({ kind: "landmark_set", landmark: { name: "The Halloween feast", at: "Day 3 23:00", what: "The Great Hall feast." } }));
+    story.add({ kind: "chronicle", scene: 1, summary: "", paragraph: "Hermione would not say what she was reading.", moments: [], told: [], known: [], bonds: [], engagements: [], changed: [], dropped: [], callId: "c", model: SONNET });
+    story.world({ on: [{ id: "o-1", at: "Day 4 20:00", place: "The Three Broomsticks", what: "The twins buy a round.", who: ["Harry Potter"] }] });
+    const { system, prompt } = weaverPrompt(ask(story));
     expect(system).toContain("# The Weaver");
-    expect(system).toMatch(/Crabbe and Goyle/);
-    expect(prompt).toMatch(/<span from="Day 3 21:40 \(Friday 9:40 pm\)" until="Day 4 07:30 \(Saturday 7:30 am\)">/);
-    expect(prompt).toMatch(/Quirrell and the third-floor door: Quirrell is testing the wards/);
-    expect(prompt).toMatch(/<scene_that_ended title="After curfew"/);
-    expect(prompt).toMatch(/<landmarks_in_span>\n- the Halloween feast, Day 3 23:00/);
+    expect(system.replace(/\s+/g, " ")).toContain("give again each item still ahead that is still going on, as it was, or it is gone.");
+    expect(system).toContain("- Crabbe and Goyle: Draconia's errands, and whatever she wants hit.");
+    expect(prompt).toContain('<span from="Day 3 22:10 (Friday 10:10 pm)" until="Day 4 07:30 (Saturday 7:30 am)">');
+    expect(prompt).toContain("Hermione would not say what she was reading.");
+    expect(prompt).toContain("- Quirrell and the third-floor door: Quirrell is testing the wards on the third-floor door, at night, alone");
+    expect(prompt).toContain("What is on ahead:\n- Day 4 20:00 (Saturday 8:00 pm), The Three Broomsticks: The twins buy a round. (with Harry Potter)");
+    expect(prompt).toContain('<scene_that_ended title="After curfew" place="The Gryffindor common room" from="Day 3 21:40 (Friday 9:40 pm)" until="Day 3 22:10 (Friday 10:10 pm)">\n<move by="Roopesh Gantasala">\nI say goodnight to Hermione and go up.\n</move>\n\nHermione doesn\'t look up from her book.\n</scene_that_ended>');
+    expect(prompt).toContain("<landmarks_in_span>\n- The Halloween feast, Day 3 23:00 (Friday 11:00 pm): The Great Hall feast.\n</landmarks_in_span>");
   });
 
-  // GIVEN the World last stood at 7:40 am at Kalka, and a Scene at Barog opens at 9:05 am and ends with Ishaan still on the platform
+  // GIVEN the World last stood at 7:40 am at Kalka, and a Scene at Barog opens at 9:05 am and ends with Ishaan still on
+  //   the platform, listening for a bird with Meera
   // WHEN the World moves on
   // THEN what happened at Barog happened at 9:05 am, as the Scene says
   // AND nothing that happened before 9:05 am is known to Ishaan, and nothing has him back on the train
-  it("living-world › Only the player makes facts about the Player Character › The World moves on around him", async () => {
-    const { prompt } = weaverPrompt(await ask({ from: "Day 3 20:00" }));
-    expect(prompt).toMatch(/<scene_that_ended title="After curfew" place="The Gryffindor common room" from="Day 3 21:40 \(Friday 9:40 pm\)" until="Day 3 \d\d:\d\d \(Friday \d+:\d\d pm\)"/);
-    expect(prompt).toMatch(/The Scene ran from Friday 9:40 pm to Friday \d+:\d\d pm: what happened in it happened then\./);
-    expect(prompt).toMatch(/Before Friday 9:40 pm, Roopesh Gantasala was off-screen, and only the player says where he was and what he did/);
-  });
-
-  it("repairs a partly bad answer once, keeps its good parts when the repair is no better, and fails only when nothing is usable", async () => {
-    const played = playable();
-    const bad = { answer: JSON.stringify(answer({ lives: [{ who: "Roopesh Gantasala", where: "bed", doing: "sleeping", after: "x" }] })) };
-    const repaired = new ScriptedRunner([bad, { answer: JSON.stringify(answer()) }]);
-    const record = await writeWeave(new Models(played.mac.db, { claude: repaired }), SONNET, await ask(), "story", "trace-w", new AbortController().signal);
-    expect(record.value.lives[0]!.who).toBe("Crabbe and Goyle");
-    expect(record.dropped).toEqual([]);
-    expect(repaired.requests[1]!.prompt).toMatch(/lives: Roopesh Gantasala is the player's character/);
-    const twice = await writeWeave(new Models(played.mac.db, { claude: new ScriptedRunner([bad, bad]) }), SONNET, await ask(), "story", "trace-w", new AbortController().signal);
-    expect(twice.value.lives).toEqual([]);
-    expect(twice.value.happened).toHaveLength(3);
-    expect(twice.dropped).toEqual([expect.stringMatching(/^lives: Roopesh Gantasala is the player's character/)]);
-    const unusable = { answer: JSON.stringify({ lives: [] }) };
-    await expect(writeWeave(new Models(played.mac.db, { claude: new ScriptedRunner([unusable, unusable]) }), SONNET, await ask(), "story", "trace-w", new AbortController().signal)).rejects.toThrow(WeaverFailed);
+  it("living-world › Only the player makes facts about the Player Character › The World moves on around him", () => {
+    const story = ledger(nightTrainStoryFile());
+    story.world({ from: "Day 2 07:00", until: "Day 2 07:40", lives: [{ who: "Meera Kulkarni", where: "Kalka", doing: "waiting for the toy train", after: "The hills" }] });
+    story.move("I stay on the platform with Meera, listening for the bird.");
+    story.note({ clock: "Day 2 09:40" });
+    story.reply("Meera holds up a hand. Somewhere in the mist, the bird calls again.");
+    story.close();
+    story.chronicle({ moments: [{ what: "Ishaan and Meera listen for the bird at Barog.", quotes: [{ entry: "e", text: "I stay on the platform with Meera, listening for the bird." }], there: ["Meera Kulkarni"], weight: 3 }] });
+    // What happened at Barog happened when the Scene says.
+    expect(story.state().facts.at(-1)).toMatchObject({ at: "Day 2 09:05", where: "Barog station platform, hill mist, the toy train's engine taking water" });
+    const weave = ask(story, { until: "Day 2 13:00" });
+    const { system, prompt } = weaverPrompt(weave);
+    expect(prompt).toContain('<scene_that_ended title="Water at Barog" place="Barog station platform, hill mist, the toy train\'s engine taking water" from="Day 2 09:05 (Friday 9:05 am)" until="Day 2 09:40 (Friday 9:40 am)">');
+    expect(system.replace(/\s+/g, " ")).toContain("Before the Scene opened he was off-screen; the World moves on around him, not with him.");
+    // Nothing the World writes is before the Scene ended, and nothing has him anywhere.
+    const checked = checkWeave(weave, answer({
+      lives: [{ who: "Ishaan Mehra", where: "back on the train", doing: "asleep", after: "Shimla" }, { who: "Meera", where: "Barog station platform", doing: "listening for the bird", after: "The hills" }],
+      threads: [],
+      happened: [happening("H1", "The guard blew his whistle twice.", "Day 2 07:50", "Kalka", ["Uncle Bhalla"])],
+      meanwhile: [], on: []
+    }));
+    expect(checked.ok).toBe(true);
+    if (!checked.ok) return;
+    expect(checked.value.lives.map(life => life.who)).toEqual(["Meera Kulkarni"]);
+    expect(checked.value.happened[0]!.at).toBe("Day 2 09:40");
   });
 });
 
 describe("rest after a peak (openspec long-run: Rest is deliberate)", () => {
-  const pick = (quiet: boolean | undefined) => ({ id: "P1", at: "Day 4 09:00", place: "the Great Hall", what: quiet ? "Breakfast, late, with nothing to do after." : "Draconia calls him out in front of Slytherin.", who: ["Hermione Granger"], expected: false, pick: true, ...(quiet === undefined ? {} : { quiet }) });
-
-  it("is asked for when the Scene that ended peaked", async () => {
-    expect(weaverPrompt(await ask({ afterPeak: true })).prompt).toContain("The Scene that ended peaked. Your pick is a quiet Happening, nothing at stake in it, with quiet true");
-    expect(weaverPrompt(await ask()).prompt).not.toContain("peaked");
-  });
-
-  it("refuses a pick that is not quiet, or no pick at all, after a peak", async () => {
-    const after = await ask({ afterPeak: true });
-    expect(checkWeave(after, answer({ happenings: [pick(false)] }))).toMatchObject({ ok: false, problems: ["happenings: the Scene that ended peaked; make your pick a quiet Happening, nothing at stake in it, and set its quiet true"] });
-    expect(checkWeave(after, answer({ happenings: [pick(undefined)] })).ok).toBe(false);
-    expect(checkWeave(after, answer({ happenings: [] }))).toMatchObject({ ok: false, problems: ["happenings: the Scene that ended peaked; offer a quiet Happening as your pick, nothing at stake in it, with quiet true"] });
-    const quiet = checkWeave(after, answer({ happenings: [pick(true)] }));
-    expect(quiet.ok && quiet.value.happenings[0]).toMatchObject({ pick: true, quiet: true });
-  });
-
   // GIVEN a Scene just peaked, and the Director's new Stretch is a rest whose next Scene that matters is a quiet
   //   breakfast on Monday
   // THEN the Story's own pick at the Day View is Monday's breakfast, and the World moves on at the first answer that
   //   offers it
   it("long-run › Rest is deliberate › The rest the Director planned", async () => {
-    const breakfast = { id: "s-rest", at: "Day 6 08:00", place: "The Great Hall", who: ["Hermione Granger"], for: "A slow breakfast after the night before.", lead: null };
-    const rest = await ask({ afterPeak: true, stretch: { next: breakfast, moves: [], movesBy: null } });
-    // The Weaver is told only the one rule: the pick is the Scene the Director planned as the rest.
-    expect(weaverPrompt(rest).prompt).not.toContain("The Scene that ended peaked");
-    const offered = { id: "P1", at: "Day 6 08:00", place: "The Great Hall", what: "Breakfast, late, with Hermione.", who: ["Hermione Granger"], expected: false, pick: true, scene: "s-rest" };
-    const checked = checkWeave(rest, answer({ happenings: [offered] }));
-    expect(checked.ok).toBe(true);
-    expect(checked.ok && checked.value.happenings[0]).toMatchObject({ pick: true, scene: "s-rest", quiet: true });
-  });
-
-  it("leaves the pick to the Weaver when nothing peaked", async () => {
-    expect(checkWeave(await ask(), answer({ happenings: [pick(false)] })).ok).toBe(true);
-  });
-});
-
-
-describe("who a line of Meanwhile is about (the-world-screen: what he has heard)", () => {
-  const withAbout = (about: unknown) => answer({ meanwhile: [{ text: "A note under the door: \"My office, nine o'clock.\" M. McGonagall.", how: "seen", happened: "H2", told_by: null, ...(about === undefined ? {} : { about }) }] });
-
-  it("is asked for, and kept with the line in the Story's names", async () => {
-    expect(weaverPrompt(await ask()).system).toContain("`about`");
-    const checked = checkWeave(await ask(), withAbout(["mcgonagall"]));
-    expect(checked.ok && checked.value.meanwhile[0]!.about).toEqual(["Minerva McGonagall"]);
-  });
-
-  it("leaves out someone not in the Story, or the Player Character, from about, and keeps the line", async () => {
-    const stranger = checkWeave(await ask(), withAbout(["Gilderoy Lockhart", "mcgonagall"]));
-    expect(stranger).toMatchObject({ ok: true, dropped: ["meanwhile: item 1, about: Gilderoy Lockhart is not in the story"] });
-    expect(stranger.ok && stranger.value.meanwhile[0]!.about).toEqual(["Minerva McGonagall"]);
-    const himself = checkWeave(await ask(), withAbout(["Roopesh Gantasala"]));
-    expect(himself).toMatchObject({ ok: true, dropped: ["meanwhile: item 1, about: Roopesh Gantasala is the player's character; say who else it is about"] });
-  });
-
-  it("takes a line without about, as the Weaver wrote them before", async () => {
-    const checked = checkWeave(await ask(), withAbout(undefined));
-    expect(checked.ok && checked.value.meanwhile[0]!.about).toBeUndefined();
+    const story = ended(() => {}, 5);
+    expect(story.state().curve.at(-1)).toMatchObject({ scene: 1, peak: 5 });
+    story.plan({ phase: "rest", scenes: [{ id: "s1.1", at: "Day 6 08:00", place: "The Great Hall", who: ["Hermione Granger"], for: "A slow breakfast after the night before.", offer: "Breakfast, late, with nothing to do after.", headline: "Breakfast: a slow one", lead: null, engagement: null, quiet: true }] });
+    // The Weaver moves the World only: the pick is the Director's, and it is not asked for one.
+    const weave = ask(story);
+    expect(weaverPrompt(weave).prompt).not.toMatch(/peaked|quiet Happening|your pick/);
+    const runner = new ScriptedRunner([{ answer: JSON.stringify(answer()) }]);
+    const record = await writeWeave(new Models(story.mac.db, { claude: runner }), [SONNET], weave, story.storyId, "trace-w", new AbortController().signal);
+    expect(runner.requests).toHaveLength(1);
+    story.world({ ...record.value, from: weave.from, until: weave.until });
+    const [pick, ...rest] = offersOn(story.state());
+    expect(pick).toMatchObject({ pick: true, scene: "s1.1", at: "Day 6 08:00", place: "The Great Hall", what: "Breakfast, late, with nothing to do after." });
+    expect(rest.map(item => item.place)).toEqual(["The Three Broomsticks"]);
   });
 });

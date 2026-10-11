@@ -21,16 +21,17 @@ import com.openfantasia.protocol.*
 private val FantasiaOpenRow = Color(0xFF221D30)
 private val FantasiaChosenEffort = Color(0xFF2B2245)
 
-/** Which row of the Models screen is open: a Story's Actor, or a job for every Story. */
+/** Which row of the Models screen is open: a Story's Actor, the Actor's second model, or a job for every Story. */
 private sealed interface Opened {
     data class Actor(val storyID: String) : Opened
+    data object ActorBackup : Opened
     data class Job(val job: ModelJob) : Opened
 }
 
 /**
  * The Models screen as drawn in Models.dc.html (openspec outside-the-scene: One Models screen): each Story's Actor,
- * then every job for every Story with what it does and its model. Tapping a row opens its picker in place; a pick is
- * sent at once and the row shows it when the Mac answers.
+ * then every job for every Story with what it does and its model, and, opened, the second model it tries when its
+ * own fails. Tapping a row opens its picker in place; a pick is sent at once and the row shows it when the Mac answers.
  */
 @Composable fun ModelsScreen(
     models: ModelsView?,
@@ -38,7 +39,8 @@ private sealed interface Opened {
     back: () -> Unit,
     setJob: (ModelJob, ModelChoice) -> Unit,
     setActor: (String, ModelChoice) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    setBackup: (ModelJob, ModelChoice) -> Unit = { _, _ -> }
 ) {
     var opened by remember { mutableStateOf<Opened?>(null) }
     Column(modifier) {
@@ -62,10 +64,17 @@ private sealed interface Opened {
                         if (index > 0) RowDivider()
                         val open = opened == Opened.Actor(story.storyID)
                         ModelRow(title = story.title, does = null, label = story.actor.label, open = open, chevron = true,
-                            first = index == 0, last = index == models.stories.lastIndex,
+                            first = index == 0, last = false,
                             toggle = { opened = if (open) null else Opened.Actor(story.storyID) }) {
                             ModelPicker(models.providers, story.actor.choice, enabled, "${story.title}'s Actor") { setActor(story.storyID, it) }
                         }
+                    }
+                    // The Actor's second model, for every Story: tried once before any word of a Reply is written.
+                    if (models.stories.isNotEmpty()) RowDivider()
+                    val open = opened == Opened.ActorBackup
+                    ModelRow(title = "If it fails, try", does = "For every Story's Actor", label = models.actorBackup.label, open = open, chevron = false,
+                        first = models.stories.isEmpty(), last = true, toggle = { opened = if (open) null else Opened.ActorBackup }) {
+                        BackupPicker(models.providers, models.actorBackup.choice, enabled, "The Actor's second model", labelled = false) { setBackup(ModelJob.Actor, it) }
                     }
                 }
             }
@@ -77,7 +86,10 @@ private sealed interface Opened {
                         ModelRow(title = job.title, does = job.does, label = job.model.label, open = open, chevron = false,
                             first = index == 0, last = index == models.jobs.lastIndex,
                             toggle = { opened = if (open) null else Opened.Job(job.job) }) {
-                            ModelPicker(models.providers, job.model.choice, enabled, "${job.title}'s model") { setJob(job.job, it) }
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                ModelPicker(models.providers, job.model.choice, enabled, "${job.title}'s model") { setJob(job.job, it) }
+                                BackupPicker(models.providers, job.backup.choice, enabled, "${job.title}'s second model") { setBackup(job.job, it) }
+                            }
                         }
                     }
                 }
@@ -130,9 +142,9 @@ private sealed interface Opened {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable internal fun ModelPicker(
     providers: List<ProviderModels>, current: ModelChoice?, enabled: Boolean, description: String,
-    showEffort: Boolean = true, pick: (ModelChoice) -> Unit
+    showEffort: Boolean = true, tag: String = "model-picker", pick: (ModelChoice) -> Unit
 ) {
-    Column(Modifier.fillMaxWidth().testTag("model-picker").semantics { contentDescription = description },
+    Column(Modifier.fillMaxWidth().testTag(tag).semantics { contentDescription = description },
         verticalArrangement = Arrangement.spacedBy(6.dp)) {
         for ((index, provider) in providers.withIndex()) {
             Text(provider.label, style = FantasiaType.pathLabel, color = FantasiaCaption, modifier = Modifier.padding(top = if (index > 0) 4.dp else 0.dp))
@@ -159,6 +171,35 @@ private sealed interface Opened {
                         pick(current.copy(effort = effort))
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * IF IT FAILS, TRY (Models.dc.html): the job's second model, tried once when its own fails or runs too long. One model
+ * a provider, the chosen one in its provider's place, and More… for every model. A pick keeps the effort when the
+ * new model has it, and takes the model's own default otherwise.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable private fun BackupPicker(providers: List<ProviderModels>, current: ModelChoice, enabled: Boolean, description: String,
+    labelled: Boolean = true, pick: (ModelChoice) -> Unit) {
+    var more by remember { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (labelled) Text("IF IT FAILS, TRY", style = FantasiaType.pathLabel, color = FantasiaCaption, modifier = Modifier.padding(top = 4.dp))
+        if (more) ModelPicker(providers, current, enabled, description, showEffort = false, tag = "backup-picker", pick = pick)
+        else FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.selectableGroup().testTag("backup-picker").semantics { contentDescription = description }) {
+            for (provider in providers) {
+                val option = provider.models.firstOrNull { provider.provider == current.provider && it.id == current.model } ?: provider.models.firstOrNull() ?: continue
+                val chosen = provider.provider == current.provider && option.id == current.model
+                Chip(option.name, selected = chosen, enabled = enabled && provider.reachable, filled = false) {
+                    pick(ModelChoice(provider = provider.provider, model = option.id, effort = current.effort?.takeIf { it in option.efforts } ?: option.defaultEffort))
+                }
+            }
+            Surface(onClick = { more = true }, shape = FantasiaShapes.round, color = Color.Transparent, border = BorderStroke(1.dp, FantasiaStrongLine),
+                modifier = Modifier.height(34.dp)) {
+                Box(Modifier.padding(horizontal = 12.dp), contentAlignment = Alignment.Center) { Text("More…", style = FantasiaType.meta, color = FantasiaSecondary) }
             }
         }
     }

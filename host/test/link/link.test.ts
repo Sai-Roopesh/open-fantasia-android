@@ -145,7 +145,8 @@ describe("mac-link", () => {
   // WHEN that trace id is looked up on the Mac
   // THEN the Mac shows what was asked, what happened, and any model call involved
   it("mac-link › Every request is answered or refused with a reason › Looking up a failure", async () => {
-    const { call, storyId, engine, mac: store } = await mac([{ fail: "Claude is overloaded" }]);
+    // The Actor's model and its second model are both overloaded, so the Reply fails.
+    const { call, storyId, engine, mac: store } = await mac([{ fail: "Claude is overloaded" }, { fail: "Claude is overloaded" }]);
     const scene = await (await call(`/stories/${storyId}/scene`)).json() as SceneView;
     const accepted = await (await call(`/stories/${storyId}/moves`, { method: "POST", body: JSON.stringify({ text: "I wave.", after: scene.head_entry_id }) })).json() as { trace_id: string };
     await engine.settled(storyId);
@@ -197,10 +198,12 @@ describe("mac-link", () => {
 
     await post("end-scene", { after: (await view()).head_entry_id });
     expect((await view()).day_view).toMatchObject({ place: "The Three Broomsticks" });
-    // The World moves on after the Scene ends, and that reaches the phone too.
-    await stream.until(events => events.some(event => event.event.kind === "world_moved"));
+    // The Scene's end says each step as it starts, the World moves on, and the end says it is done: all reach the phone.
+    await stream.until(events => events.some(event => event.event.kind === "scene_end_step" && event.event.step === null));
     const kinds = stream.received.map(event => event.event.kind).filter(kind => kind !== "reply_delta");
-    expect(kinds).toEqual(["move", "reply_started", "reply", "focus_set", "linger_set", "redo", "reply_started", "reply", "scene_closed", "world_moved"]);
+    expect(kinds).toEqual(["move", "reply_started", "reply", "focus_set", "linger_set", "redo", "reply_started", "reply", "scene_closed",
+      "scene_end_step", "scene_end_step", "scene_end_step", "world_moved", "scene_end_step"]);
+    expect(stream.received.filter(event => event.event.kind === "scene_end_step").map(event => event.event.step)).toEqual(["chronicler", "director", "weaver", null]);
     expect(stream.received.find(event => event.event.kind === "focus_set")!.event.focus).toBe("Hermione Granger");
     expect(stream.received.find(event => event.event.kind === "scene_closed")!.event.day_view).toMatchObject({ place: "The Three Broomsticks" });
   });
@@ -211,7 +214,7 @@ describe("mac-link", () => {
     await call(`/stories/${storyId}/moves`, { method: "POST", body: JSON.stringify({ text: "I say goodnight.", after: (await view()).head_entry_id }) });
     await engine.settled(storyId);
     await call(`/stories/${storyId}/end-scene`, { method: "POST", body: JSON.stringify({ after: (await view()).head_entry_id }) });
-    await engine.woven(storyId);
+    await engine.ended(storyId);
     const day = await view();
     const refused = await call(`/stories/${storyId}/choose`, { method: "POST", body: JSON.stringify({ after: day.head_entry_id, gap: null }) });
     expect(refused.status).toBe(400);
@@ -228,7 +231,7 @@ describe("mac-link", () => {
     await call(`/stories/${storyId}/moves`, { method: "POST", body: JSON.stringify({ text: "I say goodnight.", after: (await view()).head_entry_id }) });
     await engine.settled(storyId);
     await call(`/stories/${storyId}/end-scene`, { method: "POST", body: JSON.stringify({ after: (await view()).head_entry_id }) });
-    await engine.woven(storyId);
+    await engine.ended(storyId);
     const day = await view();
     const skip = day.day_view!.choices.skips.at(-1)!;
     // Byte for byte what the phone's encoder writes for a Skip (LinkClientTest on the phone pins the same body).
@@ -251,7 +254,7 @@ describe("mac-link", () => {
     await call(`/stories/${storyId}/moves`, { method: "POST", body: JSON.stringify({ text: "I say goodnight.", after: (await view()).head_entry_id }) });
     await engine.settled(storyId);
     await call(`/stories/${storyId}/end-scene`, { method: "POST", body: JSON.stringify({ after: (await view()).head_entry_id }) });
-    await engine.woven(storyId);
+    await engine.ended(storyId);
     const day = await view();
     const skip = day.day_view!.choices.skips[0]!;
     writer.hold();
@@ -300,18 +303,20 @@ describe("mac-link", () => {
     await call(`/stories/${storyId}/end-scene`, { method: "POST", body: JSON.stringify({ after: playing.head_entry_id }) });
     // The phone locks: its stream is gone before the World has moved on.
     await stream.close();
-    await engine.woven(storyId);
-    await engine.chronicled(storyId);
+    await engine.ended(storyId);
+    await engine.ended(storyId);
     const reopened = await view();
-    expect(reopened.day_view).toMatchObject({ world: "ready" });
+    expect(reopened.day_view).toMatchObject({ scene_end: { step: null, failed: null } });
+    expect(reopened.day_view!.happenings.length).toBeGreaterThan(0);
     expect(reopened.earlier_scenes.length + 1).toBe(reopened.scene.number);
   });
 
-  it("answers Retry for the World only when the World could not move on", async () => {
+  it("has one Retry, for a Reply or a Scene's end, and refuses it when nothing is waiting to be tried again", async () => {
     const { call, storyId } = await mac();
-    const refused = await call(`/stories/${storyId}/world/retry`, { method: "POST", body: "{}" });
+    const refused = await call(`/stories/${storyId}/retry`, { method: "POST", body: "{}" });
     expect(refused.status).toBe(400);
-    expect((await refused.json() as { error: { message: string } }).error.message).toMatch(/not waiting on anything/);
+    expect((await refused.json() as { error: { message: string } }).error.message).toBe("There is nothing waiting to be tried again.");
+    for (const gone of ["world/retry", "record/retry"]) expect((await call(`/stories/${storyId}/${gone}`, { method: "POST", body: "{}" })).status, gone).toBe(404);
   });
 
   it("refuses End scene, Focus, Linger and Redo while a Reply is being written, with the reason", async () => {
@@ -372,11 +377,11 @@ describe("mac-link", () => {
       await post("moves", { text: move, after: (await view()).head_entry_id });
       await engine.settled(storyId);
       await post("end-scene", { after: (await view()).head_entry_id });
-      await engine.chronicled(storyId);
+      await engine.ended(storyId);
     }
     await post("moves", { text: "I go up to the tower.", after: (await view()).head_entry_id });
     await engine.settled(storyId);
-    await engine.chronicled(storyId);
+    await engine.ended(storyId);
 
     const shown = await view();
     expect(shown.scene.number).toBe(4);

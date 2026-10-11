@@ -71,7 +71,8 @@ class SceneProjection(initial: SceneView) {
         val event = envelope.event
         val cursor = EventOrder.parse(lastEventID)
         if (event.seq < cursor.seq) return view
-        val order = if (event.kind in setOf(StoryEventKind.ReplyFailed, StoryEventKind.WorldFailed, StoryEventKind.RecordWritten)) null else envelope.id?.let(EventOrder::parse)
+        // A failure and a Scene end's steps write no entry: their ids ("12.step.weaver") are not a place in the order.
+        val order = if (event.kind in setOf(StoryEventKind.ReplyFailed, StoryEventKind.SceneEndStep, StoryEventKind.SceneEndFailed)) null else envelope.id?.let(EventOrder::parse)
         // SSE carries the preceding id into an id-less reply_started event. A view reloaded
         // mid-turn can already contain its words; that queued start must not erase them.
         if (event.kind == StoryEventKind.ReplyStarted && view.turn.kind == TurnStateKind.Writing &&
@@ -83,7 +84,12 @@ class SceneProjection(initial: SceneView) {
         if (event.kind == StoryEventKind.ReplyDelta && order != null && order <= EventOrder.parse(lastEventID)) return view
         view = when (event.kind) {
             // These say the Scene should be read again; the stream reads its snapshot.
-            StoryEventKind.WorldMoved, StoryEventKind.WorldFailed, StoryEventKind.RecordWritten, StoryEventKind.PathChanged -> view
+            StoryEventKind.WorldMoved, StoryEventKind.PathChanged -> view
+            // The step of the Scene's end under way, or none when it is done (docs/adr/0016); the stream reads the rest.
+            StoryEventKind.SceneEndStep -> view.copy(dayView = view.dayView?.copy(sceneEnd = SceneEnd(step = event.step)))
+            StoryEventKind.SceneEndFailed -> view.copy(dayView = view.dayView?.let { day ->
+                event.step?.let { step -> day.copy(sceneEnd = SceneEnd(failed = SceneEndFailure(step = step, reason = event.reason.orEmpty(), traceID = event.traceID.orEmpty()))) } ?: day
+            })
             StoryEventKind.SceneClosed -> view.copy(seq = maxOf(view.seq, event.seq), dayView = requireNotNull(event.dayView), focus = null, linger = false)
             StoryEventKind.FocusSet -> view.copy(seq = maxOf(view.seq, event.seq), focus = event.focus)
             StoryEventKind.LingerSet -> view.copy(seq = maxOf(view.seq, event.seq), linger = requireNotNull(event.linger))

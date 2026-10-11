@@ -23,14 +23,14 @@ class StoryStream(
                     val before = projection.view
                     val next = SceneProjection(before)
                     next.apply(envelope)
-                    // World signals carry no Day View and may share the current sequence (a failure writes no entry); a
-                    // record written late may put an Engagement on the Day View. Reload even when applying the signal
-                    // leaves the projection unchanged.
-                    val worldSignal = envelope.event.kind in setOf(StoryEventKind.WorldMoved, StoryEventKind.WorldFailed, StoryEventKind.RecordWritten, StoryEventKind.PathChanged) &&
+                    // A Scene's end writes entries the stream does not carry (the record, the plan, the fold), and its
+                    // steps share the sequence of the entry before them: each step, the World moving on and a Path
+                    // change read the Scene again, even when the signal leaves the projection unchanged.
+                    val endSignal = envelope.event.kind in setOf(StoryEventKind.WorldMoved, StoryEventKind.SceneEndStep, StoryEventKind.SceneEndFailed, StoryEventKind.PathChanged) &&
                         envelope.event.seq >= before.seq
                     // A Move that opens the next Scene changes more than its exchange: the earlier Scenes, the card.
                     val opens = envelope.event.kind == StoryEventKind.Move && envelope.event.opening != null
-                    if (worldSignal || (next.view != before && (opens || envelope.event.kind in setOf(
+                    if (endSignal || (next.view != before && (opens || envelope.event.kind in setOf(
                             StoryEventKind.SceneOpened, StoryEventKind.SceneClosed, StoryEventKind.Redo,
                             StoryEventKind.FocusSet, StoryEventKind.LingerSet)))) {
                         // Keep the old projection and cursor until the entire reload succeeds.

@@ -13,7 +13,12 @@ class WorldScreenTest : WorldUiChecks() {
 
     @Test fun emptyMeanwhile() = emptyMeanwhileHasNoHeading()
 
-    @Test fun failedWorld() = failedWorldCanBeRetried()
+    @Scenario("presence › Nothing fails silently › A step at a Scene's end fails")
+    @Test fun stepFails() = aStepAtASceneEndFails()
+
+    @Test fun reaction() = reactingToTheSceneThatEnded()
+
+    @Test fun reactionOnTheDayView() = reactingOnceTheDayViewIsReady()
 
     @Test fun readingPlace() = worldReadyKeepsReadingPlace()
 }

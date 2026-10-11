@@ -11,6 +11,11 @@ class ModelsScreenTest : ModelsUiChecks() {
     @Scenario("outside-the-scene › One Models screen › A Story's own Actor")
     @Test fun actor() = aStorysOwnActor()
 
+    @Scenario("outside-the-scene › One Models screen › The Folder on Haiku")
+    @Test fun folder() = theFolderOnHaiku()
+
+    @Test fun actorBackup() = theActorsSecondModel()
+
     @Test fun unreachable() = unreachableProviderSaysWhy()
 
     @Scenario("scenes › Redo, with a Direction and another model if wanted › Redo on another model")

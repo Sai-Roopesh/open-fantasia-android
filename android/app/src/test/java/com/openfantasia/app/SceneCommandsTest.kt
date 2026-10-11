@@ -34,22 +34,48 @@ class SceneCommandsTest {
         }
     }
 
-    // Contract 12: the body says which model, if any, runs the Weaver for this one try. An empty body with a JSON
-    // content type was refused by the Mac before it reached the route.
-    @Test fun `World retry posts its model, or null, and reads Accepted`() = runBlocking {
+    // Contract 21: one Retry for a Reply and a Scene's end; the body says which model, if any, runs the step for this
+    // one try. An empty body with a JSON content type was refused by the Mac before it reached the route.
+    @Test fun `Retry posts its model, or null, and reads TurnAccepted`() = runBlocking {
         MacServer().use { mac ->
             val link = connection(mac)
             mac.enqueue(MockResponse().setBody("""{"stories":[],"trace_id":"list"}"""))
             link.stories()
             mac.server.takeRequest()
-            mac.enqueue(MockResponse().setResponseCode(202).setBody("""{"head_entry_id":"closed","trace_id":"world-retry"}"""))
-            assertEquals(Accepted(headEntryID = "closed", traceID = "world-retry"), link.retryWorld("story", RetryWorldRequest()))
+            mac.enqueue(MockResponse().setResponseCode(202).setBody("""{"move_entry_id":"closed","trace_id":"retry"}"""))
+            assertEquals(TurnAccepted(moveEntryID = "closed", traceID = "retry"), link.retry("story", RetryRequest()))
             val request = mac.server.takeRequest()
-            assertEquals("/stories/story/world/retry", request.path)
+            assertEquals("/stories/story/retry", request.path)
             assertEquals("POST", request.method)
             assertEquals("""{"model":null}""", request.body.readUtf8())
             assertEquals(CONTRACT_VERSION.toString(), request.getHeader("Fantasia-Contract"))
             assertEquals("Bearer secret", request.getHeader("Authorization"))
+        }
+    }
+
+    // The player's brief and reactions (openspec long-run: The player steers with a brief and reactions).
+    @Test fun `The brief and a reaction post with the head and read Accepted`() = runBlocking {
+        MacServer().use { mac ->
+            val link = connection(mac)
+            mac.enqueue(MockResponse().setBody("""{"stories":[],"trace_id":"list"}"""))
+            link.stories()
+            mac.server.takeRequest()
+            mac.enqueue(MockResponse().setBody("""{"head_entry_id":"brief","trace_id":"brief"}"""))
+            assertEquals("brief", link.setBrief("story", BriefRequest(after = "closed", more = listOf("Danger"), less = emptyList())).headEntryID)
+            mac.server.takeRequest().let {
+                assertEquals("/stories/story/brief", it.path)
+                assertEquals("POST", it.method)
+                assertEquals("""{"after":"closed","less":[],"more":["Danger"]}""", it.body.readUtf8())
+            }
+            for (reaction in listOf(Reaction.More, null)) {
+                mac.enqueue(MockResponse().setBody("""{"head_entry_id":"reaction","trace_id":"reaction"}"""))
+                assertEquals("reaction", link.react("story", ReactionRequest(after = "brief", sceneNumber = 14, reaction = reaction)).headEntryID)
+                mac.server.takeRequest().let {
+                    assertEquals("/stories/story/reaction", it.path)
+                    assertEquals("POST", it.method)
+                    assertEquals("""{"after":"brief","note":null,"reaction":${reaction?.let { "\"${it.value}\"" } ?: "null"},"scene_number":14}""", it.body.readUtf8())
+                }
+            }
         }
     }
 

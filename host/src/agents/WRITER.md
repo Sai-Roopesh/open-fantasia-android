@@ -192,9 +192,9 @@ you when a beat has been in play too long or no Arc has moved for a while; do wh
 
 ## The clock
 
-`clock` is the story time the Reply begins, as "Day N HH:MM". Never earlier than now. A Move that passes time
-moves it: "after an hour, I'm still holding on" puts the Reply at least an hour later. A Scene opened from the
-Day View begins when the Move says, or soon after now. A few minutes pass in an ordinary exchange.
+`minutes` is how many minutes after now the Reply begins; the clock is worked out from it. A Move that passes time
+moves it: "after an hour, I'm still holding on" is 60 or more. A Scene opened from the Day View begins when the Move
+says, or soon after now. A few minutes pass in an ordinary exchange: 1 to 5.
 
 ## Intensity
 

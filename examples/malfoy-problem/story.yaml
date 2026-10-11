@@ -4,16 +4,18 @@
 format: 1
 title: The Malfoy Problem
 premise: >-
-  The whole Hogwarts journey, lived as Roopesh: the seven books condensed into four years of university and a fifth
-  after graduation, ending with Voldemort defeated and the world saved. At its heart, an enemies-to-lovers romance
-  with Draconia Malfoy, a bossy, possessive, jealous pure-blood heiress who picks on him because it is the only thing
-  she knows how to do, and Hermione Granger's quieter love, which grows. Romance first, university life second, the
-  Triwizard Tournament as the centrepiece.
+  Roopesh's years at Hogwarts, as a story of its own: the world and the people of the books, but most of what happens
+  is new. Plots, dangers and mysteries the books never had, and the fun of everyday university life, while the books'
+  great events stay in the background, across four years and a fifth after graduation, until Voldemort is defeated.
+  At its heart, an enemies-to-lovers romance with Draconia Malfoy, a bossy, possessive, jealous pure-blood heiress who
+  picks on him because it is the only thing she knows how to do, and Hermione Granger's quieter love, which grows.
+  Romance first; then danger, mystery and everyday fun; the Triwizard Tournament as the centrepiece.
 style: >-
   Close third person on the people around Roopesh. British English, 1991. Young adult with Game of Thrones politics
   underneath: old pure-blood houses, alliances by marriage and favour, secrets as currency, public humiliations,
-  consequences that stick, and nobody entirely safe; but romance and university life come first, the books' plot
-  keeps moving year by year, and background people stay in the background. Dry humour, never slapstick. University
+  consequences that stick, and nobody entirely safe; but romance and university life come first, the books' events
+  happen in the background year by year while the Story's own plots move in front, and background people stay in the
+  background. Dry humour, never slapstick. University
   life is real: lectures and exams, pubs, common-room parties, drinking, hook-ups. The slow burn is slow, across four
   years: weeks of insults before a slip, and every slip denied at once. Draconia is a tsundere at full volume and
   very much a girl: vain, beautifully dressed, cruel to other girls out of jealousy, every kindness arriving as an
@@ -22,6 +24,21 @@ style: >-
   cruelty without wit, and Roopesh can always push back. Everyone is an adult; when romance gets there, it can be
   explicit on the page. Cruelty lands. Canon deaths happen when they have to, unless Roopesh changes them.
 reply_length: full
+routine:
+  - Breakfast in the Great Hall, 7:30 to 9:00.
+  - Lectures Monday to Friday, 9:00 to 12:00 and 14:00 to 17:00; lunch between.
+  - Dinner in the Great Hall at 18:30.
+  - Weeknight evenings in the common room or the library; Friday and Saturday nights for pubs and parties.
+  - Hogsmeade on Saturdays.
+brief:
+  more:
+    - Plots of the Story's own, not the books'
+    - Danger and mysteries
+    - Fun, everyday university life
+    - More happening, faster
+  less:
+    - Canon events retold
+    - The same Scenes week after week
 actor:
   provider: claude
   model: claude-opus-5-5
@@ -302,7 +319,7 @@ arcs:
   - Hermione's hidden love for Roopesh grows until it cannot stay hidden, and the Story makes room for both her and Draconia.
   - Harry and Roopesh become brothers in everything but blood.
   - Roopesh keeps what he can do hidden, until the war makes him use it; Voldemort senses something ancient in him and never works out what.
-  - The Hogwarts journey runs its course, year by year, to Voldemort's defeat.
+  - Mysteries and dangers of the Story's own, none of them from the books, draw Roopesh in one after another, while the war with Voldemort gathers in the background.
 landmarks:
   - name: The Halloween troll
     at: Day 61 19:00

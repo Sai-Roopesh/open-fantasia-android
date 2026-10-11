@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { writeWeave, type WeaveAsk, type WeaveRecord } from "../../src/agents/weaver.js";
-import { Engine } from "../../src/engine/engine.js";
-import { dueWeave, weaveAsk } from "../../src/engine/weaving.js";
+import { sceneEndWeave } from "../../src/engine/scene-end.js";
 import { ClaudeRunner } from "../../src/models/claude.js";
 import { DEFAULT_JOB_MODELS } from "../../src/models/jobs.js";
 import { Models } from "../../src/models/model-call.js";
@@ -18,7 +17,7 @@ const token = readSecret(CLAUDE_TOKEN);
 const RUNS = 3;
 
 /** A Scene played as written (no models), ended by the player, and the Weaver's real answer for the span after it. */
-async function woven(story: StoryFile, exchanges: [string, string][], span: Partial<Pick<WeaveAsk, "from" | "until" | "afterPeak">> = {}): Promise<WeaveRecord> {
+async function woven(story: StoryFile, exchanges: [string, string][], span: Partial<Pick<WeaveAsk, "from" | "until">> = {}): Promise<WeaveRecord> {
   const mac = freshHome();
   const imported = importStoryFile(writeStoryFile(story), mac);
   if (!imported.ok) throw new Error(`import failed: ${JSON.stringify(imported.problems)}`);
@@ -32,11 +31,11 @@ async function woven(story: StoryFile, exchanges: [string, string][], span: Part
     mac.tree.moveHead(path.id, at, replied.id);
     at = replied.id;
   }
-  new Engine(mac, models).endScene(imported.storyId, at, "real-end");
-  const due = dueWeave(mac, mac.tree.currentPath(imported.storyId)!.headEntryId)!;
-  const ask = weaveAsk(mac, due);
+  const closed = mac.tree.append(imported.storyId, at, { kind: "scene_closed", by: "player" });
+  mac.tree.moveHead(path.id, at, closed.id);
+  const ask = sceneEndWeave(mac, closed.id, mac.states.at(closed.id));
   try {
-    const { value } = await writeWeave(models, DEFAULT_JOB_MODELS.weaver, { ...ask, ...span }, imported.storyId, "real-weave", new AbortController().signal);
+    const { value } = await writeWeave(models, [DEFAULT_JOB_MODELS.weaver], { ...ask, ...span }, imported.storyId, "real-weave", new AbortController().signal);
     return value;
   } finally {
     runner.close();
@@ -148,20 +147,4 @@ describe.skipIf(!token)("the Weaver on Claude", () => {
       expect(verdict.yes, `run ${run + 1}: ${verdict.said}\n${show(record)}`).toBe(false);
     }
   });
-
-  // GIVEN the Scene where Draconia chose the Player Character in front of her House just ended
-  // THEN the Story's own pick at the Day View is a quiet Happening
-  it("long-run › Rest is deliberate › A quiet pick after a peak", async () => {
-    for (let run = 0; run < RUNS; run++) {
-      const record = await woven(hogwartsWorldStoryFile({ title: "In front of her House", place: "The Slytherin common room", at: "Day 3 21:40", who: ["Draconia Malfoy"] }), [
-        ["I walk into the Slytherin common room and wait for her to choose.", "Draconia stands, crosses the whole room under every eye in her House, and takes his hand. \"Him,\" she says. Nobody speaks."]
-      ], { afterPeak: true });
-      const pick = record.happenings.find(item => item.pick);
-      expect(pick, JSON.stringify(record.happenings)).toBeDefined();
-      expect(pick!.quiet).toBe(true);
-      const verdict = await judge("Is something at stake in this: a confrontation, a contest, a secret coming out, or a choice that could change what is between people? Answer YES or NO.", `${pick!.what} (${pick!.place}, ${pick!.at})`);
-      expect(verdict.yes, verdict.said).toBe(false);
-    }
-  });
 });
-

@@ -12,7 +12,8 @@ CREATE TABLE IF NOT EXISTS stories (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
   folder TEXT NOT NULL,
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  before_ledger INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS entries (
@@ -97,7 +98,7 @@ CREATE TABLE IF NOT EXISTS pairing_codes (
  * The shape of the State that saved States have. When the State gains or changes a field, this goes up, and the
  * saved States are thrown away the next time the store opens: they are a cache, and the entries are the truth.
  */
-export const STATE_SHAPE = 6;
+export const STATE_SHAPE = 7;
 
 /**
  * What a Path card needs (openspec paths): how the Path began, the entry it branched from, whether the player has
@@ -110,6 +111,17 @@ const PATH_COLUMNS: [string, string][] = [
   ["named", "INTEGER NOT NULL DEFAULT 0"]
 ];
 
+/**
+ * A Story made before everything was on the Path (docs/adr/0015) cannot be read: it is kept as it was, unlisted, and
+ * made again from its Story File.
+ */
+function setStoriesBeforeLedgerAside(db: Db): void {
+  const has = new Set((db.prepare("PRAGMA table_info(stories)").all() as { name: string }[]).map(column => column.name));
+  if (has.has("before_ledger")) return;
+  db.exec("ALTER TABLE stories ADD COLUMN before_ledger INTEGER NOT NULL DEFAULT 0");
+  db.exec("UPDATE stories SET before_ledger = 1");
+}
+
 function addPathColumns(db: Db): void {
   const has = new Set((db.prepare("PRAGMA table_info(paths)").all() as { name: string }[]).map(column => column.name));
   for (const [name, type] of PATH_COLUMNS) if (!has.has(name)) db.exec(`ALTER TABLE paths ADD COLUMN ${name} ${type}`);
@@ -121,6 +133,7 @@ export function openDb(file: string): Db {
   db.pragma("foreign_keys = ON");
   db.exec(SCHEMA);
   addPathColumns(db);
+  setStoriesBeforeLedgerAside(db);
   if (db.pragma("user_version", { simple: true }) !== STATE_SHAPE) {
     db.exec("DELETE FROM states");
     db.pragma(`user_version = ${STATE_SHAPE}`);

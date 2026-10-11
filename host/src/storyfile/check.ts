@@ -4,7 +4,8 @@ import { Ajv2020, type ErrorObject } from "ajv/dist/2020.js";
 import { parse } from "yaml";
 import schema from "../../../protocol/schemas/story-file.schema.json" with { type: "json" };
 import type { StoryFile } from "../protocol/generated/story-file.js";
-import { MAX_STANDING_WORDS } from "../story/bonds.js";
+/** Where things stand between him and someone is said in forty words or fewer. */
+const MAX_STANDING_WORDS = 40;
 import { parseStoryTime } from "../time.js";
 
 /** The Story File formats this app understands. */

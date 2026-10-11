@@ -21,7 +21,7 @@ describe("the Director's plan over the link", () => {
     await post("moves", { text: "I say goodnight.", after: (await view()).head_entry_id });
     await engine.settled(storyId);
     await post("end-scene", { after: (await view()).head_entry_id });
-    await engine.directed(storyId);
+    await engine.ended(storyId);
 
     const backstage = await (await call(`/stories/${storyId}/backstage`)).json() as BackstageView;
     expect(backstage.director).toMatchObject({ toward: "what comes next", phase: "build", line: "Building toward what comes next. This stretch builds; rest comes after it." });

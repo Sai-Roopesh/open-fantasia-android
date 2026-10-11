@@ -64,7 +64,7 @@ class MainActivity : ComponentActivity() {
         ReplyWatch.stop(this)
     }
 
-    // The app goes away with a Reply under way or the World moving on: the watch follows it (openspec presence).
+    // The app goes away with a Reply under way or a Scene's end running: the watch follows it (openspec presence).
     override fun onStop() {
         super.onStop()
         if (isChangingConfigurations) return

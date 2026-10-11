@@ -30,9 +30,13 @@ sealed interface StoryEdit {
     data class Place(val name: String?, val institution: Boolean) : StoryEdit
     /** A lesson in Taste, from Backstage. */
     data class Taste(val line: String) : StoryEdit
+    /** The player's brief, from Backstage: what they want more of and less of, as it stands. */
+    data class Brief(val more: List<String>, val less: List<String>) : StoryEdit
 }
 data class StoryEditing(val target: StoryEdit, val problem: String? = null, val saving: Boolean = false)
 data class AppProblem(val reason: String, val traceID: String? = null, val needsUpdate: Boolean = false)
+/** A reaction given while the Scene's end runs: the Mac takes it once the end is done or stopped, as it takes no edit before. */
+data class HeldReaction(val storyID: String, val sceneNumber: Long, val reaction: Reaction?)
 data class FantasiaState(
     val paired: Boolean,
     val hostName: String = "Mac",
@@ -66,6 +70,7 @@ data class FantasiaState(
     val models: ModelsView? = null,
     val draft: String = "",
     val waitingMove: WaitingMove? = null,
+    val heldReaction: HeldReaction? = null,
     val sending: Boolean = false,
     val waiting: Boolean = false,
     val reachable: Boolean = false,
@@ -140,6 +145,7 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
                         (updated.seq > afterSeq && updated.headEntryID != pendingMoveID && updated.turn.kind == TurnStateKind.Idle)
                     if (finished) pendingMoveID = null
                     mutable.update { it.copy(scene = visibleScene(updated), waiting = if (finished) false else it.waiting) }
+                    sendHeldReaction()
                 }
             } catch (e: CancellationException) { throw e
             } catch (e: Exception) { showProblem(e)
@@ -325,6 +331,37 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
     fun savePlace(name: String, institution: Boolean, creating: Boolean, description: String) =
         storyChange { link.setPlace(it.storyID, name, PlaceRequest(after = it.headEntryID, description = description, institution = institution, create = creating)) }
     fun rewordTaste(line: String, text: String) = storyChange { link.rewordTaste(it.storyID, RewordTasteRequest(after = it.headEntryID, line = line, text = text)) }
+    /** The brief, a line a thing (openspec long-run: The player steers with a brief and reactions). */
+    fun saveBrief(more: List<String>, less: List<String>) = storyChange {
+        link.setBrief(it.storyID, BriefRequest(after = it.headEntryID, more = more.map(String::trim).filter(String::isNotEmpty), less = less.map(String::trim).filter(String::isNotEmpty)))
+    }
+
+    /**
+     * The player's reaction to the Scene that just ended, or none when [reaction] is null. While the Scene's end runs it
+     * is held, shown as given, and sent once the end is done or stopped.
+     */
+    fun react(reaction: Reaction?) {
+        val state = mutable.value
+        val scene = state.scene ?: return
+        if (scene.dayView == null || !state.canReact) return
+        mutable.update { it.copy(heldReaction = HeldReaction(scene.storyID, scene.scene.number, reaction)) }
+        sendHeldReaction()
+    }
+
+    private fun sendHeldReaction() {
+        val state = mutable.value
+        val held = state.heldReaction ?: return
+        val scene = state.scene
+        val day = scene?.dayView
+        if (scene == null || day == null || scene.storyID != held.storyID || scene.scene.number != held.sceneNumber) {
+            mutable.update { it.copy(heldReaction = null) }
+            return
+        }
+        if (day.sceneEnd.step != null || !state.canChangePath) return
+        mutable.update { it.copy(heldReaction = null) }
+        if (day.reaction == held.reaction) return
+        edit { link.react(it.storyID, ReactionRequest(after = it.headEntryID, sceneNumber = held.sceneNumber, reaction = held.reaction)) }
+    }
 
     /** Adds an Arc, or rewords the one at [index]; the Arcs are sent whole. */
     fun saveArc(index: Int?, words: String) {
@@ -337,19 +374,19 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
     }
 
     /**
-     * Sends an edit to the Story from the head the phone saw. The answer is The Story as it now stands; the Scene and
-     * whatever else is open are read again. A refusal stays in the sheet with what was written, or, for a chip, shows
-     * as the screen's problem.
+     * Sends an edit to the Story from the head the phone saw. The answer is The Story as it now stands, or for the
+     * brief only that it was taken; the Scene and whatever else is open are read again. A refusal stays in the sheet
+     * with what was written, or, for a chip, shows as the screen's problem.
      */
-    private fun storyChange(inSheet: Boolean = true, change: suspend (SceneView) -> StoryView) {
+    private fun storyChange(inSheet: Boolean = true, change: suspend (SceneView) -> Any) {
         val state = mutable.value
         val scene = state.scene ?: return
         if (!state.canChangePath) return
         mutable.update { it.copy(sending = true, problem = null, storyEditing = it.storyEditing?.copy(problem = null, saving = true)) }
         viewModelScope.launch {
             try {
-                val story = change(scene)
-                mutable.update { it.copy(story = if (it.showingStory) story else it.story, storyEditing = null) }
+                val story = change(scene) as? StoryView
+                mutable.update { it.copy(story = if (it.showingStory && story != null) story else it.story, storyEditing = null) }
                 afterEdit(scene.storyID)
             } catch (e: CancellationException) { throw e
             } catch (e: Exception) {
@@ -389,21 +426,6 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
                 val fresh = link.scene(scene.storyID)
                 val backstage = link.backstage(scene.storyID)
                 mutable.update { it.copy(scene = visibleScene(fresh), backstage = backstage) }
-            } catch (e: CancellationException) { throw e
-            } catch (e: Exception) { showProblem(e)
-            } finally { mutable.update { it.copy(sending = false) } }
-        }
-    }
-
-    /** Tries the record of a Scene given up after three tries once more (openspec outside-the-scene: A gap in the record). */
-    fun retryRecord(sceneNumber: Long) {
-        val scene = mutable.value.scene ?: return
-        mutable.update { it.copy(sending = true, problem = null) }
-        viewModelScope.launch {
-            try {
-                link.retryRecord(scene.storyID, RecordRetryRequest(after = scene.headEntryID, sceneNumber = sceneNumber))
-                val backstage = link.backstage(scene.storyID)
-                mutable.update { it.copy(backstage = backstage) }
             } catch (e: CancellationException) { throw e
             } catch (e: Exception) { showProblem(e)
             } finally { mutable.update { it.copy(sending = false) } }
@@ -495,7 +517,7 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
     fun choose(request: ChooseRequest) {
         val state = mutable.value
         val scene = state.scene ?: return
-        if (scene.dayView?.world != World.Ready || !state.canChangeScene || request.after != scene.headEntryID) return
+        if (scene.dayView?.sceneEnd?.done != true || !state.canChangeScene || request.after != scene.headEntryID) return
         sendTurn(scene) { link.choose(scene.storyID, request) }
     }
 
@@ -544,6 +566,9 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
     /** Sets a job's model from its next work; the Mac answers with the screen as it now stands. */
     fun setJobModel(job: ModelJob, choice: ModelChoice) = changeModels { link.setJobModel(job, SetJobModelRequest(model = choice)) }
 
+    /** Sets a job's second model, tried once when its own fails or runs too long (openspec presence: Nothing fails silently). */
+    fun setJobBackup(job: ModelJob, choice: ModelChoice) = changeModels { link.setJobModel(job, SetJobModelRequest(model = choice, backup = true)) }
+
     /** Sets a Story's own Actor, or null for the one its Story File names. */
     fun setActor(storyID: String, choice: ModelChoice?) = changeModels { link.setActor(storyID, SetActorRequest(model = choice)) }
 
@@ -557,16 +582,19 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
         }
     }
 
-    /** Moves the World on again; with a model, the Weaver runs on it for this one try (openspec presence). */
-    fun retryWorld(model: ModelChoice? = null) {
+    /**
+     * Goes on with a Scene's end from the step it stopped at; with a model, that step runs on it for this one try
+     * (openspec presence: A step at a Scene's end fails). The steps before it are not run again.
+     */
+    fun retrySceneEnd(model: ModelChoice? = null) {
         val state = mutable.value
         val scene = state.scene ?: return
-        if (scene.dayView?.world != World.Failed || state.loading || state.sending || state.waiting ||
+        if (scene.dayView?.sceneEnd?.failed == null || state.loading || state.sending || state.waiting ||
             !state.reachable || state.problem?.needsUpdate == true) return
         mutable.update { it.copy(sending = true, problem = null) }
         viewModelScope.launch {
             try {
-                link.retryWorld(scene.storyID, RetryWorldRequest(model = model))
+                link.retry(scene.storyID, RetryRequest(model = model))
                 val fresh = link.scene(scene.storyID)
                 mutable.update { it.copy(scene = visibleScene(fresh)) }
             } catch (e: CancellationException) { throw e
@@ -679,20 +707,35 @@ val FantasiaState.canChangeScene: Boolean
 
 /** Everything a change to the Scene needs but the Mac; a Move can wait for the Mac (openspec presence). */
 private val FantasiaState.sceneSettled: Boolean
-    get() = scene?.turn?.kind == TurnStateKind.Idle && worldReady && !scene.replyComing && !loading && !sending && !waiting && problem?.needsUpdate != true
+    get() = scene?.turn?.kind == TurnStateKind.Idle && sceneEndDone && !scene.replyComing && !loading && !sending && !waiting && problem?.needsUpdate != true
 
 internal val FantasiaState.replyComing: Boolean
     get() = scene?.replyComing == true || (waiting && scene?.turn?.kind != TurnStateKind.Failed)
-/** Paths change only between Replies (openspec paths: A Path changes only between Replies); a failed one does not hold them. */
+/**
+ * Paths change only between Replies (openspec paths: A Path changes only between Replies); a failed one does not hold
+ * them. Nor does the Story change while a Scene's end runs: the Mac takes no edit until it is done or stopped.
+ */
 internal val FantasiaState.canChangePath: Boolean
-    get() = scene != null && !replyComing && reachable && !loading && !sending && problem?.needsUpdate != true
+    get() = scene != null && !replyComing && scene.dayView?.sceneEnd?.step == null && reachable && !loading && !sending && problem?.needsUpdate != true
+
+/** A reaction can be given at any time after a Scene ends; one given while its end runs is held until it is done. */
+internal val FantasiaState.canReact: Boolean
+    get() = scene?.dayView != null && reachable && !loading && !sending && problem?.needsUpdate != true
+
+/** The reaction the ended Scene's card shows: one held for the Mac, or the Mac's. */
+internal val FantasiaState.shownReaction: Reaction?
+    get() = heldReaction?.takeIf { it.storyID == scene?.storyID && it.sceneNumber == scene?.scene?.number }.let { held -> if (held != null) held.reaction else scene?.dayView?.reaction }
 internal val FantasiaState.canSendMove: Boolean
     get() = draft.isNotBlank() && waitingMove == null && sceneSettled && !replyComing
 
 private const val MOVED_ON = "The Story moved on while the Mac was away. Your Move is back to send again."
 
-internal val FantasiaState.worldReady: Boolean
-    get() = scene?.dayView?.world?.let { it == World.Ready } ?: true
+/** Whether the Day View is ready: no Scene's end under way or stopped, or no Day View at all. */
+internal val FantasiaState.sceneEndDone: Boolean
+    get() = scene?.dayView?.sceneEnd?.done ?: true
+
+/** A Scene's end is done when no step is under way and none stopped (docs/adr/0016). */
+internal val SceneEnd.done: Boolean get() = step == null && failed == null
 
 /** A person as the editor sends them back, with what it changes. */
 internal fun PersonDetail.asEdit(after: String, group: String? = this.group) = PersonEdit(after = after, create = false, aliases = aliases,

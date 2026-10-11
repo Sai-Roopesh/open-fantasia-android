@@ -46,8 +46,10 @@ interface FantasiaLink {
     suspend fun uploadPortrait(storyID: String, name: String, image: ByteArray, type: String, after: String): Accepted = throw LinkFailure("Editing is not on this link")
     suspend fun backstage(storyID: String): BackstageView = throw LinkFailure("Backstage is not on this link")
     suspend fun removeTaste(storyID: String, request: RemoveTasteRequest): Accepted = throw LinkFailure("Taste is not on this link")
-    suspend fun retryRecord(storyID: String, request: RecordRetryRequest): Accepted = throw LinkFailure("The record is not on this link")
-    suspend fun retryWorld(storyID: String, request: RetryWorldRequest): Accepted
+    // The player's brief and reactions (openspec long-run: The player steers with a brief and reactions).
+    suspend fun setBrief(storyID: String, request: BriefRequest): Accepted = throw LinkFailure("The brief is not on this link")
+    suspend fun react(storyID: String, request: ReactionRequest): Accepted = throw LinkFailure("Reactions are not on this link")
+    /** Writes a failed Reply again, or goes on with a Scene's end from the step it stopped at. */
     suspend fun retry(storyID: String, request: RetryRequest): TurnAccepted
     // The Models screen (openspec outside-the-scene: One Models screen). A link that does not reach a Mac has none.
     suspend fun models(): ModelsView = throw LinkFailure("Models are not on this link")

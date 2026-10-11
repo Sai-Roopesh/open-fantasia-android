@@ -15,19 +15,29 @@ import org.junit.Rule
 open class WorldUiChecks {
     @get:Rule val compose = createComposeRule()
     protected val link = FakeFantasiaLink()
-    private val status = "Recording the Scene. The World is moving on."
-
     protected fun openScene(portraitPicker: PortraitPicker = PortraitPicker { null }) {
         val model = FantasiaModel(link)
         compose.setContent { FantasiaApp(model, PairingScanner { error("Already paired") }, portraitPicker = portraitPicker) }
         compose.onNodeWithText("The Malfoy Problem").performClick()
     }
 
+    /** A step's line in the Scene's end, said as done, under way or still to come. */
+    protected fun step(line: String, state: String): SemanticsNodeInteraction =
+        compose.onNodeWithText(line).assertIsDisplayed().assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, state))
+
+    /** The Mac's Day View as it stands: the Scene's end at [end], with what else the [change] puts on it. */
+    protected fun sceneEndAt(end: SceneEnd, change: (DayView) -> DayView = { it }) {
+        compose.runOnIdle {
+            val view = link.current.value
+            link.current.value = view.copy(seq = view.seq + 1, lastEventID = (view.seq + 1).toString(), dayView = change(view.dayView!!.copy(sceneEnd = end)))
+        }
+    }
+
     // WHEN the player ends a Scene
-    // THEN a single line says the Scene is being recorded and the World is moving on, until the Day View is ready
+    // THEN a single line says each step in turn, until the Day View is ready with its choices
     fun worldMovesOn() {
         link.endedDayView = FakeFantasiaLink.dayView(closedBy = ClosedBy.Player).copy(
-            world = World.MovingOn, day = "Saturday", time = "7:10 am", place = "Gryffindor Tower")
+            sceneEnd = SceneEnd(step = SceneEndStep.Chronicler), day = "Saturday", time = "7:10 am", place = "Gryffindor Tower")
         link.current.value = link.current.value.copy(scene = link.current.value.scene.copy(place = "The Gryffindor common room"))
         openScene()
         compose.onNodeWithTag("composer").performTextInput("I wait until morning.")
@@ -35,24 +45,37 @@ open class WorldUiChecks {
         compose.onNodeWithText("SCENE 14 · ENDED").assertIsDisplayed()
         compose.onNodeWithText("After curfew").assertIsDisplayed()
         compose.onNodeWithText("Friday 9:40 pm – 11:05 pm · The Gryffindor common room").assertIsDisplayed()
+        compose.onNodeWithText("More like this").assertIsDisplayed().assertIsOff()
+        compose.onNodeWithText("Less like this").assertIsDisplayed().assertIsOff()
         compose.onNodeWithText("Saturday").assertIsDisplayed()
         compose.onNodeWithText("7:10 am · you're in Gryffindor Tower").assertIsDisplayed()
-        compose.onAllNodesWithText(status).assertCountEquals(1)
-        compose.onNodeWithText(status).assertIsDisplayed().assert(
-            SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
+        // The record first; the Director's row shows only when he plans.
+        step("Recording the Scene", "Under way").assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
+        step("The World moves on", "Still to come")
+        compose.onNodeWithText("The Director is planning the days ahead").assertDoesNotExist()
         compose.onNodeWithTag("world-placeholders", useUnmergedTree = true).assertIsDisplayed()
         compose.onNodeWithText("MEANWHILE", useUnmergedTree = true).assertExists()
         compose.onNodeWithText("WHAT'S ON TODAY", useUnmergedTree = true).assertExists()
         compose.onNodeWithText("3 days").assertDoesNotExist()
         compose.onNodeWithTag("composer").assertDoesNotExist()
         compose.onNodeWithTag("send-move").assertDoesNotExist()
+        compose.runOnIdle { assertEquals(EndSceneRequest(after = "reply"), link.endScenes.single()) }
+        sceneEndAt(SceneEnd(step = SceneEndStep.Director))
+        step("The Scene is recorded", "Done")
+        step("The Director is planning the days ahead", "Under way")
+        step("The World moves on", "Still to come")
+        compose.onAllNodesWithTag("scene-end").assertCountEquals(1)
         compose.preview("MovingOn")
-        compose.runOnIdle {
-            assertEquals(EndSceneRequest(after = "reply"), link.endScenes.single())
-            link.current.value = link.current.value.copy(dayView = link.endedDayView.copy(world = World.Ready,
-                meanwhile = listOf(MeanwhileItem(how = How.Seen, text = "A note waits under the door."))))
-        }
-        compose.onNodeWithText(status).assertDoesNotExist()
+        sceneEndAt(SceneEnd(step = SceneEndStep.Weaver))
+        step("The days ahead are planned", "Done")
+        step("The World moves on", "Under way")
+        // The Folder's row shows only when it runs.
+        compose.onNodeWithText("Folding The Story So Far").assertDoesNotExist()
+        sceneEndAt(SceneEnd(step = SceneEndStep.Folder))
+        step("The World has moved on", "Done")
+        step("Folding The Story So Far", "Under way")
+        sceneEndAt(SceneEnd()) { it.copy(meanwhile = listOf(MeanwhileItem(how = How.Seen, text = "A note waits under the door."))) }
+        compose.onNodeWithTag("scene-end").assertDoesNotExist()
         compose.onNodeWithTag("world-placeholders", useUnmergedTree = true).assertDoesNotExist()
         compose.onNodeWithText("SCENE 14 · ENDED").assertDoesNotExist()
         compose.onNodeWithText("3 days").assertIsDisplayed()
@@ -61,6 +84,59 @@ open class WorldUiChecks {
         compose.onNodeWithTag("composer").assertIsDisplayed().assertTextContains("I wait until morning.")
         compose.onNodeWithTag("send-move").assertIsEnabled()
         compose.runOnIdle { assertTrue(link.moves.isEmpty()) }
+    }
+
+    // The player reacts to the Scene that just ended, and can take it back (long-run: The player steers with a brief
+    // and reactions). The Mac takes no edit while the Scene's end runs: a reaction then is shown at once and sent when
+    // the end is done or stopped.
+    fun reactingToTheSceneThatEnded() {
+        link.current.value = link.current.value.copy(headEntryID = "closed", seq = 4, lastEventID = "4",
+            dayView = FakeFantasiaLink.dayView(closedBy = ClosedBy.Player).copy(sceneEnd = SceneEnd(step = SceneEndStep.Weaver)))
+        openScene()
+        compose.onNodeWithContentDescription("Your reaction").assertIsDisplayed()
+        compose.onNodeWithText("More like this").assertIsOff().performClick()
+        compose.onNodeWithText("More like this").assertIsOn()
+        compose.onNodeWithText("Less like this").assertIsOff().performClick()
+        compose.onNodeWithText("Less like this").assertIsOn()
+        compose.onNodeWithText("More like this").assertIsOff()
+        compose.runOnIdle { assertTrue(link.reactions.isEmpty()) }
+        // The end stops at the Weaver: the reaction held is sent, once.
+        sceneEndAt(SceneEnd(failed = SceneEndFailure(step = SceneEndStep.Weaver, reason = "The Weaver is unavailable.", traceID = "weaver")))
+        compose.runOnIdle { assertEquals(listOf(ReactionRequest(after = "closed", sceneNumber = 14, reaction = Reaction.Less)), link.reactions) }
+        compose.onNodeWithText("Less like this").assertIsOn()
+        // Now it goes to the Mac at once, and tapping it again takes it back.
+        compose.onNodeWithText("Less like this").performClick()
+        compose.onNodeWithText("Less like this").assertIsOff()
+        compose.onNodeWithText("More like this").performClick()
+        compose.onNodeWithText("More like this").assertIsOn()
+        compose.runOnIdle {
+            assertEquals(listOf(
+                ReactionRequest(after = "closed", sceneNumber = 14, reaction = Reaction.Less),
+                ReactionRequest(after = "reaction-1", sceneNumber = 14, reaction = null),
+                ReactionRequest(after = "reaction-2", sceneNumber = 14, reaction = Reaction.More)), link.reactions)
+        }
+    }
+
+    // Any Scene can be reacted to (long-run: The player steers with a brief and reactions): once the Day View is ready,
+    // the Scene that ended stays at its top in a line, with More like this and Less like this, sent at once.
+    fun reactingOnceTheDayViewIsReady() {
+        link.current.value = link.current.value.copy(headEntryID = "closed", seq = 4, lastEventID = "4", dayView = FakeFantasiaLink.dayView())
+        openScene()
+        val line = compose.onNodeWithText("Scene 14 · After curfew").assertIsDisplayed().getUnclippedBoundsInRoot()
+        val day = compose.onNodeWithText("Sunday").assertIsDisplayed().getUnclippedBoundsInRoot()
+        assertTrue("The Scene that ended is above the day", line.bottom < day.top)
+        compose.onNodeWithText("SCENE 14 · ENDED").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Your reaction").assertIsDisplayed()
+        compose.onNodeWithText("More like this").assertIsOff().performClick()
+        compose.onNodeWithText("More like this").assertIsOn()
+        compose.runOnIdle { assertEquals(listOf(ReactionRequest(after = "closed", sceneNumber = 14, reaction = Reaction.More)), link.reactions) }
+        compose.preview("DayViewReaction")
+        compose.onNodeWithText("More like this").performClick()
+        compose.onNodeWithText("More like this").assertIsOff()
+        compose.runOnIdle { assertEquals(ReactionRequest(after = "reaction-1", sceneNumber = 14, reaction = null), link.reactions.last()) }
+        // The Day View's choices are as they were.
+        compose.onNodeWithText("3 days").assertIsDisplayed()
+        compose.onNodeWithTag("composer").assertIsDisplayed()
     }
 
     // GIVEN Lavender has been telling people Selwyn's bones broke one after another
@@ -104,35 +180,43 @@ open class WorldUiChecks {
         compose.onNodeWithText("MEANWHILE").assertDoesNotExist()
     }
 
-    fun failedWorldCanBeRetried() {
+    // GIVEN the Director's model and its second model both fail while planning the next Stretch
+    // THEN the Scene's end stops there: the World does not move on without the plan, and the line says the Director
+    //   failed and why, with Retry and another model
+    // WHEN the player taps Retry
+    // THEN the Scene's end goes on from the Director, and the steps before it are not run again
+    fun aStepAtASceneEndFails() {
         openScene()
         compose.onNodeWithTag("composer").performTextInput("I go downstairs.")
         compose.runOnIdle {
             link.current.value = link.current.value.copy(headEntryID = "closed", seq = 4, lastEventID = "4",
-                dayView = FakeFantasiaLink.dayView(closedBy = ClosedBy.Player).copy(world = World.Failed,
-                    failure = WorldFailure(reason = "The Weaver is unavailable", traceID = "world-trace")))
+                dayView = FakeFantasiaLink.dayView(closedBy = ClosedBy.Player).copy(sceneEnd = SceneEnd(failed = SceneEndFailure(
+                    step = SceneEndStep.Director, reason = "Opus 5.5 and Sonnet 5.5 both ran out of time.", traceID = "3f1c09ab"))))
         }
-        compose.onNodeWithText("The World could not move on").assertIsDisplayed()
-        compose.onNodeWithText("The Weaver is unavailable").assertIsDisplayed()
-        compose.onNodeWithText("Trace world-trace").assertIsDisplayed()
-        compose.onNodeWithTag("world-failure").assert(
+        compose.onNodeWithTag("scene-passages").performScrollToNode(hasText("Trace 3f1c09ab"))
+        compose.onNodeWithText("The Director could not plan the days ahead").assertIsDisplayed()
+        compose.onNodeWithText("Opus 5.5 and Sonnet 5.5 both ran out of time. The World waits for the plan.").assertIsDisplayed()
+        compose.onNodeWithText("Trace 3f1c09ab").assertIsDisplayed()
+        compose.onNodeWithText("Another model").assertIsDisplayed()
+        compose.onNodeWithTag("scene-end-failure").assert(
             SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Assertive))
+        // The steps done stay; nothing after the Director is offered as under way.
+        step("The Scene is recorded", "Done")
+        compose.onNodeWithText("The World moves on").assertDoesNotExist()
+        compose.onNodeWithText("The Director is planning the days ahead").assertDoesNotExist()
         compose.onNodeWithTag("composer").assertDoesNotExist()
         compose.onNodeWithTag("send-move").assertDoesNotExist()
-        compose.onNodeWithText(status).assertDoesNotExist()
         compose.onNodeWithText("3 days").assertDoesNotExist()
+        compose.preview("SceneEndFailed")
         compose.runOnIdle { link.reachable.value = false }
         compose.onNodeWithText("Retry").assertIsNotEnabled()
         compose.runOnIdle { link.reachable.value = true }
         compose.onNodeWithText("Retry").assertIsEnabled().performClick()
-        compose.runOnIdle { assertEquals(listOf("story"), link.worldRetries); assertEquals(0, link.retries) }
-        compose.onNodeWithText(status).assertIsDisplayed()
-        compose.onNodeWithText("The Weaver is unavailable").assertDoesNotExist()
+        compose.runOnIdle { assertEquals(listOf(RetryRequest(model = null)), link.retryRequests) }
+        step("The Director is planning the days ahead", "Under way")
+        compose.onNodeWithText("The Director could not plan the days ahead").assertDoesNotExist()
         compose.onNodeWithTag("composer").assertDoesNotExist()
-        compose.runOnIdle {
-            link.current.value = link.current.value.copy(dayView = link.current.value.dayView!!.copy(world = World.Ready,
-                meanwhile = listOf(MeanwhileItem(how = How.Told, text = "Neville brings news from downstairs."))))
-        }
+        sceneEndAt(SceneEnd()) { it.copy(meanwhile = listOf(MeanwhileItem(how = How.Told, text = "Neville brings news from downstairs."))) }
         compose.onNodeWithText("Neville brings news from downstairs.").assertIsDisplayed()
         compose.onNodeWithTag("composer").assertTextContains("I go downstairs.")
         compose.onNodeWithTag("send-move").assertIsEnabled()
@@ -141,13 +225,13 @@ open class WorldUiChecks {
 
     fun worldReadyKeepsReadingPlace() {
         link.current.value = link.current.value.copy(headEntryID = "closed", seq = 4, lastEventID = "4",
-            dayView = FakeFantasiaLink.dayView().copy(world = World.MovingOn))
+            dayView = FakeFantasiaLink.dayView().copy(sceneEnd = SceneEnd(step = SceneEndStep.Weaver)))
         openScene()
         compose.onNodeWithTag("scene-passages").performScrollToNode(hasTestTag("earlier-13"))
         val position = compose.onNodeWithTag("earlier-13").assertIsDisplayed().getUnclippedBoundsInRoot()
         compose.runOnIdle {
             link.current.value = link.current.value.copy(seq = 6, lastEventID = "6", dayView = link.current.value.dayView!!.copy(
-                world = World.Ready, meanwhile = listOf(MeanwhileItem(how = How.Seen, text = "A note waits under the door."))))
+                sceneEnd = SceneEnd(), meanwhile = listOf(MeanwhileItem(how = How.Seen, text = "A note waits under the door."))))
         }
         assertEquals(position, compose.onNodeWithTag("earlier-13").assertIsDisplayed().getUnclippedBoundsInRoot())
         compose.onNodeWithTag("scene-passages").performScrollToNode(hasText("A note waits under the door."))

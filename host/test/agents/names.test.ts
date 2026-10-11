@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { nameIndex, storyName } from "../../src/agents/names.js";
 import type { Person } from "../../src/story/state.js";
 
-const person = (name: string, aliases: string[] = []): Person => ({ name, aliases, whoTheyAre: "", known: null, appearance: "", after: "", knows: [], voice: [], portrait: null, group: null });
+const person = (name: string, aliases: string[] = []): Person => ({ name, aliases, whoTheyAre: "", known: null, appearance: "", after: "", knows: [], voice: [], portrait: null, group: null, broughtIn: null });
 
 describe("names", () => {
   const index = nameIndex([person("Rubeus Hagrid"), person("Draconia Malfoy", ["Connie"]), person("Lucius Malfoy"), person("Hermione Granger"), person("Uncle Bhalla")]);

@@ -61,15 +61,38 @@ class ReplyWatchTest {
         assertTrue(shadowOf(watch).isStoppedBySelf)
     }
 
-    @Test fun `the same for a Day View`() {
-        val moving = written.copy(dayView = FakeFantasiaLink.dayView().copy(world = World.MovingOn))
-        link.current.value = moving
+    // The quiet note names the step under way, and the Day View being ready is said once.
+    @Test fun `the same for a Scene's end`() {
+        val ending = written.copy(dayView = FakeFantasiaLink.dayView().copy(sceneEnd = SceneEnd(step = SceneEndStep.Chronicler)))
+        link.current.value = ending
         val watch = start(Watched.DayView)
         idle()
-        assertEquals("The World is moving on", notes.allNotifications.single().text())
-        link.current.value = moving.copy(dayView = FakeFantasiaLink.dayView(), seq = 9)
+        assertEquals("Recording the Scene", notes.allNotifications.single().text())
+        link.current.value = ending.copy(dayView = ending.dayView!!.copy(sceneEnd = SceneEnd(step = SceneEndStep.Director)), seq = 8)
+        idle()
+        assertEquals("The Director is planning the days ahead", notes.allNotifications.single().text())
+        assertFalse(shadowOf(watch).isStoppedBySelf)
+        link.current.value = ending.copy(dayView = FakeFantasiaLink.dayView(), seq = 9)
         idle()
         assertEquals("The Day View is ready", notes.allNotifications.single().text())
+        assertEquals(NotificationManager.IMPORTANCE_DEFAULT, importance(notes.allNotifications.single()))
+        assertTrue(shadowOf(watch).isStoppedBySelf)
+    }
+
+    // A Scene's end that stops waits for the player: the phone says once which step failed, and the watch stops.
+    @Test fun `a Scene's end that stops is said once`() {
+        val ending = written.copy(dayView = FakeFantasiaLink.dayView().copy(sceneEnd = SceneEnd(step = SceneEndStep.Director)))
+        link.current.value = ending
+        val watch = start(Watched.DayView)
+        idle()
+        link.current.value = ending.copy(dayView = ending.dayView!!.copy(sceneEnd = SceneEnd(failed = SceneEndFailure(
+            step = SceneEndStep.Director, reason = "Opus 5.5 and Sonnet 5.5 both ran out of time.", traceID = "3f1c09ab"))))
+        idle()
+        val stopped = notes.allNotifications.single()
+        assertEquals("The Malfoy Problem", stopped.title())
+        assertEquals("The Director could not plan the days ahead", stopped.text())
+        assertEquals(NotificationManager.IMPORTANCE_DEFAULT, importance(stopped))
+        assertEquals("story", shadowOf(stopped.contentIntent).savedIntent.getStringExtra(ReplyWatch.STORY))
         assertTrue(shadowOf(watch).isStoppedBySelf)
     }
 
@@ -96,10 +119,10 @@ class ReplyWatchTest {
     }
 
     @Test fun `the watch gives up quietly after its time`() = runBlocking {
-        assertFalse(followUntilDone(MutableSharedFlow(), Watched.Reply, giveUpAfterMillis = 50))
+        assertEquals(WatchEnd.Quiet, followUntilDone(MutableSharedFlow(), Watched.Reply, giveUpAfterMillis = 50))
     }
 
-    // Nothing else buzzes: the watch starts only for a Reply under way or the World moving on.
+    // Nothing else buzzes: the watch starts only for a Reply under way or a Scene's end running, not one that stopped.
     @Test fun `nothing is watched when nothing is under way`() {
         val idle = FantasiaState(paired = true, scene = written, reachable = true)
         assertNull(idle.watched())
@@ -107,6 +130,8 @@ class ReplyWatchTest {
         assertNull(idle.copy(scene = written.copy(dayView = FakeFantasiaLink.dayView())).watched())
         assertEquals(Watched.Reply, idle.copy(scene = writing).watched())
         assertEquals(Watched.Reply, idle.copy(waiting = true).watched())
-        assertEquals(Watched.DayView, idle.copy(scene = written.copy(dayView = FakeFantasiaLink.dayView().copy(world = World.MovingOn))).watched())
+        assertEquals(Watched.DayView, idle.copy(scene = written.copy(dayView = FakeFantasiaLink.dayView().copy(sceneEnd = SceneEnd(step = SceneEndStep.Weaver)))).watched())
+        assertNull(idle.copy(scene = written.copy(dayView = FakeFantasiaLink.dayView().copy(sceneEnd = SceneEnd(failed = SceneEndFailure(
+            step = SceneEndStep.Weaver, reason = "Unavailable", traceID = "weaver"))))).watched())
     }
 }

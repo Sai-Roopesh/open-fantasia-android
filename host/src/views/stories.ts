@@ -10,7 +10,7 @@ import { parseStoryTime, sayStoryTime } from "../time.js";
  * not playing it.
  */
 export function listStories(mac: Mac): StorySummary[] {
-  const stories = mac.db.prepare("SELECT id, title FROM stories").all() as { id: string; title: string }[];
+  const stories = mac.db.prepare("SELECT id, title FROM stories WHERE before_ledger = 0").all() as { id: string; title: string }[];
   return stories
     .flatMap(story => {
       const path = mac.tree.currentPath(story.id);

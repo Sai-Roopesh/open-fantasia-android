@@ -3,7 +3,7 @@ import type { Db } from "../store/db.js";
 import type { ModelChoice } from "../story/state.js";
 
 /** Which job a call is for (CONTEXT.md: Who writes the Story). */
-export type Agent = "actor" | "writer" | "chronicler" | "weaver" | "director" | "judge";
+export type Agent = "actor" | "writer" | "chronicler" | "weaver" | "director" | "folder" | "judge";
 
 /** One call to a model: who it is for, which model, and exactly what it is sent. */
 export interface ModelRequest {
@@ -43,6 +43,13 @@ export class ModelCallFailed extends Error {
   }
 }
 
+/** The model answered, but not with JSON: an answer that cannot be used, which one repair may set right. */
+export class NotJson extends ModelCallFailed {
+  constructor(message: string, callId: string, readonly text: string) {
+    super(message, callId);
+  }
+}
+
 /**
  * Every model call the host makes goes through here and is kept: the exact request, the answer or the error,
  * and when (docs/adr/0004). That is what makes "why did she say that?" answerable, and what `fantasia trace`
@@ -71,7 +78,7 @@ export class Models {
       const json = readJson(text);
       if (json === undefined) {
         this.finish(callId, text, `${request.model.model} answered with something that is not JSON`);
-        throw new ModelCallFailed(`${request.model.model} answered with something that is not JSON`, callId);
+        throw new NotJson(`${request.model.model} answered with something that is not JSON`, callId, text);
       }
       this.finish(callId, text, null);
       return { callId, text, json };

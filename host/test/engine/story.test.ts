@@ -162,23 +162,31 @@ describe("long-run › Style is the player's own words", () => {
 describe("stories › Anything can be edited or created in the app: Landmarks", () => {
   /** What the World recorded as happened on the Path at [head], with the Landmark each is, if any. */
   const happenedOn = (mac: ReturnType<typeof playable>["mac"], head: string) =>
-    mac.tree.recordsOn(head, "world_moved").flatMap(entry => (entry.payload as WorldMoved).happened);
+    mac.tree.pathTo(head).flatMap(entry => (entry.payload.kind === "world_moved" ? entry.payload.happened : []));
+  /** Ends the Scene, and skips to next week with the Gap left blank: the World moves on over the week. */
+  const aWeekOn = async ({ engine, storyId, head, view }: ReturnType<typeof playable>) => {
+    engine.endScene(storyId, head(), "end");
+    await engine.ended(storyId);
+    const week = view().day_view!.choices.skips.find(skip => skip.label === "Next week")!;
+    engine.choose(storyId, { after: head(), kind: "skip", at: week.at, gap: null }, "week");
+    await engine.settled(storyId);
+  };
 
   // GIVEN the betrothal Landmark is set for Year 3 on two Paths
   // WHEN the player moves it to the end of Year 2 on one of them
   // THEN that Path brings it about at the end of Year 2
   // AND the other Path still has it in Year 3
   it("stories › Anything can be edited or created in the app › A Landmark is moved on one Path", async () => {
-    const { mac, engine, storyId, head, state } = playable(storyFile());
+    const played = playable(storyFile());
+    const { mac, engine, storyId, head, state } = played;
     const other = mac.tree.createPath(storyId, "Year 3", head(), false);
-    engine.setLandmark(storyId, { name: "The betrothal", at: "Day 700 12:00", what: "Lucius announces Draconia's engagement." }, false, head(), "move");
-    // The Story is played on to the end of Year 2: the clock moves on past it, and the Scene ends.
-    engine.setClock(storyId, "Day 701 10:00", undefined, head(), "on");
-    engine.endScene(storyId, head(), "end");
-    await engine.woven(storyId);
+    // Moved up to within the coming week, which the World then moves on over.
+    engine.setLandmark(storyId, { name: "The betrothal", at: "Day 9 12:00", what: "Lucius announces Draconia's engagement." }, false, head(), "move");
+    await aWeekOn(played);
     const betrothal = happenedOn(mac, head()).find(item => item.landmark === "The betrothal");
-    expect(betrothal?.at).toBe("Day 700 12:00");
-    expect(state().landmarks.find(item => item.name === "The betrothal")?.at).toBe("Day 700 12:00");
+    expect(betrothal?.at).toBe("Day 9 12:00");
+    expect(state().facts.find(fact => fact.landmark === "The betrothal")?.at).toBe("Day 9 12:00");
+    expect(state().landmarks.find(item => item.name === "The betrothal")?.at).toBe("Day 9 12:00");
     expect(mac.states.at(mac.tree.path(other.id)!.headEntryId).landmarks.find(item => item.name === "The betrothal")?.at).toBe("Day 760 12:00");
     expect(happenedOn(mac, mac.tree.path(other.id)!.headEntryId)).toEqual([]);
   });
@@ -189,10 +197,9 @@ describe("stories › Anything can be edited or created in the app: Landmarks", 
   it("stories › Anything can be edited or created in the app › A Landmark the World has passed", async () => {
     const story = storyFile();
     story.landmarks.push({ name: "The Halloween feast", at: "Day 5 19:00", what: "The Great Hall, pumpkins, and a troll." });
-    const { mac, engine, storyId, head, state } = playable(story);
-    engine.setClock(storyId, "Day 6 09:00", undefined, head(), "on");
-    engine.endScene(storyId, head(), "end");
-    await engine.woven(storyId);
+    const played = playable(story);
+    const { mac, engine, storyId, head, state } = played;
+    await aWeekOn(played);
     expect(happenedOn(mac, head()).some(item => item.landmark === "The Halloween feast")).toBe(true);
     const at = head();
     expect(refused(() => engine.setLandmark(storyId, { name: "The Halloween feast", at: "Day 12 19:00", what: "The feast, a week late." }, false, head(), "move")))
@@ -203,8 +210,14 @@ describe("stories › Anything can be edited or created in the app: Landmarks", 
 });
 
 describe("stories › Anything can be edited or created in the app: the time", () => {
-  const summons = { id: "P1", at: "Day 4 09:00", place: "McGonagall's office", what: "Your account of the troll.", who: ["Hermione Granger"], expected: true, pick: true };
-  const owlery = { id: "P2", at: "Day 5 10:00", place: "The owlery", what: "Draconia sends a letter home.", who: ["Draconia Malfoy"], expected: false, pick: false };
+  /** The World overnight: McGonagall's note summons him at 9:00 on Saturday, and Draconia is at the owlery on Sunday. */
+  const overnight = {
+    lives: [], threads: [],
+    happened: [{ id: "H1", what: "McGonagall left a note for Roopesh.", at: "Day 4 07:00", where: "The Gryffindor common room", known_to: ["Minerva McGonagall", "Roopesh Gantasala"], landmark: null, move: null, missed: null }],
+    meanwhile: [{ text: "McGonagall's note: your account of the troll, my office, nine o'clock.", how: "told", happened: "H1", told_by: "Minerva McGonagall", about: ["Minerva McGonagall"],
+      engagement: { what: "Your account of the troll.", at: "Day 4 09:00", place: "McGonagall's office", who: ["Minerva McGonagall", "Hermione Granger"], expected: true, every: null } }],
+    on: [{ at: "Day 5 10:00", place: "The owlery", what: "Draconia sends a letter home.", who: ["Draconia Malfoy"] }]
+  };
 
   // GIVEN the Day View is waiting on Saturday at 7:40 am
   // WHEN the player moves the clock on to Sunday at 9:00 am
@@ -212,22 +225,24 @@ describe("stories › Anything can be edited or created in the app: the time", (
   // AND once the player has chosen, what happened in the World between Saturday and Sunday is in Backstage
   it("stories › Anything can be edited or created in the app › Moving the clock on", async () => {
     const story = { ...storyFile(), clock: { starts: "Day 3 22:40", day_one_weekday: "wednesday" as const }, opening: { ...storyFile().opening, at: "Day 3 22:40" } };
-    const { mac, engine, storyId, head, view } = playable(story, { weaver: [{ answer: JSON.stringify({ lives: [], threads: [], happened: [], meanwhile: [], happenings: [summons, owlery] }) }], unplanned: true });
+    const { mac, engine, storyId, head, view } = playable(story, { weaver: [{ answer: JSON.stringify(overnight) }] });
     engine.endScene(storyId, head(), "end");
-    await engine.woven(storyId);
+    await engine.ended(storyId);
     expect(view().day_view).toMatchObject({ at: "Day 4 07:30", day: "Saturday" });
-    expect(view().day_view!.happenings.map(item => item.place)).toEqual(["McGonagall's office", "The owlery"]);
+    // The Story's pick (the Director's, on Sunday), then McGonagall's summons and the owlery in time order.
+    expect(view().day_view!.happenings.map(item => item.place)).toEqual(["the Great Hall", "McGonagall's office", "The owlery"]);
 
     engine.setClock(storyId, "Day 5 09:00", undefined, head(), "on");
     const sunday = view().day_view!;
     expect(sunday).toMatchObject({ at: "Day 5 09:00", day: "Sunday", time: "9:00 am" });
-    expect(sunday.happenings.map(item => item.place)).toEqual(["The owlery"]);
+    expect(sunday.happenings.map(item => item.place)).toEqual(["the Great Hall", "The owlery"]);
 
-    engine.choose(storyId, { after: head(), kind: "go", happening: sunday.happenings[0]!.id, gap: null }, "go");
-    // The Gap is woven in the turn the choice starts, before the next Scene's first Reply.
+    const owlery = sunday.happenings.find(item => item.place === "The owlery")!;
+    engine.choose(storyId, { after: head(), kind: "go", happening: owlery.id, gap: null }, "go");
+    // The Gap is woven in the turn the choice starts, before the next Scene's first Reply: from where the World stood.
     await engine.settled(storyId);
-    const record = mac.tree.recordsOn(head(), "world_moved").at(-1)!.payload as WorldMoved;
-    expect([record.from, record.until]).toEqual(["Day 4 07:30", "Day 5 10:00"]);
+    const record = mac.tree.pathTo(head()).findLast(entry => entry.payload.kind === "world_moved")!.payload as WorldMoved;
+    expect([record.gap, record.from, record.until]).toEqual([true, "Day 4 07:30", "Day 5 10:00"]);
     const saturday = backstageView(mac, storyId, "t").offscreen.find(day => day.day === "Saturday");
     expect(saturday?.items.map(item => item.what)).toEqual(["McGonagall's office went on without him, and they noticed."]);
   });
@@ -259,7 +274,7 @@ describe("stories › Anything can be edited or created in the app: places", () 
     await play("I tell her I know somewhere we could practise.");
     expect(models.writer.requests.at(-1)!.system).toMatch(/The Room of Requirement: A room that is whatever you need it to be\./);
     engine.endScene(storyId, head(), "end");
-    await engine.woven(storyId);
+    await engine.ended(storyId);
     expect(models.weaver.requests.at(-1)!.system).toMatch(/The Room of Requirement: A room that is whatever you need it to be\./);
     expect(mac.states.at(before).world.places.map(place => place.name)).not.toContain("The Room of Requirement");
     expect(mac.states.at(other.headEntryId).world.places.map(place => place.name)).not.toContain("The Room of Requirement");
@@ -280,8 +295,7 @@ describe("long-run › Arcs are built toward, never resolved on a schedule", () 
     engine.setArcs(storyId, state().arcs.filter(arc => arc !== "Harry and Roopesh become friends."), head(), "drop");
     await play("I ask what she is reading.");
     engine.endScene(storyId, head(), "end");
-    await engine.woven(storyId);
-    await engine.directed(storyId);
+    await engine.ended(storyId);
     for (const job of [models.writer, models.weaver, models.director]) {
       expect(job.requests.length).toBeGreaterThan(0);
       expect(job.requests.at(-1)!.system).not.toContain("Harry and Roopesh become friends.");
@@ -313,6 +327,54 @@ describe("long-run › Taste is short, readable and the player's", () => {
   });
 });
 
+describe("long-run › The player steers with a brief and reactions", () => {
+  const beats = [{ text: "a", status: "in_play" }, { text: "b", status: "pending" }, { text: "c", status: "pending" }];
+  /** A Writer's answer opening a Scene in [frame], with [comesIn]. */
+  const opening = (frame: { title: string; place: string }, comesIn: string[]) => ({ answer: JSON.stringify({ leaves_scene: false, frame: { ...frame, purpose: "p", exit: "e" }, comes_in: comesIn, goes: [], beats,
+    note: "n", call: "continue", intensity: 2, arc_moved: true, minutes: 2, taste: null, in_play: [], moves_to: null }) });
+
+  // GIVEN the player reacted "less like this" to two library Scenes
+  // WHEN the Director plans the next Stretch
+  // THEN it puts no Scene that matters in the library
+  it("long-run › The player steers with a brief and reactions › Less library", async () => {
+    const story = storyFile();
+    story.world.places.push({ name: "The library", description: "Dust, lamplight and Madam Pince." });
+    story.opening = { ...story.opening, title: "The library", place: "The library" };
+    const { engine, storyId, head, view, state, play, models } = playable(story);
+    const end = async (trace: string) => {
+      engine.endScene(storyId, head(), trace);
+      await engine.ended(storyId);
+    };
+    // Scene 1 is in the library; the player reacts to it at the Day View, and the reaction is on the Path.
+    await play("I find Hermione at the end table.");
+    await end("end-1");
+    engine.setReaction(storyId, 1, "less", null, head(), "react-1");
+    expect(view().day_view!.reaction).toBe("less");
+    // Scene 2 is back in the library. The Stretch planned after Scene 1 still runs, so no plan is due at its end.
+    models.writer.then(opening({ title: "Back to the library", place: "The library" }, ["Hermione Granger"]));
+    engine.choose(storyId, { after: head(), kind: "somewhere", place: "The library", gap: null }, "library");
+    await engine.settled(storyId);
+    await end("end-2");
+    expect(models.director.requests).toHaveLength(1);
+    engine.setReaction(storyId, 2, "less", "Too much reading.", head(), "react-2");
+    expect(state().reactions).toEqual([
+      { scene: 1, title: "The library", reaction: "less", note: null },
+      { scene: 2, title: "Back to the library", reaction: "less", note: "Too much reading." }
+    ]);
+    // Scene 3 is a week on, past the Stretch's Scenes that matter: the Director plans the next Stretch.
+    const week = view().day_view!.choices.skips.find(skip => skip.label === "Next week")!;
+    engine.choose(storyId, { after: head(), kind: "skip", at: week.at, gap: null }, "week");
+    await engine.settled(storyId);
+    await end("end-3");
+    expect(models.director.requests).toHaveLength(2);
+    const [first, next] = models.director.requests.map(request => request.prompt);
+    expect(first).not.toContain("Reactions to recent Scenes");
+    // It plans from both reactions, and knows from The Story So Far what each of those Scenes was.
+    expect(next).toContain("<the_players_wishes>\nReactions to recent Scenes:\n- Scene 1, The library: less like this\n- Scene 2, Back to the library: less like this (Too much reading.)\n</the_players_wishes>");
+    expect(next).toMatch(/<story_so_far>[\s\S]*Scene 1, The library \([\s\S]*Scene 2, Back to the library \([\s\S]*<\/story_so_far>/);
+  });
+});
+
 describe("the Premise and the World, and phones told of every edit", () => {
   it("has every agent that reads the Premise or the World read the new words on its next call", async () => {
     const { engine, storyId, head, play, models } = playable(storyFile());
@@ -320,8 +382,7 @@ describe("the Premise and the World, and phones told of every edit", () => {
     engine.setWorld(storyId, "Hogwarts in 1991, cold and candlelit.", "The war ended in a truce nobody trusts.", head(), "world");
     await play("I sit at the other end of the sofa.");
     engine.endScene(storyId, head(), "end");
-    await engine.woven(storyId);
-    await engine.directed(storyId);
+    await engine.ended(storyId);
     for (const job of [models.writer, models.weaver, models.director]) {
       expect(job.requests.at(-1)!.system).toContain("Premise: A rivalry that turns, slowly, into something else.");
       expect(job.requests.at(-1)!.system).toContain("World: Hogwarts in 1991, cold and candlelit.");

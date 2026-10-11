@@ -25,10 +25,10 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
     var journalView = journalFixture()
     var backstageView = backstageFixture()
     val tasteRemovals = mutableListOf<RemoveTasteRequest>()
-    val recordRetries = mutableListOf<RecordRetryRequest>()
     var retries = 0
     val retryRequests = mutableListOf<RetryRequest>()
-    val worldRetryRequests = mutableListOf<RetryWorldRequest>()
+    val briefs = mutableListOf<BriefRequest>()
+    val reactions = mutableListOf<ReactionRequest>()
     var modelsView = modelsFixture()
     var worldView = worldFixture()
     var peopleView = peopleFixture()
@@ -42,8 +42,8 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
     val storyEdits = mutableListOf<Pair<String, Any>>()
     var worldRequests = 0
     val jobModelSets = mutableListOf<Pair<ModelJob, ModelChoice>>()
+    val backupSets = mutableListOf<Pair<ModelJob, ModelChoice>>()
     val actorSets = mutableListOf<Pair<String, ModelChoice?>>()
-    val worldRetries = mutableListOf<String>()
     var endedDayView = dayView(ClosedBy.Player)
     val redos = mutableListOf<RedoRequest>()
     val lingers = mutableListOf<LingerRequest>()
@@ -98,16 +98,27 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
         chooseFailure?.let { throw it }
         return TurnAccepted(moveEntryID = "move", traceID = "choose")
     }
-    override suspend fun retryWorld(storyID: String, request: RetryWorldRequest): Accepted {
-        worldRetries += storyID
-        worldRetryRequests += request
-        current.value = current.value.copy(dayView = current.value.dayView!!.copy(world = World.MovingOn, failure = null))
-        return Accepted(headEntryID = current.value.headEntryID, traceID = "world-retry")
-    }
+    /** A failed Reply is written again; a Scene's end that stopped goes on from its step, as the Mac does. */
     override suspend fun retry(storyID: String, request: RetryRequest): TurnAccepted {
         retries++
         retryRequests += request
-        return TurnAccepted(moveEntryID = "move", traceID = "retry")
+        val day = current.value.dayView
+        day?.sceneEnd?.failed?.let { failed -> current.value = current.value.copy(dayView = day.copy(sceneEnd = SceneEnd(step = failed.step))) }
+        return TurnAccepted(moveEntryID = if (day != null) current.value.headEntryID else "move", traceID = "retry")
+    }
+    override suspend fun setBrief(storyID: String, request: BriefRequest): Accepted {
+        if (request.after != current.value.headEntryID) throw LinkFailure("The Story has moved on since you last looked. Nothing was changed.")
+        briefs += request
+        current.value = current.value.copy(brief = Brief(more = request.more, less = request.less), headEntryID = "brief-${briefs.size}",
+            seq = current.value.seq + 1, lastEventID = (current.value.seq + 1).toString())
+        return Accepted(headEntryID = current.value.headEntryID, traceID = "brief")
+    }
+    override suspend fun react(storyID: String, request: ReactionRequest): Accepted {
+        if (request.after != current.value.headEntryID) throw LinkFailure("The Story has moved on since you last looked. Nothing was changed.")
+        reactions += request
+        current.value = current.value.copy(dayView = current.value.dayView?.copy(reaction = request.reaction), headEntryID = "reaction-${reactions.size}",
+            seq = current.value.seq + 1, lastEventID = (current.value.seq + 1).toString())
+        return Accepted(headEntryID = current.value.headEntryID, traceID = "reaction")
     }
     override suspend fun edit(storyID: String, request: EditRequest): Accepted {
         edits += request
@@ -148,8 +159,11 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
         return Accepted(headEntryID = current.value.headEntryID, traceID = "portrait")
     }
     override suspend fun setJobModel(job: ModelJob, request: SetJobModelRequest): ModelsView {
-        jobModelSets += job to request.model
-        modelsView = modelsView.copy(jobs = modelsView.jobs.map { if (it.job == job) it.copy(model = chosenOf(request.model)) else it })
+        if (request.backup == true) backupSets += job to request.model else jobModelSets += job to request.model
+        modelsView = if (request.backup == true && job == ModelJob.Actor) modelsView.copy(actorBackup = chosenOf(request.model))
+        else modelsView.copy(jobs = modelsView.jobs.map {
+            if (it.job != job) it else if (request.backup == true) it.copy(backup = chosenOf(request.model)) else it.copy(model = chosenOf(request.model))
+        })
         return modelsView
     }
     override suspend fun setActor(storyID: String, request: SetActorRequest): ModelsView {
@@ -210,11 +224,6 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
         return storyView
     }
     private fun minutes(at: String) = ((dayOf(at) ?: 0) - 1) * 24 * 60 + (minuteOf(at) ?: 0)
-    override suspend fun retryRecord(storyID: String, request: RecordRetryRequest): Accepted {
-        recordRetries += request
-        backstageView = backstageView.copy(record = backstageView.record.filterNot { it.sceneNumber == request.sceneNumber })
-        return Accepted(headEntryID = request.after, traceID = "record")
-    }
     override suspend fun removeTaste(storyID: String, request: RemoveTasteRequest): Accepted {
         tasteRemovals += request
         backstageView = backstageView.copy(taste = backstageView.taste - request.line)
@@ -334,14 +343,22 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
         private val UP_TO_MAX = listOf("low", "medium", "high", "xhigh", "max")
         // The Models screen as drawn in Models.dc.html, the providers as they listed their models on 6 October 2026.
         fun modelsFixture(antigravityReason: String? = null) = ModelsView(traceID = "models",
+            actorBackup = chosen(ModelProvider.Claude, "claude-sonnet-5-5", "Sonnet 5.5"),
             stories = listOf(
                 StoryActor(storyID = "story", title = "The Malfoy Problem", actor = chosen(ModelProvider.Claude, "claude-opus-5-5", "Opus 5.5"), own = false),
                 StoryActor(storyID = "other", title = "The coast", actor = chosen(ModelProvider.Claude, "claude-opus-5-5", "Opus 5.5"), own = false)),
+            // Each job's second model: Sonnet 5.5, or GPT 6.1 Sol for a job already on Sonnet (one-truth design decision 9).
             jobs = listOf(
-                JobModel(job = ModelJob.Writer, title = "Writer", does = "Plans each Reply before it starts", model = chosen(ModelProvider.Claude, "claude-sonnet-5-5", "Sonnet 5.5")),
-                JobModel(job = ModelJob.Chronicler, title = "Chronicler", does = "Records what happened", model = chosen(ModelProvider.Claude, "claude-sonnet-5-5", "Sonnet 5.5")),
-                JobModel(job = ModelJob.Weaver, title = "Weaver", does = "Moves the World on", model = chosen(ModelProvider.Claude, "claude-sonnet-5-5", "Sonnet 5.5")),
-                JobModel(job = ModelJob.Director, title = "Director", does = "Shapes the long run", model = chosen(ModelProvider.Claude, "claude-opus-5-5", "Opus 5.5"))),
+                JobModel(job = ModelJob.Writer, title = "Writer", does = "Plans each Reply before it starts", model = chosen(ModelProvider.Claude, "claude-sonnet-5-5", "Sonnet 5.5"),
+                    backup = chosen(ModelProvider.Codex, "gpt-6.1-sol", "GPT 6.1 Sol · low", "low")),
+                JobModel(job = ModelJob.Chronicler, title = "Chronicler", does = "Records what happened", model = chosen(ModelProvider.Claude, "claude-sonnet-5-5", "Sonnet 5.5"),
+                    backup = chosen(ModelProvider.Codex, "gpt-6.1-sol", "GPT 6.1 Sol · low", "low")),
+                JobModel(job = ModelJob.Weaver, title = "Weaver", does = "Moves the World on", model = chosen(ModelProvider.Claude, "claude-sonnet-5-5", "Sonnet 5.5"),
+                    backup = chosen(ModelProvider.Codex, "gpt-6.1-sol", "GPT 6.1 Sol · low", "low")),
+                JobModel(job = ModelJob.Folder, title = "Folder", does = "Keeps The Story So Far short", model = chosen(ModelProvider.Claude, "claude-haiku-4-5-20251001", "Haiku 4.5"),
+                    backup = chosen(ModelProvider.Claude, "claude-sonnet-5-5", "Sonnet 5.5")),
+                JobModel(job = ModelJob.Director, title = "Director", does = "Shapes the long run", model = chosen(ModelProvider.Claude, "claude-opus-5-5", "Opus 5.5"),
+                    backup = chosen(ModelProvider.Claude, "claude-sonnet-5-5", "Sonnet 5.5"))),
             providers = listOf(
                 ProviderModels(provider = ModelProvider.Claude, label = "CLAUDE", reachable = true, reason = null, models = listOf(
                     ModelOption(id = "claude-opus-5-5", name = "Opus 5.5", efforts = UP_TO_MAX, defaultEffort = null),
@@ -367,7 +384,7 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
         // put a summary where a title belongs without a compiler error.
         fun dayView(closedBy: ClosedBy = ClosedBy.Story) = DayView(at = "Day 3 07:40", atLabel = "Sunday 7:40 am", day = "Sunday", time = "7:40 am", place = "Common room", closedBy = closedBy,
             happenings = emptyList(), choices = DayChoices(follow = emptyList(), places = emptyList(), skips = emptyList()),
-            world = World.Ready, sceneSpan = "Friday 9:40 pm – 11:05 pm", meanwhile = emptyList(), failure = null,
+            sceneEnd = SceneEnd(), reaction = null, sceneSpan = "Friday 9:40 pm – 11:05 pm", meanwhile = emptyList(),
             countdowns = listOf(Countdown(linkSchemaWhen = "3 days", landmark = "Draconia's flying test", label = "3 days to Draconia's flying test"),
                 Countdown(linkSchemaWhen = "9 weeks", landmark = "Slytherin v Gryffindor", label = "9 weeks to Slytherin v Gryffindor")))
         // The Journal as drawn in Journal.dc.html.
@@ -392,7 +409,10 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
                     WriterBeat(text = "The lantern goes into the forest.", status = BeatStatus.InPlay)),
                 exit = "she goes up to bed, or asks him to come and look."),
             taste = listOf("Keep school procedure to a line.", "Keep Ron in the background unless he's needed."),
-            record = emptyList())
+            record = emptyList(), newThings = emptyList(),
+            howItsGoing = HowItsGoing(sceneEndSeconds = listOf(150, 170, 160), picksOffered = 10, picksTaken = 7, more = 3, less = 1,
+                jobs = listOf(JobHealth(job = ModelJob.Actor, calls = 40, secondModel = 0, failed = 0), JobHealth(job = ModelJob.Weaver, calls = 10, secondModel = 2, failed = 0)),
+                pace = listOf(1L, 2L, 3L, 5L, 1L, 3L, 4L, 2L, 4L, 5L).mapIndexed { index, intensity -> PaceRow(sceneNumber = index + 5L, title = "Scene ${index + 5}", intensity = intensity) }))
         // The Paths screen as drawn in Paths.dc.html: Main, and the lantern tried from Scene 13 two days ago.
         fun pathsFixture() = PathsView(storyID = "story", traceID = "paths", clearable = 1, rows = listOf(
             PathRow(kind = PathRowKind.Scenes, depth = 0, label = "Scenes 1 – 12 · Friday 6:10 pm", title = null, path = null),
@@ -411,7 +431,7 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
                 Exchange(reply = Passage(entryID = "opening", text = "Hermione looks up.")),
                 Exchange(move = Passage(entryID = "move", text = "I sit beside her."), reply = Passage(entryID = "reply", text = "She smiles."))
             ),
-            lastEventID = "3", focus = null, linger = false, dayView = null, previously = null,
+            lastEventID = "3", focus = null, linger = false, dayView = null, previously = null, brief = Brief(more = emptyList(), less = emptyList()),
             headEntryID = "reply", pathID = "path", playerCharacter = "Roopesh Gantasala",
             scene = SceneCard(at = "Day 1 21:40", atLabel = "Friday 9:40 pm", number = 14,
                 people = listOf(PersonCard(name = "Hermione", portraitURL = null)), place = "Common room", title = "After curfew"),

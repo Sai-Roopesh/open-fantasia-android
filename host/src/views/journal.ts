@@ -1,7 +1,6 @@
 import { LinkError } from "../link/errors.js";
 import type { Mac } from "../mac.js";
 import type { JournalDay, JournalRow, JournalView } from "../protocol/generated/link.js";
-import type { Entry, WorldMoved } from "../story/entries.js";
 import { sceneSpans } from "../story/spans.js";
 import { parseStoryTime, sayDay, sayTime } from "../time.js";
 import { summariesOn } from "./scene.js";
@@ -18,11 +17,6 @@ export function journalView(mac: Mac, storyId: string, traceId: string): Journal
   const entries = mac.tree.pathTo(head);
   const state = mac.states.at(head);
   const summaries = summariesOn(mac, head);
-  const position = new Map(entries.map((entry, index) => [entry.id, index]));
-  const records = mac.tree.recordsOn(head, "world_moved") as Entry<WorldMoved>[];
-  const meanwhileOf = (record: Entry<WorldMoved>): JournalRow[] =>
-    record.payload.meanwhile.map(item => ({ kind: "meanwhile", scene: null, meanwhile: { text: item.text, how: item.how } }));
-
   const days: JournalDay[] = [];
   const add = (day: string, rows: JournalRow[]) => {
     if (rows.length === 0) return;
@@ -30,21 +24,19 @@ export function journalView(mac: Mac, storyId: string, traceId: string): Journal
     if (last?.day === day) last.rows.push(...rows);
     else days.push({ day, rows: [...rows] });
   };
+  const heard = (number: number, gap: boolean): JournalRow[] => state.meanwhile.filter(line => line.scene === number && line.gap === gap).map(line => ({ kind: "meanwhile", scene: null, meanwhile: { text: line.text, how: line.how } }));
+  let previous: number | null = null;
   for (const span of sceneSpans(entries)) {
     const opened = span.opened;
     const at = parseStoryTime(opened.payload.at);
     const day = at ? sayDay(at, state.dayOneWeekday) : "";
-    const inSpan = (record: Entry<WorldMoved>) => {
-      const at = position.get(record.parentId ?? "") ?? -1;
-      return at >= span.start && at < span.end;
-    };
-    // A Gap's World hangs off the Move that opened the Scene: what he heard in it comes before the Scene.
-    const gap = records.filter(record => record.parentId === entries[span.start]?.id && entries[span.start]?.payload.kind === "move");
-    add(days.at(-1)?.day ?? day, gap.flatMap(meanwhileOf));
+    // What he heard over the Gap before this Scene, then the Scene, then what he heard after it ended.
+    if (previous !== null) add(days.at(-1)?.day ?? day, heard(previous, true));
     const now = opened.id === state.scene?.openedBy;
     const label = `Scene ${opened.payload.number} · ${at ? sayTime(at) : opened.payload.at} · ${opened.payload.place}${now ? " · now" : ""}`;
     add(day, [{ kind: "scene", meanwhile: null, scene: { number: opened.payload.number, label, title: opened.payload.title, summary: summaries.get(opened.id) ?? "", now } }]);
-    add(day, records.filter(record => inSpan(record) && !gap.includes(record)).flatMap(meanwhileOf));
+    add(day, heard(opened.payload.number, false));
+    previous = opened.payload.number;
   }
   return { story_id: storyId, days, trace_id: traceId };
 }

@@ -2,7 +2,7 @@ import { LinkError } from "../link/errors.js";
 import { nameIndex } from "../agents/names.js";
 import type { Person, State } from "../story/state.js";
 
-type Edited = Omit<Person, "portrait">;
+type Edited = Omit<Person, "portrait" | "broughtIn">;
 
 /**
  * Checks a person the player or Claude wrote before it lands on the Path (editing-people design decision 2): a name

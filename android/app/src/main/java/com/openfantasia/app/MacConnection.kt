@@ -103,7 +103,6 @@ class MacConnection(
     override suspend fun linger(storyID: String, request: LingerRequest): Accepted = command { it.linger(storyID, request) }
     override suspend fun redo(storyID: String, request: RedoRequest): TurnAccepted = command { it.redo(storyID, request) }
     override suspend fun choose(storyID: String, request: ChooseRequest): TurnAccepted = command { it.choose(storyID, request) }
-    override suspend fun retryWorld(storyID: String, request: RetryWorldRequest): Accepted = command { it.retryWorld(storyID, request) }
     override suspend fun retry(storyID: String, request: RetryRequest): TurnAccepted = command { it.retry(storyID, request) }
     // Read only from the Mac, never kept: a model list from before could offer what the Mac no longer has.
     override suspend fun models(): ModelsView = read { it.models() }
@@ -140,7 +139,8 @@ class MacConnection(
         command { it.uploadPortrait(storyID, name, image, type, after) }
     override suspend fun backstage(storyID: String): BackstageView = read { it.backstage(storyID) }
     override suspend fun removeTaste(storyID: String, request: RemoveTasteRequest): Accepted = command { it.removeTaste(storyID, request) }
-    override suspend fun retryRecord(storyID: String, request: RecordRetryRequest): Accepted = command { it.retryRecord(storyID, request) }
+    override suspend fun setBrief(storyID: String, request: BriefRequest): Accepted = command { it.setBrief(storyID, request) }
+    override suspend fun react(storyID: String, request: ReactionRequest): Accepted = command { it.react(storyID, request) }
     override fun watch(initial: SceneView): Flow<SceneView> = StoryStream(
         onConnection = { connected.value = it }, loadScene = { scene(it) }
     ) {

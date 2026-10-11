@@ -1,365 +1,211 @@
-import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { Ajv2020 } from "ajv/dist/2020.js";
 import type { Models } from "../models/model-call.js";
-import type { OnEngagement } from "../story/engagements.js";
-import type { ArcStep, DirectorPlan, LeadMove, PlannedScene, RoadmapPoint } from "../story/entries.js";
-import type { Landmark, ModelChoice, State } from "../story/state.js";
-import type { World } from "../story/world.js";
-import { minutesOf, parseStoryTime, sayStoryTime } from "../time.js";
+import type { DirectorPlan } from "../story/entries.js";
+import type { ArcStep, LeadMove, ModelChoice, NewThing, Person, PlannedScene, RoadmapPoint, State } from "../story/state.js";
+import { formatStoryTime, minutesOf, parseStoryTime, sayDay } from "../time.js";
+import { engagementsAhead } from "../story/day.js";
+import { calendarPart, castPart, factsPart, join, nowPart, say, section, steeringPart, storyPart, storySoFarPart, threadsPart } from "../context/lens.js";
+import { matches, namer, nullable, oneOf, peopleEnum, text } from "./format.js";
 import { nameIndex, storyName } from "./names.js";
-import { type RecalledBond, sayBetween } from "./recall.js";
-import { answerWithOneRepair, type Checked } from "./repair.js";
-
-/**
- * The Director: plans the long run in stretches that build, peak and rest around the Arcs and Landmarks (openspec
- * long-run). It sees everything, as the Writer does, and its plan reaches the Story only through the Writer
- * (docs/adr/0004).
- */
+import { runAgent, TIMEOUT_MS, type Checked } from "./step.js";
 
 const PROMPT = readFileSync(new URL("./DIRECTOR.md", import.meta.url), "utf8");
 
-/** A Stretch runs five to nine days, with two to five Scenes that matter (story-in-stretches design decision 1). */
-export const STRETCH_DAYS = { min: 5, max: 9 } as const;
-export const SCENES_THAT_MATTER = { min: 2, max: 5 } as const;
-/** A Scene's headline is asked for in ten words; past fifteen it is not kept (docs/adr/0012). */
-const MAX_HEADLINE_WORDS = 15;
+/**
+ * A Stretch runs three to six days, with two to five Scenes that matter (openspec long-run: The Director shapes the
+ * long run). A plan keeps the first five; one is enough to keep it, so a Scene left out never costs a second call.
+ */
+export const STRETCH_DAYS = { min: 3, max: 6 } as const;
+export const SCENES = { min: 1, max: 5 } as const;
+/** A Scene at this intensity peaked (openspec long-run: Rest is deliberate). */
+export const PEAK = 5;
+/** How many recent Scenes the Director sees the pace of. */
+const PACE = 8;
 
-const text = { type: "string", minLength: 1 } as const;
+export type DirectorRecord = Omit<DirectorPlan, "kind" | "reason" | "afterScene" | "callId" | "model" | "dropped">;
 
-/** The Director's answer, as the provider is asked to give it. */
-export const DIRECTOR_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  required: ["from", "until", "toward", "landmark", "phase", "scenes", "arcs", "leads", "roadmap", "premise"],
-  properties: {
-    from: { ...text, description: "The Stretch's first day, today: \"Day 6\"." },
-    until: { ...text, description: "Its last day, five to nine days long: \"Day 12\"." },
-    toward: { ...text, description: "What the Stretch builds toward, in the story's words." },
-    landmark: { type: ["string", "null"], description: "The Landmark it builds toward, named as the story names it, or null." },
-    phase: { type: "string", enum: ["build", "peak", "rest"] },
-    scenes: {
-      type: "array",
-      minItems: SCENES_THAT_MATTER.min,
-      maxItems: SCENES_THAT_MATTER.max,
-      description: "The Scenes that matter in the Stretch, in order.",
-      items: {
-        type: "object", additionalProperties: false, required: ["id", "at", "place", "who", "for", "lead"],
-        properties: {
-          id: text, at: text, place: text, who: { type: "array", items: { type: "string" } }, for: text, lead: { type: ["string", "null"] },
-          engagement: { type: ["string", "null"], description: "When it is one of his Engagements (E1 …), its label: it is at that Engagement's time and place. Otherwise null." },
-          headline: { type: "string", description: "The Scene in one line of ten words or fewer, for Backstage: \"Charms: Flitwick pairs him with Draconia\"." }
-        }
-      }
-    },
-    arcs: {
-      type: "array",
-      description: "One row per Arc, named as the story names it.",
-      items: { type: "object", additionalProperties: false, required: ["arc", "now", "next", "not_yet"], properties: { arc: text, now: text, next: text, not_yet: text } }
-    },
-    leads: {
-      type: "array",
-      description: "One move for each Lead: in one of the Scenes that matter (its id), or off-screen (null).",
-      items: { type: "object", additionalProperties: false, required: ["who", "move", "scene"], properties: { who: text, move: text, scene: { type: ["string", "null"] } } }
-    },
-    roadmap: {
-      type: "array",
-      description: "For each Arc, where it should stand by each of the next two Landmarks.",
-      items: { type: "object", additionalProperties: false, required: ["arc", "by", "stands"], properties: { arc: text, by: text, stands: text } }
-    },
-    premise: { ...text, description: "Which kinds of Scene in this Stretch serve the Premise, and which leave it alone." }
-  }
-} as const;
-
-/** The plan as checked, before the Mac stores it. */
-export type RawPlan = Omit<DirectorPlan, "kind" | "callId" | "model" | "dropped">;
-
-interface AnswerPlan {
-  from: string;
-  until: string;
+interface Raw {
+  days: number;
   toward: string;
   landmark: string | null;
-  phase: DirectorPlan["phase"];
-  scenes: { id: string; at: string; place: string; who: string[]; for: string; lead: string | null; engagement?: string | null; headline?: string }[];
-  arcs: ArcStep[];
+  phase: "build" | "peak" | "rest";
+  scenes: { id: string; day: number; time: string; place: string; who: string[]; for: string; offer: string; headline: string; lead: string | null; engagement: string | null; quiet: boolean }[];
+  new: { kind: NewThing["kind"]; what: string; scene: string | null; person: { name: string; who_they_are: string; appearance: string } | null }[];
   leads: { who: string; move: string; scene: string | null }[];
-  roadmap: RoadmapPoint[];
+  arcs: { arc: string; now: string; next: string; not_yet: string }[];
+  roadmap: { arc: string; by: string; stands: string }[];
   premise: string;
 }
 
-const ajv = new Ajv2020({ strict: false, allErrors: true });
-const matchesSchema = ajv.compile<AnswerPlan>(DIRECTOR_SCHEMA);
-
-/** The Landmarks after the clock, soonest first: the roadmap is written to the next two. */
-export function nextLandmarks(state: State, count = 2): Landmark[] {
-  const now = parseStoryTime(state.clock);
-  return state.landmarks
-    .flatMap(landmark => {
-      const at = parseStoryTime(landmark.at);
-      return at && (!now || minutesOf(at) > minutesOf(now)) ? [{ landmark, minutes: minutesOf(at) }] : [];
-    })
-    .sort((left, right) => left.minutes - right.minutes)
-    .slice(0, count)
-    .map(item => item.landmark);
-}
-
-/** One Scene so far, as the Director reads it. */
-export interface SceneSoFar {
-  number: number;
-  title: string;
-  /** What the Chronicler said happened, once it has. */
-  summary: string | null;
-  /** The highest intensity the Writer gave it. */
-  peak: number | null;
-  arcMoved: boolean;
-}
-
-/** What the Director is asked to plan from. */
-export interface DirectorAsk {
-  /** The State at the end of the Scene that just ended. */
-  state: State;
-  world: World;
-  scenes: SceneSoFar[];
-  /** The plan before this one, if there was one. */
-  previous: DirectorPlan | null;
-  /** The Scene that just ended peaked, so this stretch rests (openspec long-run: Rest is deliberate). */
-  afterPeak: boolean;
-  /** Every Lead's Bond, and the Bond of each person with five turns or more (lasting-records design decision 6). */
-  bonds?: { leads: RecalledBond[]; others: RecalledBond[] };
-  /** His Engagements ahead, each with its next time, labelled E1 … in the prompt (director-knows-engagements). */
-  engagementsOn?: OnEngagement[];
-}
-
-/** The Director could not give a plan the Story can use. */
-export class DirectorFailed extends Error {}
-
 /**
- * Checks the Director's answer against the Story, part by part (lasting-records design decision 3; story-in-stretches
- * design decision 1): a Scene that matters outside the Stretch or before now, a name not in the Story, a row for an
- * Arc, a Lead or a Landmark that is not the Story's, is left out and said why; the days are kept to the Stretch's
- * bounds; an Arc with no row holds. Only an answer that does not match the schema, keeps no Scene that matters, or is
- * not a rest after a peak is refused.
+ * Why a plan is due at a Scene's end (openspec long-run: The Director shapes the long run), or null: no plan yet, the
+ * Stretch is over, the Scene peaked, its Landmark passed, or the player went off the plan.
  */
-export function checkPlan(ask: DirectorAsk, raw: unknown): Checked<RawPlan> {
-  if (!matchesSchema(raw)) {
-    return { ok: false, problems: (matchesSchema.errors ?? []).map(error => `${error.instancePath.replace(/^\//, "").replace(/\//g, ".") || "answer"}: ${error.message ?? "is not as the schema says"}`) };
-  }
-  const { state } = ask;
-  const dropped: string[] = [];
-  const fatal: string[] = [];
-  const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
-  const pc = state.playerCharacter;
-  const index = nameIndex(Object.values(state.people));
-  const now = parseStoryTime(state.clock);
-  const today = now?.day ?? 1;
-
-  // The days: from today, five to nine days.
-  const day = (value: string) => /^\s*day\s+(\d+)\s*$/i.exec(value)?.[1];
-  const from = today;
-  if (day(raw.from) === undefined || Number(day(raw.from)) !== today) dropped.push(`from: the Stretch starts today, Day ${today}, not ${raw.from.trim()}`);
-  let until = Number(day(raw.until) ?? NaN);
-  const length = until - from + 1;
-  if (Number.isNaN(until)) {
-    until = from + 6;
-    dropped.push(`until: "${raw.until.trim()}" is not a day like "Day ${from + 6}"; the Stretch ends seven days on`);
-  } else if (length > STRETCH_DAYS.max) {
-    until = from + STRETCH_DAYS.max - 1;
-    dropped.push(`until: the Stretch is ${length} days long; it runs five to nine days, so it ends by Day ${until}`);
-  } else if (length < STRETCH_DAYS.min) {
-    // Lengthened to five days, or to its last Scene that matters within nine.
-    const last = Math.max(...raw.scenes.map(scene => parseStoryTime(scene.at)?.day ?? 0).filter(at => at <= from + STRETCH_DAYS.max - 1));
-    until = Math.max(from + STRETCH_DAYS.min - 1, last);
-    dropped.push(`until: the Stretch is ${length} days long; it runs five to nine days, so it now ends on Day ${until}`);
-  }
-
-  // The Scenes that matter: within the Stretch and after now, with the Story's people.
-  const sceneIds = new Map<string, string>();
-  const scenes: PlannedScene[] = raw.scenes.flatMap(planned => {
-    const label = planned.id.trim();
-    // A Scene that is one of his Engagements takes its time and place from the record (director-knows-engagements
-    // design decision 2); a label not shown is cleared (docs/adr/0012).
-    const shown = /^E(\d+)$/i.exec(planned.engagement?.trim() ?? "")?.[1];
-    const on = shown ? ask.engagementsOn?.[Number(shown) - 1] : undefined;
-    if (on) {
-      const day = parseStoryTime(on.next)?.day ?? 0;
-      if (day < from || day > until) return (dropped.push(`scenes: ${label} is E${shown}, at ${on.next}, outside the Stretch (Day ${from} to Day ${until})`), []);
-    }
-    const scene = on ? { ...planned, at: on.next, place: on.engagement.place, who: [...planned.who, ...on.engagement.who] } : planned;
-    const at = parseStoryTime(scene.at);
-    if (!at) return (dropped.push(`scenes: ${label} is at "${scene.at.trim()}", which is not a time like "Day ${from + 3} 14:00"`), []);
-    if (at.day < from || at.day > until) return (dropped.push(`scenes: ${label} is at ${scene.at.trim()}, outside the Stretch (Day ${from} to Day ${until})`), []);
-    if (now && minutesOf(at) <= minutesOf(now)) return (dropped.push(`scenes: ${label} is at ${scene.at.trim()}, before now (${state.clock})`), []);
-    const who = [...new Set(scene.who.flatMap(name => {
-      const known = storyName(index, name);
-      if (!known) return (dropped.push(`scenes: ${label}, who: ${name.trim()} is not in the story`), []);
-      if (known === pc) return (dropped.push(`scenes: ${label}, who: ${pc} is the player's character, who is always there; leave him out`), []);
-      return [known];
-    }))];
-    const lead = scene.lead === null ? null : state.leads.find(name => name === storyName(index, scene.lead ?? "")) ?? null;
-    if (scene.lead !== null && !lead) dropped.push(`scenes: ${label}, lead: ${scene.lead.trim()} is not a Lead; name one of the Leads (${state.leads.join(", ")}), or null`);
-    const id = `s-${randomUUID().slice(0, 8)}`;
-    sceneIds.set(label, id);
-    // Only Backstage reads the headline: one missing or too long falls back to the note, and is not asked for again
-    // (blank-gaps-and-headlines design decision 2).
-    const line = scene.headline?.trim() ?? "";
-    const headline = line && line.split(/\s+/).length <= MAX_HEADLINE_WORDS ? line : null;
-    return [{ id, at: scene.at.trim(), place: scene.place.trim(), who, for: scene.for.trim(), lead, engagement: on?.engagement.id ?? null, headline }];
-  });
-  if (scenes.length === 0) fatal.push(`scenes: none of the Scenes that matter can be kept; plan two to five within the Stretch`);
-
-  // Each Arc's step: a row for an Arc the Story lacks is left out; an Arc with no row holds where it was.
-  const arcs: ArcStep[] = [];
-  for (const arc of state.arcs) {
-    const row = raw.arcs.find(item => same(item.arc, arc));
-    if (row) arcs.push({ arc, now: row.now.trim(), next: row.next.trim(), not_yet: row.not_yet.trim() });
-    else {
-      const last = ask.previous?.arcs.find(item => same(item.arc, arc));
-      dropped.push(`arcs: no row for the Arc "${arc}"; it holds where it is`);
-      arcs.push({ arc, now: last?.now ?? "where the last Scenes left it", next: "nothing; let the last step settle", not_yet: last?.not_yet ?? "any step at all" });
-    }
-  }
-  for (const row of raw.arcs) if (!state.arcs.some(arc => same(arc, row.arc))) dropped.push(`arcs: "${row.arc}" is not one of the story's Arcs`);
-
-  // Each Lead's move: on screen only in one of the plan's Scenes.
-  const leads: LeadMove[] = [];
-  for (const row of raw.leads) {
-    const who = state.leads.find(name => name === storyName(index, row.who));
-    if (!who) { dropped.push(`leads: ${row.who.trim()} is not a Lead`); continue; }
-    if (leads.some(lead => lead.who === who)) { dropped.push(`leads: two moves for ${who}; give one`); continue; }
-    let scene = row.scene === null ? null : sceneIds.get(row.scene.trim()) ?? null;
-    if (row.scene !== null && !scene) {
-      dropped.push(`leads: ${who}'s move is in ${row.scene.trim()}, which is not one of the Scenes that matter; it happens off-screen`);
-      scene = null;
-    }
-    leads.push({ who, move: row.move.trim(), scene });
-  }
-  for (const lead of state.leads) if (!leads.some(row => row.who === lead)) dropped.push(`leads: no move for ${lead}; every Lead makes one this Stretch, on screen or off`);
-  leads.sort((left, right) => state.leads.indexOf(left.who) - state.leads.indexOf(right.who));
-
-  // The roadmap: each Arc by each of the next two Landmarks.
-  const coming = nextLandmarks(state);
-  const roadmap: RoadmapPoint[] = [];
-  for (const row of raw.roadmap) {
-    const arc = state.arcs.find(item => same(item, row.arc));
-    const by = coming.find(item => same(item.name, row.by) || same(item.name.replace(/^the\s+/i, ""), row.by.replace(/^the\s+/i, "")));
-    if (!arc) { dropped.push(`roadmap: "${row.arc.trim()}" is not one of the story's Arcs`); continue; }
-    if (!by) { dropped.push(`roadmap: "${row.by.trim()}" is not one of the next two Landmarks (${coming.map(item => item.name).join(", ") || "there are none"})`); continue; }
-    if (roadmap.some(point => point.arc === arc && point.by === by.name)) continue;
-    roadmap.push({ arc, by: by.name, stands: row.stands.trim() });
-  }
-  for (const arc of state.arcs) {
-    for (const landmark of coming) {
-      if (!roadmap.some(point => point.arc === arc && point.by === landmark.name)) dropped.push(`roadmap: no row for the Arc "${arc}" by ${landmark.name}; say where it should stand by then`);
-    }
-  }
-
-  const landmark = raw.landmark === null ? null : state.landmarks.find(item => same(item.name, raw.landmark ?? ""))?.name;
-  if (landmark === undefined) dropped.push(`landmark: "${raw.landmark}" is not one of the story's Landmarks (${state.landmarks.map(item => item.name).join(", ") || "it has none"}); name one exactly, or null`);
-  if (ask.afterPeak && raw.phase !== "rest") fatal.push(`phase: the Scene that just ended peaked, so this stretch is a rest, not a ${raw.phase}`);
-  if (fatal.length) return { ok: false, problems: [...fatal, ...dropped] };
-  return { ok: true, value: { from, until, toward: raw.toward.trim(), landmark: landmark ?? null, phase: raw.phase, scenes, arcs, leads, roadmap, premise: raw.premise.trim() }, dropped };
-}
-
-function section(tag: string, body: string): string | null {
-  if (!body.trim()) return null;
-  return `<${tag}>\n${body.trim()}\n</${tag.split(" ")[0]}>`;
-}
-
-function say(state: State, at: string): string {
-  const time = parseStoryTime(at);
-  return time ? `${at} (${sayStoryTime(time, state.dayOneWeekday)})` : at;
-}
-
-const NUMBERS = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
-
-/** How far off [days] is, as a person says it: "in 9 days", "in 9 weeks", "in about two years". */
-function away(days: number): string {
-  if (days <= 0) return "today";
-  if (days === 1) return "tomorrow";
-  if (days < 14) return `in ${days} days`;
-  if (days < 365) return `in ${Math.round(days / 7)} weeks`;
-  const years = Math.round(days / 365);
-  return `in about ${NUMBERS[years] ?? years} year${years === 1 ? "" : "s"}`;
-}
-
-/**
- * The whole run, for pacing (story-in-stretches design decision 2): today, how far the Story's last Landmark is, and
- * the next two Landmarks, which the roadmap is written to.
- */
-function theRun(state: State): string | null {
+export function directionDue(state: State): string | null {
+  const plan = state.plan;
+  if (!plan) return "There is no plan yet: this is the Story's first.";
   const now = parseStoryTime(state.clock);
   if (!now) return null;
-  const days = (at: string) => (parseStoryTime(at)?.day ?? now.day) - now.day;
-  const last = state.landmarks.map(landmark => ({ landmark, day: parseStoryTime(landmark.at)?.day ?? 0 })).sort((left, right) => right.day - left.day)[0];
-  const coming = nextLandmarks(state);
-  return [
-    `Today is Day ${now.day} (${sayStoryTime(now, state.dayOneWeekday)}).${last && last.day > now.day ? ` The Story runs to Day ${last.day}, ${away(last.day - now.day).replace(/^in /, "")} from now.` : ""}`,
-    coming.length ? `Next: ${coming.map(landmark => `${landmark.name}, Day ${parseStoryTime(landmark.at)?.day} (${away(days(landmark.at))})`).join("; then ")}.` : "No Landmark is ahead.",
-    coming.length ? `Write the roadmap for each Arc by ${coming.map(landmark => landmark.name).join(" and by ")}.` : ""
-  ].filter(Boolean).join("\n");
+  const minutes = (at: string) => minutesOf(parseStoryTime(at) ?? now);
+  const last = state.curve.at(-1);
+  if (last && last.peak >= PEAK && plan.afterScene < last.scene) return `Scene ${last.scene}, ${last.title}, peaked: give the characters a breath, then build again.`;
+  const passedBy = plan.scenes.find(scene => !state.played.includes(scene.id) && minutes(scene.at) < minutesOf(now));
+  if (passedBy) return `The player went off the plan: ${passedBy.headline} (${say(state, passedBy.at)}) passed without him. Plan from where the story now is.`;
+  const landmark = plan.landmark ? state.landmarks.find(item => item.name === plan.landmark) : undefined;
+  if (landmark && minutes(landmark.at) <= minutesOf(now)) return `${landmark.name} has passed.`;
+  if (now.day > plan.until || plan.scenes.every(scene => state.played.includes(scene.id))) return "The last Stretch has run its course.";
+  return null;
 }
 
-/** The Story the Director plans for: the same for every call, so its prompt cache hits (docs/adr/0005). */
-function storyPrompt(state: State): string {
-  return [
-    PROMPT,
-    section("story", [
-      `Title: ${state.title}`,
-      `Premise: ${state.premise}`,
-      `Style: ${state.style}`,
-      state.world.summary ? `World: ${state.world.summary}` : "",
-      state.arcs.length ? `Arcs:\n${state.arcs.map(arc => `- ${arc}`).join("\n")}` : "",
-      state.landmarks.length ? `Landmarks:\n${state.landmarks.map(landmark => `- ${landmark.name}, ${say(state, landmark.at)}: ${landmark.what}`).join("\n")}` : ""
-    ].filter(Boolean).join("\n")),
-    // Who and where the Story has, as the Writer is given them: the Director names no one else (director-knows-the-people).
-    section("places", state.world.places.map(place => `- ${place.name}${place.description ? `: ${place.description}` : ""}`).join("\n")),
-    section(`player_character name="${state.playerCharacter}"`, state.people[state.playerCharacter]?.whoTheyAre ?? ""),
-    section("people", Object.values(state.people).filter(person => person.name !== state.playerCharacter)
-      .map(person => `- ${person.name}${person.aliases.length ? ` (also ${person.aliases.join(", ")})` : ""}: ${person.whoTheyAre}`).join("\n")),
-    section("leads", state.leads.join(", "))
-  ].filter(part => part !== null).join("\n\n");
+export function directorFormat(state: State) {
+  const engagements = engagementsAhead(state).map((_, index) => `E${index + 1}`);
+  return {
+    type: "object",
+    additionalProperties: false,
+    required: ["days", "toward", "landmark", "phase", "scenes", "new", "leads", "arcs", "roadmap", "premise"],
+    properties: {
+      days: { type: "integer", minimum: STRETCH_DAYS.min, maximum: STRETCH_DAYS.max },
+      toward: text,
+      landmark: { anyOf: [oneOf(state.landmarks.map(landmark => landmark.name)), { type: "null" }] },
+      phase: { type: "string", enum: ["build", "peak", "rest"] },
+      scenes: { type: "array", items: { type: "object", additionalProperties: false, required: ["id", "day", "time", "place", "who", "for", "offer", "headline", "lead", "engagement", "quiet"], properties: {
+        id: text, day: { type: "integer", minimum: 0, maximum: STRETCH_DAYS.max - 1 }, time: { ...text, description: "HH:MM" }, place: text,
+        who: { type: "array", items: peopleEnum(state) }, for: text, offer: text, headline: text,
+        lead: { anyOf: [oneOf(state.leads), { type: "null" }] }, engagement: { anyOf: [oneOf(engagements), { type: "null" }] }, quiet: { type: "boolean" }
+      } } },
+      new: { type: "array", items: { type: "object", additionalProperties: false, required: ["kind", "what", "scene", "person"], properties: {
+        kind: { type: "string", enum: ["person", "secret", "threat", "mystery", "place"] }, what: text, scene: { type: ["string", "null"] },
+        person: nullable({ type: "object", additionalProperties: false, required: ["name", "who_they_are", "appearance"], properties: { name: text, who_they_are: text, appearance: { type: "string" } } })
+      } } },
+      leads: { type: "array", items: { type: "object", additionalProperties: false, required: ["who", "move", "scene"], properties: { who: oneOf(state.leads), move: text, scene: { type: ["string", "null"] } } } },
+      arcs: { type: "array", items: { type: "object", additionalProperties: false, required: ["arc", "now", "next", "not_yet"], properties: { arc: oneOf(state.arcs), now: text, next: text, not_yet: text } } },
+      roadmap: { type: "array", items: { type: "object", additionalProperties: false, required: ["arc", "by", "stands"], properties: { arc: oneOf(state.arcs), by: text, stands: text } } },
+      premise: text
+    }
+  } as const;
 }
 
-/** The prompt for one plan: the story up to now, and what this plan must do. */
-export function directorPrompt(ask: DirectorAsk): { system: string; prompt: string; facts: unknown } {
-  const { state, scenes, previous } = ask;
-  const scenesSoFar = scenes.map(scene => `- Scene ${scene.number}, ${scene.title}${scene.peak !== null ? ` (intensity ${scene.peak}${scene.arcMoved ? ", an Arc moved" : ""})` : ""}: ${scene.summary ?? "not yet recorded"}`);
-  const threads = ask.world.threads.map(thread => `- ${thread.name}: ${thread.now}`);
-  const prompt = [
-    section("now", `It is ${say(state, state.clock)}. ${scenes.length} Scenes have been played.`),
-    section("the_run", theRun(state) ?? ""),
-    section("scenes_so_far", scenesSoFar.join("\n")),
-    section("threads", threads.join("\n")),
-    section("leads_between", sayBetween(ask.bonds?.leads ?? [])),
-    section("between", sayBetween(ask.bonds?.others ?? [])),
-    section("his_engagements", (ask.engagementsOn ?? []).map(({ engagement, next }, position) => {
-      const at = parseStoryTime(next);
-      return `- E${position + 1} ${at ? sayStoryTime(at, state.dayOneWeekday) : next} (${next})${engagement.every === "week" ? ", every week" : ""}, ${engagement.place}: ${engagement.what}${engagement.who.length ? ` With ${engagement.who.join(", ")}.` : ""}${engagement.expected ? " He is expected." : ""}`;
-    }).join("\n")),
-    previous ? section("last_plan", [
-      `Phase: ${previous.phase}, toward ${previous.toward}${previous.landmark ? ` (the Landmark ${previous.landmark})` : ""}, Day ${previous.from} to Day ${previous.until}.`,
-      ...previous.scenes.map(scene => `- Scene that mattered, ${scene.at}, ${scene.place}: ${scene.for}`),
-      ...previous.leads.map(lead => `- ${lead.who}'s move: ${lead.move}${lead.scene ? "" : " (off-screen)"}`),
-      ...previous.arcs.map(arc => `- ${arc.arc}: was ${arc.now}; next ${arc.next}; not yet ${arc.not_yet}`),
-      ...previous.roadmap.map(point => `- Roadmap: ${point.arc}, by ${point.by}: ${point.stands}`),
-      `Premise: ${previous.premise}`
-    ].join("\n")) : null,
-    section("task", [
-      `Plan the next Stretch, from today, Day ${parseStoryTime(state.clock)?.day ?? 1}.`,
-      ask.afterPeak ? "The Scene that just ended peaked: this stretch is a rest." : "",
-      previous ? "Judge where each Arc stands from the Scenes since the last plan, not from what the last plan hoped." : "This is the story's first plan."
-    ].filter(Boolean).join(" "))
-  ].filter(part => part !== null).join("\n\n");
-  const facts = { arcs: state.arcs, landmarks: state.landmarks.map(landmark => landmark.name), afterPeak: ask.afterPeak, scenes: scenes.length, clock: state.clock, leads: state.leads, coming: nextLandmarks(state).map(landmark => landmark.name) };
-  return { system: storyPrompt(state), prompt, facts };
+/** The Story's Landmarks from today on, soonest first. */
+function landmarksAhead(state: State) {
+  const day = parseStoryTime(state.clock)?.day ?? 0;
+  const at = (landmark: { at: string }) => parseStoryTime(landmark.at);
+  return state.landmarks
+    .filter(landmark => (at(landmark)?.day ?? 0) >= day)
+    .sort((left, right) => minutesOf(at(left) ?? { day: 0, minuteOfDay: 0 }) - minutesOf(at(right) ?? { day: 0, minuteOfDay: 0 }));
 }
 
-/** Runs the Director once, checked and repaired once; throws DirectorFailed with the reasons. */
-export function writePlan(models: Models, model: ModelChoice, ask: DirectorAsk, storyId: string, traceId: string, signal: AbortSignal): Promise<{ value: RawPlan; callId: string; dropped: string[] }> {
-  const { system, prompt, facts } = directorPrompt(ask);
-  return answerWithOneRepair(models,
-    { agent: "director", model, system, prompt, schema: DIRECTOR_SCHEMA, facts, traceId, storyId },
-    answer => checkPlan(ask, answer),
-    reason => new DirectorFailed(`The Director could not plan: ${reason}`),
-    signal);
+/** The run: today, where the Story ends, and the next two Landmarks. */
+function theRun(state: State): string {
+  const now = parseStoryTime(state.clock);
+  if (!now) return "";
+  const ahead = landmarksAhead(state);
+  const end = ahead.at(-1);
+  return [`Today is Day ${now.day} (${sayDay(now, state.dayOneWeekday)}).`, end ? `The Story runs to ${end.name}, ${say(state, end.at)}.` : "", ahead.length ? `Next: ${ahead.slice(0, 2).map(landmark => `${landmark.name}, ${say(state, landmark.at)}`).join("; then ")}.` : ""].filter(Boolean).join(" ");
 }
+
+export function directorPrompt(state: State, reason: string): { system: string; prompt: string } {
+  const recent = [...state.recentPlans, ...(state.plan ? [state.plan.scenes] : [])].slice(-3);
+  const plan = state.plan;
+  return {
+    system: join([PROMPT, storyPart(state)]),
+    prompt: join([
+      nowPart(state),
+      section("the_run", theRun(state)),
+      steeringPart(state),
+      section("pace", state.curve.slice(-PACE).map(item => `- Scene ${item.scene}, ${item.title}: ${item.peak}`).join("\n")),
+      storySoFarPart(state),
+      castPart(state, [], "omniscient"),
+      calendarPart(state, "omniscient"),
+      threadsPart(state),
+      factsPart(state, "omniscient", []),
+      section("recent_stretches", recent.map((scenes, index) => `Stretch ${index + 1}:\n${scenes.map(scene => `- ${scene.headline} (${scene.place}; ${scene.who.join(", ") || "nobody else"})`).join("\n")}`).join("\n")),
+      plan ? section("last_plan", [...plan.arcs.map(arc => `- ${arc.arc}: was ${arc.now}; next ${arc.next}; not yet ${arc.notYet}`), ...plan.roadmap.map(point => `- Roadmap: ${point.arc}, by ${point.by}: ${point.stands}`)].join("\n")) : null,
+      section("task", `${reason} Plan the next Stretch, from today, Day ${parseStoryTime(state.clock)?.day ?? 1}.`)
+    ])
+  };
+}
+
+/** Checks the plan: what the code can work out it sets right; only a plan with no Scene or nothing new is sent back. */
+export function checkPlan(state: State, answer: unknown): Checked<DirectorRecord> {
+  const format = matches<Raw>(directorFormat(state), answer);
+  if (!format.ok) return format;
+  const raw = format.value;
+  const dropped: string[] = [];
+  const now = parseStoryTime(state.clock);
+  if (!now) return { ok: false, problems: ["the clock cannot be read"] };
+  const days = Math.min(Math.max(raw.days, STRETCH_DAYS.min), STRETCH_DAYS.max);
+  const from = now.day;
+  const until = from + days - 1;
+  const index = nameIndex(Object.values(state.people));
+
+  // New people first, so the Scenes they enter in can name them.
+  const people: DirectorRecord["people"] = [];
+  const newThings: NewThing[] = [];
+  for (const item of raw.new.slice(0, 2)) {
+    let person: string | null = null;
+    if (item.kind === "person") {
+      const name = item.person?.name.trim() ?? "";
+      if (!name || storyName(index, name) || people.length >= 1) {
+        dropped.push(`new: ${name || "a person with no name"} cannot be brought in: ${name ? "the story already has them, or one new person is enough" : "give them a name"}`);
+        continue;
+      }
+      people.push({ name, aliases: [], whoTheyAre: item.person?.who_they_are.trim() ?? "", known: null, appearance: item.person?.appearance.trim() ?? "", after: "", knows: [], voice: [], group: null });
+      person = name;
+    }
+    newThings.push({ kind: item.kind, what: item.what.trim(), scene: item.scene?.trim() || null, person });
+  }
+  const extra = people.map(person => person.name);
+  const named = namer(state, dropped, "scenes.who", extra);
+  const shown = engagementsAhead(state);
+  const labels = new Map<string, string>();
+  const scenes: PlannedScene[] = raw.scenes.slice(0, SCENES.max).flatMap(scene => {
+    const label = scene.id.trim();
+    const time = /^(\d{1,2}):(\d{2})$/.exec(scene.time.trim());
+    let at = time ? formatStoryTime({ day: from + Math.min(scene.day, days - 1), minuteOfDay: Number(time[1]) * 60 + Number(time[2]) }) : null;
+    let place = scene.place.trim();
+    const engagement = scene.engagement ? shown[Number(scene.engagement.slice(1)) - 1] : undefined;
+    if (engagement) {
+      at = engagement.next;
+      place = engagement.engagement.place;
+    }
+    const when = at ? parseStoryTime(at) : null;
+    if (!when || minutesOf(when) <= minutesOf(now)) return (dropped.push(`scenes: ${label} is not at a time after now`), []);
+    const id = `s${(state.plan?.number ?? 0) + 1}.${labels.size + 1}`;
+    labels.set(label, id);
+    const brought = newThings.filter(thing => thing.scene === label && thing.person).map(thing => thing.person as string);
+    return [{
+      id, at: formatStoryTime(when), place, who: [...new Set([...named(scene.who), ...brought, ...(engagement?.engagement.who ?? [])])],
+      for: scene.for.trim(), offer: scene.offer.trim(), headline: scene.headline.trim(), lead: scene.lead && state.leads.includes(scene.lead) ? scene.lead : null,
+      engagement: engagement?.engagement.id ?? null, quiet: scene.quiet
+    }];
+  }).sort((left, right) => minutesOf(parseStoryTime(left.at) ?? now) - minutesOf(parseStoryTime(right.at) ?? now));
+  if (scenes.length < SCENES.min) return { ok: false, problems: ["scenes: none of the Scenes that matter can be kept; plan two to five, each after now, within the Stretch"] };
+  if (newThings.length === 0) return { ok: false, problems: ["new: bring at least one thing the player's character has not met: a person, a secret, a threat, a mystery or a place"] };
+  for (const thing of newThings) thing.scene = thing.scene ? labels.get(thing.scene) ?? null : null;
+
+  const leads: LeadMove[] = state.leads.map(who => {
+    const row = raw.leads.find(item => item.who === who);
+    if (!row) dropped.push(`leads: no move for ${who}`);
+    return { who, move: row?.move.trim() ?? "goes about their own life", scene: row?.scene ? labels.get(row.scene.trim()) ?? null : null };
+  });
+  const arcs: ArcStep[] = state.arcs.map(arc => {
+    const row = raw.arcs.find(item => item.arc === arc);
+    const last = state.plan?.arcs.find(item => item.arc === arc);
+    if (!row) dropped.push(`arcs: no row for "${arc}"; it holds where it is`);
+    return row ? { arc, now: row.now.trim(), next: row.next.trim(), notYet: row.not_yet.trim() } : { arc, now: last?.now ?? "where the last Scenes left it", next: "nothing; let the last step settle", notYet: last?.notYet ?? "any step at all" };
+  });
+  const landmark = raw.landmark ? state.landmarks.find(item => item.name.toLocaleLowerCase() === raw.landmark?.trim().toLocaleLowerCase()) : undefined;
+  if (raw.landmark && !landmark) dropped.push(`landmark: "${raw.landmark}" is not one of the Story's Landmarks; the Stretch builds toward none`);
+  const roadmap: RoadmapPoint[] = raw.roadmap.filter(point => state.arcs.includes(point.arc)).map(point => ({ arc: point.arc, by: point.by.trim(), stands: point.stands.trim() }));
+  return {
+    ok: true, dropped,
+    value: { from, until, toward: raw.toward.trim(), landmark: landmark?.name ?? null, phase: raw.phase, scenes, leads, arcs, roadmap, premise: raw.premise.trim(), newThings, people }
+  };
+}
+
+export async function writePlan(models: Models, choices: ModelChoice[], state: State, reason: string, storyId: string, traceId: string, signal: AbortSignal): Promise<{ value: DirectorRecord; callId: string; model: ModelChoice; dropped: string[] }> {
+  const { system, prompt } = directorPrompt(state, reason);
+  return runAgent(models, choices, { agent: "director", system, prompt, schema: directorFormat(state), facts: { clock: state.clock, reason, leads: state.leads, arcs: state.arcs, coming: landmarksAhead(state).slice(0, 2).map(landmark => landmark.name), plan: state.plan?.number ?? 0, afterPeak: (state.curve.at(-1)?.peak ?? 0) >= PEAK }, traceId, storyId }, answer => checkPlan(state, answer), TIMEOUT_MS.plan, signal);
+}
+
+void (null as unknown as Person);

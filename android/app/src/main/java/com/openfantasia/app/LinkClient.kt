@@ -32,15 +32,14 @@ class LinkClient(val address: HttpUrl, fingerprint: String, private val deviceTo
         command(listOf("stories", storyID, "moves"), linkJson.encodeToString(move))
     suspend fun choose(storyID: String, request: ChooseRequest): TurnAccepted =
         command(listOf("stories", storyID, "choose"), commandJson.encodeToString(request))
-    suspend fun retryWorld(storyID: String, request: RetryWorldRequest): Accepted =
-        command(listOf("stories", storyID, "world", "retry"), commandJson.encodeToString(request))
     suspend fun retry(storyID: String, request: RetryRequest): TurnAccepted =
         command(listOf("stories", storyID, "retry"), commandJson.encodeToString(request))
 
     // The Models screen (openspec outside-the-scene: One Models screen): settings of the Mac, put whole.
     suspend fun models(): ModelsView = command("models")
+    // Without defaults: the Mac takes `backup` only as true or absent.
     suspend fun setJobModel(job: ModelJob, request: SetJobModelRequest): ModelsView =
-        command(listOf("models", "jobs", job.value), commandJson.encodeToString(request), put = true)
+        command(listOf("models", "jobs", job.value), linkJson.encodeToString(request), put = true)
     suspend fun setActor(storyID: String, request: SetActorRequest): ModelsView =
         command(listOf("stories", storyID, "actor"), commandJson.encodeToString(request), put = true)
 
@@ -111,8 +110,10 @@ class LinkClient(val address: HttpUrl, fingerprint: String, private val deviceTo
     suspend fun backstage(storyID: String): BackstageView = command(listOf("stories", storyID, "backstage"))
     suspend fun removeTaste(storyID: String, request: RemoveTasteRequest): Accepted =
         command(listOf("stories", storyID, "taste", "remove"), commandJson.encodeToString(request))
-    suspend fun retryRecord(storyID: String, request: RecordRetryRequest): Accepted =
-        command(listOf("stories", storyID, "record", "retry"), commandJson.encodeToString(request))
+    suspend fun setBrief(storyID: String, request: BriefRequest): Accepted =
+        command(listOf("stories", storyID, "brief"), commandJson.encodeToString(request))
+    suspend fun react(storyID: String, request: ReactionRequest): Accepted =
+        command(listOf("stories", storyID, "reaction"), commandJson.encodeToString(request))
     suspend fun edit(storyID: String, request: EditRequest): Accepted =
         command(listOf("stories", storyID, "edit"), commandJson.encodeToString(request))
 

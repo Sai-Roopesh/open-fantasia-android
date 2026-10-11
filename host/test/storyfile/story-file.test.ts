@@ -1,12 +1,13 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { calendarPart, steeringPart } from "../../src/context/lens.js";
 import { importStoryFile } from "../../src/storyfile/import.js";
-import { bondsOn } from "../../src/story/bonds.js";
-import { worldOn } from "../../src/story/world.js";
+import { personDetail } from "../../src/views/people.js";
 import { listStories } from "../../src/views/stories.js";
 import { freshHome } from "../support/host.js";
-import { malfoyProblemStoryFile, minimalStoryFile, writeStoryFile } from "../support/story-files.js";
+import { playable } from "../support/play.js";
+import { hogwartsStoryFile, malfoyProblemStoryFile, minimalStoryFile, writeStoryFile } from "../support/story-files.js";
 
 function storyCount(db: ReturnType<typeof freshHome>["db"]): number {
   return (db.prepare("SELECT COUNT(*) AS n FROM stories").get() as { n: number }).n;
@@ -54,6 +55,7 @@ describe("story-file", () => {
     expect(state.groups).toEqual([]);
     expect(state.arcs).toEqual([]);
     expect(state.landmarks).toEqual([]);
+    expect(state).toMatchObject({ routine: [], brief: { more: [], less: [] }, threads: [], plan: null });
     expect(state.scene).toMatchObject({ number: 1, title: "The night train", place: "A sleeper compartment", at: "Day 1 23:10", here: ["Mira"] });
   });
 
@@ -65,8 +67,8 @@ describe("story-file", () => {
     const story = { ...minimalStoryFile(), threads: [{ name: "the dragon egg in Hagrid's hut", now: "Hagrid is keeping it warm in the fire" }] };
     const result = importStoryFile(writeStoryFile(story), mac);
     if (!result.ok) throw new Error(result.problems.map(problem => problem.message).join("; "));
-    const world = worldOn(mac, mac.tree.currentPath(result.storyId)!.headEntryId);
-    expect(world.threads).toEqual([{ name: "the dragon egg in Hagrid's hut", now: "Hagrid is keeping it warm in the fire" }]);
+    const state = mac.states.at(mac.tree.currentPath(result.storyId)!.headEntryId);
+    expect(state.threads).toEqual([{ name: "the dragon egg in Hagrid's hut", now: "Hagrid is keeping it warm in the fire" }]);
   });
 
   // What the Player Character knows of someone is kept apart from who they really are (openspec story-file); the World
@@ -90,7 +92,6 @@ describe("story-file", () => {
   //   and she owes him and calls him Stray
   // WHEN it is imported and her page is opened
   // THEN Between you shows that standing before any Scene is played
-  // (The page's half is proved with the person view; here, the Bond the page reads.)
   it("story-file › A Story File sets up every part of a Story › A Bond to start from", () => {
     const mac = freshHome();
     const story = malfoyProblemStoryFile();
@@ -98,10 +99,35 @@ describe("story-file", () => {
     story.people = story.people.map(person => person.name === "Draconia Malfoy" ? { ...person, bond: standing } : person) as typeof story.people;
     const result = importStoryFile(writeStoryFile(story), mac);
     if (!result.ok) throw new Error(result.problems.map(problem => problem.message).join("; "));
-    const bonds = bondsOn(mac, mac.tree.currentPath(result.storyId)!.headEntryId);
-    expect(bonds.get("Draconia Malfoy")).toEqual({ standing, turns: [] });
+    expect(personDetail(mac, result.storyId, "Draconia Malfoy", "t").between).toEqual({ standing, turns: [] });
     // Someone the Story File gives no Bond has none yet.
-    expect(bonds.has("Hermione Granger")).toBe(false);
+    expect(personDetail(mac, result.storyId, "Hermione Granger", "t").between).toBeNull();
+  });
+
+  // GIVEN a Story File whose routine says lectures run on weekday mornings and Friday nights are at the Three Broomsticks
+  // WHEN the Director plans a Stretch
+  // THEN its Scenes that matter fall around the routine, and some of them break it
+  // (Where the Scenes fall is the Director's to judge. The code's part: the routine, and the player's brief, are the
+  // Story's from the import on, and the Director plans from them, as the Weaver moves the World around the routine.)
+  it("story-file › A Story File sets up every part of a Story › A routine to build on", async () => {
+    const story = hogwartsStoryFile({ title: "After curfew", at: "Day 3 21:40" });
+    story.routine = ["Lectures run on weekday mornings, nine to noon.", "Friday nights are at the Three Broomsticks."];
+    story.brief = { more: ["Draconia's temper"], less: ["Quidditch"] };
+    const { state, play, engine, storyId, head, models } = playable(story);
+    expect(state().routine).toEqual(["Lectures run on weekday mornings, nine to noon.", "Friday nights are at the Three Broomsticks."]);
+    expect(state().brief).toEqual({ more: ["Draconia's temper"], less: ["Quidditch"] });
+    const routine = "Routine:\n- Lectures run on weekday mornings, nine to noon.\n- Friday nights are at the Three Broomsticks.";
+    expect(calendarPart(state(), "omniscient")).toContain(routine);
+    expect(steeringPart(state())).toContain("More of:\n- Draconia's temper");
+
+    await play("I say goodnight to Hermione.");
+    engine.endScene(storyId, head(), "trace-end");
+    await engine.ended(storyId);
+    const director = models.director.requests[0]!.prompt;
+    expect(director).toContain(routine);
+    expect(director).toContain("More of:\n- Draconia's temper");
+    expect(director).toContain("Less of:\n- Quidditch");
+    expect(models.weaver.requests[0]!.prompt).toContain(routine);
   });
 
   // A Bond is where things stand between him and someone else, in forty words or fewer (lasting-records design decision 1).

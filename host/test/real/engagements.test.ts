@@ -1,15 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { writeChronicle } from "../../src/agents/chronicler.js";
-import { writeWeave } from "../../src/agents/weaver.js";
-import { chronicleAsk, dueChronicle } from "../../src/engine/chronicling.js";
-import { Engine } from "../../src/engine/engine.js";
-import { dueWeave, weaveAsk } from "../../src/engine/weaving.js";
+import { writeWeave, type WeaveRecord } from "../../src/agents/weaver.js";
+import { endedScene, sceneEndWeave } from "../../src/engine/scene-end.js";
 import { ClaudeRunner } from "../../src/models/claude.js";
 import { DEFAULT_JOB_MODELS } from "../../src/models/jobs.js";
 import { Models } from "../../src/models/model-call.js";
 import type { StoryFile } from "../../src/protocol/generated/story-file.js";
 import { CLAUDE_TOKEN, readSecret } from "../../src/secrets.js";
-import type { Engagement } from "../../src/story/entries.js";
+import type { Engagement } from "../../src/story/state.js";
 import { samePlace } from "../../src/story/places.js";
 import { importStoryFile } from "../../src/storyfile/import.js";
 import { freshHome } from "../support/host.js";
@@ -34,11 +32,19 @@ async function recorded(story: StoryFile, exchanges: [string, string][], weave =
     mac.tree.moveHead(path.id, at, replied.id);
     at = replied.id;
   }
-  new Engine(mac, models).endScene(imported.storyId, at, "real-end");
-  const head = mac.tree.currentPath(imported.storyId)!.headEntryId;
+  const closed = mac.tree.append(imported.storyId, at, { kind: "scene_closed", by: "player" });
+  mac.tree.moveHead(path.id, at, closed.id);
   try {
-    const chronicle = await writeChronicle(models, DEFAULT_JOB_MODELS.chronicler, chronicleAsk(mac, dueChronicle(mac, head)!), imported.storyId, "real-chronicle", new AbortController().signal);
-    const world = weave ? (await writeWeave(models, DEFAULT_JOB_MODELS.weaver, weaveAsk(mac, dueWeave(mac, head)!), imported.storyId, "real-weave", new AbortController().signal)).value : null;
+    const ended = mac.states.at(closed.id);
+    const chronicle = await writeChronicle(models, [DEFAULT_JOB_MODELS.chronicler], { state: ended, scene: endedScene(mac, closed.id, ended) }, imported.storyId, "real-chronicle", new AbortController().signal);
+    let world: WeaveRecord | null = null;
+    if (weave) {
+      // The World moves on from the record, as a Scene's end does it: the Chronicler's entry first, then the Weaver.
+      const recorded = mac.tree.append(imported.storyId, closed.id, { kind: "chronicle", scene: ended.scene!.number, ...chronicle.value, dropped: chronicle.dropped, callId: chronicle.callId, model: chronicle.model });
+      mac.tree.moveHead(path.id, closed.id, recorded.id);
+      const state = mac.states.at(recorded.id);
+      world = (await writeWeave(models, [DEFAULT_JOB_MODELS.weaver], sceneEndWeave(mac, recorded.id, state), imported.storyId, "real-weave", new AbortController().signal)).value;
+    }
     return {
       page: chronicle.value.engagements,
       meanwhile: world?.meanwhile.flatMap(line => (line.engagement ? [line.engagement] : [])) ?? [],

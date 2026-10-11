@@ -12,7 +12,7 @@ describe("setting what the Player Character knows of someone on a Story being pl
   it("writes it on the Path, for the person as the Story names them, and tells the phones", () => {
     const { engine, storyId, head, state, events, path } = playable(hogwartsWorldStoryFile());
     engine.setKnown(storyId, "quirrell", "The Defence teacher. Stammers; smells of garlic.", head(), "trace-known");
-    expect(state().people["Quirinus Quirrell"]!.known).toBe("The Defence teacher. Stammers; smells of garlic.");
+    expect(state().known["Quirinus Quirrell"]).toEqual({ text: "The Defence teacher. Stammers; smells of garlic.", from: null });
     expect(path().at(-1)).toEqual({ kind: "known_set", person: "Quirinus Quirrell", text: "The Defence teacher. Stammers; smells of garlic." });
     expect(events.at(-1)!.event.kind).toBe("path_changed");
   });
@@ -31,7 +31,7 @@ describe("setting what the Player Character knows of someone on a Story being pl
     const done = capture();
     expect(known(mac, engine, storyId, "Hermione Granger", "A Gryffindor first-year who answers every question.", done.out)).toBe(true);
     expect(done.text()).toBe("What Roopesh Gantasala knows of Hermione Granger is now: A Gryffindor first-year who answers every question.");
-    expect(state().people["Hermione Granger"]!.known).toBe("A Gryffindor first-year who answers every question.");
+    expect(state().known["Hermione Granger"]!.text).toBe("A Gryffindor first-year who answers every question.");
     const refused = capture();
     expect(known(mac, engine, "nowhere", "Hermione Granger", "x", refused.out)).toBe(false);
     expect(refused.text()).toBe("No Story nowhere on this Mac.");

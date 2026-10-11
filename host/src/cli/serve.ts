@@ -37,10 +37,8 @@ export async function serve(mac: Mac, options: { port?: number; fakeModels: bool
   const stopCataloguing = catalog.start();
   const app = buildLink({ mac, engine, pairing: new Pairing(mac.db), catalog, hostId: me.hostId, hostName: me.hostName, https: certificate });
   await app.listen({ port: me.port, host: "0.0.0.0" });
-  // Whatever the Chronicler and the Weaver owe from before the host last stopped is done now, in the background.
-  engine.chronicleAll();
-  engine.directAll();
-  engine.weaveAll();
+  // Every Scene's end left unfinished when the host last stopped goes on from its next step, in the background.
+  engine.resumeAll();
   // What the Mac's commands change in the store reaches the phones watching (openspec stories).
   const stopWatching = engine.watchStore();
   const stopAdvertising = advertise(me.hostId, me.hostName, me.port);

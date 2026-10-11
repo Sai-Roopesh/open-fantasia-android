@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { listStories } from "../../src/views/stories.js";
 import { importStoryFile } from "../../src/storyfile/import.js";
 import { Engine } from "../../src/engine/engine.js";
-import { FakeModels } from "../../src/models/fake.js";
+import { FakeModels, fakeWriterAnswer } from "../../src/models/fake.js";
 import { Models } from "../../src/models/model-call.js";
 import { freshHome } from "../support/host.js";
 import { hogwartsStoryFile, writeStoryFile } from "../support/story-files.js";
@@ -13,7 +13,9 @@ describe("the home screen", () => {
   // AND "Sunday 7:40 am · choosing where to go" for the second
   it("stories › Home shows where every Story stands › Two Stories on the home screen", async () => {
     const mac = freshHome();
-    const engine = new Engine(mac, new Models(mac.db, { claude: new FakeModels() }));
+    // The Move at Sunday 7:40 am passes no time.
+    const atOnce = { from: (request: Parameters<typeof fakeWriterAnswer>[0]) => ({ answer: JSON.stringify({ ...JSON.parse((fakeWriterAnswer(request) as { answer: string }).answer) as object, minutes: 0 }) }) };
+    const engine = new Engine(mac, new Models(mac.db, { claude: new FakeModels({ writer: [atOnce] }) }));
     const midScene = importStoryFile(writeStoryFile(hogwartsStoryFile()), mac);
     const second = hogwartsStoryFile({ title: "Sunday morning", place: "Gryffindor Tower", at: "Day 5 07:40", who: ["Neville Longbottom"], prose: "Neville is already up." });
     second.title = "After the Troll";
@@ -23,6 +25,7 @@ describe("the home screen", () => {
     engine.move(atDayView.storyId, "I get dressed.", head(atDayView.storyId), "t1");
     await engine.settled(atDayView.storyId);
     engine.endScene(atDayView.storyId, head(atDayView.storyId), "t2");
+    await engine.ended(atDayView.storyId);
 
     const shown = Object.fromEntries(listStories(mac).map(story => [story.title, story]));
     expect(shown["After Curfew"]).toMatchObject({ standing: "Scene 1 · After curfew", detail: "Friday 9:40 pm · with Hermione" });

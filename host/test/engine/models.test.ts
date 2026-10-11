@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Engine } from "../../src/engine/engine.js";
 import { FakeModels } from "../../src/models/fake.js";
-import { jobModels, setJobModel, setStoryActor } from "../../src/models/jobs.js";
+import { backupModels, jobModels, setBackupModel, setJobModel, setStoryActor } from "../../src/models/jobs.js";
 import { Models } from "../../src/models/model-call.js";
 import { scriptedRunners } from "../../src/models/runners.js";
 import type { ReplyWritten as Reply } from "../../src/story/entries.js";
@@ -78,13 +78,15 @@ describe("the models each job runs on", () => {
   // THEN the Reply is written by GPT 6.1 Sol
   // AND the next Reply is written by Opus 5.5 again
   it("presence › Nothing fails silently › Another model for a failed Reply", async () => {
-    const { mac, engine, storyId, view, play } = playable(hogwartsStoryFile(), { actor: [{ fail: "Opus 5.5 is overloaded right now." }] });
+    // Opus 5.5 is overloaded, and so is the Actor's second model: the Reply failed.
+    const { mac, engine, storyId, view, play } = playable(hogwartsStoryFile(), { actor: [{ fail: "Opus 5.5 is overloaded right now." }, { fail: "Sonnet 5.5 is overloaded right now." }] });
     await play("I kiss her, quickly.");
     expect(view().turn).toMatchObject({ kind: "failed", job: "actor" });
     engine.retry(storyId, "trace-retry", SOL);
     await engine.settled(storyId);
     expect(view().turn.kind).toBe("idle");
-    expect(callsFor(mac.db, "actor").map(call => call.provider)).toEqual(["claude", "codex"]);
+    expect(callsFor(mac.db, "actor").map(call => [call.provider, call.model])).toEqual([["claude", "claude-opus-5-5"], ["claude", "claude-sonnet-5-5"], ["codex", "gpt-6.1-sol"]]);
+    expect((mac.tree.entry(mac.tree.currentPath(storyId)!.headEntryId)!.payload as Reply).model).toEqual(SOL);
     await play("I wait for her answer.");
     expect(latest(callsFor(mac.db, "actor"))).toMatchObject(OPUS);
     // Nothing was set: the try on another model was for that one Reply.
@@ -98,9 +100,9 @@ describe("the models each job runs on", () => {
     engine.retry(storyId, "trace-retry", FLASH);
     await engine.settled(storyId);
     expect(view().turn.kind).toBe("idle");
-    // Asked twice, as the Writer always is before it gives up, then once on the model chosen.
+    // Asked on its model and its second model before it gives up, then once on the model chosen.
     expect(callsFor(mac.db, "writer").map(call => [call.provider, call.model, call.effort])).toEqual([
-      ["claude", "claude-sonnet-5-5", null], ["claude", "claude-sonnet-5-5", null], ["antigravity", "gemini-3.8-flash", "high"]
+      ["claude", "claude-sonnet-5-5", null], ["codex", "gpt-6.1-sol", null], ["antigravity", "gemini-3.8-flash", "high"]
     ]);
     // The Actor was not the one that failed, so it stays the Story's.
     expect(latest(callsFor(mac.db, "actor"))).toMatchObject(OPUS);
@@ -110,22 +112,29 @@ describe("the models each job runs on", () => {
   // WHEN the player chooses another model, Sonnet 5.5
   // THEN the World moves on with Sonnet 5.5, and the Day View is ready
   it("presence › Nothing fails silently › Another model for the World", async () => {
-    const { mac, engine, storyId, head, view, play } = playable(hogwartsStoryFile(), { weaver: [{ fail: "GPT 6.1 Sol is at capacity." }, { fail: "GPT 6.1 Sol is at capacity." }] });
+    // The Weaver is on GPT 6.1 Sol with Gemini as its second model, and both fail.
+    const { mac, engine, storyId, head, view, play } = playable(hogwartsStoryFile(), { weaver: [{ fail: "GPT 6.1 Sol is at capacity." }, { fail: "Gemini is at capacity." }] });
     setJobModel(mac.home, "weaver", SOL);
+    setBackupModel(mac.home, "weaver", FLASH);
     await play("I say goodnight.");
     engine.endScene(storyId, head(), "trace-end");
-    await engine.woven(storyId);
-    expect(view().day_view?.world).toBe("failed");
-    engine.retryWorld(storyId, "trace-world", SONNET);
-    await engine.woven(storyId);
-    expect(view().day_view?.world).toBe("ready");
-    expect(callsFor(mac.db, "weaver").map(call => [call.provider, call.model])).toEqual([["codex", "gpt-6.1-sol"], ["codex", "gpt-6.1-sol"], ["claude", "claude-sonnet-5-5"]]);
+    await engine.ended(storyId);
+    expect(view().day_view?.scene_end).toMatchObject({ step: null, failed: { step: "weaver", reason: expect.stringContaining("Gemini is at capacity.") } });
+    expect(view().day_view?.happenings).toEqual([]);
+    engine.retry(storyId, "trace-world", SONNET);
+    await engine.ended(storyId);
+    expect(view().day_view?.scene_end).toEqual({ step: null, failed: null });
+    expect(view().day_view?.happenings.length).toBeGreaterThan(0);
+    expect(callsFor(mac.db, "weaver").map(call => [call.provider, call.model])).toEqual([["codex", "gpt-6.1-sol"], ["antigravity", "gemini-3.8-flash"], ["claude", "claude-sonnet-5-5"]]);
+    const moved = mac.tree.pathTo(head()).filter(entry => entry.payload.kind === "world_moved");
+    expect(moved.map(entry => entry.payload.kind === "world_moved" && entry.payload.model)).toEqual([SONNET]);
+    // Nothing was set: the try on another model was for that one step.
     expect(jobModels(mac.home).weaver).toEqual(SOL);
+    expect(backupModels(mac.home).weaver).toEqual(FLASH);
   });
 
-  it("refuses a model for a Retry with nothing to retry, as before", async () => {
+  it("refuses a model for a Retry with nothing to retry", async () => {
     const { engine, storyId } = playable(hogwartsStoryFile());
-    expect(() => engine.retry(storyId, "trace", SOL)).toThrow(/no Move waiting/);
-    expect(() => engine.retryWorld(storyId, "trace", SOL)).toThrow(/not waiting/);
+    expect(() => engine.retry(storyId, "trace", SOL)).toThrow(/nothing waiting to be tried again/);
   });
 });

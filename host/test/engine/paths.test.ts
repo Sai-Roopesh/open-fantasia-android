@@ -3,9 +3,9 @@ import { LinkError } from "../../src/link/errors.js";
 import { playable } from "../support/play.js";
 import { hogwartsStoryFile } from "../support/story-files.js";
 
-/** The common room with Hermione at the lantern, at 11:47 pm. */
+/** The common room with Hermione at the lantern, at 11:47 pm: the Scene opens at 11:45, and its first Reply comes two minutes on. */
 async function atTheLantern() {
-  const played = playable(hogwartsStoryFile({ title: "The lantern", place: "The Gryffindor common room", at: "Day 3 23:47", who: ["Hermione Granger"] }));
+  const played = playable(hogwartsStoryFile({ title: "The lantern", place: "The Gryffindor common room", at: "Day 3 23:45", who: ["Hermione Granger"] }));
   await played.play("I hold the lantern up to the window and watch the light move across the lawn.");
   return played;
 }
@@ -13,7 +13,7 @@ async function atTheLantern() {
 /** Ends the Scene and opens the next one with a Move at the Day View: one Scene further along. */
 async function nextScene(played: Awaited<ReturnType<typeof atTheLantern>>, move: string) {
   played.engine.endScene(played.storyId, played.head(), "trace-end");
-  await played.engine.woven(played.storyId);
+  await played.engine.ended(played.storyId);
   await played.play(move);
 }
 
@@ -61,9 +61,10 @@ describe("Paths", () => {
   it("paths › Everything belongs to the Path › Two clocks", async () => {
     const beats = [{ text: "a", status: "in_play" }, { text: "b", status: "pending" }, { text: "c", status: "pending" }];
     const writer = (changes: Record<string, unknown>) => ({ answer: JSON.stringify({ leaves_scene: false, frame: { title: "kept", place: "kept", purpose: "p", exit: "e" },
-      comes_in: [], goes: [], beats, note: "n", call: "continue", intensity: 2, arc_moved: true, clock: "Day 7 15:00", taste: null, in_play: [], ...changes }) });
+      comes_in: [], goes: [], beats, note: "n", call: "continue", intensity: 2, arc_moved: true, minutes: 0, taste: null, in_play: [], moves_to: null, ...changes }) });
+    // Saturday 9:30 pm is four days and six and a half hours after Tuesday 3:00 pm.
     const played = playable(hogwartsStoryFile({ title: "Tuesday afternoon", place: "The library", at: "Day 7 15:00", who: ["Hermione Granger"] }), {
-      writer: [writer({}), writer({ leaves_scene: true, frame: { title: "Saturday night", place: "The Three Broomsticks", purpose: "p", exit: "e" }, clock: "Day 11 21:30" })]
+      writer: [writer({}), writer({ leaves_scene: true, frame: { title: "Saturday night", place: "The Three Broomsticks", purpose: "p", exit: "e" }, minutes: (4 * 24 + 6.5) * 60 })]
     });
     const { engine, storyId, head, state, view, mac } = played;
     await played.play("I read beside Hermione.");
@@ -72,7 +73,7 @@ describe("Paths", () => {
     engine.tryAnotherWay(storyId, opening.id, head(), "trace-try");
     await played.play("I wait for Saturday night and go down to the Three Broomsticks.");
     engine.endScene(storyId, head(), "trace-end");
-    await engine.woven(storyId);
+    await engine.ended(storyId);
     const saturday = mac.tree.currentPath(storyId)!;
     engine.openPath(storyId, tuesday.id, "trace-tuesday");
     expect(state().clock).toBe("Day 7 15:00");

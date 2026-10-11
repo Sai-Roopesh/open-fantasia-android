@@ -7,6 +7,13 @@
 export type ErrorCode =
   "unpaired" | "version_mismatch" | "busy" | "stale_head" | "not_found" | "invalid" | "model_failed" | "internal";
 /**
+ * A step of a Scene's end, in order (docs/adr/0016).
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "SceneEndStep".
+ */
+export type SceneEndStep = "chronicler" | "director" | "weaver" | "folder";
+/**
  * Go on, bring the Scene to its turn, or close it.
  *
  * This interface was referenced by `Link`'s JSON-Schema
@@ -28,19 +35,26 @@ export type BeatStatus = "pending" | "in_play" | "done" | "skipped";
  */
 export type DirectorPhase = "build" | "peak" | "rest";
 /**
- * Who offers a model: each is reached through the player's own subscription (docs/adr/0005).
+ * played: the player chose it; passed: its time went by without it; ahead: still to come.
  *
  * This interface was referenced by `Link`'s JSON-Schema
- * via the `definition` "ModelProvider".
+ * via the `definition` "StretchSceneState".
  */
-export type ModelProvider = "claude" | "codex" | "antigravity";
+export type StretchSceneState = "played" | "passed" | "ahead";
 /**
  * A job a model does (CONTEXT.md: Who writes the Story).
  *
  * This interface was referenced by `Link`'s JSON-Schema
  * via the `definition` "ModelJob".
  */
-export type ModelJob = "actor" | "writer" | "chronicler" | "weaver" | "director";
+export type ModelJob = "actor" | "writer" | "chronicler" | "weaver" | "director" | "folder";
+/**
+ * Who offers a model: each is reached through the player's own subscription (docs/adr/0005).
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "ModelProvider".
+ */
+export type ModelProvider = "claude" | "codex" | "antigravity";
 /**
  * This interface was referenced by `Link`'s JSON-Schema
  * via the `definition` "CalendarKind".
@@ -206,7 +220,7 @@ export interface TurnState {
   /**
    * When failed: the job that failed.
    */
-  job?: "actor" | "writer" | "chronicler" | "weaver" | "director";
+  job?: "actor" | "writer" | "chronicler" | "weaver" | "director" | "folder";
 }
 /**
  * The Scene screen as the Mac sees it on the Story's current Path.
@@ -258,6 +272,7 @@ export interface SceneView {
    * Present while a Move at the Day View is opening the next Scene and the Scene has not opened yet (openspec presence: Between Scenes is quiet, and shows progress). Then there is no Day View, the exchanges are that Move's, the Scene that closed is among the earlier Scenes, and the phone shows this card in place of the Scene's.
    */
   opening: NextScene | null;
+  brief: Brief;
 }
 /**
  * This interface was referenced by `Link`'s JSON-Schema
@@ -304,10 +319,6 @@ export interface DayView {
   closed_by: "story" | "player";
   countdowns: Countdown[];
   /**
-   * Whether the World has moved on to the Day View's time: moving_on while the Weaver works (the phone says so in one line and takes no Move), ready, or failed (with failure).
-   */
-  world: "moving_on" | "ready" | "failed";
-  /**
    * When the Scene that ended ran, as people say it: "Friday 9:40 pm – 11:05 pm".
    */
   scene_span: string;
@@ -316,14 +327,15 @@ export interface DayView {
    */
   meanwhile: MeanwhileItem[];
   /**
-   * Why the World could not move on, when world is failed; Retry is POST /stories/{id}/world/retry.
-   */
-  failure: WorldFailure | null;
-  /**
    * What is on today that the Player Character could go to: at most four, the Story's pick first, once the World has moved on; empty before.
    */
   happenings: Happening[];
   choices: DayChoices;
+  scene_end: SceneEnd;
+  /**
+   * The player's reaction to the Scene that ended, or null.
+   */
+  reaction: "more" | "less" | null;
 }
 /**
  * This interface was referenced by `Link`'s JSON-Schema
@@ -349,16 +361,6 @@ export interface Countdown {
 export interface MeanwhileItem {
   text: string;
   how: "seen" | "told" | "rumour";
-}
-/**
- * The Weaver could not move the World on.
- *
- * This interface was referenced by `Link`'s JSON-Schema
- * via the `definition` "WorldFailure".
- */
-export interface WorldFailure {
-  reason: string;
-  trace_id: string;
 }
 /**
  * Something going on in the World at a time and place the Player Character could be at (openspec day-view: Up to four Happenings).
@@ -449,6 +451,27 @@ export interface Skip {
   days_away: number;
 }
 /**
+ * How the Scene's end stands: the step under way, or the one it stopped at; both null when it is done.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "SceneEnd".
+ */
+export interface SceneEnd {
+  step: SceneEndStep | null;
+  failed: SceneEndFailure | null;
+}
+/**
+ * Why a Scene's end stopped, and at which step.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "SceneEndFailure".
+ */
+export interface SceneEndFailure {
+  step: SceneEndStep;
+  reason: string;
+  trace_id: string;
+}
+/**
  * The Previously card: where the Story stands, from the Chronicler's records, and when the player last played.
  *
  * This interface was referenced by `Link`'s JSON-Schema
@@ -481,6 +504,16 @@ export interface NextScene {
   at_label: string | null;
 }
 /**
+ * What the player wants more of and less of (openspec long-run: The player steers with a brief and reactions).
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "Brief".
+ */
+export interface Brief {
+  more: string[];
+  less: string[];
+}
+/**
  * This interface was referenced by `Link`'s JSON-Schema
  * via the `definition` "MoveRequest".
  */
@@ -500,7 +533,7 @@ export interface TurnAccepted {
   trace_id: string;
 }
 /**
- * One event on a Story's live stream. Entry events (scene_opened, move, reply, scene_closed, focus_set, linger_set, redo) are replayed after a reconnect; reply_started, reply_delta and reply_failed describe the turn under way; world_moved and world_failed say the World has moved on, or could not, after a Scene ended. record_written says a record of what happened was written after the Day View was ready, and may put more on it. path_changed says the Story is now on another Path, or its Path was moved back, or a Move or Reply on it was edited. After scene_opened, scene_closed, redo, world_moved, world_failed, record_written and path_changed, and after a move that opens the next Scene, the phone reads the Scene again, because they change more than one part of it.
+ * One event on a Story's live stream. Entry events (scene_opened, move, reply, scene_closed, focus_set, linger_set, redo, world_moved) are replayed after a reconnect; reply_started, reply_delta and reply_failed describe the turn under way; scene_end_step says which step of a Scene's end is under way, null when it is done, and scene_end_failed where it stopped and why (docs/adr/0016). path_changed says the Story is now on another Path, or its Path was moved back, or a Move or Reply on it was edited. After scene_opened, scene_closed, redo, world_moved, scene_end_step, scene_end_failed and path_changed, and after a move that opens the next Scene, the phone reads the Scene again, because they change more than one part of it.
  *
  * This interface was referenced by `Link`'s JSON-Schema
  * via the `definition` "StoryEvent".
@@ -518,9 +551,9 @@ export interface StoryEvent {
     | "reply_delta"
     | "reply_failed"
     | "world_moved"
-    | "world_failed"
     | "path_changed"
-    | "record_written";
+    | "scene_end_step"
+    | "scene_end_failed";
   /**
    * The newest entry this event follows.
    */
@@ -543,6 +576,10 @@ export interface StoryEvent {
    */
   linger?: boolean;
   opening?: NextScene1;
+  /**
+   * For scene_end_step and scene_end_failed: the step; null when the Scene's end is done.
+   */
+  step?: SceneEndStep | null;
 }
 /**
  * A Scene's title card.
@@ -594,10 +631,6 @@ export interface DayView1 {
   closed_by: "story" | "player";
   countdowns: Countdown[];
   /**
-   * Whether the World has moved on to the Day View's time: moving_on while the Weaver works (the phone says so in one line and takes no Move), ready, or failed (with failure).
-   */
-  world: "moving_on" | "ready" | "failed";
-  /**
    * When the Scene that ended ran, as people say it: "Friday 9:40 pm – 11:05 pm".
    */
   scene_span: string;
@@ -606,14 +639,15 @@ export interface DayView1 {
    */
   meanwhile: MeanwhileItem[];
   /**
-   * Why the World could not move on, when world is failed; Retry is POST /stories/{id}/world/retry.
-   */
-  failure: WorldFailure | null;
-  /**
    * What is on today that the Player Character could go to: at most four, the Story's pick first, once the World has moved on; empty before.
    */
   happenings: Happening[];
   choices: DayChoices;
+  scene_end: SceneEnd;
+  /**
+   * The player's reaction to the Scene that ended, or null.
+   */
+  reaction: "more" | "less" | null;
 }
 /**
  * The next Scene, being written: when it is, when the choice set a time.
@@ -872,6 +906,8 @@ export interface BackstageView {
    * The record: each Scene not yet recorded, and each recorded with parts left out, newest first; empty when nothing is missing.
    */
   record: RecordRow[];
+  how_its_going: HowItsGoing;
+  new_things: NewThingRow[];
 }
 /**
  * This interface was referenced by `Link`'s JSON-Schema
@@ -985,10 +1021,7 @@ export interface StretchView {
 export interface StretchScene {
   place: string;
   who: string[];
-  /**
-   * played: the player chose it; passed: its time went by without it; ahead: still to come.
-   */
-  state: "played" | "passed" | "ahead";
+  state: StretchSceneState;
   /**
    * When, as Backstage says it: "Mon 2:00 pm".
    */
@@ -1014,7 +1047,7 @@ export interface StretchLead {
   label: string;
 }
 /**
- * A Scene in The record (lasting-records): one not yet recorded, or one recorded with parts left out.
+ * A Scene in The record that was kept with parts left out.
  *
  * This interface was referenced by `Link`'s JSON-Schema
  * via the `definition` "RecordRow".
@@ -1023,17 +1056,64 @@ export interface RecordRow {
   scene_number: number;
   scene_title: string;
   /**
-   * waiting: it will be tried again after the next Scene; given_up: three tries failed, and Retry tries again; recorded: recorded, without the parts in dropped.
-   */
-  state: "waiting" | "given_up" | "recorded";
-  /**
-   * Why the last try failed; null for a recorded Scene.
-   */
-  reason: string | null;
-  /**
    * The parts of its record that were left out, and why.
    */
   dropped: string[];
+}
+/**
+ * How the Story's machinery is doing (openspec outside-the-scene: Backstage).
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "HowItsGoing".
+ */
+export interface HowItsGoing {
+  /**
+   * How long the last Scene ends took, newest last.
+   */
+  scene_end_seconds: number[];
+  jobs: JobHealth[];
+  pace: PaceRow[];
+  picks_offered: number;
+  picks_taken: number;
+  more: number;
+  less: number;
+}
+/**
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "JobHealth".
+ */
+export interface JobHealth {
+  job: ModelJob;
+  calls: number;
+  /**
+   * How often its second model had to step in.
+   */
+  second_model: number;
+  /**
+   * How often it failed on both.
+   */
+  failed: number;
+}
+/**
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "PaceRow".
+ */
+export interface PaceRow {
+  scene_number: number;
+  title: string;
+  intensity: number;
+}
+/**
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "NewThingRow".
+ */
+export interface NewThingRow {
+  kind: string;
+  what: string;
+  /**
+   * Which Stretch brought it: "This Stretch", or "Stretch 3".
+   */
+  stretch: string;
 }
 /**
  * Delete a lesson from Taste on the Path the player is on (openspec long-run: Taste is short, readable and the player's).
@@ -1182,6 +1262,14 @@ export interface JobModel {
    */
   does: string;
   model: ChosenModel;
+  backup: ChosenModel1;
+}
+/**
+ * A model as the Models screen shows it: the choice, and its name with the effort ("GPT 6.1 Sol · high").
+ */
+export interface ChosenModel1 {
+  choice: ModelChoice;
+  label: string;
 }
 /**
  * A model a provider offers.
@@ -1234,9 +1322,17 @@ export interface ProviderModels {
  */
 export interface ModelsView {
   stories: StoryActor[];
+  actor_backup: ChosenModel2;
   jobs: JobModel[];
   providers: ProviderModels[];
   trace_id: string;
+}
+/**
+ * A model as the Models screen shows it: the choice, and its name with the effort ("GPT 6.1 Sol · high").
+ */
+export interface ChosenModel2 {
+  choice: ModelChoice;
+  label: string;
 }
 /**
  * Sets the model for a job, from its next work.
@@ -1246,6 +1342,10 @@ export interface ModelsView {
  */
 export interface SetJobModelRequest {
   model: ModelChoice;
+  /**
+   * Sets the job's second model instead of its own.
+   */
+  backup?: boolean | null;
 }
 /**
  * Sets a Story's own Actor; null goes back to the one its Story File names.
@@ -1263,15 +1363,6 @@ export interface SetActorRequest {
  * via the `definition` "RetryRequest".
  */
 export interface RetryRequest {
-  model?: ModelChoice | null;
-}
-/**
- * Moves the World on again; with a model, the Weaver runs on it for this one try.
- *
- * This interface was referenced by `Link`'s JSON-Schema
- * via the `definition` "RetryWorldRequest".
- */
-export interface RetryWorldRequest {
   model?: ModelChoice | null;
 }
 /**
@@ -1775,15 +1866,25 @@ export interface RewordTasteRequest {
   text: string;
 }
 /**
- * Tries the record of a Scene given up after three tries once more.
+ * Sets the brief, from this moment on the Path.
  *
  * This interface was referenced by `Link`'s JSON-Schema
- * via the `definition` "RecordRetryRequest".
+ * via the `definition` "BriefRequest".
  */
-export interface RecordRetryRequest {
-  /**
-   * The head the phone saw: the Path whose record it is.
-   */
+export interface BriefRequest {
+  after: string;
+  more: string[];
+  less: string[];
+}
+/**
+ * Reacts to a played Scene, or clears the reaction with null.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "ReactionRequest".
+ */
+export interface ReactionRequest {
   after: string;
   scene_number: number;
+  reaction: "more" | "less" | null;
+  note?: string | null;
 }

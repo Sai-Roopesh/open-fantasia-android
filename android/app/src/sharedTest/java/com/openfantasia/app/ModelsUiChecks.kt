@@ -118,14 +118,76 @@ open class ModelsUiChecks : WorldUiChecks() {
         openScene()
         compose.runOnIdle {
             link.current.value = link.current.value.copy(headEntryID = "closed", seq = 4, lastEventID = "4",
-                dayView = FakeFantasiaLink.dayView(closedBy = ClosedBy.Player).copy(world = World.Failed,
-                    failure = WorldFailure(reason = "GPT 6.1 Sol is at capacity", traceID = "world-trace")))
+                dayView = FakeFantasiaLink.dayView(closedBy = ClosedBy.Player).copy(sceneEnd = SceneEnd(failed = SceneEndFailure(
+                    step = SceneEndStep.Weaver, reason = "GPT 6.1 Sol is at capacity.", traceID = "weaver-trace"))))
         }
+        compose.onNodeWithTag("scene-passages").performScrollToNode(hasText("Trace weaver-trace"))
+        compose.onNodeWithText("The Weaver could not move the World on").assertIsDisplayed()
         compose.onNodeWithText("Another model").assertIsDisplayed().performClick()
         compose.onNodeWithText("Move the World on with another model").assertIsDisplayed()
         chip("Sonnet 5.5").performClick()
         compose.runOnIdle {
-            assertEquals(listOf(RetryWorldRequest(model = ModelChoice(provider = ModelProvider.Claude, model = "claude-sonnet-5-5"))), link.worldRetryRequests)
+            assertEquals(listOf(RetryRequest(model = ModelChoice(provider = ModelProvider.Claude, model = "claude-sonnet-5-5"))), link.retryRequests)
+        }
+        compose.onNodeWithText("Move the World on with another model").assertDoesNotExist()
+        step("The World moves on", "Under way")
+        sceneEndAt(SceneEnd())
+        compose.onNodeWithText("3 days").assertIsDisplayed()
+        compose.onNodeWithTag("composer").assertIsDisplayed()
+    }
+
+    // GIVEN the player has never set the Folder's model
+    // THEN the Models screen shows the Folder on Haiku 4.5, and the player can move it like any job
+    fun theFolderOnHaiku() {
+        openModels()
+        compose.onNodeWithTag("models").performScrollToNode(hasText("Keeps The Story So Far short"))
+        compose.onNodeWithText("Folder").assertIsDisplayed()
+        compose.onNodeWithText("Keeps The Story So Far short").assertIsDisplayed()
+        compose.onNodeWithText("Haiku 4.5").assertIsDisplayed()
+        compose.onNodeWithText("Folder").performClick()
+        compose.onNodeWithTag("models").performScrollToNode(hasText("IF IT FAILS, TRY"))
+        compose.onNodeWithText("IF IT FAILS, TRY").assertIsDisplayed()
+        // Its second model: one a provider, the chosen one lit, and More… for the rest.
+        backup("Sonnet 5.5").assertIsSelected()
+        backup("GPT 6.1 Sol").assertIsNotSelected()
+        compose.onNodeWithTag("models").performScrollToNode(hasText("More…"))
+        backup("More…").assertIsDisplayed()
+        compose.preview("Models · second model")
+        compose.onNodeWithTag("models").performScrollToNode(hasText("Sonnet 5.5") and hasAnyAncestor(hasTestTag("model-picker")))
+        chip("Sonnet 5.5").performClick()
+        compose.runOnIdle {
+            assertEquals(listOf(ModelJob.Folder to ModelChoice(provider = ModelProvider.Claude, model = "claude-sonnet-5-5")), link.jobModelSets)
+        }
+        compose.onNodeWithTag("models").performScrollToNode(hasText("GPT 6.1 Sol") and hasAnyAncestor(hasTestTag("backup-picker")))
+        backup("GPT 6.1 Sol").performClick()
+        compose.runOnIdle {
+            assertEquals(listOf(ModelJob.Folder to ModelChoice(provider = ModelProvider.Codex, model = "gpt-6.1-sol", effort = "low")), link.backupSets)
+            assertEquals(1, link.jobModelSets.size)
+        }
+        backup("GPT 6.1 Sol").assertIsSelected()
+        // More… shows every model a provider offers.
+        compose.onNodeWithTag("models").performScrollToNode(hasText("More…"))
+        backup("More…").performClick()
+        compose.onNodeWithTag("models").performScrollToNode(hasText("Opus 5.5") and hasAnyAncestor(hasTestTag("backup-picker")))
+        backup("Opus 5.5").performClick()
+        compose.runOnIdle {
+            assertEquals(ModelJob.Folder to ModelChoice(provider = ModelProvider.Claude, model = "claude-opus-5-5", effort = "low"), link.backupSets.last())
         }
     }
+
+    // The Actor's second model, for every Story, in the Actor's section.
+    fun theActorsSecondModel() {
+        openModels()
+        compose.onNode(hasText("If it fails, try") and hasText("For every Story's Actor") and hasText("Sonnet 5.5")).assertIsDisplayed().performClick()
+        backup("Sonnet 5.5").assertIsSelected()
+        backup("GPT 6.1 Sol").performClick()
+        compose.runOnIdle {
+            assertEquals(listOf(ModelJob.Actor to ModelChoice(provider = ModelProvider.Codex, model = "gpt-6.1-sol", effort = "low")), link.backupSets)
+            assertTrue(link.actorSets.isEmpty())
+        }
+        compose.onNodeWithText("GPT 6.1 Sol · low").assertIsDisplayed()
+    }
+
+    /** The chip for [name] among a job's second models. */
+    private fun backup(name: String) = compose.onNode(hasText(name) and hasAnyAncestor(hasTestTag("backup-picker")))
 }

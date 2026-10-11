@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { recall } from "../../src/agents/recall.js";
 import type { StoryFile } from "../../src/protocol/generated/story-file.js";
 import { playable } from "../support/play.js";
 import { hogwartsStoryFile } from "../support/story-files.js";
@@ -18,16 +17,20 @@ function classroom(scripts: Parameters<typeof playable>[1] = {}) {
   return playable(story, {
     chronicler: [{ answer: JSON.stringify({
       summary: "In the classroom Draconia floated in his arms and ordered him to put her down.",
-      moments: [{ what: "He catches her as everything floats.", quotes: [{ entry: "E2", text: MOVE }], there: ["Draconia Malfoy"], weight: 4 }],
-      told: [],
-      bonds: [{ who: "Draconia Malfoy", standing: STANDING, turn: TURN }]
+      paragraph: "In an empty classroom everything floated, and Draconia ended up in his arms; she ordered him to put her down.",
+      moments: [{ what: "He catches her as everything floats.", quotes: [{ entry: "P2", text: MOVE }], there: ["Draconia Malfoy"], weight: 4 }],
+      told: [], known: [],
+      bonds: [{ who: "Draconia Malfoy", standing: STANDING, turn: TURN }],
+      engagements: [], changed: []
     }) }],
     ...scripts
   });
 }
 
-const staying = { answer: JSON.stringify({ leaves_scene: false, frame: { title: "Twenty-nine minutes", place: "An empty classroom", purpose: "p", exit: "e" }, comes_in: ["Draconia Malfoy"], goes: [], beats: [{ text: "a", status: "in_play" }, { text: "b", status: "pending" }, { text: "c", status: "pending" }], note: "n", call: "continue", intensity: 3, arc_moved: true, clock: "Day 3 21:42", taste: null, in_play: [] }) };
-const library = { answer: JSON.stringify({ leaves_scene: true, frame: { title: "A week on", place: "The library", purpose: "p", exit: "e" }, comes_in: ["Draconia Malfoy"], goes: [], beats: [{ text: "a", status: "in_play" }, { text: "b", status: "pending" }, { text: "c", status: "pending" }], note: "Draconia is at the end table.", call: "continue", intensity: 2, arc_moved: true, clock: "Day 10 15:00", taste: null, in_play: [] }) };
+const beats = [{ text: "a", status: "in_play" }, { text: "b", status: "pending" }, { text: "c", status: "pending" }];
+const staying = { answer: JSON.stringify({ leaves_scene: false, frame: { title: "Twenty-nine minutes", place: "An empty classroom", purpose: "p", exit: "e" }, comes_in: ["Draconia Malfoy"], goes: [], beats, note: "n", call: "continue", intensity: 3, arc_moved: true, minutes: 2, taste: null, in_play: [], moves_to: null }) };
+/** A week on, from the Day View at 9:42 pm on Friday to Friday week at three. */
+const library = { answer: JSON.stringify({ leaves_scene: false, frame: { title: "A week on", place: "The library", purpose: "p", exit: "e" }, comes_in: ["Draconia Malfoy"], goes: [], beats, note: "Draconia is at the end table.", call: "continue", intensity: 2, arc_moved: true, minutes: 9678, taste: null, in_play: [], moves_to: null }) };
 
 describe("a Bond read in later Scenes (lasting-records design decision 6)", () => {
   // GIVEN Draconia's Bond with that turn
@@ -35,41 +38,28 @@ describe("a Bond read in later Scenes (lasting-records design decision 6)", () =
   // THEN the Writer and the Actor are given where things stand and the latest turns, and her Replies keep to them
   // (Whether her Replies keep to them is the live check's; here, that both are given it.)
   it("living-world › Where things stand between him and each person is kept › A Bond read in a later Scene", async () => {
-    const { play, engine, storyId, head, models } = classroom({ writer: [staying, library] });
+    const { play, engine, storyId, head, models, state } = classroom({ writer: [staying, library] });
     await play(MOVE);
     engine.endScene(storyId, head(), "t-end");
-    await engine.chronicled(storyId);
-    await engine.settled(storyId);
+    await engine.ended(storyId);
     const writerCalls = models.writer.requests.length;
     const actorCalls = models.actor.requests.length;
     await play("A week later I find Draconia in the library.");
-    const between = `- Draconia Malfoy: ${STANDING}\n  - Scene 1 · Twenty-nine minutes: ${TURN}`;
-    expect(models.writer.requests[writerCalls]!.prompt).toContain(`<between_you>\n${between}`);
-    expect(models.actor.requests[actorCalls]!.system).toContain(`<between>\n${between}`);
+    expect(state().scene).toMatchObject({ number: 2, at: "Day 10 15:00", here: ["Draconia Malfoy"] });
+    expect(models.writer.requests[writerCalls]!.prompt).toContain(`Draconia Malfoy\n  Between them and Roopesh Gantasala: ${STANDING} (latest: Scene 1: ${TURN})`);
+    const actor = models.actor.requests[actorCalls]!;
+    expect(actor.prompt).toContain(`<between>\nDraconia Malfoy: ${STANDING}\n  Latest: ${TURN}\n</between>`);
     // The Actor is given only the Bonds of the people here: Hermione is not in the library.
-    expect(models.actor.requests[actorCalls]!.system).not.toContain(HERMIONE);
+    expect(`${actor.system}\n${actor.prompt}`).not.toContain(HERMIONE);
   });
 
   it("gives the Director every Lead's Bond", async () => {
     const { play, engine, storyId, head, models } = classroom();
     await play(MOVE);
     engine.endScene(storyId, head(), "t-end");
-    await engine.directed(storyId);
+    await engine.ended(storyId);
     const prompt = models.director.requests[0]!.prompt;
-    expect(prompt).toContain(`<leads_between>\n- Draconia Malfoy: ${STANDING}\n  - Scene 1 · Twenty-nine minutes: ${TURN}\n- Hermione Granger: ${HERMIONE}\n</leads_between>`);
-  });
-
-  it("recalls where things stand and only the latest three turns", async () => {
-    const { play, engine, storyId, head, mac } = classroom();
-    await play(MOVE);
-    engine.endScene(storyId, head(), "t-end");
-    await engine.chronicled(storyId);
-    const closed = head();
-    const scene = mac.tree.pathTo(closed).find(entry => entry.payload.kind === "scene_opened")!.id;
-    for (const n of [2, 3, 4]) {
-      mac.tree.append(storyId, closed, { kind: "chronicle", scene, summary: null, sceneEnded: true, moments: [], told: [], bonds: [{ who: "Draconia Malfoy", standing: `Standing ${n}.`, turn: `Turn ${n}.` }], callId: `c${n}`, model: { provider: "claude", model: "claude-sonnet-5-5" } });
-    }
-    const recalled = recall(mac, closed, ["Draconia Malfoy"]);
-    expect(recalled.between).toEqual([{ who: "Draconia Malfoy", standing: "Standing 4.", turns: ["Scene 1 · Twenty-nine minutes: Turn 2.", "Scene 1 · Twenty-nine minutes: Turn 3.", "Scene 1 · Twenty-nine minutes: Turn 4."] }]);
+    expect(prompt).toContain(`Draconia Malfoy\n  Between them and Roopesh Gantasala: ${STANDING} (latest: Scene 1: ${TURN})`);
+    expect(prompt).toContain(`Hermione Granger\n  Between them and Roopesh Gantasala: ${HERMIONE}`);
   });
 });

@@ -25,7 +25,6 @@
 // val dayView              = json.parse(DayView.serializer(), jsonString)
 // val countdown            = json.parse(Countdown.serializer(), jsonString)
 // val meanwhileItem        = json.parse(MeanwhileItem.serializer(), jsonString)
-// val worldFailure         = json.parse(WorldFailure.serializer(), jsonString)
 // val happening            = json.parse(Happening.serializer(), jsonString)
 // val dayChoices           = json.parse(DayChoices.serializer(), jsonString)
 // val skip                 = json.parse(Skip.serializer(), jsonString)
@@ -69,7 +68,6 @@
 // val setJobModelRequest   = json.parse(SetJobModelRequest.serializer(), jsonString)
 // val setActorRequest      = json.parse(SetActorRequest.serializer(), jsonString)
 // val retryRequest         = json.parse(RetryRequest.serializer(), jsonString)
-// val retryWorldRequest    = json.parse(RetryWorldRequest.serializer(), jsonString)
 // val directorPhase        = json.parse(DirectorPhase.serializer(), jsonString)
 // val directorLine         = json.parse(DirectorLine.serializer(), jsonString)
 // val sceneRef             = json.parse(SceneRef.serializer(), jsonString)
@@ -102,10 +100,20 @@
 // val between              = json.parse(Between.serializer(), jsonString)
 // val betweenTurn          = json.parse(BetweenTurn.serializer(), jsonString)
 // val recordRow            = json.parse(RecordRow.serializer(), jsonString)
-// val recordRetryRequest   = json.parse(RecordRetryRequest.serializer(), jsonString)
 // val stretchView          = json.parse(StretchView.serializer(), jsonString)
 // val stretchScene         = json.parse(StretchScene.serializer(), jsonString)
 // val stretchLead          = json.parse(StretchLead.serializer(), jsonString)
+// val sceneEndStep         = json.parse(SceneEndStep.serializer(), jsonString)
+// val sceneEndFailure      = json.parse(SceneEndFailure.serializer(), jsonString)
+// val sceneEnd             = json.parse(SceneEnd.serializer(), jsonString)
+// val brief                = json.parse(Brief.serializer(), jsonString)
+// val briefRequest         = json.parse(BriefRequest.serializer(), jsonString)
+// val reactionRequest      = json.parse(ReactionRequest.serializer(), jsonString)
+// val jobHealth            = json.parse(JobHealth.serializer(), jsonString)
+// val paceRow              = json.parse(PaceRow.serializer(), jsonString)
+// val howItsGoing          = json.parse(HowItsGoing.serializer(), jsonString)
+// val newThingRow          = json.parse(NewThingRow.serializer(), jsonString)
+// val stretchSceneState    = json.parse(StretchSceneState.serializer(), jsonString)
 
 package com.openfantasia.protocol
 
@@ -230,6 +238,8 @@ data class StorySummary (
  */
 @Serializable
 data class SceneView (
+    val brief: Brief,
+
     /**
      * Present once the Scene has closed, by the Story or by End scene: the Day View, whose
      * composer takes the next Move.
@@ -305,6 +315,16 @@ data class SceneView (
 )
 
 /**
+ * What the player wants more of and less of (openspec long-run: The player steers with a
+ * brief and reactions).
+ */
+@Serializable
+data class Brief (
+    val less: List<String>,
+    val more: List<String>
+)
+
+/**
  * Where and when the Player Character is between Scenes, and what he learned meanwhile
  * (openspec day-view).
  *
@@ -340,12 +360,6 @@ data class DayView (
     val day: String,
 
     /**
-     * Why the World could not move on, when world is failed; Retry is POST
-     * /stories/{id}/world/retry.
-     */
-    val failure: WorldFailure? = null,
-
-    /**
      * What is on today that the Player Character could go to: at most four, the Story's pick
      * first, once the World has moved on; empty before.
      */
@@ -363,6 +377,14 @@ data class DayView (
     val place: String,
 
     /**
+     * The player's reaction to the Scene that ended, or null.
+     */
+    val reaction: Reaction? = null,
+
+    @SerialName("scene_end")
+    val sceneEnd: SceneEnd,
+
+    /**
      * When the Scene that ended ran, as people say it: "Friday 9:40 pm – 11:05 pm".
      */
     @SerialName("scene_span")
@@ -371,13 +393,7 @@ data class DayView (
     /**
      * The time as people say it: "7:40 am".
      */
-    val time: String,
-
-    /**
-     * Whether the World has moved on to the Day View's time: moving_on while the Weaver works
-     * (the phone says so in one line and takes no Move), ready, or failed (with failure).
-     */
-    val world: World
+    val time: String
 )
 
 /**
@@ -460,17 +476,6 @@ data class Countdown (
 )
 
 /**
- * The Weaver could not move the World on.
- */
-@Serializable
-data class WorldFailure (
-    val reason: String,
-
-    @SerialName("trace_id")
-    val traceID: String
-)
-
-/**
  * Something going on in the World at a time and place the Player Character could be at
  * (openspec day-view: Up to four Happenings).
  */
@@ -544,15 +549,43 @@ enum class How(val value: String) {
     @SerialName("told") Told("told");
 }
 
+@Serializable
+enum class Reaction(val value: String) {
+    @SerialName("less") Less("less"),
+    @SerialName("more") More("more");
+}
+
 /**
- * Whether the World has moved on to the Day View's time: moving_on while the Weaver works
- * (the phone says so in one line and takes no Move), ready, or failed (with failure).
+ * How the Scene's end stands: the step under way, or the one it stopped at; both null when
+ * it is done.
  */
 @Serializable
-enum class World(val value: String) {
-    @SerialName("failed") Failed("failed"),
-    @SerialName("moving_on") MovingOn("moving_on"),
-    @SerialName("ready") Ready("ready");
+data class SceneEnd (
+    val failed: SceneEndFailure? = null,
+    val step: SceneEndStep? = null
+)
+
+/**
+ * Why a Scene's end stopped, and at which step.
+ */
+@Serializable
+data class SceneEndFailure (
+    val reason: String,
+    val step: SceneEndStep,
+
+    @SerialName("trace_id")
+    val traceID: String
+)
+
+/**
+ * A step of a Scene's end, in order (docs/adr/0016).
+ */
+@Serializable
+enum class SceneEndStep(val value: String) {
+    @SerialName("chronicler") Chronicler("chronicler"),
+    @SerialName("director") Director("director"),
+    @SerialName("folder") Folder("folder"),
+    @SerialName("weaver") Weaver("weaver");
 }
 
 @Serializable
@@ -702,6 +735,7 @@ enum class ModelJob(val value: String) {
     @SerialName("actor") Actor("actor"),
     @SerialName("chronicler") Chronicler("chronicler"),
     @SerialName("director") Director("director"),
+    @SerialName("folder") Folder("folder"),
     @SerialName("weaver") Weaver("weaver"),
     @SerialName("writer") Writer("writer");
 }
@@ -734,14 +768,14 @@ data class TurnAccepted (
 
 /**
  * One event on a Story's live stream. Entry events (scene_opened, move, reply,
- * scene_closed, focus_set, linger_set, redo) are replayed after a reconnect; reply_started,
- * reply_delta and reply_failed describe the turn under way; world_moved and world_failed
- * say the World has moved on, or could not, after a Scene ended. record_written says a
- * record of what happened was written after the Day View was ready, and may put more on it.
- * path_changed says the Story is now on another Path, or its Path was moved back, or a Move
- * or Reply on it was edited. After scene_opened, scene_closed, redo, world_moved,
- * world_failed, record_written and path_changed, and after a move that opens the next
- * Scene, the phone reads the Scene again, because they change more than one part of it.
+ * scene_closed, focus_set, linger_set, redo, world_moved) are replayed after a reconnect;
+ * reply_started, reply_delta and reply_failed describe the turn under way; scene_end_step
+ * says which step of a Scene's end is under way, null when it is done, and scene_end_failed
+ * where it stopped and why (docs/adr/0016). path_changed says the Story is now on another
+ * Path, or its Path was moved back, or a Move or Reply on it was edited. After
+ * scene_opened, scene_closed, redo, world_moved, scene_end_step, scene_end_failed and
+ * path_changed, and after a move that opens the next Scene, the phone reads the Scene
+ * again, because they change more than one part of it.
  */
 @Serializable
 data class StoryEvent (
@@ -783,6 +817,11 @@ data class StoryEvent (
     val seq: Long,
 
     /**
+     * For scene_end_step and scene_end_failed: the step; null when the Scene's end is done.
+     */
+    val step: SceneEndStep? = null,
+
+    /**
      * reply_delta: the words that just arrived.
      */
     val text: String? = null,
@@ -797,15 +836,15 @@ enum class StoryEventKind(val value: String) {
     @SerialName("linger_set") LingerSet("linger_set"),
     @SerialName("move") Move("move"),
     @SerialName("path_changed") PathChanged("path_changed"),
-    @SerialName("record_written") RecordWritten("record_written"),
     @SerialName("redo") Redo("redo"),
     @SerialName("reply") Reply("reply"),
     @SerialName("reply_delta") ReplyDelta("reply_delta"),
     @SerialName("reply_failed") ReplyFailed("reply_failed"),
     @SerialName("reply_started") ReplyStarted("reply_started"),
     @SerialName("scene_closed") SceneClosed("scene_closed"),
+    @SerialName("scene_end_failed") SceneEndFailed("scene_end_failed"),
+    @SerialName("scene_end_step") SceneEndStep("scene_end_step"),
     @SerialName("scene_opened") SceneOpened("scene_opened"),
-    @SerialName("world_failed") WorldFailed("world_failed"),
     @SerialName("world_moved") WorldMoved("world_moved");
 }
 
@@ -1089,7 +1128,13 @@ data class BackstageView (
      */
     val director: DirectorLine? = null,
 
+    @SerialName("how_its_going")
+    val howItsGoing: HowItsGoing,
+
     val lives: List<BackstageLife>,
+
+    @SerialName("new_things")
+    val newThings: List<NewThingRow>,
 
     /**
      * What happened off-screen, by day, newest first, the last seven days.
@@ -1204,9 +1249,6 @@ data class StretchScene (
      */
     val purpose: String,
 
-    /**
-     * played: the player chose it; passed: its time went by without it; ahead: still to come.
-     */
     val state: StretchSceneState,
 
     /**
@@ -1227,11 +1269,74 @@ enum class StretchSceneState(val value: String) {
     @SerialName("played") Played("played");
 }
 
+/**
+ * How the Story's machinery is doing (openspec outside-the-scene: Backstage).
+ */
+@Serializable
+data class HowItsGoing (
+    val jobs: List<JobHealth>,
+    val less: Long,
+    val more: Long,
+    val pace: List<PaceRow>,
+
+    @SerialName("picks_offered")
+    val picksOffered: Long,
+
+    @SerialName("picks_taken")
+    val picksTaken: Long,
+
+    /**
+     * How long the last Scene ends took, newest last.
+     */
+    @SerialName("scene_end_seconds")
+    val sceneEndSeconds: List<Long>
+)
+
+@Serializable
+data class JobHealth (
+    val calls: Long,
+
+    /**
+     * How often it failed on both.
+     */
+    val failed: Long,
+
+    val job: ModelJob,
+
+    /**
+     * How often its second model had to step in.
+     */
+    @SerialName("second_model")
+    val secondModel: Long
+)
+
+@Serializable
+data class PaceRow (
+    val intensity: Long,
+
+    @SerialName("scene_number")
+    val sceneNumber: Long,
+
+    val title: String
+)
+
 @Serializable
 data class BackstageLife (
     val doing: String? = null,
     val where: String? = null,
     val who: String
+)
+
+@Serializable
+data class NewThingRow (
+    val kind: String,
+
+    /**
+     * Which Stretch brought it: "This Stretch", or "Stretch 3".
+     */
+    val stretch: String,
+
+    val what: String
 )
 
 @Serializable
@@ -1258,8 +1363,7 @@ data class BackstageItem (
 )
 
 /**
- * A Scene in The record (lasting-records): one not yet recorded, or one recorded with parts
- * left out.
+ * A Scene in The record that was kept with parts left out.
  */
 @Serializable
 data class RecordRow (
@@ -1268,34 +1372,12 @@ data class RecordRow (
      */
     val dropped: List<String>,
 
-    /**
-     * Why the last try failed; null for a recorded Scene.
-     */
-    val reason: String? = null,
-
     @SerialName("scene_number")
     val sceneNumber: Long,
 
     @SerialName("scene_title")
-    val sceneTitle: String,
-
-    /**
-     * waiting: it will be tried again after the next Scene; given_up: three tries failed, and
-     * Retry tries again; recorded: recorded, without the parts in dropped.
-     */
-    val state: RecordRowState
+    val sceneTitle: String
 )
-
-/**
- * waiting: it will be tried again after the next Scene; given_up: three tries failed, and
- * Retry tries again; recorded: recorded, without the parts in dropped.
- */
-@Serializable
-enum class RecordRowState(val value: String) {
-    @SerialName("given_up") GivenUp("given_up"),
-    @SerialName("recorded") Recorded("recorded"),
-    @SerialName("waiting") Waiting("waiting");
-}
 
 @Serializable
 data class BackstageThread (
@@ -1476,6 +1558,13 @@ data class PastScene (
  */
 @Serializable
 data class ModelsView (
+    /**
+     * The Actor's second model, for every Story, tried once before any word of a Reply is
+     * written.
+     */
+    @SerialName("actor_backup")
+    val actorBackup: ChosenModel,
+
     val jobs: List<JobModel>,
     val providers: List<ProviderModels>,
     val stories: List<StoryActor>,
@@ -1485,10 +1574,30 @@ data class ModelsView (
 )
 
 /**
+ * A model as the Models screen shows it: the choice, and its name with the effort ("GPT 6.1
+ * Sol · high").
+ *
+ * The job's second model, tried once when its own fails or runs too long.
+ *
+ * The Actor's second model, for every Story, tried once before any word of a Reply is
+ * written.
+ */
+@Serializable
+data class ChosenModel (
+    val choice: ModelChoice,
+    val label: String
+)
+
+/**
  * One job on the Models screen, for every Story.
  */
 @Serializable
 data class JobModel (
+    /**
+     * The job's second model, tried once when its own fails or runs too long.
+     */
+    val backup: ChosenModel,
+
     /**
      * What the job does, in one line: "Plans each Reply before it starts".
      */
@@ -1497,16 +1606,6 @@ data class JobModel (
     val job: ModelJob,
     val model: ChosenModel,
     val title: String
-)
-
-/**
- * A model as the Models screen shows it: the choice, and its name with the effort ("GPT 6.1
- * Sol · high").
- */
-@Serializable
-data class ChosenModel (
-    val choice: ModelChoice,
-    val label: String
 )
 
 /**
@@ -1581,6 +1680,11 @@ data class StoryActor (
  */
 @Serializable
 data class SetJobModelRequest (
+    /**
+     * Sets the job's second model instead of its own.
+     */
+    val backup: Boolean? = null,
+
     val model: ModelChoice
 )
 
@@ -1598,14 +1702,6 @@ data class SetActorRequest (
  */
 @Serializable
 data class RetryRequest (
-    val model: ModelChoice? = null
-)
-
-/**
- * Moves the World on again; with a model, the Weaver runs on it for this one try.
- */
-@Serializable
-data class RetryWorldRequest (
     val model: ModelChoice? = null
 )
 
@@ -2223,14 +2319,23 @@ data class RewordTasteRequest (
 )
 
 /**
- * Tries the record of a Scene given up after three tries once more.
+ * Sets the brief, from this moment on the Path.
  */
 @Serializable
-data class RecordRetryRequest (
-    /**
-     * The head the phone saw: the Path whose record it is.
-     */
+data class BriefRequest (
     val after: String,
+    val less: List<String>,
+    val more: List<String>
+)
+
+/**
+ * Reacts to a played Scene, or clears the reaction with null.
+ */
+@Serializable
+data class ReactionRequest (
+    val after: String,
+    val note: String? = null,
+    val reaction: Reaction? = null,
 
     @SerialName("scene_number")
     val sceneNumber: Long

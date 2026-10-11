@@ -9,7 +9,7 @@ import type { Engine } from "../engine/engine.js";
 import type { Mac } from "../mac.js";
 import type { ModelChoice } from "../story/state.js";
 import { CONTRACT_VERSION } from "../protocol/generated/contract.js";
-import type { ArcsRequest, ChooseRequest, ClockRequest, DropLandmarkRequest, LandmarkRequest, PlaceRequest, PremiseRequest, ReplyLengthRequest, RewordTasteRequest, StyleRequest, WorldRequest, EditRequest, GroupRequest, LeadRequest, PersonEdit, RecordRetryRequest, RetryRequest, RetryWorldRequest, SetActorRequest, SetJobModelRequest, EndSceneRequest, ErrorBody, FocusRequest, LingerRequest, MoveRequest, PairRequest, RedoRequest, RemoveTasteRequest, RenamePathRequest, RewindRequest, TryAnotherWayRequest } from "../protocol/generated/link.js";
+import type { ArcsRequest, ChooseRequest, ClockRequest, DropLandmarkRequest, LandmarkRequest, PlaceRequest, PremiseRequest, ReplyLengthRequest, RewordTasteRequest, StyleRequest, WorldRequest, EditRequest, GroupRequest, LeadRequest, PersonEdit, RetryRequest, SetActorRequest, BriefRequest, ReactionRequest, SetJobModelRequest, EndSceneRequest, ErrorBody, FocusRequest, LingerRequest, MoveRequest, PairRequest, RedoRequest, RemoveTasteRequest, RenamePathRequest, RewindRequest, TryAnotherWayRequest } from "../protocol/generated/link.js";
 import { newTraceId, Traces } from "../trace.js";
 import { backstageView } from "../views/backstage.js";
 import { journalView } from "../views/journal.js";
@@ -21,7 +21,7 @@ import { pastScene, sceneView } from "../views/scene.js";
 import { modelsView } from "../views/models.js";
 import { listStories } from "../views/stories.js";
 import type { Catalog } from "../models/catalog.js";
-import { JOBS, setJobModel, setStoryActor, type Job } from "../models/jobs.js";
+import { JOBS, setBackupModel, setJobModel, setStoryActor, type Job } from "../models/jobs.js";
 import { MAX_PORTRAIT_BYTES } from "../engine/people.js";
 import { LinkError, STATUS } from "./errors.js";
 import type { Pairing } from "./pairing.js";
@@ -62,8 +62,8 @@ const validWorld = ajv.compile<WorldRequest>({ $ref: "link#/$defs/WorldRequest" 
 const validClock = ajv.compile<ClockRequest>({ $ref: "link#/$defs/ClockRequest" });
 const validRewordTaste = ajv.compile<RewordTasteRequest>({ $ref: "link#/$defs/RewordTasteRequest" });
 const validRetry = ajv.compile<RetryRequest>({ $ref: "link#/$defs/RetryRequest" });
-const validRetryWorld = ajv.compile<RetryWorldRequest>({ $ref: "link#/$defs/RetryWorldRequest" });
-const validRecordRetry = ajv.compile<RecordRetryRequest>({ $ref: "link#/$defs/RecordRetryRequest" });
+const validBrief = ajv.compile<BriefRequest>({ $ref: "link#/$defs/BriefRequest" });
+const validReaction = ajv.compile<ReactionRequest>({ $ref: "link#/$defs/ReactionRequest" });
 
 const IMAGE_TYPES: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp" };
 
@@ -143,9 +143,11 @@ export function buildLink(options: LinkOptions): FastifyInstance {
 
   app.put<{ Params: { job: string } }>("/models/jobs/:job", async request => {
     const job = request.params.job;
-    if (!(JOBS as readonly string[]).includes(job)) throw new LinkError("invalid", job === "actor" ? "There is no job \"actor\" for every Story; the Actor is set per Story." : `There is no job "${job}".`);
+    const backup = request.body && typeof request.body === "object" && (request.body as { backup?: boolean }).backup === true;
+    if (!(JOBS as readonly string[]).includes(job) && !(backup && job === "actor")) throw new LinkError("invalid", job === "actor" ? "There is no job \"actor\" for every Story; the Actor is set per Story." : `There is no job "${job}".`);
     if (!validSetJobModel(request.body)) throw new LinkError("invalid", "A job's model needs its provider and the model's id, and an effort or null.");
-    setJobModel(mac.home, job as Job, offered(options.catalog, request.body.model));
+    if (backup) setBackupModel(mac.home, job as Job | "actor", offered(options.catalog, request.body.model));
+    else setJobModel(mac.home, job as Job, offered(options.catalog, request.body.model));
     return modelsView(mac, options.catalog, request.traceId);
   });
 
@@ -221,15 +223,14 @@ export function buildLink(options: LinkOptions): FastifyInstance {
     if (!validRetry(body)) throw new LinkError("invalid", "A Retry takes a model for this one try, or null.");
     return engine.retry(request.params.id, request.traceId, body.model ? offered(options.catalog, body.model) : null);
   });
-  app.post<{ Params: { id: string } }>("/stories/:id/world/retry", async request => {
-    const body = request.body ?? {};
-    if (!validRetryWorld(body)) throw new LinkError("invalid", "A Retry takes a model for this one try, or null.");
-    return engine.retryWorld(request.params.id, request.traceId, body.model ? offered(options.catalog, body.model) : null);
+  // The player's brief and reactions (openspec long-run: The player steers with a brief and reactions).
+  app.post<{ Params: { id: string } }>("/stories/:id/brief", async request => {
+    if (!validBrief(request.body)) throw new LinkError("invalid", "A brief needs what you want more of and less of, and the entry the phone last saw.");
+    return engine.setBrief(request.params.id, request.body.more, request.body.less, request.body.after, request.traceId);
   });
-
-  app.post<{ Params: { id: string } }>("/stories/:id/record/retry", async request => {
-    if (!validRecordRetry(request.body)) throw new LinkError("invalid", "Retrying the record needs the Scene's number and the entry the phone last saw.");
-    return engine.retryRecord(request.params.id, request.body.after, request.body.scene_number, request.traceId);
+  app.post<{ Params: { id: string } }>("/stories/:id/reaction", async request => {
+    if (!validReaction(request.body)) throw new LinkError("invalid", "A reaction needs the Scene's number, more, less or null, and the entry the phone last saw.");
+    return engine.setReaction(request.params.id, request.body.scene_number, request.body.reaction as "more" | "less" | null, request.body.note ?? null, request.body.after, request.traceId);
   });
 
   app.post<{ Params: { id: string } }>("/stories/:id/end-scene", async request => {

@@ -39,7 +39,8 @@ class StoryActions(
     val landmark: (String, Boolean, String, String) -> Unit = { _, _, _, _ -> },
     val dropLandmark: (String) -> Unit = {},
     val place: (String, Boolean, Boolean, String) -> Unit = { _, _, _, _ -> },
-    val taste: (String, String) -> Unit = { _, _ -> }
+    val taste: (String, String) -> Unit = { _, _ -> },
+    val brief: (List<String>, List<String>) -> Unit = { _, _ -> }
 )
 
 /**
@@ -63,9 +64,11 @@ class StoryActions(
         is StoryEdit.Landmark -> landmark?.what.orEmpty()
         is StoryEdit.Place -> place?.description.orEmpty()
         is StoryEdit.Taste -> target.line
+        is StoryEdit.Brief -> target.more.joinToString("\n")
         StoryEdit.Clock -> ""
     }) }
     var history by rememberSaveable(key) { mutableStateOf(story?.worldHistory.orEmpty()) }
+    var less by rememberSaveable(key) { mutableStateOf((target as? StoryEdit.Brief)?.less?.joinToString("\n").orEmpty()) }
     var name by rememberSaveable(key) { mutableStateOf("") }
     var day by rememberSaveable(key) { mutableStateOf(clockAt?.let(::dayOf)?.toString() ?: story?.clock?.at?.let(::dayOf)?.plus(1)?.toString().orEmpty()) }
     var minute by rememberSaveable(key) { mutableIntStateOf(clockAt?.let(::minuteOf) ?: 10 * 60) }
@@ -86,13 +89,14 @@ class StoryActions(
         is StoryEdit.Landmark -> (target.name ?: "A new Landmark") to "The World brings it about at its time, whether or not the Arcs are ready. From now on, on this Path."
         is StoryEdit.Place -> (target.name ?: if (target.institution) "A new institution" else "A new place") to "From now on, on this Path."
         is StoryEdit.Taste -> "A lesson" to "A line of Taste: the Story reads it in every Scene."
+        is StoryEdit.Brief -> "Your brief" to "What you want more of and less of, one to a line. The Director plans every Stretch from it."
     }
     val at = day.trim().toIntOrNull()?.takeIf { it > 0 }?.let { "Day $it ${"%02d:%02d".format(minute / 60, minute % 60)}" }
     val ready = !editing.saving && enabled && when (target) {
         StoryEdit.Clock -> at != null
         is StoryEdit.Landmark -> at != null && first.isNotBlank() && (!creating || name.isNotBlank())
         is StoryEdit.Place -> first.isNotBlank() && (!creating || name.isNotBlank())
-        StoryEdit.World -> true
+        StoryEdit.World, is StoryEdit.Brief -> true
         else -> first.isNotBlank()
     }
     val save = {
@@ -105,6 +109,7 @@ class StoryActions(
             is StoryEdit.Landmark -> at?.let { actions.landmark(target.name ?: name.trim(), creating, it, first.trim()) }
             is StoryEdit.Place -> actions.place(target.name ?: name.trim(), target.institution, creating, first.trim())
             is StoryEdit.Taste -> actions.taste(target.line, first.trim())
+            is StoryEdit.Brief -> actions.brief(lines(first), lines(less))
         }
         Unit
     }
@@ -147,6 +152,11 @@ class StoryActions(
                 StoryEdit.World -> {
                     SheetField("What the World is", first, "story-words", lines = 3) { first = it }
                     SheetField("Its history", history, "story-history", lines = 3) { history = it }
+                }
+                // Backstage.dc.html: two fields, a thing to a line (openspec long-run: A brief from the phone).
+                is StoryEdit.Brief -> {
+                    SheetField("More of", first, "brief-more", lines = 3) { first = it }
+                    SheetField("Less of", less, "brief-less", lines = 3) { less = it }
                 }
                 else -> SheetField(when (target) {
                     is StoryEdit.Landmark -> "What happens"
@@ -215,6 +225,9 @@ class StoryActions(
         }
     }
 }
+
+/** A field's lines, each a thing, blank ones dropped. */
+private fun lines(text: String): List<String> = text.lines().map(String::trim).filter(String::isNotEmpty)
 
 /** The minute of the day in a Story time, "Day N HH:MM". */
 internal fun minuteOf(at: String): Int? = Regex("""(\d{2}):(\d{2})$""").find(at)?.let { match -> match.groupValues[1].toInt() * 60 + match.groupValues[2].toInt() }

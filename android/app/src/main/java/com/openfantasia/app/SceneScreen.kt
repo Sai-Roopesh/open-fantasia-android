@@ -81,12 +81,18 @@ class SceneScrollState(val list: LazyListState) {
     rewind: (String) -> Unit = {},
     tryAnotherWay: (String) -> Unit = {},
     edit: (String, String) -> Unit = { _, _ -> },
-    worldFailure: @Composable () -> Unit = {},
+    /** A Scene's end that stopped at a step, with Retry and another model (SceneEndFailed.dc.html). */
+    sceneEndFailure: @Composable (SceneEndFailure) -> Unit = {},
+    /** The player's reaction to the Scene that just ended (openspec long-run: The player steers with a brief and reactions). */
+    react: (Reaction?) -> Unit = {},
+    reaction: Reaction? = scene.dayView?.reaction,
+    reactEnabled: Boolean = controlsEnabled,
     failure: @Composable () -> Unit = {}
 ) {
     val day = scene.dayView
-    var picker by remember(scene.storyID, scene.headEntryID, day?.world) { mutableStateOf<DayPicker?>(null) }
-    var gap by remember(scene.storyID, scene.headEntryID, day?.world) { mutableStateOf<DayChoice?>(null) }
+    val dayReady = day?.sceneEnd?.done == true
+    var picker by remember(scene.storyID, scene.headEntryID, dayReady) { mutableStateOf<DayPicker?>(null) }
+    var gap by remember(scene.storyID, scene.headEntryID, dayReady) { mutableStateOf<DayChoice?>(null) }
     // The Gap sheet stays open until the Mac takes the choice; a refusal leaves the player's words in it, with the reason.
     var gapSent by remember(gap) { mutableStateOf(false) }
     fun destination(happening: Happening, kind: ChooseRequestKind) {
@@ -160,7 +166,7 @@ class SceneScrollState(val list: LazyListState) {
                 val height = with(density) { viewportSize.height.toDp() }
                 Column(Modifier.fillMaxWidth().heightIn(min = (height - 22.dp).coerceAtLeast(0.dp)), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     previously?.let { PreviouslyCard(it, dismissPreviously) }
-                    DayViewContent(day, scene.scene, Modifier.fillMaxWidth(), worldFailure, enabled = controlsEnabled,
+                    DayViewContent(day, scene.scene, Modifier.fillMaxWidth(), sceneEndFailure, react = react, reaction = reaction, reactEnabled = reactEnabled, enabled = controlsEnabled,
                         go = { destination(it, ChooseRequestKind.Go) }, picker = { picker = it },
                         story = { day.happenings.firstOrNull { it.pick }?.let { destination(it, ChooseRequestKind.Story) } })
                 }
@@ -206,7 +212,7 @@ class SceneScrollState(val list: LazyListState) {
             last = position
         }
     }
-    if (day?.world == World.Ready) {
+    if (day != null && dayReady) {
         picker?.let { showing ->
             ChoiceSheet(day, showing, controlsEnabled, dismiss = { picker = null }) { option ->
                 if (controlsEnabled) {
@@ -385,18 +391,11 @@ class SceneScrollState(val list: LazyListState) {
         another = "Write it with another model", models = state.models, loadModels = loadModels)
 }
 
-@Composable internal fun WorldFailureContent(state: FantasiaState, retry: (ModelChoice?) -> Unit, loadModels: () -> Unit = {}) {
-    val failure = state.scene?.dayView?.failure ?: return
-    StoryFailure("The World could not move on", failure.reason, failure.traceID, retry,
-        state.reachable && !state.loading && !state.sending && !state.waiting && state.problem?.needsUpdate != true,
-        Modifier.testTag("world-failure"), another = "Move the World on with another model", models = state.models, loadModels = loadModels)
-}
-
 /**
  * What failed, in words, with Retry and Another model beside it (SceneFailed.dc.html; openspec presence: Nothing fails
  * silently). Another model opens the picker in a sheet titled [another]; choosing one retries on it for this one try.
  */
-@Composable private fun StoryFailure(title: String, reason: String, traceID: String?, retry: (ModelChoice?) -> Unit,
+@Composable internal fun StoryFailure(title: String, reason: String, traceID: String?, retry: (ModelChoice?) -> Unit,
     retryEnabled: Boolean, modifier: Modifier = Modifier, another: String, models: ModelsView?, loadModels: () -> Unit) {
     var choosing by remember { mutableStateOf(false) }
     Surface(modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Assertive }, shape = FantasiaShapes.card,

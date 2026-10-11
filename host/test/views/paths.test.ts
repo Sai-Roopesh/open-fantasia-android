@@ -9,7 +9,7 @@ async function forked() {
   const { engine, storyId, head } = played;
   const next = async (move: string) => {
     engine.endScene(storyId, head(), "trace-end");
-    await engine.woven(storyId);
+    await engine.ended(storyId);
     await played.play(move);
   };
   await played.play("I hold the lantern up to the window.");
@@ -55,7 +55,8 @@ describe("the Paths screen", () => {
     const main = played.mac.tree.currentPath(played.storyId)!;
     played.engine.renamePath(played.storyId, main.id, "The long way", "trace-name");
     expect(pathsView(played.mac, played.storyId, "trace").rows).toEqual([
-      { kind: "path", depth: 0, label: "MAIN · YOU ARE HERE", title: null, path: expect.objectContaining({ title: "The long way", detail: expect.stringMatching(/^1 Scene · Friday 9:40 pm$/) }) }
+      // The Reply began two minutes after the Scene's 9:40 pm, as the scripted Writer says.
+      { kind: "path", depth: 0, label: "MAIN · YOU ARE HERE", title: null, path: expect.objectContaining({ title: "The long way", detail: "1 Scene · Friday 9:42 pm" }) }
     ]);
   });
 });

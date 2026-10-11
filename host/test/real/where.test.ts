@@ -1,11 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { writeWeave } from "../../src/agents/weaver.js";
 import { Engine } from "../../src/engine/engine.js";
-import { dueWeave, weaveAsk } from "../../src/engine/weaving.js";
 import { ClaudeRunner } from "../../src/models/claude.js";
-import { DEFAULT_JOB_MODELS } from "../../src/models/jobs.js";
 import { FakeModels } from "../../src/models/fake.js";
-import { Models, type ModelRunner } from "../../src/models/model-call.js";
+import { Models, type ModelRequest, type ModelRunner } from "../../src/models/model-call.js";
 import type { StoryFile } from "../../src/protocol/generated/story-file.js";
 import { CLAUDE_TOKEN, readSecret } from "../../src/secrets.js";
 import { importStoryFile } from "../../src/storyfile/import.js";
@@ -13,8 +10,8 @@ import { sceneView } from "../../src/views/scene.js";
 import { freshHome } from "../support/host.js";
 import { hogwartsWorldStoryFile, writeStoryFile } from "../support/story-files.js";
 
-// These call the real Weaver, Writer and Actor through the player's Claude subscription, and a judge. They run only
-// with `npm run test:real`.
+// These call the real Chronicler, Director, Weaver, Writer and Actor through the player's Claude subscription, and a
+// judge. They run only with `npm run test:real`.
 const token = readSecret(CLAUDE_TOKEN);
 const RUNS = 3;
 
@@ -39,6 +36,7 @@ function afterCurfew(story: StoryFile, runners: (claude: ModelRunner) => ModelRu
     mac.tree.moveHead(path.id, at, replied.id);
     at = replied.id;
   }
+  // The Scene's end runs at once: the Chronicler, the Director and the Weaver, in turn.
   engine.endScene(storyId, at, "real-end");
   const view = () => sceneView(mac, engine, storyId, "real");
   return { mac, claude, models, engine, storyId, head, view, close: () => claude.close() };
@@ -59,17 +57,19 @@ async function judge(question: string, passage: string): Promise<{ yes: boolean;
 const story = () => hogwartsWorldStoryFile({ title: "After curfew", place: "The Gryffindor common room", at: "Day 3 22:40", who: ["Hermione Granger"] });
 
 describe.skipIf(!token)("where to be, on Claude", () => {
-  it("offers at most four Happenings from the Day View on, the summons expected and the pick first, each one that could happen", async () => {
+  it("offers at most four Happenings once the Scene's end is done, the pick first and the summons among them, expected, each one that could happen", async () => {
     for (let run = 0; run < RUNS; run++) {
       const played = afterCurfew(story());
       try {
-        const { value } = await writeWeave(played.models, DEFAULT_JOB_MODELS.weaver, weaveAsk(played.mac, dueWeave(played.mac, played.head())!), played.storyId, "real-today", new AbortController().signal);
-        const shown = JSON.stringify(value.happenings, null, 2);
-        expect(value.happenings.length, `run ${run + 1}: ${shown}`).toBeGreaterThan(0);
-        expect(value.happenings.length, `run ${run + 1}`).toBeLessThanOrEqual(4);
-        expect(value.happenings[0]!.pick, `run ${run + 1}: ${shown}`).toBe(true);
-        expect(value.happenings.some(item => item.expected && item.who.includes("Minerva McGonagall")), `run ${run + 1}: ${shown}`).toBe(true);
-        const verdict = await judge("The passage lists things going on at Hogwarts tomorrow that a first-year could go to, each with a time, a place and who will be there. Could every one of them plausibly happen at that time and place with those people? Answer YES or NO.", shown);
+        await played.engine.ended(played.storyId);
+        const dayView = played.view().day_view!;
+        expect(dayView.scene_end, `run ${run + 1}`).toEqual({ step: null, failed: null });
+        const shown = JSON.stringify(dayView.happenings, null, 2);
+        expect(dayView.happenings.length, `run ${run + 1}: ${shown}`).toBeGreaterThan(0);
+        expect(dayView.happenings.length, `run ${run + 1}`).toBeLessThanOrEqual(4);
+        expect(dayView.happenings[0]!.pick, `run ${run + 1}: ${shown}`).toBe(true);
+        expect(dayView.happenings.some(item => item.expected && item.who.includes("Minerva McGonagall")), `run ${run + 1}: ${shown}`).toBe(true);
+        const verdict = await judge("The passage lists things going on at Hogwarts that a first-year could go to, each with a time, a place and who will be there. Could every one of them plausibly happen at that time and place with those people? Answer YES or NO.", shown);
         expect(verdict.yes, `run ${run + 1}: ${verdict.said}\n${shown}`).toBe(true);
       } finally {
         played.close();
@@ -81,16 +81,35 @@ describe.skipIf(!token)("where to be, on Claude", () => {
   // WHEN he next meets McGonagall
   // THEN she knows he did not come, and acts on it
   it("day-view › Missing something has consequences › McGonagall answers the absence", async () => {
-    const summons = { id: "P1", at: "Day 4 09:00", place: "McGonagall's office", what: "Accounts of the troll from everyone who saw it.", who: ["Minerva McGonagall", "Hermione Granger"], expected: true, pick: true };
     for (let run = 0; run < RUNS; run++) {
-      // Saturday morning is scripted, so the summons is on; the Gap, the Writer and the Actor are Claude's.
-      const scripted = new FakeModels({ weaver: [{ answer: JSON.stringify({ lives: [], threads: [], happened: [], meanwhile: [], happenings: [summons] }) }] });
-      let first = true;
+      // The Scene's end is scripted, so the summons is on his calendar, expected; the Gap, the Writer and the Actor are
+      // Claude's.
+      const scripted = new FakeModels({
+        chronicler: [{ from: (request: ModelRequest) => {
+          const passages = (request.facts as { passages: { label: string; text: string }[] }).passages;
+          const said = passages.find(item => item.text.includes("in her office at nine tomorrow"))!;
+          return { answer: JSON.stringify({
+            summary: "Hermione told him McGonagall wants everyone who saw the troll in her office at nine.",
+            paragraph: "In the common room after curfew Hermione told Roopesh that McGonagall wanted everyone who saw the troll in her office at nine the next morning, him included. He said goodnight and went up to bed; she told him not to be late.",
+            moments: [], told: [], known: [], bonds: [],
+            engagements: [{ what: "Accounts of the troll from everyone who saw it.", at: "Day 4 09:00", place: "McGonagall's office", who: ["Minerva McGonagall", "Hermione Granger"], expected: true, every: null, quotes: [{ entry: said.label, text: "in her office at nine tomorrow" }] }],
+            changed: []
+          }) };
+        } }],
+        weaver: [{ answer: JSON.stringify({ lives: [], threads: [], happened: [], meanwhile: [], on: [] }) }]
+      });
+      let sceneEnd = true;
       const played = afterCurfew(story(), claude => ({
-        run: (request, onText, signal) => (request.agent === "weaver" && first ? ((first = false), scripted.run(request, onText, signal)) : claude.run(request, onText, signal))
+        run: (request, onText, signal) => {
+          const scriptedJob = request.agent === "chronicler" || request.agent === "director" || (request.agent === "weaver" && sceneEnd);
+          if (request.agent === "weaver") sceneEnd = false;
+          return (scriptedJob ? scripted : claude).run(request, onText, signal);
+        }
       }));
       try {
-        await played.engine.woven(played.storyId);
+        await played.engine.ended(played.storyId);
+        expect(played.engine.sceneEndOf(played.storyId).failed, `run ${run + 1}`).toBeNull();
+        expect(played.mac.states.at(played.head()).calendar.some(item => item.expected && item.at === "Day 4 09:00"), `run ${run + 1}`).toBe(true);
         const skip = played.view().day_view!.choices.skips.find(item => item.label === "This evening")!;
         played.engine.choose(played.storyId, { after: played.head(), kind: "skip", at: skip.at, gap: null }, "real-skip");
         await played.engine.settled(played.storyId);

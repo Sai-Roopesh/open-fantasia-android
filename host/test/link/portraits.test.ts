@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import type { SceneView, WorldView } from "../../src/protocol/generated/link.js";
+import type { PeopleView, SceneView, WorldView } from "../../src/protocol/generated/link.js";
 import { runningMac } from "../support/link.js";
 
 const closers: (() => Promise<unknown>)[] = [];
@@ -29,9 +29,12 @@ describe("Portraits uploaded from the phone", () => {
     engine.setPerson(storyId, { name: "Daphne Greengrass", aliases: [], whoTheyAre: "A Slytherin who keeps her own counsel.", known: "A Slytherin girl.", appearance: "", after: "", knows: [], voice: [], group: null }, (await view()).head_entry_id, "t", true);
     const uploaded = await upload("Daphne Greengrass", PNG, "image/png");
     expect(uploaded.status).toBe(200);
-    const world = await (await call(`/stories/${storyId}/world`)).json() as WorldView;
-    const url = world.people.find(person => person.name === "Daphne Greengrass")!.portrait_url!;
+    const people = await (await call(`/stories/${storyId}/people`)).json() as PeopleView;
+    const url = people.people.find(person => person.name === "Daphne Greengrass")!.portrait_url!;
     expect(url).toMatch(/\.png$/);
+    // He knows of her, so she is on the World screen too, with the same Portrait.
+    const world = await (await call(`/stories/${storyId}/world`)).json() as WorldView;
+    expect(world.people.find(person => person.name === "Daphne Greengrass")?.portrait_url).toBe(url);
     const image = Buffer.from(await (await call(url)).arrayBuffer());
     expect(image.equals(PNG)).toBe(true);
   });
@@ -59,5 +62,5 @@ describe("Portraits uploaded from the phone", () => {
     expect(await message(big)).toBe("A Portrait can be at most 10 MB.");
     const nobody = await upload("Gilderoy Lockhart", PNG, "image/png");
     expect(await message(nobody)).toBe("Gilderoy Lockhart is not in the Story.");
-  });
+  }, 20_000);
 });

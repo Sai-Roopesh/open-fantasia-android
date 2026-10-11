@@ -1,15 +1,30 @@
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { DEFAULT_JOB_MODELS, JOBS, jobModels, setJobModel, setStoryActor, storyActor } from "../../src/models/jobs.js";
+import { backupModels, DEFAULT_JOB_MODELS, JOBS, jobModels, setBackupModel, setJobModel, setStoryActor, storyActor } from "../../src/models/jobs.js";
 import { freshHome } from "../support/host.js";
 
 describe("the Mac's model settings (docs/adr/0008)", () => {
-  it("lists every job, the Director included, each on its default until it is set", () => {
+  it("lists every job, the Director and the Folder included, each on its default until it is set", () => {
     const { home } = freshHome();
-    expect(JOBS).toEqual(["writer", "chronicler", "weaver", "director"]);
+    expect(JOBS).toEqual(["writer", "chronicler", "weaver", "director", "folder"]);
     expect(jobModels(home)).toEqual(DEFAULT_JOB_MODELS);
     expect(DEFAULT_JOB_MODELS.director).toEqual({ provider: "claude", model: "claude-opus-5-5" });
+    expect(DEFAULT_JOB_MODELS.folder).toEqual({ provider: "claude", model: "claude-haiku-4-5-20251001" });
+  });
+
+  it("gives every job a second model: Sonnet 5.5, or GPT 6.1 Sol for a job already on Sonnet, until it is set", () => {
+    const { home } = freshHome();
+    const sonnet = { provider: "claude", model: "claude-sonnet-5-5" };
+    const sol = { provider: "codex", model: "gpt-6.1-sol" };
+    expect(backupModels(home)).toEqual({ writer: sol, chronicler: sol, weaver: sol, director: sonnet, folder: sonnet, actor: sonnet });
+    // A job moved off Sonnet takes Sonnet as its second model; one set keeps it, whatever the job's own model.
+    setJobModel(home, "writer", { provider: "antigravity", model: "gemini-3.8-flash", effort: "high" });
+    setBackupModel(home, "director", { provider: "codex", model: "gpt-6-luna", effort: "medium" });
+    setBackupModel(home, "actor", { provider: "claude", model: "claude-opus-5-5" });
+    setJobModel(home, "director", { provider: "claude", model: "claude-sonnet-5-5" });
+    expect(backupModels(home)).toMatchObject({ writer: sonnet, director: { provider: "codex", model: "gpt-6-luna", effort: "medium" }, actor: { provider: "claude", model: "claude-opus-5-5" } });
+    expect(jobModels(home).director).toEqual(sonnet);
   });
 
   it("keeps a job's model and a Story's own Actor, each without disturbing the other", () => {
@@ -31,7 +46,7 @@ describe("the Mac's model settings (docs/adr/0008)", () => {
     expect(storyActor(home, "malfoy")).toBeNull();
   });
 
-  it("still reads a models.json written before Story Actors and the Director", () => {
+  it("takes the default for every job models.json does not name", () => {
     const { home } = freshHome();
     writeFileSync(join(home, "models.json"), JSON.stringify({ writer: { provider: "claude", model: "claude-opus-5-5", effort: "high" } }));
     expect(jobModels(home)).toEqual({ ...DEFAULT_JOB_MODELS, writer: { provider: "claude", model: "claude-opus-5-5", effort: "high" } });

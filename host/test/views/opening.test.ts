@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { fakeWriterAnswer } from "../../src/models/fake.js";
+import type { Script } from "../../src/models/scripted.js";
 import { playable } from "../support/play.js";
 import { nightTrainStoryFile } from "../support/story-files.js";
+
+/** The Writer's ordinary answer, with its Reply beginning [minutes] after now: the code makes the clock from it. */
+const writerIn = (minutes: number): Script => ({ from: request => ({ answer: JSON.stringify({ ...JSON.parse((fakeWriterAnswer(request) as { answer: string }).answer) as object, minutes }) }) });
 
 const GAP = "I ride on to Shimla, go to the interview at eleven, and come out not sure of anything.";
 
@@ -10,10 +15,10 @@ describe("the next Scene, while it is being written", () => {
   // THEN the Scene opens at once with that Move, under a card that says Friday 6:00 pm and that the Scene is being written
   // AND the card takes the Scene's title, place and Portraits when the Scene has opened
   it("presence › Between Scenes is quiet, and shows progress › The next Scene is being written", async () => {
-    const { play, engine, storyId, head, view } = playable(nightTrainStoryFile());
+    const { play, engine, storyId, head, view } = playable(nightTrainStoryFile(), { writer: [writerIn(0)] });
     await play("I get down after her to stretch my legs while the engine takes water.");
     engine.endScene(storyId, head(), "trace-end");
-    await engine.woven(storyId);
+    await engine.ended(storyId);
     const day = view();
     expect(day.day_view!.at).toBe("Day 2 09:05");
     expect(day.opening).toBeNull();
@@ -38,7 +43,7 @@ describe("the next Scene, while it is being written", () => {
     const { play, engine, storyId, head, view } = playable(nightTrainStoryFile());
     await play("I get down after her to stretch my legs while the engine takes water.");
     engine.endScene(storyId, head(), "trace-end");
-    await engine.woven(storyId);
+    await engine.ended(storyId);
     engine.move(storyId, "I walk up the platform to find the tea seller.", head(), "trace-own");
     expect(view().opening).toEqual({ at: null, at_label: null });
     await engine.settled(storyId);
@@ -49,7 +54,7 @@ describe("the next Scene, while it is being written", () => {
       const played = playable(nightTrainStoryFile());
       await played.play("I get down after her to stretch my legs while the engine takes water.");
       played.engine.endScene(played.storyId, played.head(), "trace-end");
-      await played.engine.woven(played.storyId);
+      await played.engine.ended(played.storyId);
       return played;
     };
     const moveEvents = (played: Awaited<ReturnType<typeof atTheDayView>>) => played.events.filter(item => item.event.kind === "move").map(item => item.event.opening);
@@ -69,13 +74,12 @@ describe("the next Scene, while it is being written", () => {
     await Promise.all([skipping, following, own].map(played => played.engine.settled(played.storyId)));
   });
   it("keeps the next Scene's card when the turn fails before the Scene opens, and Retry opens it", async () => {
-    const quiet = { answer: JSON.stringify({ lives: [], threads: [], happened: [], meanwhile: [], happenings: [] }) };
-    // The Scene at Barog runs an hour, so the World moves on after it (a span with no time in it moves nothing).
-    const anHour = { answer: JSON.stringify({ leaves_scene: false, frame: { title: "kept", place: "kept", purpose: "p", exit: "e" }, comes_in: [], goes: [], beats: [{ text: "a", status: "in_play" }, { text: "b", status: "pending" }, { text: "c", status: "pending" }], note: "n", call: "continue", intensity: 2, arc_moved: true, clock: "Day 2 10:10", taste: null, in_play: [] }) };
-    const { play, engine, storyId, head, view } = playable(nightTrainStoryFile(), { writer: [anHour], weaver: [quiet, { fail: "Sonnet is overloaded" }, { fail: "Sonnet is overloaded" }], unplanned: true });
+    // The World moves on quietly after the Scene at Barog; over the Gap to the evening, the Weaver and its second model fail.
+    const quiet = { answer: JSON.stringify({ lives: [], threads: [], happened: [], meanwhile: [], on: [] }) };
+    const { play, engine, storyId, head, view } = playable(nightTrainStoryFile(), { writer: [writerIn(65)], weaver: [quiet, { fail: "Sonnet is overloaded" }, { fail: "Sonnet is overloaded" }] });
     await play("I get down after her to stretch my legs while the engine takes water.");
     engine.endScene(storyId, head(), "trace-end");
-    await engine.woven(storyId);
+    await engine.ended(storyId);
     const evening = view().day_view!.choices.skips.find(skip => skip.label === "This evening")!;
     engine.choose(storyId, { after: head(), kind: "skip", at: evening.at, gap: GAP }, "trace-skip");
     await engine.settled(storyId);

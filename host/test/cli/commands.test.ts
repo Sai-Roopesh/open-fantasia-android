@@ -90,6 +90,7 @@ describe("the fantasia command", () => {
       "chronicler  claude  claude-sonnet-5-5  (default)",
       "weaver  claude  claude-sonnet-5-5  (default)",
       "director  claude  claude-opus-5-5  (default)",
+      "folder  claude  claude-haiku-4-5-20251001  (default)",
       `actor  "After Curfew" (${storyId})  claude  claude-opus-5-5  (its Story File's)`,
       "claude offers  claude-opus-5-5 (low medium high xhigh max), claude-sonnet-5-5 (low medium high xhigh max), claude-haiku-4-5-20251001",
       "codex offers  gpt-6.1-sol (low medium high xhigh max ultra), gpt-6-luna (low medium high xhigh max)",
@@ -134,7 +135,7 @@ describe("the fantasia command", () => {
     await offeredCatalog(mac.home);
     const job = capture();
     expect(models(mac, ["narrator", "claude", "claude-opus-5-5"], job.out)).toBe(false);
-    expect(job.text()).toMatch(/No job "narrator"\. The jobs are: writer, chronicler, weaver, director, or actor "<Story>"/);
+    expect(job.text()).toMatch(/No job "narrator"\. The jobs are: writer, chronicler, weaver, director, folder, or actor "<Story>"/);
     const provider = capture();
     expect(models(mac, ["writer", "openai", "gpt-6.1-sol"], provider.out)).toBe(false);
     expect(provider.text()).toMatch(/No provider "openai"\. The providers are: claude, codex, antigravity/);
@@ -149,52 +150,56 @@ describe("the fantasia command", () => {
     expect(story.text()).toBe("No Story \"Nowhere\" on this Mac.");
   });
 
-  it("lists a Story's Moments with who was there, who was told, and their words", async () => {
-    const { mac, play, engine, storyId, head } = playable();
+  it("lists a Story's Moments with their Scene, who knows each, and their words", async () => {
+    const moment = { what: "Hermione watched him sit down, and said nothing.", quotes: [{ entry: "P2", text: "I sit down at the other end of the sofa." }], there: ["Hermione Granger"], weight: 3 };
+    const recorded = { summary: "He sat down.", paragraph: "He sat down at the other end of the sofa.", moments: [moment], told: [], known: [], bonds: [], engagements: [], changed: [] };
+    const { mac, play, engine, storyId, head } = playable(undefined, { chronicler: [{ answer: JSON.stringify(recorded) }] });
+    const nothing = capture();
+    expect(moments(mac, storyId, nothing.out)).toBe(true);
+    expect(nothing.text()).toBe("No Moments recorded yet.");
     await play("I sit down at the other end of the sofa.");
     engine.endScene(storyId, head(), "end");
-    await engine.chronicled(storyId);
+    await engine.ended(storyId);
     const listed = capture();
     expect(moments(mac, storyId, listed.out)).toBe(true);
-    expect(listed.text()).toContain("Scene 1 · After curfew · weight 2");
-    expect(listed.text()).toContain("What the player's character did.");
-    expect(listed.text()).toContain("Roopesh Gantasala: \"I sit down at the other end of the sofa.\"");
+    expect(listed.lines).toEqual([
+      "Scene 1 · After curfew · weight 3",
+      "  Hermione watched him sit down, and said nothing.",
+      "  Known to: Roopesh Gantasala, Hermione Granger",
+      "  Roopesh Gantasala: \"I sit down at the other end of the sofa.\""
+    ]);
     const none = capture();
     expect(moments(mac, "no-such-story", none.out)).toBe(false);
   });
 
-  it("shows The record, and marks a Scene given up to be tried again by the Mac that serves the phone", async () => {
+  it("shows The record: each Scene recorded with parts left out, and why", async () => {
+    // The Chronicler quotes words that are not on the page, so that Moment is left out of the record.
+    const recorded = { summary: "They talked about the essay.", paragraph: "He asked Hermione about the essay.", moments: [{ what: "Hermione promised to help.", quotes: [{ entry: "P2", text: "I promise I will help you." }], there: ["Hermione Granger"], weight: 3 }], told: [], known: [], bonds: [], engagements: [], changed: [] };
     const story = hogwartsWorldStoryFile({ title: "The library", place: "The library", at: "Day 3 15:00", who: ["Hermione Granger"] });
-    const { mac, play, engine, storyId, head } = playable(story, { chronicler: Array.from({ length: 6 }, () => ({ fail: "Sonnet is overloaded" })) });
+    const { mac, play, engine, storyId, head } = playable(story, { chronicler: [{ answer: JSON.stringify(recorded) }] });
     const empty = capture();
-    expect(record(mac, storyId, undefined, empty.out)).toBe(true);
-    expect(empty.text()).toBe("Nothing is missing from the record.");
+    expect(record(mac, storyId, empty.out)).toBe(true);
+    expect(empty.text()).toBe("Nothing was left out of the record.");
     await play("I ask Hermione about the essay.");
     engine.endScene(storyId, head(), "t-end");
-    await engine.chronicled(storyId);
-    for (let start = 0; start < 2; start++) { engine.chronicleAll(); await engine.chronicled(storyId); }
+    await engine.ended(storyId);
     const listed = capture();
-    expect(record(mac, storyId, undefined, listed.out)).toBe(true);
-    expect(listed.lines[0]).toMatch(/^Scene 1 · The library · given up after three tries: .*Sonnet is overloaded/);
-    const retried = capture();
-    expect(record(mac, storyId, "1", retried.out)).toBe(true);
-    expect(retried.text()).toBe("Scene 1 will be recorded again by the Mac serving the phone, after the next Scene or when it starts.");
-    expect(mac.tree.recordsOn(head(), "record_gap").at(-1)?.payload).toMatchObject({ attempts: 0, givenUp: false });
-    const refused = capture();
-    expect(record(mac, storyId, "9", refused.out)).toBe(false);
-    expect(refused.text()).toBe("There is no Scene 9 on this Path.");
+    expect(record(mac, storyId, listed.out)).toBe(true);
+    expect(listed.lines[0]).toBe("Scene 1 · The library");
+    expect(listed.lines).toContain("  left out: moments[0]: none of its words are on the page");
+    expect(record(mac, "no-such-story", capture().out)).toBe(false);
   });
 
   it("shows a Story's World: the Lives, the Threads, and what happened with who knows each", async () => {
     const night = { lives: [{ who: "Crabbe and Goyle", where: "the Slytherin common room", doing: "running Draconia's errands", after: "Draconia's errands" }], threads: [{ name: "Quirrell and the third-floor door", now: "The door is scorched" }],
-      happened: [{ id: "H1", what: "Quirrell scorched the third-floor door.", at: "Day 4 02:00", where: "the third-floor corridor", known_to: ["Quirinus Quirrell"], landmark: null }], meanwhile: [], happenings: [] };
-    const { mac, play, engine, storyId, head } = playable(hogwartsWorldStoryFile({ at: "Day 3 22:40" }), { weaver: [{ answer: JSON.stringify(night) }], unplanned: true });
+      happened: [{ id: "H1", what: "Quirrell scorched the third-floor door.", at: "Day 4 02:00", where: "the third-floor corridor", known_to: ["Quirinus Quirrell"], landmark: null, move: null, missed: null }], meanwhile: [], on: [] };
+    const { mac, play, engine, storyId, head } = playable(hogwartsWorldStoryFile({ at: "Day 3 22:40" }), { weaver: [{ answer: JSON.stringify(night) }] });
     await play("I say goodnight.");
     engine.endScene(storyId, head(), "end");
-    await engine.woven(storyId);
+    await engine.ended(storyId);
     const shown = capture();
     expect(world(mac, storyId, shown.out)).toBe(true);
-    expect(shown.text()).toContain("The World stands at Day 4 07:30 (Saturday 7:30 am)");
+    expect(shown.text()).toContain("It is Day 4 07:30 (Saturday 7:30 am).");
     expect(shown.text()).toContain("Crabbe and Goyle: the Slytherin common room; running Draconia's errands; after: Draconia's errands");
     expect(shown.text()).toContain("Quirrell and the third-floor door: The door is scorched");
     expect(shown.text()).toContain("Day 4 02:00 · the third-floor corridor · Quirrell scorched the third-floor door. · known to: Quirinus Quirrell");

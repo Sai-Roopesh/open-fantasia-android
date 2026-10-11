@@ -1,10 +1,9 @@
 import type { ModelRequest, ModelRunner } from "./model-call.js";
 import { ScriptedRunner, type Script } from "./scripted.js";
 
-/** What the Writer's prompt was written from, as the Writer agent records it with each call. */
 interface WriterFacts {
-  now: string;
   opening: "day_view" | "unplanned" | null;
+  clock: string;
   title: string | null;
   place: string | null;
   here: string[];
@@ -14,9 +13,9 @@ interface WriterFacts {
 }
 
 /**
- * A Writer's answer that keeps every rule, made from the facts its prompt was written from: it frames a Scene when
- * one is needed, brings nobody in and sends nobody away, leaves the beats where they stand, and lets the Scene go on. Scripted models
- * answer the Writer with it unless a test says otherwise.
+ * A Writer's answer that keeps every rule: it frames a Scene when one is needed, brings in whoever the choice was with,
+ * leaves the beats where they stand, and lets the Scene go on a few minutes later. Scripted models answer the Writer
+ * with it unless a test says otherwise.
  */
 export function fakeWriterAnswer(request: ModelRequest): Script {
   const facts = request.facts as WriterFacts;
@@ -32,41 +31,27 @@ export function fakeWriterAnswer(request: ModelRequest): Script {
       : null;
   return {
     answer: JSON.stringify({
-      leaves_scene: false,
-      frame,
-      // A choice at the Day View opens there, then, with them.
-      comes_in: facts.choice?.who ?? [],
-      goes: [],
-      beats,
-      note: "Someone answers the Move, and wants something back.",
-      call: "continue",
-      intensity: 2,
-      arc_moved: true,
-      clock: facts.choice?.at ?? facts.now,
-      taste: facts.direction?.remember && facts.direction.text ? `Remember: ${facts.direction.text}` : null,
-      in_play: []
+      leaves_scene: false, frame, comes_in: facts.choice?.who ?? [], goes: [], beats,
+      note: "Someone answers the Move, and wants something back.", call: "continue", intensity: 2, arc_moved: true, minutes: 2,
+      taste: facts.direction?.remember && facts.direction.text ? `Remember: ${facts.direction.text}` : null, in_play: [], moves_to: null
     })
   };
 }
 
-/** What the Chronicler's prompt was written from, as the Chronicler agent records it with each call. */
 interface ChroniclerFacts {
-  sceneEnded: boolean;
-  labels: { label: string; kind: string; text: string }[];
+  passages: { label: string; move: boolean; text: string }[];
 }
 
-/**
- * A Chronicler's record that keeps every rule: the summary, of the Scene or of it so far, and the latest new Move as a
- * Moment in its own words, since only the player's words can be relied on to say what he did.
- */
+/** A Chronicler's record that keeps every rule: a line, a paragraph, and the latest Move as a Moment in its own words. */
 export function fakeChronicleAnswer(request: ModelRequest): Script {
   const facts = request.facts as ChroniclerFacts;
-  const move = facts.labels.filter(item => item.kind === "move").at(-1);
+  const move = facts.passages.filter(item => item.move).at(-1);
   return {
     answer: JSON.stringify({
-      summary: facts.sceneEnded ? "The Scene was played to its end." : "The Scene so far.",
+      summary: "The Scene was played to its end.",
+      paragraph: "The Scene was played to its end, and something between them turned.",
       moments: move ? [{ what: "What the player's character did.", quotes: [{ entry: move.label, text: move.text }], there: [], weight: 2 }] : [],
-      told: []
+      told: [], known: [], bonds: [], engagements: [], changed: []
     })
   };
 }
@@ -77,80 +62,68 @@ export function fakeReply(request: ModelRequest): Script {
   return { answer: `(A scripted Reply.) They hear you say: ${move.slice(0, 80)}` };
 }
 
-/** What the Weaver's prompt was written from, as the Weaver agent records it with each call. */
 interface WeaverFacts {
   from: string;
   until: string;
-  landmarks: { name: string; at: string }[];
-  afterPeak?: boolean;
-  leads: string[];
+  gap: boolean;
   missed: { label: string; at: string; place: string; who: string[]; expected: boolean }[];
-  next?: { id: string; at: string; place: string; who: string[] } | null;
-  moves?: { who: string; move: string }[];
-  movesDue?: boolean;
+  moves: { who: string; move: string }[];
+  landmarks: { name: string; at: string }[];
 }
 
 /**
- * A Weaver's record that keeps every rule: the World stays as it was, every Landmark in the span happens, the
- * player's character learns nothing, and the Story's pick is the Stretch's next Scene that matters, if any. In a Gap, what
- * he was expected at goes on without him, noticed.
+ * A Weaver's record that keeps every rule: the World stays as it was, every Landmark in the span happens, what he was
+ * expected at goes on without him, noticed, and the Leads' moves off-screen are made.
  */
 export function fakeWeaveAnswer(request: ModelRequest): Script {
   const facts = request.facts as WeaverFacts;
   return {
     answer: JSON.stringify({
-      lives: [],
-      threads: [],
+      lives: [], threads: [],
       happened: [
-        ...facts.landmarks.map((landmark, index) => ({ id: `H${index + 1}`, what: `${landmark.name} happened.`, at: landmark.at, where: "where it was held", known_to: [], landmark: landmark.name })),
-        ...facts.missed.filter(item => item.expected).map((item, index) => ({ id: `M${index + 1}`, what: `${item.place} went on without him, and they noticed.`, at: item.at, where: item.place, known_to: item.who, landmark: null, missed: item.label })),
-        // The Leads' off-screen moves, made once they are due.
-        ...(facts.movesDue ? facts.moves ?? [] : []).map((lead, index) => ({ id: `L${index + 1}`, what: `${lead.who}: ${lead.move}`, at: facts.until, where: "off-screen", known_to: [lead.who], landmark: null, move: lead.who }))
+        ...facts.landmarks.map((landmark, index) => ({ id: `H${index + 1}`, what: `${landmark.name} happened.`, at: landmark.at, where: "where it was held", known_to: [], landmark: landmark.name, move: null, missed: null })),
+        ...facts.missed.filter(item => item.expected).map((item, index) => ({ id: `M${index + 1}`, what: `${item.place} went on without him, and they noticed.`, at: item.at, where: item.place, known_to: item.who, landmark: null, move: null, missed: item.label })),
+        ...facts.moves.map((lead, index) => ({ id: `L${index + 1}`, what: `${lead.who}: ${lead.move}`, at: facts.until, where: "off-screen", known_to: [lead.who], landmark: null, move: lead.who, missed: null }))
       ],
-      meanwhile: [],
-      // The Stretch's next Scene that matters is the pick, when there is one (docs/adr/0010).
-      happenings: facts.next
-        ? [{ id: "P1", at: facts.next.at, place: facts.next.place, what: "Something is going on there that matters to him.", who: facts.next.who, expected: false, pick: true, quiet: facts.afterPeak === true, scene: facts.next.id }]
-        : facts.afterPeak
-        ? [{ id: "P1", at: facts.until, place: "the Great Hall", what: "A late breakfast, with nothing to do after.", who: [], expected: false, pick: true, quiet: true }]
-        : []
+      meanwhile: [], on: []
     })
   };
 }
 
-/** What the Director's prompt was written from, as the Director agent records it with each call. */
 interface DirectorFacts {
-  arcs: string[];
-  afterPeak: boolean;
   clock: string;
   leads: string[];
+  arcs: string[];
   coming: string[];
+  afterPeak: boolean;
 }
 
 /**
- * A Director's plan that keeps every rule: a Stretch of seven days from today, two Scenes that matter on the next two
- * days, a move for every Lead (the first on screen), a row for every Arc and every coming Landmark, and a rest after a
- * peak.
+ * A Director's plan that keeps every rule: five days from today, two Scenes that matter on the next two days (a quiet
+ * one first after a peak), one new thing, a move for every Lead (the first on screen), and every Arc's step.
  */
 export function fakeDirectorAnswer(request: ModelRequest): Script {
   const facts = request.facts as DirectorFacts;
-  const today = /^Day (\d+)/.exec(facts.clock)?.[1] ?? "1";
-  const day = (offset: number) => `Day ${Number(today) + offset}`;
   const lead = facts.leads[0] ?? null;
   return {
     answer: JSON.stringify({
-      from: day(0), until: day(6),
-      toward: facts.afterPeak ? "what comes after the rest" : "what comes next", landmark: null, phase: facts.afterPeak ? "rest" : "build",
+      days: 5, toward: "what comes next", landmark: null, phase: "build",
       scenes: [
-        { id: "S1", at: `${day(1)} 10:00`, place: "the Great Hall", who: lead ? [lead] : [], for: facts.afterPeak ? "A quiet morning after." : "A step for the Story.", lead, headline: "The Great Hall: a step for the Story" },
-        { id: "S2", at: `${day(2)} 15:00`, place: "the library", who: [], for: "Something else in his life.", lead: null, headline: "The library: something else in his life" }
+        { id: "S1", day: 1, time: "10:00", place: "the Great Hall", who: lead ? [lead] : [], for: facts.afterPeak ? "A quiet morning after." : "A step for the Story.", offer: "Something is going on there that matters to him.", headline: "The Great Hall: a step for the Story", lead, engagement: null, quiet: facts.afterPeak },
+        { id: "S2", day: 2, time: "15:00", place: "the library", who: [], for: "Something else in his life.", offer: "The library is quiet, for once.", headline: "The library: something else in his life", lead: null, engagement: null, quiet: false }
       ],
-      arcs: facts.arcs.map(arc => ({ arc, now: "where it stands", next: "one step", not_yet: "anything more" })),
+      new: [{ kind: "mystery", what: "A locked door nobody admits to.", scene: "S2", person: null }],
       leads: facts.leads.map((who, index) => ({ who, move: `${who} does something about him.`, scene: index === 0 ? "S1" : null })),
+      arcs: facts.arcs.map(arc => ({ arc, now: "where it stands", next: "one step", not_yet: "anything more" })),
       roadmap: facts.arcs.flatMap(arc => facts.coming.map(by => ({ arc, by, stands: "a step further than now" }))),
       premise: "Some Scenes serve the Premise; the others leave it alone."
     })
   };
+}
+
+/** A Folder's fold: the parts in a line. */
+export function fakeFoldAnswer(): Script {
+  return { answer: JSON.stringify({ text: "A week in which things turned." }) };
 }
 
 /**
@@ -163,21 +136,22 @@ export class FakeModels implements ModelRunner {
   readonly chronicler: ScriptedRunner;
   readonly weaver: ScriptedRunner;
   readonly director: ScriptedRunner;
-  /** Every request, in the order it was made. */
+  readonly folder: ScriptedRunner;
   readonly requests: ModelRequest[] = [];
 
-  constructor(scripts: { writer?: Script[]; actor?: Script[]; chronicler?: Script[]; weaver?: Script[]; director?: Script[] } = {}, actorFallback: (request: ModelRequest) => Script = () => ({ answer: "She looks at you, and waits." })) {
+  constructor(scripts: { writer?: Script[]; actor?: Script[]; chronicler?: Script[]; weaver?: Script[]; director?: Script[]; folder?: Script[] } = {}, actorFallback: (request: ModelRequest) => Script = () => ({ answer: "She looks at you, and waits." })) {
     this.writer = new ScriptedRunner(scripts.writer ?? [], fakeWriterAnswer);
     this.actor = new ScriptedRunner(scripts.actor ?? [], actorFallback);
     this.chronicler = new ScriptedRunner(scripts.chronicler ?? [], fakeChronicleAnswer);
     this.weaver = new ScriptedRunner(scripts.weaver ?? [], fakeWeaveAnswer);
     this.director = new ScriptedRunner(scripts.director ?? [], fakeDirectorAnswer);
+    this.folder = new ScriptedRunner(scripts.folder ?? [], fakeFoldAnswer);
   }
 
   run(request: ModelRequest, onText: (delta: string) => void, signal: AbortSignal): Promise<string> {
     this.requests.push(request);
     const runner = request.agent === "writer" ? this.writer : request.agent === "chronicler" ? this.chronicler : request.agent === "weaver" ? this.weaver
-      : request.agent === "director" ? this.director : this.actor;
+      : request.agent === "director" ? this.director : request.agent === "folder" ? this.folder : this.actor;
     return runner.run(request, onText, signal);
   }
 }

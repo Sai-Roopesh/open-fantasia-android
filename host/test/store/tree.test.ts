@@ -114,43 +114,38 @@ describe("working out the State on a Path", () => {
       origin: "main", forkedAt: null, opened: true, named: false });
   });
 
-  it("reads a Beat Note written before a field was added as having it empty", () => {
-    const { db, tree, opened } = storyWithScene();
-    const move = tree.append("s", opened.id, { kind: "move", text: "I raise my glass." });
-    // As the Writer's first version stored it: nothing in play and nobody going, because neither existed yet.
-    const stored = { kind: "beat_note", plan: null, here: ["Draconia Malfoy"], beats: [], note: "She drinks.", call: "continue", intensity: 2, arcMoved: true, clock: "Day 1 21:41", taste: null, callId: "c", model: { provider: "claude", model: "claude-sonnet-5-5" } };
-    db.prepare("INSERT INTO entries (id, story_id, parent_id, kind, payload, created_at) VALUES ('old-note', 's', ?, 'beat_note', ?, 'now')").run(move.id, JSON.stringify(stored));
-    expect(tree.entry("old-note")?.payload).toMatchObject({ kind: "beat_note", inPlay: [], goes: [] });
-    expect(tree.pathTo("old-note").at(-1)?.payload).toMatchObject({ inPlay: [], goes: [] });
+  it("sets a Story made before the Ledger aside, unlisted and kept as it was, while a new one is listed", () => {
+    const file = join(mkdtempSync(join(tmpdir(), "fantasia-old-")), "fantasia.db");
+    const old = new Database(file);
+    old.exec(`
+      CREATE TABLE stories (id TEXT PRIMARY KEY, title TEXT NOT NULL, folder TEXT NOT NULL, created_at TEXT NOT NULL);
+      INSERT INTO stories VALUES ('old', 'The Night Train to Kalka', '/x', 'then');
+    `);
+    old.close();
+    const db = openDb(file);
+    db.prepare("INSERT INTO stories (id, title, folder, created_at) VALUES ('new', 'The Malfoy Problem', '/y', 'now')").run();
+    expect(db.prepare("SELECT id, before_ledger FROM stories ORDER BY id").all()).toEqual([{ id: "new", before_ledger: 0 }, { id: "old", before_ledger: 1 }]);
+    // Opened again, nothing more is set aside.
+    db.close();
+    expect(openDb(file).prepare("SELECT id FROM stories WHERE before_ledger = 0").all()).toEqual([{ id: "new" }]);
   });
 
-  it("reads a Chronicle written before sceneEnded as ended exactly when it had a summary", () => {
-    const { db, tree, opened } = storyWithScene();
-    const move = tree.append("s", opened.id, { kind: "move", text: "I raise my glass." });
-    const stored = (id: string, summary: string | null) => db.prepare("INSERT INTO entries (id, story_id, parent_id, kind, payload, created_at) VALUES (?, 's', ?, 'chronicle', ?, 'now')")
-      .run(id, move.id, JSON.stringify({ kind: "chronicle", scene: opened.id, summary, moments: [], told: [], callId: "c", model: { provider: "claude", model: "claude-sonnet-5-5" } }));
-    stored("old-open", null);
-    stored("old-ended", "She drank to him.");
-    expect(tree.entry("old-open")?.payload).toMatchObject({ sceneEnded: false });
-    expect(tree.entry("old-ended")?.payload).toMatchObject({ sceneEnded: true });
-  });
-
-  it("keeps Chronicles beside the Path: a Path sees those whose parent is on it, and never walks one", () => {
-    const { tree, opened } = storyWithScene();
+  it("keeps a Scene's record on the Path: the State at an entry has only what the Path to it holds", () => {
+    const { tree, states, opened } = storyWithScene();
     const model = { provider: "claude", model: "claude-sonnet-5-5" } as const;
-    const chronicle = (parent: string, summary: string) => tree.append("s", parent, { kind: "chronicle", scene: opened.id, summary, sceneEnded: false, moments: [], told: [], callId: "c", model });
     const move = tree.append("s", opened.id, { kind: "move", text: "I wave." });
     const reply = tree.append("s", move.id, { kind: "reply", text: "She waves back.", callId: "c", model });
-    const early = chronicle(move.id, "early");
-    const late = chronicle(reply.id, "late");
-    const after = tree.append("s", reply.id, { kind: "move", text: "I sit." });
-
-    expect(tree.recordsOn(after.id, "chronicle").map(entry => entry.id)).toEqual([early.id, late.id]);
-    expect(tree.pathTo(after.id).some(entry => entry.payload.kind === "chronicle")).toBe(false);
-    // A Path from an earlier entry inherits the Chronicles before it, and not those after.
-    expect(tree.recordsOn(move.id, "chronicle").map(entry => entry.id)).toEqual([early.id]);
-    // A Redo's new branch under the Move loses the Chronicle about the old Reply.
+    const closed = tree.append("s", reply.id, { kind: "scene_closed", by: "player" });
+    const chronicle = tree.append("s", closed.id, {
+      kind: "chronicle", scene: 1, summary: "She waved back.", paragraph: "He waved; she waved back.", told: [], known: [], bonds: [], engagements: [], changed: [], dropped: [],
+      moments: [{ what: "She waves back.", quotes: [{ entry: reply.id, text: "She waves back." }], there: ["Draconia Malfoy"], weight: 2 }], callId: "c", model
+    });
+    expect(tree.pathTo(chronicle.id).map(entry => entry.payload.kind)).toEqual(["story_set_up", "scene_opened", "move", "reply", "scene_closed", "chronicle"]);
+    expect(states.at(chronicle.id).recorded).toEqual([{ number: 1, title: "The insult", summary: "She waved back.", dropped: [] }]);
+    expect(states.at(chronicle.id).facts.map(fact => fact.what)).toEqual(["She waves back."]);
+    // The Scene before its end has none of it, and nor does a Redo's new branch under the Move.
+    expect(states.at(closed.id)).toMatchObject({ recorded: [], facts: [] });
     const redo = tree.append("s", move.id, { kind: "redo", direction: null, remember: false });
-    expect(tree.recordsOn(redo.id, "chronicle").map(entry => entry.id)).toEqual([early.id]);
+    expect(states.at(redo.id)).toMatchObject({ recorded: [], facts: [] });
   });
 });

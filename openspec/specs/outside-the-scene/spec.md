@@ -52,8 +52,9 @@ what the Director is building toward, each Scene that matters in the Stretch in 
 beats for the current Scene. Nothing from Backstage SHALL
 appear in the Scene, the Day View, the World screen or the Journal.
 
-Backstage SHALL also show **The record**: each Scene not yet recorded, and each part of a record that was left out,
-with why. A Scene given up after three tries SHALL offer Retry.
+Backstage SHALL also show **The record**, each part of a record that was left out, with why; what each **Stretch**
+brought that was new; and **How it's going**: how long Scene ends take, how often each job needed its second model or
+a Retry, the pace of the recent Scenes, how often the Story's pick was taken, and the player's reactions.
 
 #### Scenario: Quirrell's nights, Backstage
 - **WHEN** the player opens Backstage for Saturday night
@@ -65,9 +66,9 @@ with why. A Scene given up after three tries SHALL offer Retry.
 - **THEN** it says the Story is building toward the flying test on Wednesday, and that rest comes after it
 
 #### Scenario: A gap in the record
-- **GIVEN** the record of the library Scene was given up after three tries
+- **GIVEN** a Scene's record was kept with a Moment left out, because its words were not on the page
 - **WHEN** the player opens Backstage
-- **THEN** The record lists the library Scene with why it failed, and Retry records it again
+- **THEN** The record lists that Scene, the Moment left out, and why
 
 #### Scenario: The Stretch, a line each
 - **GIVEN** the Director's Stretch has Charms on Monday as a Scene that matters
@@ -75,10 +76,16 @@ with why. A Scene given up after three tries SHALL offer Retry.
 - **THEN** it lists Monday's Scene in one short line, such as "Charms: Flitwick pairs him with Draconia", and not the
   Director's note to the Writer
 
+#### Scenario: How it's going
+- **GIVEN** ten Scenes have been played
+- **WHEN** the player opens Backstage
+- **THEN** How it's going shows how long their Scene ends took, how often a job needed its second model, the pace of
+  the ten Scenes, how often the Story's pick was taken, and the reactions given
+
 ### Requirement: One Models screen
 
-One screen, reached from Home, SHALL list every job (the **Actor**, the **Writer**, the **Chronicler**, the **Weaver**
-and the **Director**) with the model doing it, chosen from every model Claude, Codex and Antigravity offer, each with
+One screen, reached from Home, SHALL list every job (the **Actor**, the **Writer**, the **Chronicler**, the **Weaver**,
+the **Director** and the **Folder**), each with its model and its second model, with the model doing it, chosen from every model Claude, Codex and Antigravity offer, each with
 the efforts that model supports. The **Actor**'s model SHALL be settable per **Story** on the same screen; a **Story**
 without its own takes the one its Story File names. A change SHALL reach the next work of that job, and SHALL stay
 until it is changed again. When a provider cannot be asked what it offers, the screen SHALL show the models it last
@@ -96,3 +103,7 @@ offered and say it could not be reached.
 - **GIVEN** the player set the Writer to Gemini 3.8 Flash at high effort
 - **WHEN** the Mac's host is restarted
 - **THEN** the Models screen still shows the Writer on Gemini 3.8 Flash, high, and the next Writer work runs on it
+
+#### Scenario: The Folder on Haiku
+- **GIVEN** the player has never set the Folder's model
+- **THEN** the Models screen shows the Folder on Haiku 4.5, and the player can move it like any job

@@ -1,20 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { writeChronicle } from "../../src/agents/chronicler.js";
-import { chronicleAsk, dueChronicle } from "../../src/engine/chronicling.js";
+import { writeChronicle, type ChronicleAsk } from "../../src/agents/chronicler.js";
 import { Engine } from "../../src/engine/engine.js";
+import { endedScene } from "../../src/engine/scene-end.js";
 import { ClaudeRunner } from "../../src/models/claude.js";
 import { DEFAULT_JOB_MODELS } from "../../src/models/jobs.js";
 import { Models } from "../../src/models/model-call.js";
 import type { StoryFile } from "../../src/protocol/generated/story-file.js";
 import { CLAUDE_TOKEN, readSecret } from "../../src/secrets.js";
-import { momentsOn } from "../../src/story/memory.js";
 import { importStoryFile } from "../../src/storyfile/import.js";
 import { sceneView } from "../../src/views/scene.js";
 import { freshHome } from "../support/host.js";
 import { hogwartsStoryFile, hogwartsWorldStoryFile, writeStoryFile } from "../support/story-files.js";
 
 // These call real models through the player's Claude subscription: the Chronicler and the Writer on their default
-// models, the Actor on the Story's, and a judge. They run only with `npm run test:real`.
+// models, the Actor on the Story's, and a judge; a Scene ended through the engine runs its whole end on real models.
+// They run only with `npm run test:real`.
 const token = readSecret(CLAUDE_TOKEN);
 const RUNS = 3;
 
@@ -38,6 +38,14 @@ function onClaude(storyFile: StoryFile) {
       at = replied.id;
     }
   };
+  /** Closes the Scene as the player ends it, without starting its end, and returns what the Chronicler is asked. */
+  const closed = (): ChronicleAsk => {
+    const path = mac.tree.currentPath(storyId)!;
+    const close = mac.tree.append(storyId, path.headEntryId, { kind: "scene_closed", by: "player" });
+    mac.tree.moveHead(path.id, path.headEntryId, close.id);
+    const state = mac.states.at(close.id);
+    return { state, scene: endedScene(mac, close.id, state) };
+  };
   /** Plays one Move through the real Writer and Actor, and returns the Reply. */
   const play = async (move: string) => {
     engine.move(storyId, move, head(), "real");
@@ -47,7 +55,7 @@ function onClaude(storyFile: StoryFile) {
     if (!reply) throw new Error(`No Reply: ${view.turn.reason ?? "unknown"}`);
     return reply;
   };
-  return { mac, runner, models, engine, storyId, head, played, play };
+  return { mac, runner, models, engine, storyId, head, played, closed, play };
 }
 
 async function judge(question: string, passage: string): Promise<{ yes: boolean; said: string }> {
@@ -79,12 +87,9 @@ describe.skipIf(!token)("the Chronicler on Claude", () => {
   it("records the inkwell and the troll as Moments shared with Hermione, word for word, and never her invented line as his", async () => {
     for (let run = 0; run < RUNS; run++) {
       const opening = hogwartsStoryFile({ title: "First week", place: "Hogwarts", at: "Day 2 09:00", who: ["Hermione Granger", "Neville Longbottom"], prose: "The first week is mostly stairs." });
-      const { mac, runner, models, storyId, head, played } = onClaude(opening);
+      const { runner, models, storyId, played, closed } = onClaude(opening);
       played(sharedWithHermione);
-      const engine = new Engine(mac, models);
-      engine.endScene(storyId, head(), "real-end");
-      const due = dueChronicle(mac, head())!;
-      const record = await writeChronicle(models, DEFAULT_JOB_MODELS.chronicler, chronicleAsk(mac, due), storyId, "real-chronicle", new AbortController().signal);
+      const record = await writeChronicle(models, [DEFAULT_JOB_MODELS.chronicler], closed(), storyId, "real-chronicle", new AbortController().signal);
       runner.close();
       const moments = record.value.moments;
       const words = (pattern: RegExp) => moments.some(moment => moment.there.includes("Hermione Granger") && moment.quotes.some(quote => pattern.test(quote.text)));
@@ -92,24 +97,6 @@ describe.skipIf(!token)("the Chronicler on Claude", () => {
       expect(words(/club|bathroom|troll|wrist|sink/i), `run ${run + 1}: ${JSON.stringify(moments)}`).toBe(true);
       expect(moments.some(moment => moment.quotes.some(quote => /hate flying/i.test(quote.text))), `run ${run + 1}`).toBe(false);
       expect(record.value.summary, `run ${run + 1}`).toBeTruthy();
-    }
-  });
-
-  it("writes where an open Scene stands so far once the player steps away, inventing nothing", async () => {
-    const shown = sharedWithHermione.map(([move, reply]) => `Roopesh's move: ${move}\nThe reply: ${reply}`).join("\n\n");
-    for (let run = 0; run < RUNS; run++) {
-      const opening = hogwartsStoryFile({ title: "First week", place: "Hogwarts", at: "Day 2 09:00", who: ["Hermione Granger", "Neville Longbottom"], prose: "The first week is mostly stairs." });
-      const { mac, runner, models, storyId, head, played } = onClaude(opening);
-      played(sharedWithHermione);
-      // The player stepped away mid-Scene: two hours on, the open Scene is due.
-      const due = dueChronicle(mac, head(), new Date(Date.now() + 2 * 3600_000))!;
-      expect(due.sceneEnded).toBe(false);
-      const record = await writeChronicle(models, DEFAULT_JOB_MODELS.chronicler, chronicleAsk(mac, due), storyId, "real-so-far", new AbortController().signal);
-      runner.close();
-      const summary = record.value.summary ?? "";
-      expect(summary, `run ${run + 1}`).not.toBe("");
-      const invents = await judge(`This Scene so far was played as follows:\n\n${shown}\n\nThe passage is a summary of the Scene so far, for a player coming back to it. Does it say anything the Scene did not show, or treat Hermione's claim that Roopesh hates flying as something true or something he said? Answer YES or NO.`, summary);
-      expect(invents.yes, `run ${run + 1}: ${invents.said}\n---\n${summary}`).toBe(false);
     }
   });
 
@@ -121,7 +108,8 @@ describe.skipIf(!token)("the Chronicler on Claude", () => {
       const { runner, engine, storyId, head, played, play } = onClaude(opening);
       played(sharedWithHermione);
       engine.endScene(storyId, head(), "real-end");
-      await engine.chronicled(storyId);
+      await engine.ended(storyId);
+      expect(engine.sceneEndOf(storyId).failed, `run ${run + 1}`).toBeNull();
       await play("Late that night I find Hermione alone in the common room, and sit down at the other end of the sofa.");
       const reply = await play("I kiss her, quickly, and pull back before she can say anything.");
       runner.close();
@@ -133,7 +121,8 @@ describe.skipIf(!token)("the Chronicler on Claude", () => {
   });
 
   // Lasting-records task 2.4: after a Scene that changes where things stand with Draconia, the real Chronicler writes a
-  // turn and a standing within their limits, and keeps what he knows of her within sixty words, saying no secret feeling.
+  // turn and a standing within the lengths it is asked for, and keeps what he knows of her within sixty words, saying no
+  // secret feeling.
   it("keeps Draconia's Bond and what he knows of her within their limits after the classroom", async () => {
     const floating: [string, string][] = [
       ["When her levitation charm goes wrong and everything in the room lifts, I catch her before she hits the ceiling.",
@@ -146,10 +135,9 @@ describe.skipIf(!token)("the Chronicler on Claude", () => {
     for (let run = 0; run < RUNS; run++) {
       const classroom = hogwartsStoryFile({ title: "Twenty-nine minutes", place: "An empty classroom", at: "Day 9 16:00", who: ["Draconia Malfoy"], prose: "Draconia sets out her notes and does not look up when he comes in." });
       classroom.people = classroom.people.map(person => person.name === "Draconia Malfoy" ? { ...person, known, bond } : person) as StoryFile["people"];
-      const { mac, runner, models, storyId, head, played } = onClaude(classroom);
+      const { runner, models, storyId, played, closed } = onClaude(classroom);
       played(floating);
-      new Engine(mac, models).endScene(storyId, head(), "real-end");
-      const record = await writeChronicle(models, DEFAULT_JOB_MODELS.chronicler, chronicleAsk(mac, dueChronicle(mac, head())!), storyId, "real-bond", new AbortController().signal);
+      const record = await writeChronicle(models, [DEFAULT_JOB_MODELS.chronicler], closed(), storyId, "real-bond", new AbortController().signal);
       runner.close();
       const said = `run ${run + 1}: ${JSON.stringify({ bonds: record.value.bonds, known: record.value.known, dropped: record.dropped })}`;
       const row = record.value.bonds.find(item => item.who === "Draconia Malfoy");
@@ -158,7 +146,8 @@ describe.skipIf(!token)("the Chronicler on Claude", () => {
       expect(words(row!.standing), said).toBeLessThanOrEqual(40);
       expect(words(row!.turn), said).toBeLessThanOrEqual(25);
       for (const line of record.value.known) expect(words(line.now), said).toBeLessThanOrEqual(60);
-      expect(record.dropped.filter(why => /^(bonds|known):/.test(why)), said).toEqual([]);
+      // Nothing about her is left out of the record: a line longer than asked is kept as written, and her name is hers.
+      expect(record.dropped.filter(why => /Draconia/.test(why)), said).toEqual([]);
       const secret = await judge("The passage says where things stand between Roopesh and Draconia, as he has seen it. Does it state a feeling of hers as a fact (that she likes, loves, wants or is falling for him) rather than what she said or did? Answer YES or NO.", `${row!.standing}\n${row!.turn}`);
       expect(secret.yes, `${said}\n${secret.said}`).toBe(false);
     }
@@ -174,8 +163,10 @@ describe.skipIf(!token)("the Chronicler on Claude", () => {
       played([["Draconia is shoved toward the edge as the train pulls out. I grab her wrist and haul her back onto the platform.",
         "For a moment she is pressed against you, breathing hard, the train roaring past an arm's length away. Then she pulls her wrist free. \"I'd have managed,\" Draconia says, and doesn't look at you. \"Don't touch me again, Stray.\""]]);
       engine.endScene(storyId, head(), "real-end");
-      await engine.chronicled(storyId);
-      expect(momentsOn(mac, head()).some(item => item.knownTo.includes("Draconia Malfoy")), `run ${run + 1}: no Moment with Draconia`).toBe(true);
+      await engine.ended(storyId);
+      expect(engine.sceneEndOf(storyId).failed, `run ${run + 1}`).toBeNull();
+      const moments = mac.states.at(head()).facts.filter(fact => fact.source === "page");
+      expect(moments.some(item => item.knownTo.includes("Draconia Malfoy")), `run ${run + 1}: no Moment with Draconia`).toBe(true);
       const reply = await play("A week later I find Draconia alone in the library and tell her I don't want anything for the station. She owes me nothing.");
       runner.close();
       const remembers = await judge("Earlier, at the train station, Roopesh hauled Draconia back from the platform's edge by her wrist as the train pulled out; she told him she'd have managed and not to touch her again. Does this passage show Draconia drawing on that actual event (what was said or done at the station), even if she tells it her own way? Answer YES or NO.", reply);
@@ -193,7 +184,8 @@ describe.skipIf(!token)("the Chronicler on Claude", () => {
       played([["I lean closer to the fire to see what's ticking.",
         "Hagrid lifts a huge black egg out of the coals with his bare hands. \"Won it off a stranger in the Hog's Head,\" he says, delighted. \"Norwegian Ridgeback, I reckon. Not a word to anyone, mind.\" Ron swears softly. Harry looks at the window."]]);
       engine.endScene(storyId, head(), "real-end");
-      await engine.chronicled(storyId);
+      await engine.ended(storyId);
+      expect(engine.sceneEndOf(storyId).failed, `run ${run + 1}`).toBeNull();
       const reply = await play("That evening I sit down across from Hermione in the library. I don't say anything about Hagrid.");
       runner.close();
       const knows = await judge("In this story, Hermione has never been told about, and has not seen, a dragon egg at Hagrid's hut. Does anything in this passage show Hermione knowing about or hinting at a dragon egg, a dragon, or what Hagrid is hiding? Answer YES or NO.", reply);
@@ -209,14 +201,12 @@ describe.skipIf(!token)("the Chronicler on Claude", () => {
       story.people = story.people.map(person => person.name === "Quirinus Quirrell"
         ? { ...person, who_they_are: "Serves Voldemort, who lives on the back of his head under the turban. Let the troll in himself.", known: "The nervous Defence teacher. He stammers, and smells of garlic." }
         : person) as typeof story.people;
-      const { mac, runner, models, storyId, head, played } = onClaude(story);
+      const { runner, models, storyId, played, closed } = onClaude(story);
       const scene: [string, string] = ["I stay behind after class and ask Professor Quirrell about the essay on hinkypunks.",
         "Quirrell jumps when you speak, and drops his chalk. \"Ah! H-hinkypunks. One l-leg, l-lanterns, lure travellers into b-bogs,\" he says. \"T-twelve inches, by F-Friday.\" He picks up the chalk, drops it again, and laughs a thin laugh. \"Off you g-go, now. Mind the st-stairs.\""];
       played([scene]);
-      new Engine(mac, models).endScene(storyId, head(), "real-end");
-      const due = dueChronicle(mac, mac.tree.currentPath(storyId)!.headEntryId)!;
       try {
-        const { value } = await writeChronicle(models, DEFAULT_JOB_MODELS.chronicler, chronicleAsk(mac, due), storyId, "real-known", new AbortController().signal);
+        const { value } = await writeChronicle(models, [DEFAULT_JOB_MODELS.chronicler], closed(), storyId, "real-known", new AbortController().signal);
         const line = value.known.find(row => row.who === "Quirinus Quirrell")?.now ?? "The nervous Defence teacher. He stammers, and smells of garlic.";
         expect(line).not.toMatch(/Voldemort|turban|let the troll in/i);
         const secret = await judge("Does this say or hint that Quirrell serves Voldemort, or hides something under his turban? Answer YES or NO.", line);

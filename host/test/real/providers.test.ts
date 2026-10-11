@@ -1,17 +1,32 @@
 import { Ajv2020 } from "ajv/dist/2020.js";
 import { afterAll, describe, expect, it } from "vitest";
-import { WEAVER_SCHEMA } from "../../src/agents/weaver.js";
+import { weaverFormat } from "../../src/agents/weaver.js";
+import { sceneEndWeave } from "../../src/engine/scene-end.js";
 import { Models, type ModelRequest } from "../../src/models/model-call.js";
 import { subscriptionRunners } from "../../src/models/runners.js";
 import type { ModelChoice } from "../../src/story/state.js";
+import { importStoryFile } from "../../src/storyfile/import.js";
 import { freshHome } from "../support/host.js";
+import { hogwartsWorldStoryFile, writeStoryFile } from "../support/story-files.js";
 
 // One short call to each provider through the player's own subscription (docs/adr/0005), plain and with the Weaver's
-// schema: what proves a runner still speaks to the CLI it was built against. Runs only with `npm run test:real`.
+// answer format as a Story builds it: what proves a runner still speaks to the CLI it was built against. Runs only with
+// `npm run test:real`.
 const mac = freshHome();
 const runners = subscriptionRunners(mac.home);
 const models = new Models(mac.db, runners);
 afterAll(() => runners.close());
+
+/** The Weaver's format for a Hogwarts Story's first Scene's end, with the Story's people as its fixed list. */
+function weaverSchema(): Record<string, unknown> {
+  const imported = importStoryFile(writeStoryFile(hogwartsWorldStoryFile()), mac);
+  if (!imported.ok) throw new Error(`import failed: ${JSON.stringify(imported.problems)}`);
+  const path = mac.tree.currentPath(imported.storyId)!;
+  const closed = mac.tree.append(imported.storyId, path.headEntryId, { kind: "scene_closed", by: "player" });
+  mac.tree.moveHead(path.id, path.headEntryId, closed.id);
+  const state = mac.states.at(closed.id);
+  return weaverFormat(state, sceneEndWeave(mac, closed.id, state));
+}
 
 const PROVIDERS: ModelChoice[] = [
   { provider: "claude", model: "claude-sonnet-5-5" },
@@ -41,13 +56,14 @@ describe.each(PROVIDERS)("a real call on $provider $model", model => {
     expect(words.join("").trim().length).toBeGreaterThan(0);
   });
 
-  it("answers the Weaver's schema", async () => {
+  it("answers the Weaver's format", async () => {
+    const schema = weaverSchema();
     const answer = await models.call(ask(model, {
       system: "You move a story's World on between Scenes. Answer only with JSON.",
-      prompt: "Day 1, 9:40 pm to Day 2, 7:10 am. Hermione went up to bed; Ron stayed by the fire. Nothing else moved. Fill every list with what moved, empty if nothing; at most two lines of meanwhile.",
-      schema: WEAVER_SCHEMA
+      prompt: "Day 3, 9:40 pm to Day 4, 7:30 am. Hermione Granger went up to bed; Ron Weasley stayed by the fire. Nothing else moved. Fill every list with what moved, empty if nothing; at most two lines of meanwhile.",
+      schema
     }));
-    const check = new Ajv2020({ strict: false }).compile(WEAVER_SCHEMA);
+    const check = new Ajv2020({ strict: false }).compile(schema);
     expect(check(answer.json), JSON.stringify(check.errors)).toBe(true);
   });
 });

@@ -3,12 +3,10 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { extname, join, resolve } from "node:path";
 import { nameIndex, storyName } from "../agents/names.js";
-import { knownOn } from "../story/known.js";
 import qrcode from "qrcode-terminal";
 import { localAddresses } from "../link/bonjour.js";
 import { Pairing, PAIRING_MINUTES } from "../link/pairing.js";
 import { ensureCertificate } from "../link/tls.js";
-import { markForRetry, recordOn } from "../engine/chronicling.js";
 import type { Engine } from "../engine/engine.js";
 import { LinkError } from "../link/errors.js";
 import type { Mac } from "../mac.js";
@@ -19,9 +17,7 @@ import { actorOf, DEFAULT_JOB_MODELS, JOBS, jobModels, setJobModel, setStoryActo
 import { CLAUDE_TOKEN, readSecret, storeSecret } from "../secrets.js";
 import type { ModelChoice } from "../story/state.js";
 import type { Payload } from "../story/entries.js";
-import { worldOn } from "../story/world.js";
 import { parseStoryTime, sayStoryTime } from "../time.js";
-import { momentsOn } from "../story/memory.js";
 import { importStoryFile } from "../storyfile/import.js";
 import { Traces } from "../trace.js";
 import { say } from "../views/scene.js";
@@ -110,10 +106,13 @@ function describe(payload: Payload): string {
     case "place_set": return `The ${payload.institution ? "institution" : "place"} ${payload.place.name}: ${payload.place.description}`;
     case "world_set": return `The World: ${payload.summary}`;
     case "clock_set": return `The clock moved on to ${payload.clock}${payload.dayOneWeekday ? `, Day 1 a ${payload.dayOneWeekday}` : ""}`;
-    case "chronicle": return `${payload.moments.length} Moments${payload.summary ? `: ${payload.summary}` : ""}`;
-    case "world_moved": return `The World moved on to ${payload.until}: ${payload.lives.length} Lives, ${payload.happened.length} happened, ${payload.meanwhile.length} in Meanwhile`;
-    case "director_plan": return `The Director: ${payload.phase} toward ${payload.toward}, ${payload.scenes} Scenes`;
-    case "record_gap": return payload.givenUp ? `Not recorded, given up after ${payload.attempts} tries: ${payload.reason}` : `Not recorded yet (${payload.attempts} tries): ${payload.reason}`;
+    case "brief_set": return `Brief: more ${payload.more.join(" / ") || "nothing"}; less ${payload.less.join(" / ") || "nothing"}`;
+    case "routine_set": return `Routine: ${payload.routine.join(" / ")}`;
+    case "reaction_set": return `Scene ${payload.scene}: ${payload.reaction ?? "no reaction"}`;
+    case "chronicle": return `Scene ${payload.scene} recorded, ${payload.moments.length} Moments: ${payload.summary}`;
+    case "world_moved": return `The World moved on${payload.gap ? " over a Gap" : ""} to ${payload.until}: ${payload.lives.length} Lives, ${payload.happened.length} happened, ${payload.meanwhile.length} in Meanwhile`;
+    case "director_plan": return `The Director: ${payload.phase} toward ${payload.toward}, ${payload.scenes.length} Scenes, new: ${payload.newThings.map(thing => thing.what).join(" / ")}`;
+    case "story_folded": return `${payload.count} folded into a ${payload.into}: ${payload.text}`;
   }
 }
 
@@ -142,7 +141,7 @@ export function models(mac: Mac, args: string[], out: Out): boolean {
       const isDefault = JSON.stringify(choice) === JSON.stringify(DEFAULT_JOB_MODELS[name]);
       out(`${name}  ${choice.provider}  ${choice.model}${choice.effort ? `  effort ${choice.effort}` : ""}${isDefault ? "  (default)" : ""}`);
     }
-    const stories = mac.db.prepare("SELECT id, title FROM stories ORDER BY created_at").all() as { id: string; title: string }[];
+    const stories = mac.db.prepare("SELECT id, title FROM stories WHERE before_ledger = 0 ORDER BY created_at").all() as { id: string; title: string }[];
     for (const story of stories) {
       const actor = actorOf(mac, story.id);
       if (!actor) continue;
@@ -156,7 +155,7 @@ export function models(mac: Mac, args: string[], out: Out): boolean {
   }
   if (job === "actor") {
     const [story, ...setting] = rest;
-    const found = (mac.db.prepare("SELECT id, title FROM stories WHERE id = ? OR title = ?").get(story ?? "", story ?? "") as { id: string; title: string } | undefined);
+    const found = (mac.db.prepare("SELECT id, title FROM stories WHERE before_ledger = 0 AND (id = ? OR title = ?)").get(story ?? "", story ?? "") as { id: string; title: string } | undefined);
     if (!found) return (out(`No Story "${story ?? ""}" on this Mac.`), false);
     if (setting[0] === "reset") {
       setStoryActor(mac.home, found.id, null);
@@ -194,15 +193,16 @@ function chosen(catalog: Catalog, [provider, model, effort]: string[], out: Out)
 export function moments(mac: Mac, storyId: string, out: Out): boolean {
   const path = mac.tree.currentPath(storyId);
   if (!path) return (out(`No Story ${storyId}.`), false);
-  const pc = mac.states.at(path.headEntryId).playerCharacter;
-  const remembered = momentsOn(mac, path.headEntryId);
+  const state = mac.states.at(path.headEntryId);
+  const pc = state.playerCharacter;
+  const titles = new Map(state.recorded.map(row => [row.number, row.title]));
+  const remembered = state.facts.filter(fact => fact.source === "page");
   if (remembered.length === 0) out("No Moments recorded yet.");
-  for (const { moment, scene, knownTo } of remembered) {
-    out(`Scene ${scene.number} · ${scene.title} · weight ${moment.weight}`);
-    out(`  ${moment.what}`);
-    const told = knownTo.filter(name => !moment.there.includes(name));
-    out(`  There: ${moment.there.join(", ") || "only " + pc}${told.length ? ` · told: ${told.join(", ")}` : ""}`);
-    for (const quote of moment.quotes) {
+  for (const fact of remembered) {
+    out(`Scene ${fact.scene}${titles.has(fact.scene) ? ` · ${titles.get(fact.scene)}` : ""} · weight ${fact.weight}`);
+    out(`  ${fact.what}`);
+    out(`  Known to: ${fact.knownTo.join(", ")}`);
+    for (const quote of fact.quotes) {
       const entry = mac.tree.entry(quote.entry);
       out(`  ${entry?.payload.kind === "move" ? `${pc}: ` : ""}"${quote.text}"`);
     }
@@ -210,27 +210,14 @@ export function moments(mac: Mac, storyId: string, out: Out): boolean {
   return true;
 }
 
-/**
- * `fantasia record`: The record of a Story's current Path, as Backstage shows it; with a Scene's number, marks that
- * Scene to be recorded again by the Mac serving the phone (this command has no models of its own to record it with).
- */
-export function record(mac: Mac, storyId: string, retry: string | undefined, out: Out): boolean {
+/** `fantasia record`: The record of a Story's current Path, as Backstage shows it: each Scene with parts left out, and why. */
+export function record(mac: Mac, storyId: string, out: Out): boolean {
   const path = mac.tree.currentPath(storyId);
   if (!path) return (out(`No Story ${storyId}.`), false);
-  if (retry !== undefined) {
-    try {
-      markForRetry(mac, storyId, path.headEntryId, Number(retry));
-    } catch (error) {
-      return (out(error instanceof Error ? error.message : String(error)), false);
-    }
-    out(`Scene ${retry} will be recorded again by the Mac serving the phone, after the next Scene or when it starts.`);
-    return true;
-  }
-  const rows = recordOn(mac, path.headEntryId);
-  if (rows.length === 0) out("Nothing is missing from the record.");
-  const states = { waiting: "waiting to be tried again", given_up: "given up after three tries", recorded: "recorded, without some parts" };
+  const rows = mac.states.at(path.headEntryId).recorded.filter(row => row.dropped.length);
+  if (rows.length === 0) out("Nothing was left out of the record.");
   for (const row of rows) {
-    out(`Scene ${row.scene.number} · ${row.scene.title} · ${states[row.state]}${row.reason ? `: ${row.reason}` : ""}`);
+    out(`Scene ${row.number} · ${row.title}`);
     for (const why of row.dropped) out(`  left out: ${why}`);
   }
   return true;
@@ -241,20 +228,20 @@ export function world(mac: Mac, storyId: string, out: Out): boolean {
   const path = mac.tree.currentPath(storyId);
   if (!path) return (out(`No Story ${storyId}.`), false);
   const state = mac.states.at(path.headEntryId);
-  const shown = worldOn(mac, path.headEntryId);
   const when = (at: string) => {
     const time = parseStoryTime(at);
     return time ? `${at} (${sayStoryTime(time, state.dayOneWeekday)})` : at;
   };
-  out(shown.until ? `The World stands at ${when(shown.until)}.` : "The World stands where the Story File set it.");
+  out(`It is ${when(state.clock)}.`);
   out("Lives:");
-  for (const life of shown.lives) out(`  ${life.who}: ${life.where ?? "where not yet said"}; ${life.doing ?? "doing not yet said"}; after: ${life.after || "nothing said"}`);
+  for (const [who, life] of Object.entries(state.lives)) out(`  ${who}: ${life.where ?? "where not yet said"}; ${life.doing ?? "doing not yet said"}; after: ${life.after || "nothing said"}`);
   out("Threads:");
-  if (shown.threads.length === 0) out("  none");
-  for (const thread of shown.threads) out(`  ${thread.name}: ${thread.now}`);
+  if (state.threads.length === 0) out("  none");
+  for (const thread of state.threads) out(`  ${thread.name}: ${thread.now}`);
   out("What happened:");
-  if (shown.happened.length === 0) out("  nothing yet");
-  for (const item of shown.happened) out(`  ${item.at} · ${item.where} · ${item.what} · known to: ${item.knownTo.join(", ") || "nobody"}${item.landmark ? ` · the Landmark ${item.landmark}` : ""}`);
+  const happened = state.facts.filter(fact => fact.source === "world");
+  if (happened.length === 0) out("  nothing yet");
+  for (const item of happened) out(`  ${item.at} · ${item.where ?? ""} · ${item.what} · known to: ${item.knownTo.join(", ") || "nobody"}${item.landmark ? ` · the Landmark ${item.landmark}` : ""}`);
   return true;
 }
 
@@ -310,7 +297,7 @@ export function install(mac: Mac, out: Out): void {
 /** What is right and wrong with this Mac's setup, one line each. */
 export function doctor(mac: Mac, out: Out): boolean {
   const checks: [string, boolean, string][] = [];
-  const stories = (mac.db.prepare("SELECT COUNT(*) AS n FROM stories").get() as { n: number }).n;
+  const stories = (mac.db.prepare("SELECT COUNT(*) AS n FROM stories WHERE before_ledger = 0").get() as { n: number }).n;
   checks.push(["Story store", true, `${join(mac.home, "fantasia.db")}, ${stories} ${stories === 1 ? "Story" : "Stories"}`]);
   const token = readSecret(CLAUDE_TOKEN);
   checks.push(["Claude token", token !== null, token ? "stored" : "missing: run `fantasia claude-token`"]);
@@ -419,7 +406,7 @@ export async function person(mac: Mac, engine: Engine, storyId: string, name: st
   const base = existing ?? { name: name.trim(), aliases: [], whoTheyAre: "", known: null, appearance: "", after: "", knows: [], voice: [], group: null };
   const edited = {
     name: base.name, aliases: options.alias ?? base.aliases, whoTheyAre: options.who ?? base.whoTheyAre,
-    known: options.known ?? (existing ? knownOn(mac, path.headEntryId).get(base.name)?.text ?? null : null),
+    known: options.known ?? (existing ? mac.states.at(path.headEntryId).known[base.name]?.text ?? null : null),
     appearance: options.appearance ?? base.appearance, after: options.after ?? base.after, knows: base.knows,
     voice: options.voice ?? base.voice, group: options.group === undefined ? base.group : options.group || null
   };

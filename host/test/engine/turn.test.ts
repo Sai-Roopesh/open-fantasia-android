@@ -41,7 +41,8 @@ describe("a turn", () => {
   // THEN the Scene shows that the Reply failed, with Retry and another model
   // AND the player's Move is still there
   it("presence › Nothing fails silently › A model is down", async () => {
-    const actor = new ScriptedRunner([{ fail: "Claude is overloaded" }, { answer: "She shrugs." }]);
+    // The Actor's model and its second model both fail; Retry then writes the Reply.
+    const actor = new ScriptedRunner([{ fail: "Claude is overloaded" }, { fail: "Claude is overloaded" }, { answer: "She shrugs." }]);
     const { mac, engine, storyId, head, events } = playable(actor);
     engine.move(storyId, "I sit beside her.", head(), "trace-b");
     await engine.settled(storyId);
