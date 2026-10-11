@@ -322,6 +322,21 @@ describe("rest after a peak (openspec long-run: Rest is deliberate)", () => {
     expect(quiet.ok && quiet.value.happenings[0]).toMatchObject({ pick: true, quiet: true });
   });
 
+  // GIVEN a Scene just peaked, and the Director's new Stretch is a rest whose next Scene that matters is a quiet
+  //   breakfast on Monday
+  // THEN the Story's own pick at the Day View is Monday's breakfast, and the World moves on at the first answer that
+  //   offers it
+  it("long-run › Rest is deliberate › The rest the Director planned", async () => {
+    const breakfast = { id: "s-rest", at: "Day 6 08:00", place: "The Great Hall", who: ["Hermione Granger"], for: "A slow breakfast after the night before.", lead: null };
+    const rest = await ask({ afterPeak: true, stretch: { next: breakfast, moves: [], movesBy: null } });
+    // The Weaver is told only the one rule: the pick is the Scene the Director planned as the rest.
+    expect(weaverPrompt(rest).prompt).not.toContain("The Scene that ended peaked");
+    const offered = { id: "P1", at: "Day 6 08:00", place: "The Great Hall", what: "Breakfast, late, with Hermione.", who: ["Hermione Granger"], expected: false, pick: true, scene: "s-rest" };
+    const checked = checkWeave(rest, answer({ happenings: [offered] }));
+    expect(checked.ok).toBe(true);
+    expect(checked.ok && checked.value.happenings[0]).toMatchObject({ pick: true, scene: "s-rest", quiet: true });
+  });
+
   it("leaves the pick to the Weaver when nothing peaked", async () => {
     expect(checkWeave(await ask(), answer({ happenings: [pick(false)] })).ok).toBe(true);
   });

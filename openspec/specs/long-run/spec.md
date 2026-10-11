@@ -82,6 +82,12 @@ in it still want what they want.
 - **GIVEN** the Scene where Draconia chose the Player Character in front of her House just ended
 - **THEN** the Story's own pick at the Day View is a quiet Happening
 
+#### Scenario: The rest the Director planned
+- **GIVEN** a Scene just peaked, and the Director's new Stretch is a rest whose next Scene that matters is a quiet
+  breakfast on Monday
+- **THEN** the Story's own pick at the Day View is Monday's breakfast, and the World moves on at the first answer that
+  offers it
+
 ### Requirement: Style is the player's own words
 
 The **Style** SHALL be one piece of writing in the player's words, and everything that writes for the Story SHALL

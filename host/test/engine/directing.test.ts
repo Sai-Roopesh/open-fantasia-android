@@ -302,7 +302,8 @@ describe("rest after a peak, in play", () => {
   // THEN the Story's own pick at the Day View is a quiet Happening
   it("long-run › Rest is deliberate › A quiet pick after a peak", async () => {
     const peaked = { from: (request: ModelRequest) => ({ answer: JSON.stringify({ ...JSON.parse((fakeWriterAnswer(request) as { answer: string }).answer) as object, intensity: 5 }) }) };
-    // The Weaver first offers the rest's first Scene with something at stake in it; the check sends it back.
+    // The Weaver offers the rest's first Scene without marking it quiet; the Director planned it as the rest, so it is
+    // taken at once and marked quiet (rest-follows-the-plan).
     const duel = { from: (request: ModelRequest) => {
       const weave = JSON.parse((fakeWeaveAnswer(request) as { answer: string }).answer) as { happenings: Record<string, unknown>[] };
       return { answer: JSON.stringify({ ...weave, happenings: weave.happenings.map(item => ({ ...item, what: "Flint calls Roopesh out for a duel.", quiet: false })) }) };
@@ -315,8 +316,8 @@ describe("rest after a peak, in play", () => {
     expect(models.director.requests[0]!.prompt).toContain("The Scene that just ended peaked: this stretch is a rest.");
     const plan = currentPlan(mac, head())!.entry.payload;
     expect(plan.phase).toBe("rest");
-    expect(models.weaver.requests[0]!.prompt).toContain("The Scene that ended peaked.");
-    expect(models.weaver.requests[1]!.prompt).toContain("make your pick a quiet Happening");
+    expect(models.weaver.requests[0]!.prompt).toContain(`<next_scene_that_matters id="${plan.scenes[0]!.id}"`);
+    expect(models.weaver.requests).toHaveLength(1);
     const moved = mac.tree.recordsOn(head(), "world_moved").at(-1)!.payload as WorldMoved;
     expect(moved.happenings.find(item => item.pick)).toMatchObject({ quiet: true, scene: plan.scenes[0]!.id });
   });

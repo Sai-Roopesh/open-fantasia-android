@@ -316,7 +316,11 @@ export function checkWeave(ask: WeaveAsk, raw: unknown): Checked<WeaveRecord> {
     else if (pick.at !== next.at) fatal.push(`happenings: the next Scene that matters is at ${next.at}; give your pick that time`);
   }
 
-  if (ask.afterPeak && !ask.gap) {
+  // After a peak the pick is a rest (openspec long-run: Rest is deliberate). When the Director planned the rest, its next
+  // Scene that matters is the pick, and is quiet by the plan (rest-follows-the-plan): set right, not asked again.
+  if (ask.afterPeak && !ask.gap && next && !nextOn) {
+    happenings = happenings.map(item => (item.pick && item.scene === next.id ? { ...item, quiet: true } : item));
+  } else if (ask.afterPeak && !ask.gap) {
     const pick = happenings.find(item => item.pick);
     if (!pick) fatal.push("happenings: the Scene that ended peaked; offer a quiet Happening as your pick, nothing at stake in it, with quiet true");
     else if (!pick.quiet) fatal.push("happenings: the Scene that ended peaked; make your pick a quiet Happening, nothing at stake in it, and set its quiet true");
@@ -439,7 +443,7 @@ export function weaverPrompt(ask: WeaveAsk): { system: string; prompt: string; f
       ask.gap ? "Leave happenings empty: the next Scene begins where the Gap ends." : `Then say what is on from ${say(state, ask.until)} on; what is still on, and his engagements, stay on, so do not offer them again.`,
       ask.stretch?.moves?.length ? "Each Lead under lead_moves_offscreen makes that move this Stretch, off-screen: write it in happened when it fits the span, at a time in the span, with move set to the Lead's name, known to who did it, saw it or was told; and if it would reach him, in meanwhile as he would learn it. Every one is made by the time given." : "",
       nextScene ? `Your pick is the next Scene that matters, ${nextScene.id}: offer it as a Happening at its time and place, with scene "${nextScene.id}" and pick true, saying what is going on and why it matters to him now in the World's words, never the plan's. It may be days away.` : "",
-      ask.afterPeak && !ask.gap ? "The Scene that ended peaked. Your pick is a quiet Happening, nothing at stake in it, with quiet true: an ordinary part of the day, with no one wanting anything from him and nothing left hanging." : "",
+      ask.afterPeak && !ask.gap && !nextScene ? "The Scene that ended peaked. Your pick is a quiet Happening, nothing at stake in it, with quiet true: an ordinary part of the day, with no one wanting anything from him and nothing left hanging." : "",
       "Return only the JSON object."
     ].filter(Boolean).join("\n"))
   ].filter(part => part !== null).join("\n\n");
