@@ -1,7 +1,11 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { calendarPart, steeringPart } from "../../src/context/lens.js";
+import { besideOf } from "../../src/store/beside.js";
+import { open } from "../../src/story/truth.js";
+import { checkStoryFile } from "../../src/storyfile/check.js";
 import { importStoryFile } from "../../src/storyfile/import.js";
 import { personDetail } from "../../src/views/people.js";
 import { listStories } from "../../src/views/stories.js";
@@ -55,7 +59,9 @@ describe("story-file", () => {
     expect(state.groups).toEqual([]);
     expect(state.arcs).toEqual([]);
     expect(state.landmarks).toEqual([]);
-    expect(state).toMatchObject({ routine: [], brief: { more: [], less: [] }, threads: [], plan: null });
+    expect(state).toMatchObject({ routine: [], threads: [], plan: null });
+    expect(besideOf(mac, result.storyId).brief).toEqual({ more: [], less: [] });
+    expect(state.truth.rules).toEqual({});
     expect(state.scene).toMatchObject({ number: 1, title: "The night train", place: "A sleeper compartment", at: "Day 1 23:10", here: ["Mira"] });
   });
 
@@ -113,21 +119,63 @@ describe("story-file", () => {
     const story = hogwartsStoryFile({ title: "After curfew", at: "Day 3 21:40" });
     story.routine = ["Lectures run on weekday mornings, nine to noon.", "Friday nights are at the Three Broomsticks."];
     story.brief = { more: ["Draconia's temper"], less: ["Quidditch"] };
-    const { state, play, engine, storyId, head, models } = playable(story);
+    const { state, play, engine, storyId, head, models, mac } = playable(story);
     expect(state().routine).toEqual(["Lectures run on weekday mornings, nine to noon.", "Friday nights are at the Three Broomsticks."]);
-    expect(state().brief).toEqual({ more: ["Draconia's temper"], less: ["Quidditch"] });
+    // The brief is the player's, kept beside the Story from the import on (docs/adr/0020).
+    expect(besideOf(mac, storyId).brief).toEqual({ more: ["Draconia's temper"], less: ["Quidditch"] });
     const routine = "Routine:\n- Lectures run on weekday mornings, nine to noon.\n- Friday nights are at the Three Broomsticks.";
     expect(calendarPart(state(), "omniscient")).toContain(routine);
-    expect(steeringPart(state())).toContain("More of:\n- Draconia's temper");
+    expect(steeringPart(besideOf(mac, storyId))).toContain("More of:\n- Draconia's temper");
 
     await play("I say goodnight to Hermione.");
     engine.endScene(storyId, head(), "trace-end");
     await engine.ended(storyId);
+    // The Director and the Weaver read the routine on the calendar, where things stand.
+    const theirs = "His routine:\n- Lectures run on weekday mornings, nine to noon.\n- Friday nights are at the Three Broomsticks.";
     const director = models.director.requests[0]!.prompt;
-    expect(director).toContain(routine);
+    expect(director).toContain(theirs);
     expect(director).toContain("More of:\n- Draconia's temper");
     expect(director).toContain("Less of:\n- Quidditch");
-    expect(models.weaver.requests[0]!.prompt).toContain(routine);
+    expect(models.weaver.requests[0]!.prompt).toContain(theirs);
+  });
+
+  // GIVEN a Story File whose Rules say Hogwarts is a university and everyone in it is eighteen or older
+  // WHEN it is imported
+  // THEN the Story keeps those Rules from its first Scene
+  it("story-file › A Story File sets up every part of a Story › Rules to start from", () => {
+    const mac = freshHome();
+    const rules = ["Hogwarts is a university.", "Everyone in it is eighteen or older."];
+    const result = importStoryFile(writeStoryFile({ ...minimalStoryFile(), rules }), mac);
+    if (!result.ok) throw new Error(result.problems.map(problem => problem.message).join("; "));
+    const state = mac.states.at(mac.tree.currentPath(result.storyId)!.headEntryId);
+    // Opened at Scene 0, the Story's start, from the Story File itself rather than a passage of play.
+    expect(open(state.truth.rules).map(rule => ({ what: rule.what, opened: rule.opened, sources: rule.sources }))).toEqual(rules.map(what => ({ what, opened: 0, sources: [] })));
+    expect(state.scene!.number).toBe(1);
+  });
+
+  it("opens what each person knew when the Story began as their beliefs from Scene 0", () => {
+    const mac = freshHome();
+    const story = minimalStoryFile();
+    const knows = ["The 9:40 to Kalka is always late.", "Her sister is getting married in Shimla on Sunday."];
+    story.people = story.people.map((person, index) => index === 1 ? { ...person, knows } : person) as typeof story.people;
+    const result = importStoryFile(writeStoryFile(story), mac);
+    if (!result.ok) throw new Error(result.problems.map(problem => problem.message).join("; "));
+    const holder = story.people[1]!.name;
+    const state = mac.states.at(mac.tree.currentPath(result.storyId)!.headEntryId);
+    expect(open(state.truth.beliefs)).toEqual(knows.map((what, index) => ({
+      id: `k0.${holder}.${index + 1}`, holder, what, true: true, opened: 0, closed: null, closedBy: null, sources: []
+    })));
+  });
+
+  it("checks The Malfoy Problem's own Story File, with its starting Rules", () => {
+    const checked = checkStoryFile(fileURLToPath(new URL("../../../examples/malfoy-problem", import.meta.url)));
+    if (!checked.ok) throw new Error(checked.problems.map(problem => `${problem.where}: ${problem.message}`).join("; "));
+    expect(checked.storyFile.rules).toEqual([
+      "Hogwarts is a university: students arrive at eighteen and leave four years later.",
+      "Everyone at Hogwarts, students and staff, is eighteen or older.",
+      "Roopesh's power is hidden: nobody knows it, and he does not use it unless the player chooses to.",
+      "It is 1991: there are no mobile phones and no internet."
+    ]);
   });
 
   // A Bond is where things stand between him and someone else, in forty words or fewer (lasting-records design decision 1).

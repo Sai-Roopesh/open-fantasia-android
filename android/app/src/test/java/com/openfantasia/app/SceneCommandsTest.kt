@@ -54,26 +54,26 @@ class SceneCommandsTest {
     }
 
     // The player's brief and reactions (openspec long-run: The player steers with a brief and reactions).
-    @Test fun `The brief and a reaction post with the head and read Accepted`() = runBlocking {
+    @Test fun `The brief and a reaction post without a place on the Path and read Accepted`() = runBlocking {
         MacServer().use { mac ->
             val link = connection(mac)
             mac.enqueue(MockResponse().setBody("""{"stories":[],"trace_id":"list"}"""))
             link.stories()
             mac.server.takeRequest()
             mac.enqueue(MockResponse().setBody("""{"head_entry_id":"brief","trace_id":"brief"}"""))
-            assertEquals("brief", link.setBrief("story", BriefRequest(after = "closed", more = listOf("Danger"), less = emptyList())).headEntryID)
+            assertEquals("brief", link.setBrief("story", BriefRequest(more = listOf("Danger"), less = emptyList())).headEntryID)
             mac.server.takeRequest().let {
                 assertEquals("/stories/story/brief", it.path)
                 assertEquals("POST", it.method)
-                assertEquals("""{"after":"closed","less":[],"more":["Danger"]}""", it.body.readUtf8())
+                assertEquals("""{"less":[],"more":["Danger"]}""", it.body.readUtf8())
             }
             for (reaction in listOf(Reaction.More, null)) {
                 mac.enqueue(MockResponse().setBody("""{"head_entry_id":"reaction","trace_id":"reaction"}"""))
-                assertEquals("reaction", link.react("story", ReactionRequest(after = "brief", sceneNumber = 14, reaction = reaction)).headEntryID)
+                assertEquals("reaction", link.react("story", ReactionRequest(sceneNumber = 14, reaction = reaction)).headEntryID)
                 mac.server.takeRequest().let {
                     assertEquals("/stories/story/reaction", it.path)
                     assertEquals("POST", it.method)
-                    assertEquals("""{"after":"brief","note":null,"reaction":${reaction?.let { "\"${it.value}\"" } ?: "null"},"scene_number":14}""", it.body.readUtf8())
+                    assertEquals("""{"note":null,"reaction":${reaction?.let { "\"${it.value}\"" } ?: "null"},"scene_number":14}""", it.body.readUtf8())
                 }
             }
         }

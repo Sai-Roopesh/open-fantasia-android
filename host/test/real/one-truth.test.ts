@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { emptyUpdate } from "../../src/story/truth.js";
 import { directionDue, writePlan } from "../../src/agents/director.js";
-import { foldDue, writeFold } from "../../src/agents/folder.js";
+import { writeFold } from "../../src/agents/folder.js";
 import { addMinutes } from "../../src/agents/format.js";
 import { Engine, type OutgoingEvent } from "../../src/engine/engine.js";
 import { Catalog } from "../../src/models/catalog.js";
@@ -11,7 +12,8 @@ import { Models, type ModelRunner } from "../../src/models/model-call.js";
 import { ScriptedRunner } from "../../src/models/scripted.js";
 import type { StoryFile } from "../../src/protocol/generated/story-file.js";
 import { CLAUDE_TOKEN, readSecret } from "../../src/secrets.js";
-import { isKind, type Choice, type DirectorPlan, type Payload, type WorldMoved } from "../../src/story/entries.js";
+import { nothingBeside } from "../../src/story/beside.js";
+import { isKind, type Choice, type DirectorPlan, type Payload } from "../../src/story/entries.js";
 import { samePlace } from "../../src/story/places.js";
 import type { NewThing, PlannedScene, State, Told } from "../../src/story/state.js";
 import { importStoryFile } from "../../src/storyfile/import.js";
@@ -112,7 +114,7 @@ function playScene(story: Live, scene: Written): void {
       story.append({ kind: "scene_opened", number: before.scene.number + 1, title: scene.title, place: scene.place, at: scene.at, who: scene.who, prose: null, startsAt: moved.id, purpose: null, exit: null });
     }
     const now = story.state();
-    story.append({ kind: "beat_note", plan: null, here: now.scene!.here, goes: [], beats: [], note: "", call: "continue", intensity: scene.intensity, arcMoved: true, clock: addMinutes(now.clock, 10), taste: null, inPlay: [], callId: "written-by-the-test", model: WRITTEN });
+    story.append({ kind: "beat_note", plan: null, here: now.scene!.here, goes: [], beats: [], note: "", call: "continue", intensity: scene.intensity, arcMoved: true, clock: addMinutes(now.clock, 10), inPlay: [], callId: "written-by-the-test", model: WRITTEN });
     story.append({ kind: "reply", text: reply, callId: "written-by-the-test", model: WRITTEN });
   });
 }
@@ -120,19 +122,20 @@ function playScene(story: Live, scene: Written): void {
 /** Closes the Scene and records it by hand, as the Chronicler would: its line and its paragraph. */
 function recordScene(story: Live, paragraph: string): void {
   story.append({ kind: "scene_closed", by: "player" });
-  story.append({ kind: "chronicle", scene: story.state().scene!.number, summary: paragraph, paragraph, moments: [], told: [], known: [], bonds: [], engagements: [], changed: [], dropped: [], callId: "written-by-the-test", model: WRITTEN });
+  story.append({ kind: "chronicle", truth: emptyUpdate(), scene: story.state().scene!.number, summary: paragraph, paragraph, moments: [], told: [], known: [], bonds: [], engagements: [], changed: [], dropped: [], callId: "written-by-the-test", model: WRITTEN });
 }
 
 /** The Director's plan for a Stretch, as the test writes it. */
 function handPlan(state: State, plan: HandPlan): DirectorPlan {
   const number = (state.plan?.number ?? 0) + 1;
-  const scenes: PlannedScene[] = plan.scenes.map((scene, index) => ({ ...scene, id: `s${number}.${index + 1}`, offer: scene.headline, engagement: null, quiet: false }));
+  // A hand-written plan serves the Lives of the people in each Scene, its Lead's first.
+  const scenes: PlannedScene[] = plan.scenes.map((scene, index) => ({ ...scene, id: `s${number}.${index + 1}`, serves: { turn: null, lives: scene.lead ? [scene.lead] : scene.who }, offer: scene.headline, engagement: null, quiet: false }));
   return {
     kind: "director_plan", from: plan.from, until: plan.until, toward: plan.toward, landmark: null, phase: "build", scenes,
     leads: plan.leads.map(lead => ({ who: lead.who, move: lead.move, scene: lead.scene === null ? null : scenes[lead.scene - 1]!.id })),
     arcs: state.arcs.map(arc => ({ arc, now: "she insults him less than she did", next: "a slip she covers at once", notYet: "any declaration" })),
     roadmap: [], premise: "Most Scenes turn something between Draconia and Roopesh; the rest are his life at Hogwarts.",
-    newThings: plan.newThings.map(thing => ({ ...thing, scene: null, person: null })), people: [],
+    newThings: plan.newThings.map((thing, index) => ({ ...thing, setup: `u${number}.${index + 1}`, scene: null, person: null })), people: [],
     reason: state.plan ? "The last Stretch has run its course." : "There is no plan yet: this is the Story's first.",
     afterScene: state.scene!.number, dropped: [], callId: "written-by-the-test", model: WRITTEN
   };
@@ -143,7 +146,7 @@ function endScene(story: Live, paragraph: string, plan?: HandPlan): void {
   recordScene(story, paragraph);
   if (plan) story.append(handPlan(story.state(), plan));
   const state = story.state();
-  story.append({ kind: "world_moved", scene: state.scene!.number, gap: false, from: state.scene!.endedAt ?? state.clock, until: state.clock, lives: [], threads: [], happened: [], meanwhile: [], on: [], dropped: [], callId: null, model: null });
+  story.append({ kind: "world_moved", truth: emptyUpdate(), scene: state.scene!.number, gap: false, from: state.scene!.endedAt ?? state.clock, until: state.clock, lives: [], threads: [], happened: [], meanwhile: [], on: [], dropped: [], callId: null, model: null });
 }
 
 const OPENING: Written = {
@@ -278,47 +281,6 @@ describe.skipIf(!token)("one truth, live", () => {
     }
   }, 1_200_000);
 
-  // GIVEN the Story has met no one new in its last two Stretches
-  // WHEN the Director plans the next Stretch
-  // THEN it brings in something he has not met, such as a stranger asking about the train in Hogsmeade, and a Scene
-  //   that matters or a line of Meanwhile puts it in front of him
-  it("long-run › Something new every Stretch › A stranger in Hogsmeade", async () => {
-    for (let run = 0; run < RUNS; run++) {
-      const story = firstWeek("calm");
-      try {
-        expect(story.state().introduced.filter(thing => thing.kind === "person")).toEqual([]);
-        await endOnRealModels(story, `real-new-${run}`);
-        const written = story.sceneEnd();
-        const plan = written.find(entry => isKind(entry, "director_plan"))?.payload as DirectorPlan | undefined;
-        const world = written.find(entry => isKind(entry, "world_moved"))?.payload as WorldMoved | undefined;
-        expect(plan, `run ${run + 1}: no plan`).toBeDefined();
-        const state = story.state();
-        const said = `run ${run + 1}: ${JSON.stringify({ newThings: plan!.newThings, scenes: plan!.scenes, meanwhile: world?.meanwhile, dropped: plan!.dropped })}`;
-        expect(plan!.newThings.length, said).toBeGreaterThan(0);
-
-        // A new person is among the Story's people from this plan on.
-        for (const thing of plan!.newThings.filter(item => item.person)) {
-          expect(state.people[thing.person!]?.broughtIn, said).toBe(state.plan!.number);
-        }
-
-        // It is new: nothing the Story has had so far.
-        const sofar = [OPENING, ...FIRST_WEEK, SEVENTH.calm].map(scene => scene.paragraph).join("\n");
-        const known = `${sofar}\n\nAlready in the story: ${STRETCHES.flatMap(stretch => stretch.newThings.map(thing => thing.what)).join(" ")}`;
-        const fresh = await judge(`The passage is everything the story has had so far. Is any of these new to it, something Roopesh has not met: ${plan!.newThings.map(thing => `"${thing.what}"`).join("; ")}? Answer YES or NO.`, known);
-        expect(fresh.yes, `${said}\n${fresh.said}`).toBe(true);
-
-        // It is put in front of him: in a Scene that matters, or as Meanwhile.
-        const inAScene = plan!.newThings.some(thing => thing.scene !== null && plan!.scenes.some(scene => scene.id === thing.scene));
-        const told = !inAScene && (world?.meanwhile.length ?? 0) > 0
-          ? (await judge(`Does any of these lines tell Roopesh of, or show him, any of these: ${plan!.newThings.map(thing => `"${thing.what}"`).join("; ")}? Answer YES or NO.`, world!.meanwhile.map(line => line.text).join("\n"))).yes
-          : false;
-        expect(inAScene || told, said).toBe(true);
-      } finally {
-        story.close();
-      }
-    }
-  }, 3_600_000);
-
   // GIVEN the last three Stretches each had Hermione at the library's end table
   // WHEN the Director plans the next Stretch
   // THEN no Scene that matters in it puts Hermione at the library's end table
@@ -333,7 +295,7 @@ describe.skipIf(!token)("one truth, live", () => {
         for (const scenes of lastThree) expect(scenes.some(scene => scene.place === LIBRARY && scene.who.includes("Hermione Granger"))).toBe(true);
         const due = directionDue(state);
         expect(due).not.toBeNull();
-        const { value, dropped } = await writePlan(story.models, [DEFAULT_JOB_MODELS.director], state, due!, story.storyId, `real-week-${run}`, new AbortController().signal);
+        const { value, dropped } = await writePlan(story.models, [DEFAULT_JOB_MODELS.director], state, nothingBeside(), due!, { storyId: story.storyId, head: story.head() }, `real-week-${run}`, new AbortController().signal);
         const again = value.scenes.filter(scene => scene.who.includes("Hermione Granger") && samePlace(scene.place, LIBRARY));
         expect(again, `run ${run + 1}: ${JSON.stringify({ scenes: value.scenes, dropped })}`).toEqual([]);
       } finally {
@@ -376,7 +338,7 @@ describe.skipIf(!token)("one truth, live", () => {
         expect(state.curve.at(-1)).toMatchObject({ scene: 7, peak: 5 });
         const due = directionDue(state);
         expect(due).toMatch(/Scene 7.*peaked/);
-        const { value } = await writePlan(story.models, [DEFAULT_JOB_MODELS.director], state, due!, story.storyId, `real-breath-${run}`, new AbortController().signal);
+        const { value } = await writePlan(story.models, [DEFAULT_JOB_MODELS.director], state, nothingBeside(), due!, { storyId: story.storyId, head: story.head() }, `real-breath-${run}`, new AbortController().signal);
         const said = `run ${run + 1} (${value.phase}):\n${tellPlan(value.scenes)}`;
         expect(value.scenes.length, said).toBeGreaterThanOrEqual(2);
         const [first, ...others] = value.scenes;
@@ -461,10 +423,9 @@ describe.skipIf(!token)("one truth, live", () => {
         { from: "Day 11 09:00", until: "Day 11 10:00", text: "In Charms on Monday Draconia sat beside Roopesh without being told to, and Flitwick pretended not to notice.", scene: { number: 11, title: "Charms again" }, who: ["Draconia Malfoy"] },
         { from: "Day 12 13:00", until: "Day 12 14:00", text: "On Tuesday the Beater who sent the Bludger stopped Roopesh in a corridor and asked where he was from. Crabbe and Goyle watched from the stairs.", scene: { number: 12, title: "The corridor" }, who: ["Crabbe", "Goyle"] }
       ];
-      const state: State = { ...story.state(), storySoFar: { chapters: [], weeks: [], scenes: [...scenes, ...later] } };
-      const due = foldDue(state);
-      expect(due?.into).toBe("week");
-      expect(due?.parts.map(part => part.scene?.number)).toEqual([1, 2, 3, 4, 5, 6]);
+      const state: State = { ...story.state(), storySoFar: { acts: [], weeks: [], scenes: [...scenes, ...later] } };
+      // Twelve short Scenes no longer fold on their own: the week is asked for directly.
+      const due = { into: "week" as const, parts: scenes.slice(0, 6) };
       const fold = await writeFold(story.models, [jobModels(story.mac.home).folder], state, due!, story.storyId, "real-fold", new AbortController().signal);
       expect(callsFor(story.mac.db, "folder").at(-1)).toMatchObject({ provider: "claude", model: "claude-haiku-4-5-20251001" });
       const parts = due!.parts.map(part => part.text).join("\n\n");

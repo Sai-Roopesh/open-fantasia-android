@@ -82,8 +82,8 @@ model and fail-stop with Retry are unchanged.
 Chronicler (records the truth, may look up) → Director (focused revision; it says whether the Scene turned the Story,
 and if so, or if an Act ended or a steering note waits, a deep re-plan of the current Act runs as its own step) →
 Weaver (lives out Lives and the Outline to when he is next free; a month-long Gap is lived as the player's Move asked)
-→ Folder (only when an Act ends: one account of the Act, checked by the Editor against its Scenes, sent back once if a
-turning point or name is missing). The Scene's end reports each step, and "rethinking" when the deep step runs.
+→ Folder (only when an Act ends: one account of the Act, checked by the Editor against its Scenes, sent back if a
+turning point or name is missing, and each draft checked again, at most twice). The Scene's end reports each step, and "rethinking" when the deep step runs.
 
 ### 6. A Reply: Writer, Actor, Editor (host, protocol, android)
 

@@ -26,7 +26,7 @@ describe("the Day View", () => {
       countdowns: [{ landmark: "Draconia's flying test", when: "3 days", label: "3 days to Draconia's flying test" }],
       scene_span: "Sunday 7:00 pm – 7:00 pm",
       // Every step of the Scene's end is done, so the Day View is ready (openspec presence: Between Scenes is quiet).
-      scene_end: { step: null, failed: null },
+      scene_end: { step: null, failed: null, rethinking: null },
       reaction: null,
       // What he learned meanwhile, and what is on, are the Weaver's and the Director's (openspec presence, day-view).
       meanwhile: expect.any(Array),
@@ -90,7 +90,7 @@ describe("the Day View", () => {
     expect(view().day_view).toMatchObject({ scene_end: { step: "chronicler", failed: null }, happenings: [] });
     await engine.ended(storyId);
     const ready = view().day_view!;
-    expect(ready.scene_end).toEqual({ step: null, failed: null });
+    expect(ready.scene_end).toEqual({ step: null, failed: null, rethinking: null });
     // The fake Director's first Scene that matters: tomorrow at ten, in the Great Hall, with the first Lead.
     expect(ready.happenings[0]).toMatchObject({ pick: true, at: "Day 6 10:00", time: "Tomorrow 10:00 am", place: "the Great Hall", what: "Something is going on there that matters to him.", who: ["Draconia Malfoy"], expected: false });
     expect(ready.happenings.filter(item => item.pick)).toHaveLength(1);
@@ -101,9 +101,9 @@ describe("the Day View", () => {
     await play("I say goodnight.");
     engine.endScene(storyId, head(), "trace-end");
     await engine.ended(storyId);
-    engine.setReaction(storyId, 1, "more", "More of her temper.", head(), "trace-reaction");
+    engine.setReaction(storyId, 1, "more", "More of her temper.", "trace-reaction");
     expect(view().day_view!.reaction).toBe("more");
-    engine.setReaction(storyId, 1, null, null, head(), "trace-cleared");
+    engine.setReaction(storyId, 1, null, null, "trace-cleared");
     expect(view().day_view!.reaction).toBeNull();
   });
 

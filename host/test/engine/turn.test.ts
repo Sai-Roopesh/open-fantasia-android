@@ -2,18 +2,22 @@ import { describe, expect, it } from "vitest";
 import { Engine, type OutgoingEvent } from "../../src/engine/engine.js";
 import { LinkError } from "../../src/link/errors.js";
 import { Models } from "../../src/models/model-call.js";
+import { fakeWriterAnswer } from "../../src/models/fake.js";
 import { ScriptedRunner } from "../../src/models/scripted.js";
 import { importStoryFile } from "../../src/storyfile/import.js";
 import { sceneView } from "../../src/views/scene.js";
 import { freshHome } from "../support/host.js";
 import { withWriter } from "../support/link.js";
+import { playable as scripted } from "../support/play.js";
 import { malfoyProblemStoryFile, writeStoryFile } from "../support/story-files.js";
 
 function playable(actor = new ScriptedRunner()) {
   const mac = freshHome();
   const result = importStoryFile(writeStoryFile(malfoyProblemStoryFile()), mac);
   if (!result.ok) throw new Error("import failed");
-  const engine = new Engine(mac, new Models(mac.db, { claude: withWriter(actor) }));
+  // Every job's second model is GPT 6.1 Sol, on Codex: the same scripted models answer there too.
+  const runner = withWriter(actor);
+  const engine = new Engine(mac, new Models(mac.db, { claude: runner, codex: runner }));
   const events: OutgoingEvent[] = [];
   engine.subscribe(result.storyId, event => events.push(event));
   const head = () => mac.tree.currentPath(result.storyId)!.headEntryId;
@@ -102,3 +106,117 @@ describe("a turn", () => {
     expect({ head: head(), clock: mac.states.at(head()).clock, entries: mac.db.prepare("SELECT COUNT(*) AS n FROM entries").get() }).toEqual(before);
   });
 });
+
+/** What a turn told the phone, in order, from the Move on: each entry's kind, and each step as "turn_step:<step>". */
+function told(events: OutgoingEvent[]): string[] {
+  const from = events.findLastIndex(event => event.event.kind === "move");
+  return events.slice(from).map(({ event }) => (event.kind === "turn_step" ? `turn_step:${event.turn_step}` : event.kind));
+}
+
+describe("a Reply arrives checked and whole (docs/adr/0019)", () => {
+  // WHEN the player sends a Move
+  // THEN one line says the Reply is being written, then that it is being checked, and the Reply appears whole
+  it("presence › A Reply arrives checked and whole › Watching a Reply come", async () => {
+    const reply = "She sets down her glass and does not look at you.";
+    const { mac, engine, storyId, head, events } = playable(new ScriptedRunner([{ answer: reply }]));
+    // The line as a phone that reads the Scene would show it, the moment each step is said.
+    const read: string[] = [];
+    engine.subscribe(storyId, event => {
+      if (event.event.kind === "turn_step") read.push(sceneView(mac, engine, storyId, "trace-read").turn.kind);
+    });
+    engine.move(storyId, "I raise my glass.", head(), "trace-w");
+    await engine.settled(storyId);
+
+    expect(told(events)).toEqual(["move", "turn_step:writing", "turn_step:checking", "reply"]);
+    expect(read).toEqual(["writing", "checking"]);
+    // The Reply arrives whole, in its own event, and no word of it before.
+    expect(events.at(-1)!.event.passage).toEqual({ entry_id: head(), text: reply });
+    expect(events.filter(event => JSON.stringify(event.event).includes("does not look at you"))).toHaveLength(1);
+    // The Editor read it before the player could: under the turn's trace, after the Actor and before the Reply was kept.
+    const calls = mac.db.prepare("SELECT agent, request FROM calls WHERE trace_id = 'trace-w' ORDER BY rowid").all() as { agent: string; request: string }[];
+    expect(calls.map(call => call.agent)).toEqual(["writer", "actor", "editor"]);
+    expect((JSON.parse(calls[2]!.request) as { prompt: string }).prompt).toContain(`<reply>\n${reply}\n</reply>`);
+    expect(sceneView(mac, engine, storyId, "trace-read").turn).toEqual({ kind: "idle" });
+  });
+
+  // GIVEN the Writer looks up how Hermione learned his secret before it plans the Reply
+  // THEN the line says it is looking back, before it says the Reply is being written
+  it("presence › A Reply arrives checked and whole › Looking something up", async () => {
+    const { mac, engine, storyId, head, events, models } = scripted(malfoyProblemStoryFile(), {
+      writer: [{ lookUp: [{ tool: "search_story", args: { words: "Hermione secret" } }], then: { from: fakeWriterAnswer } }]
+    });
+    const read: string[] = [];
+    engine.subscribe(storyId, event => {
+      if (event.event.kind === "turn_step") read.push(sceneView(mac, engine, storyId, "trace-read").turn.kind);
+    });
+    engine.move(storyId, "I ask Hermione how long she has known.", head(), "trace-l");
+    await engine.settled(storyId);
+
+    expect(told(events)).toEqual(["move", "turn_step:looking_back", "turn_step:writing", "turn_step:checking", "reply"]);
+    expect(read).toEqual(["looking_back", "writing", "checking"]);
+    // The lookup was the Writer's, made with the Story's own tools, and kept with its call.
+    expect(models.writer.looked.map(lookup => lookup.tool)).toEqual(["search_story"]);
+    const writer = mac.db.prepare("SELECT lookups FROM calls WHERE trace_id = 'trace-l' AND agent = 'writer'").get() as { lookups: string };
+    expect(JSON.parse(writer.lookups)).toEqual([expect.stringContaining("searched the Story for “Hermione secret”")]);
+    // A Reply that looks nothing up says nothing of looking back.
+    engine.move(storyId, "I wait for her answer.", head(), "trace-m");
+    await engine.settled(storyId);
+    expect(told(events)).toEqual(["move", "turn_step:writing", "turn_step:checking", "reply"]);
+  });
+});
+
+describe("a Reply the Editor could not read", () => {
+  it("fails the turn with the reason when the Editor's model and its second model fail, and Retry writes and checks it again", async () => {
+    const { engine, storyId, head, mac, models, view, events } = scripted(malfoyProblemStoryFile(), {
+      actor: [{ answer: "Draconia laughs." }, { answer: "Draconia laughs, louder." }],
+      editor: [{ fail: "Sonnet is overloaded" }, { fail: "Sonnet is overloaded" }]
+    });
+    engine.move(storyId, "I raise my glass.", head(), "trace-e");
+    await engine.settled(storyId);
+    // Nothing unread reaches the player: the Move waits on its Beat Note, and the turn says why it stopped.
+    expect(mac.tree.entry(head())!.payload.kind).toBe("beat_note");
+    expect(view().turn).toEqual({ kind: "failed", reason: expect.stringMatching(/^The Reply could not be checked: .*Sonnet is overloaded/), trace_id: "trace-e", job: "editor" });
+    expect(events.at(-1)!.event.kind).toBe("reply_failed");
+    expect(JSON.stringify(events)).not.toContain("Draconia laughs");
+
+    engine.retry(storyId, "trace-r");
+    await engine.settled(storyId);
+    expect(mac.tree.entry(head())!.payload).toMatchObject({ kind: "reply", text: "Draconia laughs, louder." });
+    expect(models.editor.requests).toHaveLength(3);
+    expect(view().turn).toEqual({ kind: "idle" });
+  });
+});
+
+describe("the player can always write", () => {
+  // GIVEN a Reply is being written
+  // THEN the player can type in the composer, and sends once the Reply has appeared
+  it("presence › The player can always write › Typing during a Reply", async () => {
+    const { mac, engine, storyId, head, events } = playable(new ScriptedRunner([{ answer: "Draconia laughs." }, { answer: "Hermione does not." }]));
+    const typed = "I wave at Hermione.";
+    // At each step of the Reply under way, the phone shows it under way, and holds back the Move the player typed: the
+    // Mac would refuse it with the reason, and nothing changes.
+    const held: string[] = [];
+    engine.subscribe(storyId, event => {
+      if (event.event.kind !== "turn_step") return;
+      const before = head();
+      const turn = sceneView(mac, engine, storyId, "trace-read").turn.kind;
+      try {
+        engine.move(storyId, typed, before, "trace-early");
+        held.push(`${turn}: sent`);
+      } catch (error) {
+        held.push(`${turn}: ${(error as LinkError).code}${head() === before ? "" : ", and the Story changed"}`);
+      }
+    });
+    engine.move(storyId, "I raise my glass.", head(), "trace-1");
+    await engine.settled(storyId);
+    expect(held).toEqual(["writing: busy", "checking: busy"]);
+    expect(mac.tree.entry(head())!.payload).toMatchObject({ kind: "reply", text: "Draconia laughs." });
+
+    // Once the Reply has appeared, the Move sends.
+    const sent = engine.move(storyId, typed, head(), "trace-2");
+    await engine.settled(storyId);
+    expect(mac.tree.entry(sent.move_entry_id)!.payload).toEqual({ kind: "move", text: typed });
+    expect(told(events).at(-1)).toBe("reply");
+  });
+});
+

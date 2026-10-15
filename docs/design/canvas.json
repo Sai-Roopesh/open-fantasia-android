@@ -3,7 +3,7 @@
   "attachments": {},
   "boards": {
     "Backstage.dc.html": {
-      "h": 1960,
+      "h": 5760,
       "title": "Backstage",
       "w": 390,
       "x": 1410,
@@ -34,7 +34,7 @@
       "h": 844,
       "title": "An earlier Reply, long-pressed",
       "w": 390,
-      "x": 2820,
+      "x": 3250,
       "y": 0
     },
     "Main.dc.html": {
@@ -45,7 +45,7 @@
       "y": 0
     },
     "Models.dc.html": {
-      "h": 1000,
+      "h": 1240,
       "title": "Models",
       "w": 390,
       "x": 2350,
@@ -83,7 +83,7 @@
       "h": 844,
       "title": "Redo, with a Direction",
       "w": 390,
-      "x": 2350,
+      "x": 2780,
       "y": 0
     },
     "Scene.dc.html": {
@@ -97,20 +97,20 @@
       "h": 844,
       "title": "A Reply that failed",
       "w": 390,
-      "x": 1410,
+      "x": 1840,
       "y": 0
     },
     "SceneReturn.dc.html": {
       "h": 844,
       "title": "Back after a night away",
       "w": 390,
-      "x": 1880,
+      "x": 2310,
       "y": 0
     },
     "SceneWriting.dc.html": {
       "h": 844,
       "title": "A Reply arriving",
-      "w": 390,
+      "w": 820,
       "x": 940,
       "y": 0
     },
@@ -129,7 +129,7 @@
       "y": 3480
     },
     "StoryEdit.dc.html": {
-      "h": 1728,
+      "h": 2612,
       "title": "Editing the Story",
       "w": 390,
       "x": 3760,
@@ -147,7 +147,7 @@
   "notes": {
     "row1": {
       "kind": "title1",
-      "maxW": 3210,
+      "maxW": 3640,
       "text": "Playing a Scene",
       "w": 240,
       "x": 0,

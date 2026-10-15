@@ -5,8 +5,9 @@ import { openMac } from "../mac.js";
 import { Engine } from "../engine/engine.js";
 import { subscriptionRunners } from "../models/runners.js";
 import { Models } from "../models/model-call.js";
-import { arc, claudeToken, clock, doctor, edit, group, importCommand, install, known, landmark, lead, length, models, moments, pair, person, place, portrait, premise, record, show, stories, style, taste, trace, world, worldIs, type LandmarkOptions, type PersonOptions } from "./commands.js";
+import { arc, claudeToken, clock, doctor, edit, group, importCommand, install, known, landmark, lead, length, models, moments, pair, person, place, portrait, premise, prompts, record, show, stories, style, taste, trace, world, worldIs, type LandmarkOptions, type PersonOptions } from "./commands.js";
 import { serve } from "./serve.js";
+import { carryBeside } from "../store/carry.js";
 
 /**
  * `fantasia`: everything done on the Mac rather than on the phone (openspec first-playable-scene design). It is
@@ -45,6 +46,9 @@ program.command("moments").argument("<story>", "a Story's id").description("List
 program.command("record").argument("<story>", "a Story's id")
   .description("Show The record: each Scene recorded with parts left out, and why")
   .action((story: string) => exitWith(record(mac(), story, out)));
+program.command("prompts").argument("<story>", "a Story's id").argument("[move...]", "the Move the Writer plans for; a plain one when left out")
+  .description("Print what the next Reply's Writer and Actor would be given, in full, calling no model")
+  .action((story: string, move: string[]) => exitWith(prompts(mac(), story, move.join(" ") || "I wait to see what happens.", out)));
 program.command("world").argument("<story>", "a Story's id")
   .option("--summary <words>", "what the World is: set it from here on the current Path").option("--history <words>", "the World's history: set it likewise")
   .description("Show the World off-screen: Lives, Threads, and what happened with who knows it; or with --summary or --history, set what the World is")
@@ -97,11 +101,34 @@ program.command("place").argument("<story>", "a Story's id").argument("<name>", 
   .option("--institution", "an institution, rather than a place")
   .description("Create a place or an institution, or rewrite what it is, from here on the current Path")
   .action((story: string, name: string, words: string[], options: { institution?: boolean }) => { const { home, engine } = editing(); exitWith(place(home, engine, story, name, words.join(" "), options.institution ?? false, out)); });
-program.command("clock").argument("<story>", "a Story's id").argument("<time>", "\"Day N HH:MM\", later than now").option("--weekday <day>", "which weekday Day 1 was")
+program.command("clock").argument("<story>", "a Story's id").argument("<time>", "\"Day N HH:MM\", later than now").option("--day-one <date>", "the date of Day 1, YYYY-MM-DD")
   .description("Move the clock on, never back; the World catches up when it next moves")
-  .action((story: string, time: string, options: { weekday?: string }) => { const { home, engine } = editing(); exitWith(clock(home, engine, story, time, options.weekday, out)); });
+  .action((story: string, time: string, options: { dayOne?: string }) => { const { home, engine } = editing(); exitWith(clock(home, engine, story, time, options.dayOne, out)); });
+program.command("rebuild").argument("<story>", "a Story's id")
+  .option("--from <path>", "go on with a rebuild that stopped: the Path it was rebuilding from, as it said when it started")
+  .description("Rebuild a Story's truth from its own text on a new Path, keeping every Move and Reply; stop the Mac's server first")
+  .action(async (story: string, options: { from?: string }) => {
+    const home = mac();
+    const from = options.from ?? home.tree.currentPath(story)?.id;
+    if (!from) throw new Error("That Story is not on this Mac.");
+    out(`Rebuilding from Path ${from}. If it stops, go on with: fantasia rebuild ${story} --from ${from}`);
+    const runners = subscriptionRunners(home.home);
+    const started = Date.now();
+    try {
+      const rebuilt = await new Engine(home, new Models(home.db, runners)).rebuild(story, line => out(`${new Date().toLocaleTimeString()}  ${line}`), options.from ?? null);
+      out(`Rebuilt ${rebuilt.scenes} Scene(s) on Path ${rebuilt.pathId} in ${Math.round((Date.now() - started) / 60000)} min; the old Path is kept.`);
+      for (const item of rebuilt.replaced) out(`No longer happened: ${item.what}${item.mentionedIn.length ? ` (Replies in Scene ${item.mentionedIn.join(", ")} may speak of it)` : ""}`);
+    } finally { runners.close(); }
+    exitWith(true);
+  });
+program.command("carry-beside").argument("<story>", "a Story's id")
+  .description("Carry the Taste lessons, brief and reactions a Story kept on its Paths, from every branch, beside the Story")
+  .action((story: string) => {
+    const carried = carryBeside(mac(), story);
+    out(`Carried ${carried.lessons} lesson(s), ${carried.brief ? "the brief" : "no brief"}, ${carried.reactions} reaction(s).`);
+  });
 program.command("taste").argument("<story>", "a Story's id").argument("[change...]", "reword <n> <words>, or drop <n>")
-  .description("List Taste's lessons numbered, or reword or delete one, from here on the current Path")
+  .description("List the Story's Taste numbered, or reword or delete a lesson; Taste holds on every Path")
   .action((story: string, change: string[]) => { const { home, engine } = editing(); exitWith(taste(home, engine, story, change, out)); });
 
 program.command("known").argument("<story>", "a Story's id").argument("<person>", "someone in the Story, by any name they answer to")

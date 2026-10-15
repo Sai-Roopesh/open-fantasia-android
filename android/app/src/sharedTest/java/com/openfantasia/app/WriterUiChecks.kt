@@ -168,10 +168,10 @@ open class WriterUiChecks {
             assertEquals(RedoRequest(after = "reply", direction = direction, remember = false), link.redos.single())
             // The redo event reloads this view: the old Reply has left the Path.
             link.current.value = link.current.value.copy(exchanges = link.current.value.exchanges.map { it.copy(reply = null) }.filter { it.move != null },
-                headEntryID = "writer", seq = 5, lastEventID = "5.1", turn = TurnState(kind = TurnStateKind.Writing, textSoFar = "Hermione "))
+                headEntryID = "writer", seq = 5, lastEventID = "5.1", turn = TurnState(kind = TurnStateKind.Writing))
         }
         compose.onNodeWithText("She smiles.").assertDoesNotExist()
-        compose.onNodeWithText("Hermione ").assertIsDisplayed()
+        compose.onNodeWithText("Writing…").assertIsDisplayed()
         compose.runOnIdle {
             link.current.value = link.current.value.copy(exchanges = listOf(Exchange(move = Passage(entryID = "move", text = "I sit beside her."),
                 reply = Passage(entryID = "new-reply", text = "Hermione turns away from Ron."))), headEntryID = "new-reply", seq = 6, lastEventID = "6",
@@ -193,8 +193,8 @@ open class WriterUiChecks {
         compose.runOnIdle { assertEquals(RedoRequest(after = "reply", direction = "don't dwell on school procedure", remember = true), link.redos.single()) }
     }
 
-    // Reading back is the player's choice: the keyboard opening, or a Reply's words arriving, must not pull them away
-    // from an earlier Scene they scrolled up to. Only a new Move or Reply returns them to the end.
+    // Reading back is the player's choice: the keyboard opening, or the line saying a Reply is under way, must not pull
+    // them away from an earlier Scene they scrolled up to. Only a new Move or Reply returns them to the end.
     fun readingBackKeepsItsPlace() {
         val model = FantasiaModel(link)
         lateinit var view: View
@@ -217,7 +217,7 @@ open class WriterUiChecks {
         }
         compose.waitUntil(5000) { imeHeight > 0 }
         compose.onNodeWithTag("earlier-1").assertIsDisplayed()
-        compose.runOnIdle { link.current.value = link.current.value.copy(turn = TurnState(kind = TurnStateKind.Writing, textSoFar = "Hermione ")) }
+        compose.runOnIdle { link.current.value = link.current.value.copy(turn = TurnState(kind = TurnStateKind.Writing)) }
         compose.onNodeWithTag("earlier-1").assertIsDisplayed()
     }
 
@@ -253,15 +253,20 @@ open class WriterUiChecks {
             assertTrue("The composer covers the Reply's end", passage.bottom <= composer.top)
         }
         assertEndIsVisible(reply)
-        val streaming = reply + "\nShe speaks again."
+        // The Move is answered: its one line, then the Reply whole, each stays in view above the composer.
         compose.runOnIdle {
-            link.current.value = link.current.value.copy(exchanges = listOf(Exchange(move = Passage(entryID = "move", text = "I wait beside her."))),
-                turn = TurnState(kind = TurnStateKind.Writing, textSoFar = streaming))
+            link.current.value = link.current.value.copy(exchanges = link.current.value.exchanges + Exchange(move = Passage(entryID = "stay", text = "I stay by the fire.")),
+                headEntryID = "stay", seq = 4, lastEventID = "4", turn = TurnState(kind = TurnStateKind.Writing))
         }
-        assertEndIsVisible(streaming)
-        val more = streaming + "\nOne more word."
-        compose.runOnIdle { link.current.value = link.current.value.copy(turn = TurnState(kind = TurnStateKind.Writing, textSoFar = more)) }
-        assertEndIsVisible(more)
+        assertEndIsVisible("Writing…")
+        compose.runOnIdle { link.current.value = link.current.value.copy(turn = TurnState(kind = TurnStateKind.Checking)) }
+        assertEndIsVisible("Checking…")
+        val answer = (1..40).joinToString("\n") { "She answers beside the fire, line $it." } + "\nThe end of the answer."
+        compose.runOnIdle {
+            link.current.value = SceneProjection(link.current.value).apply(StoryEventEnvelope("5", StoryEvent(kind = StoryEventKind.Reply, seq = 5,
+                passage = Passage(entryID = "answer", text = answer))))
+        }
+        assertEndIsVisible(answer)
         compose.onNodeWithTag("composer").assertTextContains("I stay.")
     }
 
@@ -282,7 +287,7 @@ open class WriterUiChecks {
     fun growingComposerKeepsReplyEndVisible() {
         replyEndStaysAboveComposerWithIme()
         compose.onNodeWithTag("composer").performTextInput("\nI wait.\nI listen.\nI look at the fire.\nI stay beside her.")
-        val end = compose.onNodeWithText(link.current.value.turn.textSoFar!!).getUnclippedBoundsInRoot()
+        val end = compose.onNodeWithText(link.current.value.exchanges.last().reply!!.text).getUnclippedBoundsInRoot()
         val passages = compose.onNodeWithTag("scene-passages").getUnclippedBoundsInRoot()
         val composer = compose.onNodeWithTag("composer").getUnclippedBoundsInRoot()
         assertTrue("A growing composer hides the Reply's end: $end / $passages", end.bottom <= passages.bottom)
@@ -290,7 +295,7 @@ open class WriterUiChecks {
         assertTrue(end.bottom <= composer.top)
     }
 
-    // The Writer plans each Reply before the Actor starts it, so a Move waits a few seconds for its first word.
+    // A Move waits for its Reply: before the Mac says what the Reply is doing, the line says the Story is looking back.
     fun moveShowsItsReplyIsComing() {
         openScene()
         compose.runOnIdle {
@@ -298,7 +303,7 @@ open class WriterUiChecks {
             link.current.value = projection.apply(StoryEventEnvelope("4", StoryEvent(kind = StoryEventKind.Move, seq = 4,
                 passage = Passage(entryID = "move-2", text = "I ask what she is reading."))))
         }
-        compose.onNodeWithText("Reply being written").assertIsDisplayed()
+        compose.onNodeWithText("Looking back…").assertIsDisplayed()
     }
 
     fun rememberThisWaitsForADirection() {
@@ -333,10 +338,10 @@ open class WriterUiChecks {
         compose.onNodeWithText("Redo").assertDoesNotExist()
     }
 
-    // GIVEN a Reply is still streaming in
-    // THEN the player can type in the composer, and sends once the Reply is complete
+    // GIVEN a Reply is being written
+    // THEN the player can type in the composer, and sends once the Reply has appeared
     fun typingDuringReply() {
-        // A Move waiting for its first word is already a Reply in progress.
+        // A Move waiting for its Reply is already a Reply under way.
         link.current.value = link.current.value.copy(exchanges = link.current.value.exchanges +
             Exchange(move = Passage(entryID = "pending", text = "I ask her.")), headEntryID = "pending", seq = 4, lastEventID = "4")
         openScene()
@@ -344,25 +349,26 @@ open class WriterUiChecks {
         compose.onNodeWithTag("composer").assertTextContains("I wait beside her.")
         compose.onNodeWithTag("send-move").assertIsNotEnabled()
         compose.onNodeWithText("Your Move sends once the Reply is done.").assertIsDisplayed()
-        compose.onNodeWithText("Reply being written").assertIsDisplayed()
         compose.onNodeWithContentDescription("Linger").assertIsNotEnabled()
         compose.onNodeWithText("End scene").assertIsNotEnabled()
-        compose.runOnIdle { assertTrue(link.moves.isEmpty()); link.current.value = link.current.value.copy(turn = TurnState(kind = TurnStateKind.Writing, textSoFar = "She ")) }
-        compose.onNodeWithText("She ").assertIsDisplayed()
-        compose.onNodeWithTag("reply-caret", useUnmergedTree = true).assertExists()
+        compose.runOnIdle { assertTrue(link.moves.isEmpty()); link.current.value = link.current.value.copy(turn = TurnState(kind = TurnStateKind.Writing)) }
+        compose.onNodeWithText("Writing…").assertIsDisplayed()
         compose.onNodeWithTag("scene-header-title").assertTextEquals("After curfew")
         compose.onNodeWithTag("scene-header-time").assertTextEquals("Scene 14 · Friday 9:40 pm")
-        compose.preview("SceneWriting")
         compose.onNodeWithTag("composer").performTextInput(" I stay.")
+        compose.runOnIdle { link.current.value = link.current.value.copy(turn = TurnState(kind = TurnStateKind.Checking)) }
+        compose.onNodeWithText("Checking…").assertIsDisplayed()
+        compose.onNodeWithTag("send-move").assertIsNotEnabled()
         compose.runOnIdle {
             link.current.value = SceneProjection(link.current.value).apply(StoryEventEnvelope("5", StoryEvent(kind = StoryEventKind.Reply,
                 seq = 5, passage = Passage(entryID = "finished", text = "She finishes."))))
         }
+        compose.onNodeWithText("She finishes.").assertIsDisplayed()
         compose.onNodeWithTag("composer").assertTextContains("I wait beside her. I stay.")
         compose.onNodeWithTag("send-move").assertIsEnabled()
         compose.onNodeWithText("Your Move sends once the Reply is done.").assertDoesNotExist()
-        compose.onNodeWithTag("reply-caret", useUnmergedTree = true).assertDoesNotExist()
-        compose.runOnIdle { assertTrue("Completion must not send the draft", link.moves.isEmpty()) }
+        compose.onNodeWithTag("reply-under-way").assertDoesNotExist()
+        compose.runOnIdle { assertTrue("The Reply appearing must not send the draft", link.moves.isEmpty()) }
         compose.onNodeWithTag("send-move").performClick()
         compose.runOnIdle { assertEquals(MoveRequest(after = "finished", text = "I wait beside her. I stay."), link.moves.single()) }
     }

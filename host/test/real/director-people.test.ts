@@ -4,6 +4,7 @@ import { ClaudeRunner } from "../../src/models/claude.js";
 import { DEFAULT_JOB_MODELS } from "../../src/models/jobs.js";
 import { Models } from "../../src/models/model-call.js";
 import { CLAUDE_TOKEN, readSecret } from "../../src/secrets.js";
+import { nothingBeside } from "../../src/story/beside.js";
 import { importStoryFile } from "../../src/storyfile/import.js";
 import { freshHome } from "../support/host.js";
 import { malfoyProblemStoryFile, writeStoryFile } from "../support/story-files.js";
@@ -29,7 +30,7 @@ async function firstPlan(): Promise<{ strangers: string[]; problems: string[] }>
   try {
     const due = directionDue(state);
     if (!due) throw new Error("no plan was due after the first Scene");
-    const plan = await writePlan(models, [DEFAULT_JOB_MODELS.director], state, due, imported.storyId, "real-plan", new AbortController().signal);
+    const plan = await writePlan(models, [DEFAULT_JOB_MODELS.director], state, nothingBeside(), due, { storyId: imported.storyId, head: closed.id }, "real-plan", new AbortController().signal);
     const people = new Set([...Object.keys(state.people), ...state.groups.map(group => group.name), ...plan.value.people.map(person => person.name)]);
     // What the first answer left out, whether or not its repair was kept: a refused first answer shows on its call.
     const refused = mac.db.prepare("select error from calls where agent = 'director' and error is not null").all() as { error: string }[];

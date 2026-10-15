@@ -94,8 +94,6 @@ class LinkClient(val address: HttpUrl, fingerprint: String, private val deviceTo
         command(listOf("stories", storyID, "world"), commandJson.encodeToString(request), put = true)
     suspend fun setClock(storyID: String, request: ClockRequest): StoryView =
         command(listOf("stories", storyID, "clock"), commandJson.encodeToString(request), put = true)
-    suspend fun rewordTaste(storyID: String, request: RewordTasteRequest): StoryView =
-        command(listOf("stories", storyID, "taste", "reword"), commandJson.encodeToString(request))
 
     /** A Portrait from the phone: the image itself, as its type, with the head the phone saw (openspec stories: Portraits). */
     suspend fun uploadPortrait(storyID: String, name: String, image: ByteArray, type: String, after: String): Accepted {
@@ -108,8 +106,14 @@ class LinkClient(val address: HttpUrl, fingerprint: String, private val deviceTo
         return answer(execute(request))
     }
     suspend fun backstage(storyID: String): BackstageView = command(listOf("stories", storyID, "backstage"))
-    suspend fun removeTaste(storyID: String, request: RemoveTasteRequest): Accepted =
-        command(listOf("stories", storyID, "taste", "remove"), commandJson.encodeToString(request))
+    // Taste and steering notes, beside the Story (docs/adr/0020): the phone reads Backstage again after each.
+    suspend fun removeTaste(storyID: String, request: RemoveTasteRequest) =
+        sent(listOf("stories", storyID, "taste", "remove"), commandJson.encodeToString(request))
+    suspend fun rewordTaste(storyID: String, request: RewordTasteRequest) =
+        sent(listOf("stories", storyID, "taste", "reword"), commandJson.encodeToString(request))
+    suspend fun writeNote(storyID: String, request: SteeringNoteRequest) =
+        sent(listOf("stories", storyID, "notes"), commandJson.encodeToString(request))
+    suspend fun deleteNote(storyID: String, noteID: String) = sent(listOf("stories", storyID, "notes", noteID), delete = true)
     suspend fun setBrief(storyID: String, request: BriefRequest): Accepted =
         command(listOf("stories", storyID, "brief"), commandJson.encodeToString(request))
     suspend fun react(storyID: String, request: ReactionRequest): Accepted =
@@ -134,6 +138,13 @@ class LinkClient(val address: HttpUrl, fingerprint: String, private val deviceTo
 
     private suspend inline fun <reified T> command(path: List<String>, body: String? = null, paired: Boolean = true, delete: Boolean = false, put: Boolean = false): T =
         answer(execute(request(path, body, paired, delete, put)))
+
+    /** A command whose answer the phone does not read: its contract checked, a refusal thrown with its reason. */
+    private suspend fun sent(path: List<String>, body: String? = null, delete: Boolean = false) {
+        val (response, text) = execute(request(path, body, delete = delete))
+        requireContract(response, text)
+        if (!response.isSuccessful || runCatching { linkJson.decodeFromString<ErrorBody>(text) }.isSuccess) throw failure(response.code, text)
+    }
 
     /** Reads the Mac's answer to a request: its contract checked, a refusal thrown with its reason. */
     private inline fun <reified T> answer(sent: Pair<Response, String>): T {

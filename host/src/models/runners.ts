@@ -20,8 +20,11 @@ export function subscriptionRunners(home: string): Runners {
 
 /** One scripted runner standing in for every provider, so a setting on any of them plays without spending quota. */
 export function scriptedRunners(runner: ModelRunner, offered: Partial<Record<ModelChoice["provider"], OfferedModel[]>> = SCRIPTED_OFFERS): Runners {
-  const listing = (provider: ModelChoice["provider"]): ListingRunner =>
-    ({ run: (request, onText, signal) => runner.run(request, onText, signal), listModels: async () => offered[provider] ?? [] });
+  const listing = (provider: ModelChoice["provider"]): ListingRunner => ({
+    ...(runner.canLookUp ? { canLookUp: runner.canLookUp } : {}),
+    run: (request, onText, signal, tools) => runner.run(request, onText, signal, tools),
+    listModels: async () => offered[provider] ?? []
+  });
   return { claude: listing("claude"), codex: listing("codex"), antigravity: listing("antigravity"), close: () => {} };
 }
 
@@ -34,6 +37,7 @@ const upTo = (top: string) => ["low", "medium", "high", "xhigh", "max", "ultra"]
 export const SCRIPTED_OFFERS: Record<ModelChoice["provider"], OfferedModel[]> = {
   claude: [
     { id: "claude-opus-5-5", aliases: ["opus"], name: "Opus 5.5", efforts: upTo("max"), defaultEffort: null },
+    { id: "claude-fable-5-1", aliases: ["fable"], name: "Fable 5.1", efforts: upTo("max"), defaultEffort: null },
     { id: "claude-sonnet-5-5", aliases: ["sonnet"], name: "Sonnet 5.5", efforts: upTo("max"), defaultEffort: null },
     { id: "claude-haiku-4-5-20251001", aliases: ["haiku", "claude-haiku-4-5"], name: "Haiku 4.5", efforts: [], defaultEffort: null }
   ],

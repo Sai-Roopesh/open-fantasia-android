@@ -1,27 +1,45 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import type { Models } from "../models/model-call.js";
+import { nothingBeside } from "../story/beside.js";
 import type { Chronicle, Entry, Moment } from "../story/entries.js";
 import type { Engagement, Fact, ModelChoice, Quote, State } from "../story/state.js";
 import { minutesOf, parseStoryTime } from "../time.js";
 import { engagementsAhead } from "../story/day.js";
-import { join, recallFacts, say, section, storyPart, storySoFarPart } from "../context/lens.js";
+import { livedAs, tierOf, tiers } from "../story/relevance.js";
+import { asCall, join, layers, recallFacts, say, section } from "../context/lens.js";
 import { claimsAboutPlayer, playerNames } from "./deciding.js";
-import { matches, namer, nullable, oneOf, peopleEnum, storyTime, text, timeFormat, wordCount } from "./format.js";
-import { runAgent, TIMEOUT_MS, type Checked } from "./step.js";
+import { matches, namer, oneOf, peopleEnum, storyTime, text, timeFormat, wordCount } from "./format.js";
+import { BUDGETS, runAgent, type Checked, type ToolKit } from "./step.js";
+import { checkTruth, truthFormat, type RawTruth } from "./truth-record.js";
 
 const PROMPT = readFileSync(new URL("./CHRONICLER.md", import.meta.url), "utf8");
 
 /**
  * The Chronicler: records a closed Scene from its page, inventing nothing (docs/adr/0006): its Moments in their own
- * words, who was told what, what he now knows of people, the Bonds, his Engagements, a line for the Journal and a
- * paragraph for The Story So Far. Only what is not on the page is left out; nothing is sent back for its length.
+ * words, who was told what, what he now knows of people, the Bonds, his Engagements, a line for the Journal, a
+ * paragraph for The Story So Far, and the truth (openspec the-truth): who each person who matters is now, what each
+ * knows and believes, where things stand between any two people, what became true or stopped being, Rules and new
+ * names, each from the passages it cites. Only what is not on the page is left out; nothing is sent back for its
+ * length. It may look things up in the Story within its budget (docs/adr/0018).
  */
 export interface ChronicleAsk {
-  /** The State with the Scene closed. */
+  /** The State with the Scene closed; or open, when a long Scene is recorded so far. */
   state: State;
-  /** The Scene's entries, opening to close. */
+  /** The Scene's entries, opening to close, or as far as it has been played. */
   scene: Entry[];
+  /**
+   * The Scene is still being played and has run past what is carried word for word: it is recorded so far, once, as a
+   * finished Scene is (the-storys-mind design decision 8).
+   */
+  soFar?: boolean;
+}
+
+/** The passages still to record: those after the record kept while the Scene was played, when it ran long. */
+function toRecord(ask: ChronicleAsk): Entry[] {
+  const through = ask.soFar ? undefined : ask.state.scene?.recorded?.through;
+  const at = through ? ask.scene.findIndex(entry => entry.id === through) : -1;
+  return at >= 0 ? ask.scene.slice(at + 1) : ask.scene;
 }
 
 export type ChronicleRecord = Omit<Chronicle, "kind" | "scene" | "callId" | "model" | "dropped">;
@@ -35,6 +53,8 @@ interface Raw {
   bonds: { who: string; standing: string; turn: string }[];
   engagements: { what: string; at: string; place: string; who: string[]; expected: boolean; every: "week" | null; quotes: { entry: string; text: string }[] }[];
   changed: { engagement: string; to: string; quotes: { entry: string; text: string }[] }[];
+  /** Kept by a model that keeps to the format; a record without it changes nothing in the truth. */
+  truth?: RawTruth;
 }
 
 /**
@@ -88,7 +108,7 @@ export function chronicleFormat(state: State, labels: string[], moments: Fact[],
   return {
     type: "object",
     additionalProperties: false,
-    required: ["summary", "paragraph", "moments", "told", "known", "bonds", "engagements", "changed"],
+    required: ["summary", "paragraph", "moments", "told", "known", "bonds", "engagements", "changed", "truth"],
     properties: {
       summary: text,
       paragraph: text,
@@ -97,35 +117,63 @@ export function chronicleFormat(state: State, labels: string[], moments: Fact[],
       known: { type: "array", items: { type: "object", additionalProperties: false, required: ["who", "now"], properties: { who: people, now: text } } },
       bonds: { type: "array", items: { type: "object", additionalProperties: false, required: ["who", "standing", "turn"], properties: { who: people, standing: text, turn: text } } },
       engagements: { type: "array", items: { type: "object", additionalProperties: false, required: ["what", "at", "place", "who", "expected", "every", "quotes"], properties: { what: text, at: timeFormat(state), place: text, who: { type: "array", items: people }, expected: { type: "boolean" }, every: { type: ["string", "null"], enum: ["week", null] }, quotes: { type: "array", items: quote } } } },
-      changed: { type: "array", items: { type: "object", additionalProperties: false, required: ["engagement", "to", "quotes"], properties: { engagement: oneOf(engagements), to: timeFormat(state, ", or off"), quotes: { type: "array", items: quote } } } }
+      changed: { type: "array", items: { type: "object", additionalProperties: false, required: ["engagement", "to", "quotes"], properties: { engagement: oneOf(engagements), to: timeFormat(state, ", or off"), quotes: { type: "array", items: quote } } } },
+      truth: truthFormat(state, quote)
     }
   } as const;
 }
 
+const TIER = { close: "Close, kept in full", mover: "a Mover's, kept in full", other: "a line" } as const;
+
+/**
+ * The Chronicler's prompt in four layers (the-storys-mind design decision 7), as every agent reads the Story: its
+ * instructions and the Story, with each Rule's id; where things stand before the Scene is recorded, for the people in
+ * it, with the id of each kept item a record can change or close; the Scene word for word, every passage labelled for
+ * quoting; then this moment: the lines it rewrites for each person in the Scene, the Moments they know, the
+ * Engagements on, each by its label, and the task.
+ */
 export function chroniclerPrompt(ask: ChronicleAsk, moments: Fact[]): { system: string; prompt: string } {
   const { state } = ask;
   const scene = state.scene;
   const met = scene?.met ?? [];
   const pc = state.playerCharacter;
-  return {
-    system: join([PROMPT, storyPart(state)]),
-    prompt: join([
-      storySoFarPart(state),
-      section("people_in_the_scene", met.map(name => `${name}\n  What ${pc} knows of them: ${state.known[name]?.text ?? "nothing yet"}\n  Where things stand: ${state.bonds[name]?.standing ?? "no history yet"}`).join("\n")),
-      section("known_moments", moments.map((fact, index) => `M${index + 1} (Scene ${fact.scene}; known to ${fact.knownTo.join(", ")}): ${fact.what}`).join("\n")),
-      section("engagements_on", engagementsAhead(state).map(({ engagement, next }, index) => `E${index + 1}: ${engagement.what} ${say(state, next)}${engagement.every ? ", every week" : ""}, ${engagement.place}`).join("\n")),
-      section(`scene title="${scene?.title ?? ""}" place="${scene?.place ?? ""}" from="${scene ? say(state, scene.at) : ""}" until="${scene?.endedAt ? say(state, scene.endedAt) : ""}"`, passages(ask.scene).map(item => `[${item.label}${item.move ? ` move by ${pc}` : ""}]\n${item.text}`).join("\n\n")),
-      section("task", "The Scene has ended. Record it.")
-    ])
+  const tiered = tiers(state);
+  const person = (name: string) => {
+    const as = livedAs(state, name);
+    return [
+      `${name}${as !== name ? `, of ${as}` : ""}`,
+      `  What ${pc} knows of them: ${state.known[name]?.text ?? "nothing yet"}`,
+      `  Where things stand: ${state.bonds[name]?.standing ?? "no history yet"}`,
+      `  Their Life: ${TIER[tierOf(state, name, tiered)]}`
+    ].join("\n");
   };
+  const elsewhere = tiered.close.filter(name => !met.some(here => livedAs(state, here) === name));
+  const recorded = ask.soFar ? undefined : scene?.recorded;
+  // The people in the Scene, and the Group each is lived as: a Group's Life is kept once, for all its members.
+  const present = [...new Set([...met, ...met.map(name => livedAs(state, name))])];
+  const layered = layers(state, nothingBeside(), "chronicler", present, [], [
+    section("people_in_the_scene", [...met.map(person), elsewhere.length ? `Close, and not in the Scene: ${elsewhere.join(", ")}.` : ""].filter(Boolean).join("\n")),
+    section("known_moments", moments.map((fact, index) => `M${index + 1} (Scene ${fact.scene}; known to ${fact.knownTo.join(", ")}): ${fact.what}`).join("\n")),
+    // Every Engagement on, by the label a record changes it by: the calendar where things stand tells only the first few.
+    section("engagements_on", engagementsAhead(state).map(({ engagement, next }, index) => `E${index + 1}: ${engagement.what} ${say(state, next)}${engagement.every ? ", every week" : ""}, ${engagement.place}`).join("\n")),
+    recorded ? section("recorded_so_far", `The Scene ran long, and was recorded while it was played, as far as the passage before P1: ${recorded.paragraph} What that record kept is kept already.`) : null,
+    section("task", ask.soFar
+      ? "The Scene is still being played, and has run past what can be carried word for word. Record it so far, as you would a finished Scene: its line and paragraph tell it so far."
+      : recorded ? "The Scene has ended. Record what came after its record so far; your line and paragraph tell the whole Scene." : "The Scene has ended. Record it.")
+  ], PROMPT);
+  // The Scene whole, never cut for length: every passage it quotes is labelled.
+  const words = passages(toRecord(ask)).map(item => `[${item.label}${item.move ? ` move by ${pc}` : ""}]\n${item.text}`).join("\n\n");
+  return asCall({ ...layered, scene: join([layered.scene, section("scene_so_far", words)]) });
 }
 
 /** Checks the record: what is not on the page is left out; only an answer that is not a record at all is sent back. */
 export function checkChronicle(ask: ChronicleAsk, moments: Fact[], answer: unknown): Checked<ChronicleRecord> {
   const { state } = ask;
-  const items = passages(ask.scene);
+  const items = passages(toRecord(ask));
   const shown = engagementsAhead(state);
-  const format = matches<Raw>(chronicleFormat(state, items.map(item => item.label), moments, shown.map((_, index) => `E${index + 1}`)), answer);
+  const asked = chronicleFormat(state, items.map(item => item.label), moments, shown.map((_, index) => `E${index + 1}`));
+  // A record that says nothing of the truth is still a record: it changes nothing in the truth (docs/adr/0012).
+  const format = matches<Raw>({ ...asked, required: asked.required.filter(key => key !== "truth") }, answer);
   if (!format.ok) return format;
   const raw = format.value;
   const dropped: string[] = [];
@@ -176,15 +224,20 @@ export function checkChronicle(ask: ChronicleAsk, moments: Fact[], answer: unkno
   const bonds = raw.bonds.flatMap(line => named([line.who]).flatMap(who => (
     tooLong(`bonds: where things stand with ${who}`, line.standing, KEEP_WORDS.standing, "forty") || tooLong(`bonds: the turn with ${who}`, line.turn, KEEP_WORDS.turn, "twenty-five")
       ? [] : [{ who, standing: line.standing.trim(), turn: line.turn.trim() }])));
-  return { ok: true, dropped, value: { summary: raw.summary.trim(), paragraph: raw.paragraph.trim(), moments: recorded, told, known, bonds, engagements, changed } };
+  const truth = checkTruth(state, raw.truth, { scene: state.scene?.number ?? 0, quotes: quotesOf, dropped });
+  return { ok: true, dropped, value: { summary: raw.summary.trim(), paragraph: raw.paragraph.trim(), moments: recorded, told, known, bonds, engagements, changed, truth } };
 }
 
-export async function writeChronicle(models: Models, choices: ModelChoice[], ask: ChronicleAsk, storyId: string, traceId: string, signal: AbortSignal): Promise<{ value: ChronicleRecord; callId: string; model: ModelChoice; dropped: string[] }> {
+/** What the Chronicler may look up: the Story as it stood when the Scene closed. */
+function toolsFor(ask: ChronicleAsk, storyId: string): ToolKit {
+  const head = ask.scene.at(-1)?.id;
+  return { story: head ? { storyId, head } : null, web: false };
+}
+
+export async function writeChronicle(models: Models, choices: ModelChoice[], ask: ChronicleAsk, storyId: string, traceId: string, signal: AbortSignal): Promise<{ value: ChronicleRecord; callId: string; model: ModelChoice; dropped: string[]; lookups: string[] }> {
   const moments = recallFacts(ask.state, ask.state.scene?.met ?? []);
   const { system, prompt } = chroniclerPrompt(ask, moments);
-  const items = passages(ask.scene).map(item => item.label);
+  const items = passages(toRecord(ask)).map(item => item.label);
   const shown = engagementsAhead(ask.state).map((_, index) => `E${index + 1}`);
-  return runAgent(models, choices, { agent: "chronicler", system, prompt, schema: chronicleFormat(ask.state, items, moments, shown), facts: { passages: passages(ask.scene).map(item => ({ label: item.label, move: item.move, text: item.text })), scene: ask.state.scene?.number }, traceId, storyId }, answer => checkChronicle(ask, moments, answer), TIMEOUT_MS.record, signal);
+  return runAgent(models, choices, { agent: "chronicler", system, prompt, schema: chronicleFormat(ask.state, items, moments, shown), tools: toolsFor(ask, storyId), facts: { passages: passages(toRecord(ask)).map(item => ({ label: item.label, move: item.move, text: item.text })), scene: ask.state.scene?.number }, traceId, storyId }, answer => checkChronicle(ask, moments, answer), BUDGETS.chronicler, signal);
 }
-
-void nullable;

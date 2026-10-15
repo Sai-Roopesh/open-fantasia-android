@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { nothingTrue } from "../../src/agents/truth-record.js";
+import { fakeEditorAnswer } from "../../src/models/fake.js";
 import type { Script } from "../../src/models/scripted.js";
 import type { StoryFile } from "../../src/protocol/generated/story-file.js";
 import type { Chronicle } from "../../src/story/entries.js";
@@ -20,9 +22,9 @@ function writer(comesIn: string[], minutes: number, opens?: { title: string; pla
   return { answer: JSON.stringify({ leaves_scene: false, frame, comes_in: comesIn, goes: [], beats, note: "n", call: "continue", intensity: 2, arc_moved: true, minutes, taste: null, in_play: [], moves_to: null }) };
 }
 
-/** A Chronicler's record: a line (its paragraph too), the Moments, and who was told of a Moment already known. */
-function chronicle(summary: string, moments: unknown[], told: unknown[] = []): Script {
-  return { answer: JSON.stringify({ summary, paragraph: summary, moments, told, known: [], bonds: [], engagements: [], changed: [] }) };
+/** A Chronicler's record: a line (its paragraph too), the Moments, who was told of a Moment already known, and the truth. */
+function chronicle(summary: string, moments: unknown[], told: unknown[] = [], truth?: unknown): Script {
+  return { answer: JSON.stringify({ summary, paragraph: summary, moments, told, known: [], bonds: [], engagements: [], changed: [], ...(truth ? { truth } : {}) }) };
 }
 
 /** Everything the Actor's latest call was given: where recall goes. */
@@ -62,13 +64,28 @@ describe("recall", () => {
   // THEN nothing she says or does shows knowledge of the egg
   it("living-world › Characters know only what they could know › Hermione does not know about the egg", async () => {
     const hut = hogwartsStoryFile({ title: "Hagrid's hut", place: "Hagrid's hut", at: "Day 4 15:00", who: ["Rubeus Hagrid", "Ron Weasley", "Harry Potter"], prose: "Something is ticking in the fire." });
-    const egg = { what: "Hagrid shows them the dragon egg in the fire.", quotes: [{ entry: "P3", text: "Hagrid lifts the black egg out of the coals with his bare hands." }], there: ["Rubeus Hagrid", "Ron Weasley", "Harry Potter"], weight: 4 };
-    const { play, engine, storyId, head, models, state } = playable(hut, {
+    const lifted = "Hagrid lifts the black egg out of the coals with his bare hands.";
+    const egg = { what: "Hagrid shows them the dragon egg in the fire.", quotes: [{ entry: "P3", text: lifted }], there: ["Rubeus Hagrid", "Ron Weasley", "Harry Potter"], weight: 4 };
+    const secret = "Hagrid is hatching a dragon egg in his hut";
+    const kept = { ...nothingTrue(), truths: { open: [{ kind: "secret", what: secret, terms: [], who: ["Rubeus Hagrid"], known_to: ["Rubeus Hagrid", "Ron Weasley", "Harry Potter", "Roopesh Gantasala"], due: null, replaces: null, quotes: [{ entry: "P3", text: lifted }] }], close: [] } };
+    const toldHer = { ...nothingTrue(), beliefs: { open: [{ holder: "Hermione Granger", what: secret, true: true, quotes: [{ entry: "P3", text: "Ron tells Hermione about the egg in a whisper." }] }], close: [] } };
+    // The Actor is told everything (docs/adr/0017); a Reply in which Hermione, alone with him, shows she knows of the
+    // egg is what the Editor reads for, and sends back.
+    const shows = "Hermione looks up from her book. “Has Hagrid's egg hatched yet?”";
+    const reads: Script = { from: request => {
+      const facts = request.facts as { reply?: string; present?: string[] };
+      const alone = facts.present?.length === 1 && facts.present[0] === "Hermione Granger";
+      return alone && /egg/.test(facts.reply ?? "")
+        ? { answer: JSON.stringify({ fixes: [], breaks: [{ kind: "leak", who: "Hermione Granger", words: "Has Hagrid's egg hatched yet?", why: "Only Hagrid, Ron, Harry and Roopesh know about the egg." }] }) }
+        : fakeEditorAnswer(request);
+    } };
+    const { play, engine, storyId, head, models, state, view } = playable(hut, {
       writer: [writer(["Rubeus Hagrid", "Ron Weasley", "Harry Potter"], 5), writer(["Hermione Granger"], 295, { title: "The library", place: "The library" }),
         writer(["Hermione Granger", "Ron Weasley"], 1440, { title: "The common room", place: "The common room" }), writer(["Hermione Granger"], 780, { title: "Breakfast", place: "The Great Hall" })],
-      actor: [{ answer: "Hagrid lifts the black egg out of the coals with his bare hands." }, { answer: "Hermione is reading." }, { answer: "Ron tells Hermione about the egg in a whisper." }],
+      actor: [{ answer: lifted }, { answer: shows }, { answer: "Hermione is reading." }, { answer: "Ron tells Hermione about the egg in a whisper." }],
+      editor: Array.from({ length: 12 }, () => reads),
       // Ron tells her in the third Scene: the egg is the first Moment the people there remember.
-      chronicler: [chronicle("Hagrid showed them a dragon egg.", [egg]), chronicle("Hermione read.", []), chronicle("Ron told Hermione about the egg.", [], [{ moment: "M1", to: ["Hermione Granger"] }])]
+      chronicler: [chronicle("Hagrid showed them a dragon egg.", [egg], [], kept), chronicle("Hermione read.", []), chronicle("Ron told Hermione about the egg.", [], [{ moment: "M1", to: ["Hermione Granger"] }], toldHer)]
     });
     await play("I look into the fire.");
     engine.endScene(storyId, head(), "t1");
@@ -76,7 +93,13 @@ describe("recall", () => {
     expect(state().facts.find(fact => fact.what === egg.what)!.knownTo).toEqual(["Roopesh Gantasala", "Rubeus Hagrid", "Ron Weasley", "Harry Potter"]);
     await play("That evening I find Hermione alone in the library.");
     expect(state().scene!.here).toEqual(["Hermione Granger"]);
-    expect(lastActor(models)).not.toMatch(/egg/);
+    // Whoever writes her is told plainly that she does not know, and given nothing of it as hers to remember.
+    const [library, again] = models.actor.requests.slice(-2).map(request => request.prompt) as [string, string];
+    expect(library).toContain(`Hermione Granger does not know ${secret}.`);
+    expect(library.slice(library.lastIndexOf("<now>"))).not.toMatch(/egg/);
+    // The Reply that had her show it was written again before the player read it; what the player read shows nothing.
+    expect(again).toContain("Leak (Hermione Granger): \"Has Hagrid's egg hatched yet?\".");
+    expect(view().exchanges.at(-1)!.reply!.text).toBe("Hermione is reading.");
     engine.endScene(storyId, head(), "t2");
     await engine.ended(storyId);
     await play("Ron tells Hermione about the egg while I listen.");

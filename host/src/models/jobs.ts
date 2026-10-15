@@ -4,27 +4,31 @@ import type { Mac } from "../mac.js";
 import type { ModelChoice } from "../story/state.js";
 
 /** The jobs whose model is the Mac's to choose for every Story. The Actor is each Story's own (docs/adr/0008). */
-export const JOBS = ["writer", "chronicler", "weaver", "director", "folder"] as const;
+export const JOBS = ["writer", "editor", "chronicler", "director", "weaver", "folder"] as const;
 export type Job = (typeof JOBS)[number];
 
-/** The Writer answers after every Move, before the Reply can start: a fast model keeps that wait short. */
+const OPUS: ModelChoice = { provider: "claude", model: "claude-opus-5-5" };
+
+/**
+ * Each job's model until the player sets one (openspec outside-the-scene: One Models screen › The defaults). The
+ * player chose quality over speed (docs/goal.md): Opus 5.5 for every job, the Writer at medium effort since it plans
+ * before every Reply; Fable 5.1 at high effort for the Director, who shapes the whole Story; and Sonnet 5.5 for the
+ * Editor, who checks every Reply against what is established while the player waits.
+ */
 export const DEFAULT_JOB_MODELS: Record<Job, ModelChoice> = {
-  writer: { provider: "claude", model: "claude-sonnet-5-5" },
-  // The Chronicler works in the background; Sonnet records carefully at a fraction of Opus's quota.
-  chronicler: { provider: "claude", model: "claude-sonnet-5-5" },
-  // The Day View waits for the Weaver, so it gets the faster model too.
-  weaver: { provider: "claude", model: "claude-sonnet-5-5" },
-  // The Director plans the long run, rarely and never in the player's way: the strongest model.
-  director: { provider: "claude", model: "claude-opus-5-5" },
-  folder: { provider: "claude", model: "claude-haiku-4-5-20251001" }
+  writer: { ...OPUS, effort: "medium" },
+  editor: { provider: "claude", model: "claude-sonnet-5-5" },
+  chronicler: OPUS,
+  weaver: OPUS,
+  director: { provider: "claude", model: "claude-fable-5-1", effort: "high" },
+  folder: OPUS
 };
 
-/** A job's second model, tried once when its own fails or runs too long (openspec presence: Nothing fails silently). */
-const SONNET: ModelChoice = { provider: "claude", model: "claude-sonnet-5-5" };
+/**
+ * Every job's second model, the Actor's too, tried once when its own fails or runs too long (openspec presence:
+ * Nothing fails silently): GPT 6.1 Sol, on another provider, which can search the web.
+ */
 const SOL: ModelChoice = { provider: "codex", model: "gpt-6.1-sol" };
-export function defaultBackup(choice: ModelChoice): ModelChoice {
-  return choice.provider === "claude" && choice.model === SONNET.model ? SOL : SONNET;
-}
 
 /** models.json: a model per job at the top, as it has always been, and each Story's own Actor under `actors`. */
 type Saved = Partial<Record<Job, ModelChoice>> & { actors?: Record<string, ModelChoice>; backups?: Partial<Record<Job | "actor", ModelChoice>> };
@@ -52,12 +56,24 @@ export function jobModels(home: string): Record<Job, ModelChoice> {
   return Object.fromEntries(JOBS.map(job => [job, settings[job] ?? DEFAULT_JOB_MODELS[job]])) as Record<Job, ModelChoice>;
 }
 
-/** Each job's second model, from models.json or the default for its model. */
+/** Each job's second model, from models.json or GPT 6.1 Sol. */
 export function backupModels(home: string): Record<Job | "actor", ModelChoice> {
   const settings = saved(home);
-  const models = jobModels(home);
-  const backup = (job: Job | "actor", of: ModelChoice) => settings.backups?.[job] ?? defaultBackup(of);
-  return { ...Object.fromEntries(JOBS.map(job => [job, backup(job, models[job])])), actor: settings.backups?.actor ?? SONNET } as Record<Job | "actor", ModelChoice>;
+  return { ...Object.fromEntries(JOBS.map(job => [job, settings.backups?.[job] ?? SOL])), actor: settings.backups?.actor ?? SOL } as Record<Job | "actor", ModelChoice>;
+}
+
+const same = (a: ModelChoice, b: ModelChoice) => a.provider === b.provider && a.model === b.model;
+
+/**
+ * The second model a job really gets with [own] as its model and [backup] as its second: [backup], unless it is the
+ * same model, when a second try on it would be no second try. Then it is the job's default, or Opus 5.5 when that is the
+ * same model too, or GPT 6.1 Sol when even Opus is.
+ */
+export function secondModel(own: ModelChoice, backup: ModelChoice, job: Job | "actor"): ModelChoice {
+  if (!same(own, backup)) return backup;
+  const fallback = job === "actor" ? OPUS : DEFAULT_JOB_MODELS[job];
+  if (!same(own, fallback)) return fallback;
+  return same(own, OPUS) ? SOL : OPUS;
 }
 
 export function setBackupModel(home: string, job: Job | "actor", choice: ModelChoice): void {

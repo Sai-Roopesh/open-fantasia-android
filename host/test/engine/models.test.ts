@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Engine } from "../../src/engine/engine.js";
 import { FakeModels } from "../../src/models/fake.js";
-import { backupModels, jobModels, setBackupModel, setJobModel, setStoryActor } from "../../src/models/jobs.js";
+import { backupModels, jobModels, secondModel, setBackupModel, setJobModel, setStoryActor } from "../../src/models/jobs.js";
 import { Models } from "../../src/models/model-call.js";
 import { scriptedRunners } from "../../src/models/runners.js";
 import type { ReplyWritten as Reply } from "../../src/story/entries.js";
@@ -53,7 +53,7 @@ describe("the models each job runs on", () => {
     expect(latest(callsFor(mac.db, "actor"))).toMatchObject(SOL);
     expect((mac.tree.entry(head())!.payload as Reply).model).toEqual(SOL);
     // The Writer is not the Redo's to move.
-    expect(latest(callsFor(mac.db, "writer"))).toMatchObject(SONNET);
+    expect(latest(callsFor(mac.db, "writer"))).toMatchObject(OPUS);
     await play("I ask what she is reading.");
     expect(latest(callsFor(mac.db, "actor"))).toMatchObject(OPUS);
   });
@@ -79,13 +79,13 @@ describe("the models each job runs on", () => {
   // AND the next Reply is written by Opus 5.5 again
   it("presence › Nothing fails silently › Another model for a failed Reply", async () => {
     // Opus 5.5 is overloaded, and so is the Actor's second model: the Reply failed.
-    const { mac, engine, storyId, view, play } = playable(hogwartsStoryFile(), { actor: [{ fail: "Opus 5.5 is overloaded right now." }, { fail: "Sonnet 5.5 is overloaded right now." }] });
+    const { mac, engine, storyId, view, play } = playable(hogwartsStoryFile(), { actor: [{ fail: "Opus 5.5 is overloaded right now." }, { fail: "GPT 6.1 Sol is at capacity." }] });
     await play("I kiss her, quickly.");
     expect(view().turn).toMatchObject({ kind: "failed", job: "actor" });
     engine.retry(storyId, "trace-retry", SOL);
     await engine.settled(storyId);
     expect(view().turn.kind).toBe("idle");
-    expect(callsFor(mac.db, "actor").map(call => [call.provider, call.model])).toEqual([["claude", "claude-opus-5-5"], ["claude", "claude-sonnet-5-5"], ["codex", "gpt-6.1-sol"]]);
+    expect(callsFor(mac.db, "actor").map(call => [call.provider, call.model])).toEqual([["claude", "claude-opus-5-5"], ["codex", "gpt-6.1-sol"], ["codex", "gpt-6.1-sol"]]);
     expect((mac.tree.entry(mac.tree.currentPath(storyId)!.headEntryId)!.payload as Reply).model).toEqual(SOL);
     await play("I wait for her answer.");
     expect(latest(callsFor(mac.db, "actor"))).toMatchObject(OPUS);
@@ -94,7 +94,7 @@ describe("the models each job runs on", () => {
   });
 
   it("runs a Writer that failed on the model chosen for it, for that one try", async () => {
-    const { mac, engine, storyId, view, play } = playable(hogwartsStoryFile(), { writer: [{ fail: "Sonnet 5.5 is overloaded right now." }, { fail: "Sonnet 5.5 is overloaded right now." }] });
+    const { mac, engine, storyId, view, play } = playable(hogwartsStoryFile(), { writer: [{ fail: "Opus 5.5 is overloaded right now." }, { fail: "GPT 6.1 Sol is at capacity." }] });
     await play("I kiss her, quickly.");
     expect(view().turn).toMatchObject({ kind: "failed", job: "writer" });
     engine.retry(storyId, "trace-retry", FLASH);
@@ -102,7 +102,7 @@ describe("the models each job runs on", () => {
     expect(view().turn.kind).toBe("idle");
     // Asked on its model and its second model before it gives up, then once on the model chosen.
     expect(callsFor(mac.db, "writer").map(call => [call.provider, call.model, call.effort])).toEqual([
-      ["claude", "claude-sonnet-5-5", null], ["codex", "gpt-6.1-sol", null], ["antigravity", "gemini-3.8-flash", "high"]
+      ["claude", "claude-opus-5-5", "medium"], ["codex", "gpt-6.1-sol", null], ["antigravity", "gemini-3.8-flash", "high"]
     ]);
     // The Actor was not the one that failed, so it stays the Story's.
     expect(latest(callsFor(mac.db, "actor"))).toMatchObject(OPUS);
@@ -123,7 +123,7 @@ describe("the models each job runs on", () => {
     expect(view().day_view?.happenings).toEqual([]);
     engine.retry(storyId, "trace-world", SONNET);
     await engine.ended(storyId);
-    expect(view().day_view?.scene_end).toEqual({ step: null, failed: null });
+    expect(view().day_view?.scene_end).toEqual({ step: null, failed: null, rethinking: null });
     expect(view().day_view?.happenings.length).toBeGreaterThan(0);
     expect(callsFor(mac.db, "weaver").map(call => [call.provider, call.model])).toEqual([["codex", "gpt-6.1-sol"], ["antigravity", "gemini-3.8-flash"], ["claude", "claude-sonnet-5-5"]]);
     const moved = mac.tree.pathTo(head()).filter(entry => entry.payload.kind === "world_moved");
@@ -131,6 +131,22 @@ describe("the models each job runs on", () => {
     // Nothing was set: the try on another model was for that one step.
     expect(jobModels(mac.home).weaver).toEqual(SOL);
     expect(backupModels(mac.home).weaver).toEqual(FLASH);
+  });
+
+  it("gives a job set to its own second model another second try: its default, or Opus 5.5", async () => {
+    // The Weaver is set to GPT 6.1 Sol, which is every job's second model; it runs out of time, once.
+    const { mac, engine, storyId, head, view, play } = playable(hogwartsStoryFile(), { weaver: [{ fail: "Codex gpt-6.1-sol: stopped" }] });
+    setJobModel(mac.home, "weaver", SOL);
+    await play("I say goodnight.");
+    engine.endScene(storyId, head(), "trace-end");
+    await engine.ended(storyId);
+    expect(view().day_view?.scene_end).toEqual({ step: null, failed: null, rethinking: null });
+    expect(callsFor(mac.db, "weaver").map(call => [call.provider, call.model])).toEqual([["codex", "gpt-6.1-sol"], ["claude", "claude-opus-5-5"]]);
+    // A Story whose own Actor is GPT 6.1 Sol gets Opus 5.5 as its second, and so does a job whose default it is set to.
+    expect(secondModel(SOL, SOL, "actor")).toEqual(OPUS);
+    expect(secondModel(OPUS, SOL, "chronicler")).toEqual(SOL);
+    expect(secondModel(SOL, SOL, "editor")).toEqual(SONNET);
+    expect(secondModel(OPUS, OPUS, "weaver")).toEqual(SOL);
   });
 
   it("refuses a model for a Retry with nothing to retry", async () => {

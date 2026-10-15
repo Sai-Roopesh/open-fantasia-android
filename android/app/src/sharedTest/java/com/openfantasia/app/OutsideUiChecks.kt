@@ -1,6 +1,8 @@
 package com.openfantasia.app
 
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.*
+import androidx.compose.ui.text.AnnotatedString
 import com.openfantasia.protocol.*
 import org.junit.Assert.*
 
@@ -39,10 +41,10 @@ open class OutsideUiChecks : WorldUiChecks() {
         openScene()
         compose.onNodeWithContentDescription("Backstage").performClick()
         compose.onNodeWithText("Everything Roopesh doesn't know. Nothing here reaches the Scene, the Day View, the World or the Journal.").assertIsDisplayed()
-        compose.onNodeWithText("OFF-SCREEN").assertIsDisplayed()
-        compose.onNodeWithText("Saturday").assertIsDisplayed()
-        compose.onNodeWithText("11:50 pm").assertIsDisplayed()
-        compose.onNodeWithText("Quirrell tests the wards on the third-floor door. Nobody sees him.").assertIsDisplayed()
+        backstage("OFF-SCREEN").assertIsDisplayed()
+        backstage("Saturday").assertIsDisplayed()
+        backstage("11:50 pm").assertIsDisplayed()
+        backstage("Quirrell tests the wards on the third-floor door. Nobody sees him.").assertIsDisplayed()
         compose.onNodeWithText("Hagrid's lantern stops at the edge of the forest.").assertDoesNotExist()
         backstage("THREADS").assertIsDisplayed()
         backstage("Quirrell has tried the wards twice and scorched the door").assertIsDisplayed()
@@ -66,7 +68,11 @@ open class OutsideUiChecks : WorldUiChecks() {
         compose.onNodeWithContentDescription("Backstage").performClick()
         backstage("Keep Ron in the background unless he's needed.").assertIsDisplayed()
         compose.onAllNodesWithContentDescription("Delete this line")[1].performClick()
-        compose.runOnIdle { assertEquals(listOf(RemoveTasteRequest(line = "Keep Ron in the background unless he's needed.", after = "reply")), link.tasteRemovals) }
+        compose.runOnIdle {
+            assertEquals(listOf(RemoveTasteRequest(line = "Keep Ron in the background unless he's needed.", scope = ClosedBy.Story)), link.tasteRemovals)
+            // Taste is beside the Story, not on the Path: the head does not move (docs/adr/0020).
+            assertEquals("reply", link.current.value.headEntryID)
+        }
         compose.onNodeWithText("Keep Ron in the background unless he's needed.").assertDoesNotExist()
         compose.onNodeWithText("Keep school procedure to a line.").assertIsDisplayed()
     }
@@ -102,34 +108,44 @@ open class OutsideUiChecks : WorldUiChecks() {
 
     // GIVEN ten Scenes have been played
     // WHEN the player opens Backstage
-    // THEN How it's going shows how long their Scene ends took, how often a job needed its second model, the pace of
-    //   the ten Scenes, how often the Story's pick was taken, and the reactions given
+    // THEN How it's going shows how long their Scene ends took, how often a job needed its second model, how often the
+    //   Editor set a Reply right, the pace of the ten Scenes, how often the Story's pick was taken, and the reactions given
     fun howItsGoing() {
         openScene()
         compose.onNodeWithContentDescription("Backstage").performClick()
         backstage("HOW IT'S GOING").assertIsDisplayed()
-        compose.onNodeWithText("2 min 40").assertIsDisplayed()
+        backstage("2 min 40").assertIsDisplayed()
         compose.onNodeWithText("a Scene's end, lately").assertIsDisplayed()
-        compose.onNodeWithText("7 of 10").assertIsDisplayed()
+        backstage("7 of 10").assertIsDisplayed()
         compose.onNodeWithText("times you took the Story's pick").assertIsDisplayed()
+        backstage("48 sec").assertIsDisplayed()
+        compose.onNodeWithText("a Reply, lately").assertIsDisplayed()
+        backstage("6 of 40").assertIsDisplayed()
+        compose.onNodeWithText("Replies the Editor set right").assertIsDisplayed()
+        compose.onNodeWithTag("backstage").performScrollToNode(hasTestTag("pace"))
         compose.onNodeWithTag("pace").assertIsDisplayed()
             .assert(hasContentDescription("Pace of the last ten Scenes", substring = true))
             .assert(hasContentDescription("Scene 14, Scene 14, 5 of 5", substring = true))
-        compose.onNodeWithText("The Weaver needed its second model twice; nothing failed on both. You said more like this to 3 Scenes, less to 1.").assertIsDisplayed()
+        backstage("The Weaver needed its second model twice; nothing failed on both. You said more like this to 3 Scenes, less to 1.").assertIsDisplayed()
+        backstage("The Editor set 4 Replies right in place and had 2 written again.").assertIsDisplayed()
         compose.preview("Backstage · How it's going")
     }
 
     fun howItsGoingSaysWhatFailed() {
         assertEquals("No job needed its second model; the Director failed on both once. You have not said more or less like this to a Scene yet.",
-            howItsGoingLine(HowItsGoing(sceneEndSeconds = emptyList(), picksOffered = 0, picksTaken = 0, more = 0, less = 0, pace = emptyList(),
-                jobs = listOf(JobHealth(job = ModelJob.Director, calls = 3, secondModel = 0, failed = 1)))))
+            howItsGoingLine(going(jobs = listOf(JobHealth(job = ModelJob.Director, calls = 3, secondModel = 0, failed = 1)))))
         assertEquals("The Writer needed its second model once, the Weaver 3 times; nothing failed on both. You said more like this to 1 Scene, less to 0.",
-            howItsGoingLine(HowItsGoing(sceneEndSeconds = emptyList(), picksOffered = 0, picksTaken = 0, more = 1, less = 0, pace = emptyList(),
-                jobs = listOf(JobHealth(job = ModelJob.Writer, calls = 9, secondModel = 1, failed = 0), JobHealth(job = ModelJob.Weaver, calls = 9, secondModel = 3, failed = 0)))))
+            howItsGoingLine(going(more = 1, jobs = listOf(JobHealth(job = ModelJob.Writer, calls = 9, secondModel = 1, failed = 0), JobHealth(job = ModelJob.Weaver, calls = 9, secondModel = 3, failed = 0)))))
+        assertEquals("The Editor has not had to set a Reply right.", editorLine(going()))
+        assertEquals("The Editor set 1 Reply right in place.", editorLine(going(fixed = 1)))
+        assertEquals("The Editor had 3 Replies written again.", editorLine(going(rewrote = 3)))
         assertEquals("40 sec", sayDuration(40))
         assertEquals("3 min", sayDuration(180))
         assertEquals("2 min 05", sayDuration(125))
     }
+
+    private fun going(more: Long = 0, fixed: Long = 0, rewrote: Long = 0, jobs: List<JobHealth> = emptyList()) = HowItsGoing(sceneEndSeconds = emptyList(),
+        replySeconds = emptyList(), picksOffered = 0, picksTaken = 0, more = more, less = 0, pace = emptyList(), editorFixed = fixed, editorRewrote = rewrote, jobs = jobs)
 
     // WHEN the player writes in the brief "more danger, more mysteries that aren't in the books"
     // THEN (the phone's part) the brief is sent to the Mac, from this moment on the Path, and Backstage shows it
@@ -145,7 +161,7 @@ open class OutsideUiChecks : WorldUiChecks() {
         compose.preview("Backstage · Your brief")
         compose.onNodeWithTag("story-save").performClick()
         compose.runOnIdle {
-            assertEquals(listOf(BriefRequest(after = "reply", more = listOf("More danger", "Mysteries that aren't in the books"),
+            assertEquals(listOf(BriefRequest(more = listOf("More danger", "Mysteries that aren't in the books"),
                 less = listOf("Canon events retold"))), link.briefs)
         }
         compose.onNodeWithTag("story-editor").assertDoesNotExist()
@@ -176,11 +192,7 @@ open class OutsideUiChecks : WorldUiChecks() {
                     StretchScene(time = "Mon 2:00 pm", place = "Charms", purpose = "Flitwick pairs him with Draconia", who = listOf("Draconia", "Flitwick", "Pansy"), state = StretchSceneState.Ahead)),
                 leads = listOf(
                     StretchLead(who = "Draconia", move = "has his name taken off the Charms seating plan", onScreen = false, label = "Off-screen, Sunday · he heard it from Neville"),
-                    StretchLead(who = "Hermione", move = "lends him her flying notes, annotated", onScreen = true, label = "On screen · Charms, Monday")))),
-            newThings = listOf(
-                NewThingRow(kind = "person", what = "Ilse Varga, a stranger in Hogsmeade asking about the night train", stretch = "This Stretch"),
-                NewThingRow(kind = "mystery", what = "Someone has been in the trophy room at night", stretch = "This Stretch"),
-                NewThingRow(kind = "place", what = "The duelling club's room above the Hog's Head", stretch = "Stretch 2")))
+                    StretchLead(who = "Hermione", move = "lends him her flying notes, annotated", onScreen = true, label = "On screen · Charms, Monday")))))
         openScene()
         compose.onNodeWithContentDescription("Backstage").performClick()
         backstage("THE DIRECTOR").assertIsDisplayed()
@@ -189,13 +201,6 @@ open class OutsideUiChecks : WorldUiChecks() {
         backstage("✓ played").assertIsDisplayed()
         backstage("Charms: Flitwick pairs him with Draconia").assertIsDisplayed()
         backstage("Draconia · Flitwick · Pansy").assertIsDisplayed()
-        // What each Stretch brought that was new (long-run: Something new every Stretch).
-        backstage("NEW THIS STRETCH").assertIsDisplayed()
-        backstage("PERSON").assertIsDisplayed()
-        backstage("Ilse Varga, a stranger in Hogsmeade asking about the night train").assertIsDisplayed()
-        backstage("MYSTERY").assertIsDisplayed()
-        backstage("NEW IN STRETCH 2").assertIsDisplayed()
-        backstage("The duelling club's room above the Hog's Head").assertIsDisplayed()
         backstage("THE LEADS THIS WEEK").assertIsDisplayed()
         backstage("Off-screen, Sunday · he heard it from Neville").assertIsDisplayed()
         backstage("On screen · Charms, Monday").assertIsDisplayed()
@@ -208,5 +213,142 @@ open class OutsideUiChecks : WorldUiChecks() {
         backstage("TASTE · WHAT THE STORY HAS LEARNED").assertIsDisplayed()
         compose.onNodeWithText("THE DIRECTOR").assertDoesNotExist()
     }
-}
 
+    // The Outline, as Backstage.dc.html draws it (the-outline: The player sees and steers the Outline): the current Act's
+    // question and turns with the ones done ticked, where each relationship is heading, what each person pursues, who
+    // drives the World, the setups and their state, the Acts after it, how it ends, and what the Director looked up.
+    fun theOutlineBackstage() {
+        openScene()
+        compose.onNodeWithContentDescription("Backstage").performClick()
+        backstage("THE OUTLINE").assertIsDisplayed()
+        compose.onNodeWithText("Revised after Scene 13, deeply").assertIsDisplayed()
+        backstage("Year One").assertIsDisplayed()
+        backstage("Will Draconia choose him over the name she was raised to carry?").assertIsDisplayed()
+        backstage("Builds to the Philosopher's Stone, in June.").assertIsDisplayed()
+        // Each turn is said done or to come, as its tick and dot show.
+        backstage("The Sorting, the slap, and the debt she bills him for").assert(
+            SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Done")).assertIsDisplayed()
+        backstage("Draconia's flying test, her father in the stands").assert(
+            SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "To come")).assertIsDisplayed()
+        backstage("BY THE END OF YEAR ONE").assertIsDisplayed()
+        backstage("Draconia & Hermione").assertIsDisplayed()
+        backstage("Rivals who would fight for each other.").assertIsDisplayed()
+        backstage("Heading: Toward breaking with him").assertIsDisplayed()
+        backstage("DRIVING THE WORLD").assertIsDisplayed()
+        backstage("WAITING").assertIsDisplayed()
+        backstage("Nine dementors missing from Azkaban").assertIsDisplayed()
+        backstage("Scene 12 · pays off: in June, at the Stone").assertIsDisplayed()
+        backstage("DROPPED").assertIsDisplayed()
+        backstage("OUTLINED").assertIsDisplayed()
+        backstage("Does the betrothal hold? Builds to the Chamber.").assertIsDisplayed()
+        backstage("SKETCHED").assertIsDisplayed()
+        backstage("LOOKED UP").assertIsDisplayed()
+        backstage("The Philosopher's Stone, chapters 13 to 17: the Stone's protections").assertIsDisplayed()
+        compose.preview("Backstage · The Outline")
+        // Lives by tier: the close in full, the movers, and everyone else in a line.
+        backstage("LIVES").assertIsDisplayed()
+        backstage("CLOSE TO THE STORY").assertIsDisplayed()
+        backstage("MOVING THE WORLD").assertIsDisplayed()
+        backstage("Wants: The Seeker's place, with her father watching. · Heading: Toward breaking with him.").assertIsDisplayed()
+        backstage("Also living their lives: Pansy Parkinson, Crabbe and Goyle.").assertIsDisplayed()
+    }
+
+    // WHEN the player writes the note "Year One ends with Draconia breaking from her father"
+    // THEN after the next Scene's end, Year One in the Outline builds toward that break
+    // The phone's part: the note goes to the Mac and shows as waiting; once a Scene's end has answered it, Backstage shows
+    // it answered and Year One building toward the break. The Director's re-plan is the Mac's.
+    fun steeringAYearsEnd() {
+        val note = "Year One ends with Draconia breaking from her father"
+        openScene()
+        compose.onNodeWithContentDescription("Backstage").performClick()
+        backstage("YOUR NOTES TO THE DIRECTOR").assertIsDisplayed()
+        compose.onNodeWithTag("add-note").assertIsNotEnabled()
+        compose.onNodeWithTag("note-field").performTextInput(note)
+        compose.preview("Backstage · a note")
+        compose.onNodeWithTag("add-note").assertIsEnabled().performClick()
+        compose.runOnIdle {
+            assertEquals(listOf(SteeringNoteRequest(text = note)), link.notes)
+            assertEquals("reply", link.current.value.headEntryID)
+        }
+        compose.onNodeWithTag("note-field").assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("")))
+        backstage(note)
+        compose.onNode(hasText(note) and hasText("Waiting for the next Scene's end")).assertIsDisplayed()
+        // The next Scene's end answers it: Year One now builds toward the break.
+        link.backstageView = link.backstageView.let { view ->
+            val outline = view.outline!!
+            view.copy(notes = view.notes.map { it.copy(answered = true) }, outline = outline.copy(revised = "after Scene 14, deeply",
+                current = outline.current!!.copy(buildsTo = "Draconia breaking from her father, in June",
+                    turns = outline.current!!.turns.dropLast(1) + TurnRow(linkSchemaWhen = "June", what = "Draconia breaks from her father in front of the school", done = false))))
+        }
+        compose.onNodeWithContentDescription("Back to the Scene").performClick()
+        compose.onNodeWithContentDescription("Backstage").performClick()
+        backstage(note)
+        compose.onNode(hasText(note) and hasText("✓ Answered")).assertIsDisplayed()
+        backstage("Builds to Draconia breaking from her father, in June.").assertIsDisplayed()
+        backstage("Draconia breaks from her father in front of the school").assertIsDisplayed()
+        backstage("Revised after Scene 14, deeply").assertIsDisplayed()
+    }
+
+    // A note can be taken back: ✕ deletes it.
+    fun deletingANote() {
+        link.backstageView = link.backstageView.copy(notes = listOf(SteeringNote(id = "rival", text = "Keep Hermione a rival this year.", writtenAt = "2026-10-14T21:00:00Z", answered = false)))
+        openScene()
+        compose.onNodeWithContentDescription("Backstage").performClick()
+        backstage("Keep Hermione a rival this year.")
+        compose.onNodeWithContentDescription("Delete this note").performClick()
+        compose.runOnIdle { assertEquals(listOf("rival"), link.deletedNotes) }
+        compose.onNodeWithText("Keep Hermione a rival this year.").assertDoesNotExist()
+    }
+
+    // WHEN the player opens what the Story keeps of the contract in Backstage
+    // THEN it shows the passage where the contract was made
+    fun whereItCameFrom() {
+        openScene()
+        compose.onNodeWithContentDescription("Backstage").performClick()
+        backstage("WHAT THE STORY KEEPS").assertIsDisplayed()
+        backstage("The contract").assertIsDisplayed()
+        val made = "from Scene 8: “Nobody comes second. Saturdays are mine. Sign it.”"
+        compose.onNodeWithTag("truth-The contract").assert(hasAnyDescendant(hasText(made)))
+        backstage(made).assertIsDisplayed()
+        backstage("· Saturdays are Hermione's.").assertIsDisplayed()
+        backstage("Known to Draconia, Hermione, Roopesh").assertIsDisplayed()
+        // Nothing is deleted: what ended is kept, and says when.
+        backstage("Draconia is betrothed to Selwyn").assertIsDisplayed()
+        compose.onNodeWithTag("truth-Draconia is betrothed to Selwyn").assert(hasAnyDescendant(hasText("Ended in Scene 13")))
+            .assert(hasAnyDescendant(hasText("from Scene 4: “Father has promised me to Selwyn.”")))
+        backstage("By Christmas · in 9 weeks").assertIsDisplayed()
+        // Everything kept points to where it came from: who someone is now, between two people, a Rule, a Name.
+        backstage("from Scene 12: “He's mine. Anyone who wants to argue can do it to my face.”").assertIsDisplayed()
+        backstage("“Saturdays are mine, Malfoy. Write it down.”").assertIsDisplayed()
+        backstage("from the Story File: “Hogwarts is a university; its first-years are eighteen.”").assertIsDisplayed()
+        backstage("First named in Scene 11").assertIsDisplayed()
+        compose.preview("Backstage · What the Story keeps")
+    }
+
+    // The player's own Taste, beside the Story's (long-run: Taste is short, readable and the player's): read, reworded
+    // and deleted from Backstage, each change sent for the player's own and none moving the Story's head.
+    fun thePlayersOwnTaste() {
+        val line = "Don't decide what my character feels."
+        val reworded = "Don't decide what my character feels or thinks."
+        openScene()
+        compose.onNodeWithContentDescription("Backstage").performClick()
+        backstage("YOUR OWN TASTE · EVERY STORY").assertIsDisplayed()
+        backstage(line).performClick()
+        compose.onNodeWithText("A lesson of yours").assertIsDisplayed()
+        compose.onNodeWithText("A line of your own Taste: every Story you play reads it, this one and the next.").assertIsDisplayed()
+        compose.onNodeWithTag("story-words").performTextReplacement(reworded)
+        compose.onNodeWithTag("story-save").performClick()
+        compose.waitUntil(5_000) { link.tasteRewords.isNotEmpty() }
+        compose.runOnIdle { assertEquals(listOf(RewordTasteRequest(line = line, scope = ClosedBy.Player, text = reworded)), link.tasteRewords) }
+        compose.onNodeWithTag("story-editor").assertDoesNotExist()
+        backstage(reworded).assertIsDisplayed()
+        compose.onNodeWithText(line).assertDoesNotExist()
+        compose.onNode(hasContentDescription("Delete this line") and hasAnyAncestor(hasTestTag("player-taste"))).performClick()
+        compose.runOnIdle {
+            assertEquals(listOf(RemoveTasteRequest(line = reworded, scope = ClosedBy.Player)), link.tasteRemovals)
+            assertEquals("reply", link.current.value.headEntryID)
+        }
+        backstage("Nothing yet. A lesson about how you like to read, learned in any Story, becomes a line here.").assertIsDisplayed()
+        backstage("Keep school procedure to a line.").assertIsDisplayed()
+    }
+}

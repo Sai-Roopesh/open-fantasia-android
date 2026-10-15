@@ -9,7 +9,7 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ChoiceModelTest {
-    @Test fun `a choice waits streams fails and retries as a Move keeping the draft`() = runTest {
+    @Test fun `a choice waits, is written, fails and retries as a Move keeping the draft`() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         try {
             val fake = FakeFantasiaLink()
@@ -27,10 +27,10 @@ class ChoiceModelTest {
             assertFalse(model.state.value.canChangeScene)
             assertEquals("My own Move", model.state.value.draft)
             fake.current.value = fake.current.value.copy(dayView = null, headEntryID = "move", seq = 4,
-                turn = TurnState(kind = TurnStateKind.Writing, textSoFar = "The door opens."))
+                turn = TurnState(kind = TurnStateKind.Writing))
             advanceUntilIdle()
             assertTrue(model.state.value.replyComing)
-            assertEquals("The door opens.", model.state.value.scene!!.turn.textSoFar)
+            assertEquals(TurnStateKind.Writing, model.state.value.scene!!.turn.kind)
             fake.current.value = fake.current.value.copy(turn = TurnState(kind = TurnStateKind.Failed,
                 reason = "The Gap Weaver failed", traceID = "gap-trace"))
             advanceUntilIdle()

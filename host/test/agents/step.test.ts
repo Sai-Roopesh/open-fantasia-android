@@ -1,9 +1,15 @@
+import { mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { AgentFailed, runAgent, type Checked } from "../../src/agents/step.js";
-import { Models, type ModelRequest, type ModelRunner } from "../../src/models/model-call.js";
+import { AgentFailed, BUDGETS, runAgent, type Budget, type Checked, type ToolKit } from "../../src/agents/step.js";
+import { AntigravityRunner } from "../../src/models/antigravity.js";
+import { Models, NO_LOOKUPS_LEFT, type ModelRequest, type ModelRunner } from "../../src/models/model-call.js";
 import { ScriptedRunner, type Script } from "../../src/models/scripted.js";
 import type { ModelChoice } from "../../src/story/state.js";
 import { freshHome } from "../support/host.js";
+import { ledger } from "./ledger.js";
 
 const SONNET: ModelChoice = { provider: "claude", model: "claude-sonnet-5-5" };
 const SOL: ModelChoice = { provider: "codex", model: "gpt-6.1-sol" };
@@ -39,8 +45,8 @@ function models(claude: ModelRunner, codex: ModelRunner = new ScriptedRunner()) 
   return { mac, models: new Models(mac.db, { claude, codex }) };
 }
 
-async function ask(given: Models, choices: ModelChoice[] = [SONNET, SOL], options: { timeoutMs?: number; signal?: AbortSignal } = {}) {
-  return runAgent(given, choices, { agent: "chronicler", system: "s", prompt: "p", schema: { type: "object" }, traceId: "t", storyId: null }, check, options.timeoutMs ?? 5_000, options.signal ?? new AbortController().signal)
+async function ask(given: Models, choices: ModelChoice[] = [SONNET, SOL], options: { budget?: Budget; signal?: AbortSignal; tools?: ToolKit } = {}) {
+  return runAgent(given, choices, { agent: "chronicler", system: "s", prompt: "p", schema: { type: "object" }, traceId: "t", storyId: null, ...(options.tools ? { tools: options.tools } : {}) }, check, options.budget ?? { turns: 1, ms: 5_000 }, options.signal ?? new AbortController().signal)
     .then(value => value, (error: unknown) => error);
 }
 
@@ -95,7 +101,7 @@ describe("an agent's step (one-truth design decision 4)", () => {
   it("gives up a call that takes too long, and asks the second model", async () => {
     const claude = new Silent();
     const codex = new ScriptedRunner([numbers(6)]);
-    const result = await ask(models(claude, codex).models, [SONNET, SOL], { timeoutMs: 30 });
+    const result = await ask(models(claude, codex).models, [SONNET, SOL], { budget: { turns: 1, ms: 30 } });
     expect(result).toMatchObject({ value: [6], model: SOL });
     expect(claude.requests).toHaveLength(1);
     expect(String(claude.reasons[0])).toContain("no answer in 0 seconds");
@@ -129,5 +135,120 @@ describe("an agent's step (one-truth design decision 4)", () => {
     expect(result).toBeInstanceOf(Error);
     expect(result).not.toBeInstanceOf(AgentFailed);
     expect(codex.requests).toHaveLength(0);
+  });
+});
+
+describe("an agent's step with lookups (docs/adr/0018; the-storys-mind design decision 4)", () => {
+  const GEMINI: ModelChoice = { provider: "antigravity", model: "gemini-3.8-flash", effort: "high" };
+
+  /** A Story played one exchange in: Hermione tells him about the egg. */
+  function played() {
+    const story = ledger();
+    story.move("I ask Hermione what Hagrid is hiding.");
+    story.reply("Hermione lowers her voice. \"Hagrid has a dragon egg in his hut, and he is keeping it warm in the fire.\"");
+    return { story, tools: { story: { storyId: story.storyId, head: story.head() }, web: true } };
+  }
+
+  it("looks things up in the Story and on the web, answers from what it found, and keeps what it looked up with the call", async () => {
+    const { story, tools } = played();
+    const claude = new ScriptedRunner([{
+      lookUp: [{ tool: "search_story", args: { words: "dragon egg" } }, { tool: "read_scene", args: { number: 1 } }, { tool: "web_search", args: { query: "Norwegian Ridgeback eggs" } }],
+      // The answer depends on what the Story said: the egg was found.
+      then: answers => numbers(answers[0]!.includes("Hagrid has a dragon egg") && answers[1]!.includes("I ask Hermione") ? 2 : 3)
+    }]);
+    const given = new Models(story.mac.db, { claude });
+    const result = await ask(given, [SONNET], { tools, budget: BUDGETS.writer }) as Awaited<ReturnType<typeof runAgent<number[]>>>;
+    expect(result.value).toEqual([2]);
+    expect(result.lookups).toEqual([
+      "searched the Story for “dragon egg”: 1 passage",
+      "read Scene 1, “After curfew”",
+      "searched the web for “Norwegian Ridgeback eggs”"
+    ]);
+    // Kept with the call, with the tools and turns it was given.
+    expect(given.lookedUp(result.callId)).toEqual(result.lookups);
+    const row = story.mac.db.prepare("SELECT request, lookups FROM calls WHERE id = ?").get(result.callId) as { request: string; lookups: string };
+    expect(JSON.parse(row.lookups)).toEqual(result.lookups);
+    expect(JSON.parse(row.request)).toMatchObject({ tools, turns: BUDGETS.writer.turns });
+  });
+
+  it("says each lookup as it is made, in order, so the player can be told it is looking back", async () => {
+    const { story, tools } = played();
+    const heard: string[] = [];
+    const claude = new ScriptedRunner([{
+      lookUp: [
+        { tool: "read_person", args: { name: "Hermione" } }, { tool: "web_search", args: { query: "dragon eggs" } },
+        { tool: "search_story", args: { words: "egg" } }, { tool: "read_scene", args: { number: 1 } }
+      ],
+      // Each lookup is heard before the next is made, and before the answer is written.
+      then: answers => numbers(heard.length === 3 && answers[3] === NO_LOOKUPS_LEFT ? 2 : 3)
+    }]);
+    const request = { agent: "writer" as const, system: "s", prompt: "p", schema: { type: "object" }, traceId: "t", storyId: story.storyId, tools };
+    const result = await runAgent(new Models(story.mac.db, { claude }), [SONNET], request, check, { turns: 4, ms: 5_000 }, new AbortController().signal, line => heard.push(line));
+    expect(result.value).toEqual([2]);
+    // The lookup refused for want of turns is not one.
+    expect(heard).toEqual(["read Hermione Granger's history", "searched the web for “dragon eggs”", "searched the Story for “egg”: 1 passage"]);
+    expect(result.lookups).toEqual(heard);
+  });
+
+  it("stops looking things up when its turns run out, and answers with what it has", async () => {
+    const { story, tools } = played();
+    const claude = new ScriptedRunner([{
+      lookUp: [
+        { tool: "search_story", args: { words: "egg" } }, { tool: "read_person", args: { name: "Hermione" } },
+        { tool: "read_scene", args: { number: 1 } }, { tool: "web_search", args: { query: "dragon eggs" } }
+      ],
+      then: numbers(4)
+    }]);
+    const result = await ask(new Models(story.mac.db, { claude }), [SONNET], { tools, budget: { turns: 3, ms: 5_000 } }) as Awaited<ReturnType<typeof runAgent<number[]>>>;
+    // Three turns: two lookups, and the answer.
+    expect(result.value).toEqual([4]);
+    expect(result.lookups).toEqual(["searched the Story for “egg”: 1 passage", "read Hermione Granger's history"]);
+    expect(claude.looked.map(lookup => lookup.answer).slice(2)).toEqual([NO_LOOKUPS_LEFT, NO_LOOKUPS_LEFT]);
+    expect(claude.requests).toHaveLength(1);
+  });
+
+  it("gives up a step that runs past its time, lookups and all, and asks the second model", async () => {
+    const { story, tools } = played();
+    const claude = new Silent();
+    const codex = new ScriptedRunner([numbers(6)]);
+    const result = await ask(new Models(story.mac.db, { claude, codex }), [SONNET, SOL], { tools, budget: { turns: 5, ms: 30 } });
+    expect(result).toMatchObject({ value: [6], model: SOL, lookups: [] });
+  });
+
+  it("runs without tools on a model that has none, and its answer is taken", async () => {
+    const { story, tools } = played();
+    const home = mkdtempSync(join(tmpdir(), "fantasia-agy-"));
+    const log = join(home, "received.jsonl");
+    const agy = new AntigravityRunner(home, [process.execPath, fileURLToPath(new URL("../support/fakes/agy.mjs", import.meta.url))], { FAKE_AGY_LOG: log });
+    try {
+      const given = new Models(story.mac.db, { antigravity: agy });
+      const request = { agent: "writer" as const, system: "You plan each Reply.", prompt: "Plan the Reply.", schema: { type: "object" }, traceId: "t", storyId: story.storyId, tools };
+      const result = await runAgent(given, [GEMINI], request, answer => ({ ok: true, value: answer }), BUDGETS.writer, new AbortController().signal);
+      expect(result).toMatchObject({ value: { note: "Meera looks up." }, model: GEMINI, lookups: [] });
+      // The call kept is the one made: without tools, which the model was never told of.
+      const row = story.mac.db.prepare("SELECT request, lookups FROM calls WHERE id = ?").get(result.callId) as { request: string; lookups: string | null };
+      expect(JSON.parse(row.request).tools).toBeUndefined();
+      expect(row.lookups).toBeNull();
+      const sent = JSON.parse(readFileSync(log, "utf8").trim().split("\n")[0]!) as { message: { message: { content: string } } };
+      expect(sent.message.message.content).not.toMatch(/search_story|read_scene/);
+    } finally {
+      agy.close();
+    }
+  });
+
+  it("gives a scripted model that has no tools none to use", async () => {
+    const { story, tools } = played();
+    const bare = new ScriptedRunner([{ lookUp: [{ tool: "search_story", args: { words: "egg" } }, { tool: "web_search", args: { query: "eggs" } }], then: numbers(2) }], undefined, { story: false, web: false });
+    const result = await ask(new Models(story.mac.db, { claude: bare }), [SONNET], { tools, budget: BUDGETS.writer });
+    expect(result).toMatchObject({ value: [2], lookups: [] });
+    expect(bare.looked.map(lookup => lookup.answer)).toEqual(["There is no tool called search_story.", "There is no tool called web_search."]);
+  });
+
+  it("gives Codex the web and not the Story's tools", async () => {
+    const { story, tools } = played();
+    const codex = new ScriptedRunner([{ lookUp: [{ tool: "read_scene", args: { number: 1 } }, { tool: "web_search", args: { query: "Hogwarts as a university" } }], then: numbers(2) }], undefined, { story: false, web: true });
+    const result = await ask(new Models(story.mac.db, { codex }), [SOL], { tools, budget: BUDGETS.writer });
+    expect(result).toMatchObject({ value: [2], lookups: ["searched the web for “Hogwarts as a university”"] });
+    expect(codex.requests[0]!.tools).toEqual({ story: null, web: true });
   });
 });

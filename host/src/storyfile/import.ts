@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { copyFileSync, mkdirSync, rmSync } from "node:fs";
 import { extname, join, normalize } from "node:path";
 import type { Mac } from "../mac.js";
+import { setBrief } from "../store/beside.js";
 import { checkStoryFile, type Problem } from "./check.js";
 
 export type Imported = { ok: true; storyId: string } | { ok: false; problems: Problem[] };
@@ -29,6 +30,8 @@ export function importStoryFile(folder: string, mac: Mac): Imported {
     });
     mac.db.transaction(() => {
       mac.db.prepare("INSERT INTO stories (id, title, folder, created_at) VALUES (?, ?, ?, ?)").run(storyId, storyFile.title, folder, new Date().toISOString());
+      // The brief is the player's, kept beside the Story from the start (docs/adr/0020).
+      if (storyFile.brief) setBrief(mac, storyId, { more: storyFile.brief.more ?? [], less: storyFile.brief.less ?? [] });
       const setUp = mac.tree.append(storyId, null, { kind: "story_set_up", storyFile, portraits });
       const { title, place, at, who, prose } = storyFile.opening;
       const opened = mac.tree.append(storyId, setUp.id, { kind: "scene_opened", number: 1, title, place, at, who, prose, startsAt: null, purpose: null, exit: null });

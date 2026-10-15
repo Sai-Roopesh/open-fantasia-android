@@ -9,7 +9,8 @@ import type { Engine } from "../engine/engine.js";
 import type { Mac } from "../mac.js";
 import type { ModelChoice } from "../story/state.js";
 import { CONTRACT_VERSION } from "../protocol/generated/contract.js";
-import type { ArcsRequest, ChooseRequest, ClockRequest, DropLandmarkRequest, LandmarkRequest, PlaceRequest, PremiseRequest, ReplyLengthRequest, RewordTasteRequest, StyleRequest, WorldRequest, EditRequest, GroupRequest, LeadRequest, PersonEdit, RetryRequest, SetActorRequest, BriefRequest, ReactionRequest, SetJobModelRequest, EndSceneRequest, ErrorBody, FocusRequest, LingerRequest, MoveRequest, PairRequest, RedoRequest, RemoveTasteRequest, RenamePathRequest, RewindRequest, TryAnotherWayRequest } from "../protocol/generated/link.js";
+import type { ArcsRequest, ChooseRequest, ClockRequest, DropLandmarkRequest, LandmarkRequest, PlaceRequest, PremiseRequest, ReplyLengthRequest, RewordTasteRequest, StyleRequest, WorldRequest, EditRequest, GroupRequest, LeadRequest, PersonEdit, RetryRequest, SetActorRequest, BriefRequest, ReactionRequest, SetJobModelRequest, EndSceneRequest, ErrorBody, FocusRequest, LingerRequest, MoveRequest, PairRequest, RedoRequest, RemoveTasteRequest, RenamePathRequest, RewindRequest, SteeringNoteRequest, TryAnotherWayRequest } from "../protocol/generated/link.js";
+import { dropNote, writeNote } from "../store/beside.js";
 import { newTraceId, Traces } from "../trace.js";
 import { backstageView } from "../views/backstage.js";
 import { journalView } from "../views/journal.js";
@@ -64,6 +65,7 @@ const validRewordTaste = ajv.compile<RewordTasteRequest>({ $ref: "link#/$defs/Re
 const validRetry = ajv.compile<RetryRequest>({ $ref: "link#/$defs/RetryRequest" });
 const validBrief = ajv.compile<BriefRequest>({ $ref: "link#/$defs/BriefRequest" });
 const validReaction = ajv.compile<ReactionRequest>({ $ref: "link#/$defs/ReactionRequest" });
+const validSteeringNote = ajv.compile<SteeringNoteRequest>({ $ref: "link#/$defs/SteeringNoteRequest" });
 
 const IMAGE_TYPES: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp" };
 
@@ -193,9 +195,26 @@ export function buildLink(options: LinkOptions): FastifyInstance {
   app.get<{ Params: { id: string } }>("/stories/:id/world", async request => worldView(mac, request.params.id, request.traceId));
   app.get<{ Params: { id: string } }>("/stories/:id/journal", async request => journalView(mac, request.params.id, request.traceId));
   app.get<{ Params: { id: string } }>("/stories/:id/backstage", async request => backstageView(mac, request.params.id, request.traceId));
+  // What the Story learns about the player, kept beside the Story (docs/adr/0020): Taste, the Story's or the player's
+  // own, and the notes that steer the Outline (openspec the-outline: The player sees and steers the Outline).
   app.post<{ Params: { id: string } }>("/stories/:id/taste/remove", async request => {
-    if (!validRemoveTaste(request.body)) throw new LinkError("invalid", "Deleting a lesson needs the line and the entry the phone last saw.");
-    return engine.removeTaste(request.params.id, request.body.line, request.body.after, request.traceId);
+    if (!validRemoveTaste(request.body)) throw new LinkError("invalid", "Deleting a lesson needs the line, and whether it is the Story's Taste or your own.");
+    return engine.removeTaste(request.params.id, request.body.line, request.body.scope, request.traceId);
+  });
+  app.post<{ Params: { id: string } }>("/stories/:id/notes", async request => {
+    const storyId = request.params.id;
+    if (!mac.tree.currentPath(storyId)) throw new LinkError("not_found", "That Story is not on this Mac.");
+    if (!validSteeringNote(request.body)) throw new LinkError("invalid", "A note needs its words.");
+    const text = request.body.text.trim();
+    if (!text) throw new LinkError("invalid", "Write what you want the Story to do.");
+    writeNote(mac, storyId, text);
+    return backstageView(mac, storyId, request.traceId);
+  });
+  app.delete<{ Params: { id: string; note: string } }>("/stories/:id/notes/:note", async request => {
+    const storyId = request.params.id;
+    if (!mac.tree.currentPath(storyId)) throw new LinkError("not_found", "That Story is not on this Mac.");
+    if (!dropNote(mac, storyId, request.params.note)) throw new LinkError("not_found", "That note is not in this Story.");
+    return backstageView(mac, storyId, request.traceId);
   });
 
   // Editing (openspec scenes: Editing): the latest Move or Reply in place, anything earlier on a new Path.
@@ -223,14 +242,15 @@ export function buildLink(options: LinkOptions): FastifyInstance {
     if (!validRetry(body)) throw new LinkError("invalid", "A Retry takes a model for this one try, or null.");
     return engine.retry(request.params.id, request.traceId, body.model ? offered(options.catalog, body.model) : null);
   });
-  // The player's brief and reactions (openspec long-run: The player steers with a brief and reactions).
+  // The player's brief and reactions (openspec long-run: The player steers with a brief and reactions), kept beside the
+  // Story (docs/adr/0020): neither is on a Path, so neither is refused for a head that has moved on.
   app.post<{ Params: { id: string } }>("/stories/:id/brief", async request => {
     if (!validBrief(request.body)) throw new LinkError("invalid", "A brief needs what you want more of and less of, and the entry the phone last saw.");
-    return engine.setBrief(request.params.id, request.body.more, request.body.less, request.body.after, request.traceId);
+    return engine.setBrief(request.params.id, request.body.more, request.body.less, request.traceId);
   });
   app.post<{ Params: { id: string } }>("/stories/:id/reaction", async request => {
     if (!validReaction(request.body)) throw new LinkError("invalid", "A reaction needs the Scene's number, more, less or null, and the entry the phone last saw.");
-    return engine.setReaction(request.params.id, request.body.scene_number, request.body.reaction as "more" | "less" | null, request.body.note ?? null, request.body.after, request.traceId);
+    return engine.setReaction(request.params.id, request.body.scene_number, request.body.reaction as "more" | "less" | null, request.body.note ?? null, request.traceId);
   });
 
   app.post<{ Params: { id: string } }>("/stories/:id/end-scene", async request => {
@@ -324,9 +344,9 @@ export function buildLink(options: LinkOptions): FastifyInstance {
     return edited(request.params.id, request.traceId, () => engine.setClock(request.params.id, at, dayOne ?? null, after, request.traceId));
   });
   app.post<{ Params: { id: string } }>("/stories/:id/taste/reword", async request => {
-    if (!validRewordTaste(request.body)) throw new LinkError("invalid", "Rewording a lesson needs the line, its new words, and the entry the phone last saw.");
-    const { line, text, after } = request.body;
-    return edited(request.params.id, request.traceId, () => engine.rewordTaste(request.params.id, line, text, after, request.traceId));
+    if (!validRewordTaste(request.body)) throw new LinkError("invalid", "Rewording a lesson needs the line, its new words, and whether it is the Story's Taste or your own.");
+    const { line, text, scope } = request.body;
+    return edited(request.params.id, request.traceId, () => engine.rewordTaste(request.params.id, line, text, scope, request.traceId));
   });
 
   // A Portrait uploaded from the phone: the image itself, its type as sent (openspec stories: Portraits are real images).

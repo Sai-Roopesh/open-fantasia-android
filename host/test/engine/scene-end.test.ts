@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
+import { emptyUpdate } from "../../src/story/truth.js";
 import { Engine } from "../../src/engine/engine.js";
-import { fakeWriterAnswer, FakeModels } from "../../src/models/fake.js";
+import { fakeOutlineAnswer, fakeWriterAnswer, FakeModels } from "../../src/models/fake.js";
 import { jobModels, setJobModel } from "../../src/models/jobs.js";
 import { Models, type ModelRequest, type ModelRunner } from "../../src/models/model-call.js";
 import { scriptedRunners } from "../../src/models/runners.js";
 import type { Script } from "../../src/models/scripted.js";
 import type { StoryFile } from "../../src/protocol/generated/story-file.js";
-import type { Chronicle, DirectorPlan, Payload, WorldMoved } from "../../src/story/entries.js";
+import type { Chronicle, DirectorPlan, OutlineSet, Payload, WorldMoved } from "../../src/story/entries.js";
 import { backstageView } from "../../src/views/backstage.js";
 import { sceneView } from "../../src/views/scene.js";
 import { callsFor } from "../support/host.js";
@@ -31,12 +32,15 @@ function chronicle(changes: Record<string, unknown> = {}): Script {
 /** The World's move, with nothing but what [changes] say. */
 const weave = (changes: Record<string, unknown> = {}): Script => ({ answer: JSON.stringify({ lives: [], threads: [], happened: [], meanwhile: [], on: [], ...changes }) });
 
-/** A Director's plan from the Day View's day, its Scenes that matter as given and the rest by default. */
+/**
+ * A Director's plan from the Day View's day, its Scenes that matter as given and the rest by default: each serves the
+ * first turn of the Act the scripted Director outlines, and it brings in that Outline's locked door.
+ */
 function plan(scenes: Record<string, unknown>[], changes: Record<string, unknown> = {}): Script {
   return { answer: JSON.stringify({
     days: 5, toward: "the flying test", landmark: null, phase: "build",
-    scenes: scenes.map((scene, index) => ({ id: `S${index + 1}`, date: "1991-09-07", time: "10:00", place: "The Great Hall", who: [], for: "A step for the Story.", offer: "Something is on.", headline: "A step", lead: null, engagement: null, quiet: false, ...scene })),
-    new: [{ kind: "mystery", what: "A locked door nobody admits to.", scene: null, person: null }],
+    scenes: scenes.map((scene, index) => ({ id: `S${index + 1}`, date: "1991-09-07", time: "10:00", place: "The Great Hall", who: [], serves: { turn: "T1", lives: [] }, for: "A step for the Story.", offer: "Something is on.", headline: "A step", lead: null, engagement: null, quiet: false, ...scene })),
+    new: [{ setup: "U1", kind: "mystery", scene: null, person: null }],
     leads: [], arcs: [], roadmap: [], premise: "Some Scenes serve it.", ...changes
   }) };
 }
@@ -46,6 +50,7 @@ const kinds = (path: Payload[]) => path.map(payload => payload.kind);
 const afterClose = (path: Payload[]) => kinds(path.slice(path.map(payload => payload.kind).lastIndexOf("scene_closed")));
 const chronicles = (path: Payload[]) => path.filter((payload): payload is Chronicle => payload.kind === "chronicle");
 const plans = (path: Payload[]) => path.filter((payload): payload is DirectorPlan => payload.kind === "director_plan");
+const outlines = (path: Payload[]) => path.filter((payload): payload is OutlineSet => payload.kind === "outline_set");
 
 /** A model that answers as [inner] does, except that an agent held waits until the test lets it go. */
 class Held implements ModelRunner {
@@ -112,16 +117,19 @@ describe("a Scene's end, step by step (docs/adr/0016)", () => {
     expect(dayView()).toMatchObject({ scene_end: { step: null, failed: null }, meanwhile: [{ text: note, how: "seen" }] });
     expect(dayView().happenings.length).toBeGreaterThan(0);
     const moved = mac.tree.pathTo(head()).at(-1)!.payload as WorldMoved;
-    expect(moved).toMatchObject({ kind: "world_moved", gap: false, from: "Day 3 22:42", until: "Day 4 07:30", lives: [{ who: "Minerva McGonagall" }] });
+    expect(moved).toMatchObject({ kind: "world_moved", truth: emptyUpdate(), gap: false, from: "Day 3 22:42", until: "Day 4 07:30", lives: [{ who: "Minerva McGonagall" }] });
   });
 
-  it("records the Scene, then plans, then moves the World on, which reads the plan", async () => {
+  it("records the Scene, then writes the Outline and plans, then moves the World on, which reads the plan", async () => {
     const { engine, storyId, head, play, path, models } = playable(hogwartsStoryFile());
     await play("I say goodnight.");
     engine.endScene(storyId, head(), "end");
     await engine.ended(storyId);
-    expect(models.requests.map(request => request.agent).filter(agent => agent !== "writer" && agent !== "actor")).toEqual(["chronicler", "director", "weaver"]);
-    expect(afterClose(path())).toEqual(["scene_closed", "chronicle", "director_plan", "world_moved"]);
+    // The Story had no Outline yet: the Director writes it in its step, deeply, and then the Stretch as its next step.
+    expect(models.requests.map(request => request.agent).filter(agent => !["writer", "actor", "editor"].includes(agent))).toEqual(["chronicler", "director", "director", "weaver"]);
+    expect(models.outline.requests[0]!.facts).toMatchObject({ job: "outline", why: "start" });
+    expect(afterClose(path())).toEqual(["scene_closed", "chronicle", "outline_set", "director_plan", "world_moved"]);
+    expect(outlines(path())[0]).toMatchObject({ planFollows: true, outline: { deep: true, revisedAfter: 1 } });
     // The Weaver moves the World on toward the plan's Scenes that matter.
     expect(models.weaver.requests[0]!.prompt).toContain("The plan's Scenes that matter ahead:\n- s1.1 Saturday 7 September 1991, 10:00 am, the Great Hall, with Draconia Malfoy: A step for the Story.");
   });
@@ -132,26 +140,28 @@ describe("a Scene's end, step by step (docs/adr/0016)", () => {
   // WHEN the player taps Retry
   // THEN the Scene's end goes on from the Director, and the steps before it are not run again
   it("presence › Nothing fails silently › A step at a Scene's end fails", async () => {
-    const { engine, storyId, head, play, path, view, events, models, mac } = playable(hogwartsStoryFile(), { director: [{ fail: "Opus 5.5 is overloaded" }, { fail: "Sonnet 5.5 is overloaded" }] });
+    const { engine, storyId, head, play, path, view, events, models, mac } = playable(hogwartsStoryFile(), { director: [{ fail: "Fable 5.1 is overloaded" }, { fail: "GPT 6.1 Sol is at capacity" }] });
     await play("I say goodnight.");
     engine.endScene(storyId, head(), "end");
     await engine.ended(storyId);
 
-    const failed = { step: "director", reason: expect.stringMatching(/Opus 5\.5 is overloaded.*Sonnet 5\.5 is overloaded/), trace_id: expect.stringMatching(/^director-/) };
-    expect(engine.sceneEndOf(storyId)).toEqual({ step: null, failed });
+    const failed = { step: "director", reason: expect.stringMatching(/Fable 5\.1 is overloaded.*GPT 6\.1 Sol is at capacity/), trace_id: expect.stringMatching(/^director-/) };
+    expect(engine.sceneEndOf(storyId)).toEqual({ step: null, failed, rethinking: null });
     expect(view().day_view).toMatchObject({ scene_end: { step: null, failed }, happenings: [] });
     expect(events.at(-1)!.event).toMatchObject({ kind: "scene_end_failed", step: "director" });
-    expect(callsFor(mac.db, "director").map(call => call.model)).toEqual(["claude-opus-5-5", "claude-sonnet-5-5"]);
+    // The Outline was written; the plan after it failed on both models.
+    expect(callsFor(mac.db, "director").map(call => call.model)).toEqual(["claude-fable-5-1", "claude-fable-5-1", "gpt-6.1-sol"]);
     // The World does not move on without the plan, and nothing the player does goes on without it.
-    expect(afterClose(path())).toEqual(["scene_closed", "chronicle"]);
+    expect(afterClose(path())).toEqual(["scene_closed", "chronicle", "outline_set"]);
     expect(models.weaver.requests).toHaveLength(0);
     expect(() => engine.move(storyId, "I go up to bed.", head(), "t-move")).toThrow(expect.objectContaining({ code: "busy", message: expect.stringMatching(/Retry/) }));
 
     engine.retry(storyId, "trace-retry");
     await engine.ended(storyId);
-    expect(engine.sceneEndOf(storyId)).toEqual({ step: null, failed: null });
-    expect(afterClose(path())).toEqual(["scene_closed", "chronicle", "director_plan", "world_moved"]);
+    expect(engine.sceneEndOf(storyId)).toEqual({ step: null, failed: null, rethinking: null });
+    expect(afterClose(path())).toEqual(["scene_closed", "chronicle", "outline_set", "director_plan", "world_moved"]);
     expect(models.chronicler.requests).toHaveLength(1);
+    expect(models.outline.requests).toHaveLength(1);
     expect(models.director.requests).toHaveLength(3);
     expect(view().day_view!.happenings.length).toBeGreaterThan(0);
   });
@@ -160,7 +170,7 @@ describe("a Scene's end, step by step (docs/adr/0016)", () => {
     const leaves = writer(5, { leaves_scene: true, frame: { title: "Lights out", place: "The boys' dormitory", purpose: "Ron asks.", exit: "He asks, or not." } });
     const { engine, storyId, head, play, path, view, models } = playable(hogwartsStoryFile(), {
       writer: [leaves],
-      chronicler: [{ fail: "Opus 5.5 is overloaded" }, { fail: "Sonnet 5.5 is overloaded" }]
+      chronicler: [{ fail: "Opus 5.5 is overloaded" }, { fail: "GPT 6.1 Sol is at capacity" }]
     });
     await play("I go to my room.");
     await engine.settled(storyId);
@@ -173,7 +183,7 @@ describe("a Scene's end, step by step (docs/adr/0016)", () => {
     engine.retry(storyId, "trace-retry");
     await engine.settled(storyId);
     const kinds = path().map(payload => payload.kind);
-    expect(kinds.slice(kinds.lastIndexOf("move"))).toEqual(["move", "scene_closed", "chronicle", "director_plan", "world_moved", "scene_opened", "beat_note", "reply"]);
+    expect(kinds.slice(kinds.lastIndexOf("move"))).toEqual(["move", "scene_closed", "chronicle", "outline_set", "director_plan", "world_moved", "scene_opened", "beat_note", "reply"]);
     expect(view().scene).toMatchObject({ number: 2 });
     expect(view().turn).toEqual({ kind: "idle" });
     // The Writer is asked again only for the Scene the Move opens, now that the plan it opened from is gone.
@@ -181,29 +191,29 @@ describe("a Scene's end, step by step (docs/adr/0016)", () => {
   });
 
   it("runs a failed step on another model for one try when Retry names one, and changes no setting", async () => {
-    const { engine, storyId, head, play, path, mac } = playable(hogwartsStoryFile(), { director: [{ fail: "Opus 5.5 is overloaded" }, { fail: "Sonnet 5.5 is overloaded" }] });
+    const { engine, storyId, head, play, path, mac } = playable(hogwartsStoryFile(), { director: [{ fail: "Fable 5.1 is overloaded" }, { fail: "GPT 6.1 Sol is at capacity" }] });
     await play("I say goodnight.");
     engine.endScene(storyId, head(), "end");
     await engine.ended(storyId);
     engine.retry(storyId, "trace-retry", { provider: "codex", model: "gpt-6.1-sol" });
     await engine.ended(storyId);
-    expect(callsFor(mac.db, "director").map(call => call.model)).toEqual(["claude-opus-5-5", "claude-sonnet-5-5", "gpt-6.1-sol"]);
+    expect(callsFor(mac.db, "director").map(call => call.model)).toEqual(["claude-fable-5-1", "claude-fable-5-1", "gpt-6.1-sol", "gpt-6.1-sol"]);
     expect(plans(path()).at(-1)!.model).toEqual({ provider: "codex", model: "gpt-6.1-sol" });
-    expect(jobModels(mac.home).director).toEqual({ provider: "claude", model: "claude-opus-5-5" });
+    expect(jobModels(mac.home).director).toEqual({ provider: "claude", model: "claude-fable-5-1", effort: "high" });
   });
 
   // GIVEN the Weaver's model is down
   // WHEN a Scene ends
   // THEN the World moves on, written by the Weaver's second model, and nothing asks the player
   it("presence › Nothing fails silently › The second model steps in", async () => {
-    const { engine, storyId, head, play, path, view, events, mac } = playable(hogwartsStoryFile(), { weaver: [{ fail: "Sonnet 5.5 is down" }] });
+    const { engine, storyId, head, play, path, view, events, mac } = playable(hogwartsStoryFile(), { weaver: [{ fail: "Opus 5.5 is down" }] });
     await play("I say goodnight.");
     engine.endScene(storyId, head(), "end");
     await engine.ended(storyId);
-    expect(callsFor(mac.db, "weaver")).toEqual([{ provider: "claude", model: "claude-sonnet-5-5", effort: null }, { provider: "codex", model: "gpt-6.1-sol", effort: null }]);
-    expect(path().at(-1)).toMatchObject({ kind: "world_moved", gap: false, model: { provider: "codex", model: "gpt-6.1-sol" } });
-    expect(engine.sceneEndOf(storyId)).toEqual({ step: null, failed: null });
-    expect(view().day_view!.scene_end).toEqual({ step: null, failed: null });
+    expect(callsFor(mac.db, "weaver")).toEqual([{ provider: "claude", model: "claude-opus-5-5", effort: null }, { provider: "codex", model: "gpt-6.1-sol", effort: null }]);
+    expect(path().at(-1)).toMatchObject({ kind: "world_moved", truth: emptyUpdate(), gap: false, model: { provider: "codex", model: "gpt-6.1-sol" } });
+    expect(engine.sceneEndOf(storyId)).toEqual({ step: null, failed: null, rethinking: null });
+    expect(view().day_view!.scene_end).toEqual({ step: null, failed: null, rethinking: null });
     expect(events.some(event => event.event.kind === "scene_end_failed")).toBe(false);
   });
 
@@ -212,11 +222,11 @@ describe("a Scene's end, step by step (docs/adr/0016)", () => {
     await play("I say goodnight.");
     engine.endScene(storyId, head(), "end");
     await engine.ended(storyId);
-    expect(afterClose(path())).toEqual(["scene_closed", "chronicle", "director_plan"]);
+    expect(afterClose(path())).toEqual(["scene_closed", "chronicle", "outline_set", "director_plan"]);
     const restarted = new Engine(mac, new Models(mac.db, scriptedRunners(new FakeModels())));
     restarted.resumeAll();
     await restarted.ended(storyId);
-    expect(afterClose(path())).toEqual(["scene_closed", "chronicle", "director_plan", "world_moved"]);
+    expect(afterClose(path())).toEqual(["scene_closed", "chronicle", "outline_set", "director_plan", "world_moved"]);
   });
 
   it("runs the Director on its model from the Models screen", async () => {
@@ -225,7 +235,8 @@ describe("a Scene's end, step by step (docs/adr/0016)", () => {
     await play("I say goodnight.");
     engine.endScene(storyId, head(), "end");
     await engine.ended(storyId);
-    expect(callsFor(mac.db, "director")).toEqual([{ provider: "codex", model: "gpt-6.1-sol", effort: "high" }]);
+    // The Outline, then the Stretch.
+    expect(callsFor(mac.db, "director")).toEqual([{ provider: "codex", model: "gpt-6.1-sol", effort: "high" }, { provider: "codex", model: "gpt-6.1-sol", effort: "high" }]);
   });
 });
 
@@ -269,14 +280,14 @@ describe("the record of a Scene (openspec living-world: Moments are remembered f
     await play("I ask Hermione about the essay.");
     engine.endScene(storyId, head(), "end");
     await engine.ended(storyId);
-    expect(view().day_view!.scene_end).toEqual({ step: null, failed: { step: "chronicler", reason: expect.stringMatching(/Sonnet is overloaded/), trace_id: expect.stringMatching(/^chronicler-/) } });
+    expect(view().day_view!.scene_end).toEqual({ step: null, failed: { step: "chronicler", reason: expect.stringMatching(/Sonnet is overloaded/), trace_id: expect.stringMatching(/^chronicler-/) }, rethinking: null });
     expect(afterClose(path())).toEqual(["scene_closed"]);
     expect(models.director.requests).toHaveLength(0);
     expect(models.weaver.requests).toHaveLength(0);
 
     engine.retry(storyId, "trace-retry");
     await engine.ended(storyId);
-    expect(afterClose(path())).toEqual(["scene_closed", "chronicle", "director_plan", "world_moved"]);
+    expect(afterClose(path())).toEqual(["scene_closed", "chronicle", "outline_set", "director_plan", "world_moved"]);
     expect(state().recorded.map(row => row.title)).toEqual(["The library"]);
 
     await play("In the morning I go down to breakfast.");
@@ -342,7 +353,7 @@ describe("what the World may write (openspec living-world)", () => {
     const { models, state, view } = await night([weave(), begins], [tournament]);
     expect(models.weaver.requests[1]!.prompt).toContain("happened: the Triwizard Tournament falls in the span (Saturday 7 September 1991, 6:00 am) and has not happened; write it, with landmark set to its name");
     expect(state().facts.filter(fact => fact.landmark)).toEqual([expect.objectContaining({ landmark: "the Triwizard Tournament", at: "Day 4 06:00" })]);
-    expect(view().day_view!.scene_end).toEqual({ step: null, failed: null });
+    expect(view().day_view!.scene_end).toEqual({ step: null, failed: null, rethinking: null });
   });
 
   // GIVEN Crabbe and Goyle are a Group
@@ -395,7 +406,7 @@ describe("what the World may write (openspec living-world)", () => {
 
     await played.play("Before breakfast I take the long way, past the third floor.");
     const writerPrompt = played.models.writer.requests.at(-1)!.prompt;
-    expect(writerPrompt).toContain("Quirrell tested the wards on the third-floor door again and scorched it. Known to: Quirinus Quirrell.");
+    expect(writerPrompt).toContain("Quirrell tested the wards on the third-floor door again and scorched it. Known to Quirinus Quirrell.");
     const actor = played.models.actor.requests.at(-1)!;
     expect(`${actor.system}\n${actor.prompt}`).not.toContain("Quirrell tested the wards");
     expect(actor.prompt).toContain("The third-floor door is scorched black around the lock, still warm.");
@@ -542,7 +553,7 @@ describe("the Director at a Scene's end (openspec long-run)", () => {
     engine.endScene(storyId, head(), "end-hug");
     await engine.ended(storyId);
     const prompt = models.director.requests[0]!.prompt;
-    expect(prompt).toContain(`Draconia Malfoy\n  Between them and Roopesh Gantasala: She calls him Stray and watches who he holds. (latest: Scene 1: ${hug})`);
+    expect(prompt).toContain(`Draconia Malfoy and Roopesh Gantasala, as he has seen it: She calls him Stray and watches who he holds.\n  Scene 1: ${hug}`);
     expect(prompt).toContain("Draconia, watching from the Slytherin table, left her breakfast where it was.");
     expect(state().plan!.leads.map(lead => lead.who)).toEqual(["Draconia Malfoy", "Hermione Granger"]);
   });
@@ -575,34 +586,20 @@ describe("the Director at a Scene's end (openspec long-run)", () => {
     expect(state().facts.filter(fact => fact.move).map(fact => fact.move)).toEqual(["Hermione Granger", "Harry Potter"]);
     expect(backstageView(mac, storyId, "t").director!.stretch!.leads.map(lead => [lead.who, lead.on_screen])).toEqual([["Draconia Malfoy", true], ["Hermione Granger", false], ["Harry Potter", false]]);
   });
-
-  // GIVEN the Story has met no one new in its last two Stretches
-  // WHEN the Director plans the next Stretch
-  // THEN it brings in something he has not met, such as a stranger asking about the train in Hogsmeade, and a Scene
-  //   that matters or a line of Meanwhile puts it in front of him
-  it("long-run › Something new every Stretch › A stranger in Hogsmeade", async () => {
-    const nothingNew = plan([{ date: "1991-09-07", time: "10:00", place: "The Great Hall", who: ["Draconia Malfoy"], lead: "Draconia Malfoy" }], { new: [] });
-    const stranger = plan([
-      { date: "1991-09-07", time: "14:00", place: "Hogsmeade high street", who: [], offer: "A stranger in Hogsmeade is asking about the train.", headline: "Hogsmeade: a stranger asks about the train" }
-    ], { new: [{ kind: "person", what: "A stranger in a travelling cloak, asking about the train in Hogsmeade.", scene: "S1", person: { name: "Corvin Ashby", who_they_are: "A stranger in a travelling cloak who asks everyone about the night the train stopped.", appearance: "Grey cloak, mud to the knee." } }] });
-    const { engine, storyId, head, play, view, state, models, mac } = playable(hogwartsStoryFile(), { director: [nothingNew, stranger] });
-    await play("I say goodnight.");
-    engine.endScene(storyId, head(), "end");
-    await engine.ended(storyId);
-    // A Stretch that brings nothing new is sent back once.
-    expect(models.director.requests).toHaveLength(2);
-    expect(models.director.requests[1]!.prompt).toContain("new: bring at least one thing the player's character has not met");
-    expect(state().people["Corvin Ashby"]).toMatchObject({ whoTheyAre: "A stranger in a travelling cloak who asks everyone about the night the train stopped.", broughtIn: 1 });
-    // A Scene that matters puts him in front of the player: the Story's pick.
-    expect(view().day_view!.happenings[0]).toMatchObject({ place: "Hogsmeade high street", who: ["Corvin Ashby"], what: "A stranger in Hogsmeade is asking about the train.", pick: true });
-    expect(backstageView(mac, storyId, "t").new_things).toEqual([{ kind: "person", what: "A stranger in a travelling cloak, asking about the train in Hogsmeade.", stretch: "This Stretch" }]);
-  });
 });
 
 describe("someone new in the Story (openspec stories: The Director can bring someone new into the Story)", () => {
   const elspeth = { name: "Elspeth Vane", who_they_are: "A seventh-year who runs the Hogsmeade duelling club.", appearance: "Tall, with a duelling scar through one eyebrow." };
+  // Nothing enters without a payoff (openspec the-outline): the Outline means to pay off whoever runs the duelling club.
+  const theClub = { id: "U2", what: "Whoever runs the Hogsmeade duelling club.", planted: null, payoff: "The club is where he learns who hired the masked wizards.", turn: "T2", state: "waiting" };
+  const secret = { id: "U3", what: "The duelling club meets where it should not.", planted: null, payoff: "The room it meets in is the Room of Requirement.", turn: "T2", state: "waiting" };
+  /** The scripted Director's Outline, with the club and its secret among the setups to bring in. */
+  const withTheClub: Script = { from: request => {
+    const outline = JSON.parse((fakeOutlineAnswer(request) as { answer: string }).answer) as { setups: object[] };
+    return { answer: JSON.stringify({ ...outline, setups: [...outline.setups.filter(setup => !["U2", "U3"].includes((setup as { id: string }).id)), theClub, secret] }) };
+  } };
   const bringsHer = plan([{ date: "1991-09-07", time: "14:00", place: "The Hogsmeade duelling club", who: [], offer: "The duelling club is taking names.", headline: "Hogsmeade: Elspeth Vane's duelling club" }],
-    { new: [{ kind: "person", what: "Elspeth Vane, who runs the Hogsmeade duelling club.", scene: "S1", person: elspeth }] });
+    { new: [{ setup: "U2", kind: "person", scene: "S1", person: elspeth }] });
   const club = { title: "The duelling club", place: "The Hogsmeade duelling club", purpose: "p", exit: "e" };
 
   // GIVEN the Director brings in Elspeth Vane, a seventh-year who runs the Hogsmeade duelling club
@@ -612,8 +609,8 @@ describe("someone new in the Story (openspec stories: The Director can bring som
     const list = "Elspeth Vane writes his name at the top of the list. \"Thursday. Don't be late.\"";
     // The second plan brings her in again, with something else new: she is already in the Story, and is not.
     const again = plan([{ date: "1991-09-09", time: "10:00", place: "The Great Hall", who: ["Elspeth Vane"] }], { new: [
-      { kind: "person", what: "Elspeth Vane again.", scene: null, person: elspeth },
-      { kind: "secret", what: "The duelling club meets where it should not.", scene: null, person: null }
+      { setup: "U2", kind: "person", scene: null, person: elspeth },
+      { setup: "U3", kind: "secret", scene: null, person: null }
     ] });
     const { engine, storyId, head, play, state, models } = playable(hogwartsStoryFile(), {
       director: [bringsHer, again],
@@ -625,6 +622,7 @@ describe("someone new in the Story (openspec stories: The Director can bring som
         bonds: [{ who: "Elspeth Vane", standing: "She has put him at the top of her list, and expects him Thursday.", turn: "She wrote his name first." }]
       })]
     });
+    models.outline.then(withTheClub);
     await play("I say goodnight.");
     engine.endScene(storyId, head(), "end-1");
     await engine.ended(storyId);
@@ -634,7 +632,8 @@ describe("someone new in the Story (openspec stories: The Director can bring som
     engine.choose(storyId, { after: head(), kind: "story", happening: null, gap: null }, "go");
     await engine.settled(storyId);
     expect(state().scene).toMatchObject({ number: 2, here: ["Elspeth Vane"] });
-    expect(models.actor.requests.at(-1)!.system).toContain(`<person name="Elspeth Vane">\n${elspeth.who_they_are}\n${elspeth.appearance}`);
+    const met = models.actor.requests.at(-1)!;
+    expect(`${met.system}\n${met.prompt}`).toContain(`Elspeth Vane (new to the Story: ${elspeth.who_they_are.replace(/\.$/, "")})`);
     engine.endScene(storyId, head(), "end-2");
     await engine.ended(storyId);
     // The next Stretch does not bring her in again.
@@ -646,8 +645,8 @@ describe("someone new in the Story (openspec stories: The Director can bring som
     // She comes up again later: the same person, and what passed between them is remembered.
     await play("On Thursday I go to the duelling club.");
     const actor = models.actor.requests.at(-1)!;
-    expect(actor.system).toContain(`<person name="Elspeth Vane">\n${elspeth.who_they_are}`);
-    expect(actor.prompt).toContain("Elspeth Vane: She has put him at the top of her list, and expects him Thursday.");
+    expect(`${actor.system}\n${actor.prompt}`).toContain(`Elspeth Vane (new to the Story: ${elspeth.who_they_are.replace(/\.$/, "")})`);
+    expect(actor.prompt).toContain("Elspeth Vane and Roopesh Gantasala, as he has seen it: She has put him at the top of her list, and expects him Thursday.");
     expect(actor.prompt).toContain(`(Scene 2; known to Roopesh Gantasala, Elspeth Vane) Elspeth Vane puts him at the top of her list.\n  "${list}"`);
   });
 
@@ -655,7 +654,9 @@ describe("someone new in the Story (openspec stories: The Director can bring som
   // WHEN the player goes back to Scene 10 and plays another way
   // THEN she is not among the Story's people on that Path, until a plan there brings her in
   it("stories › The Director can bring someone new into the Story › Not on another Path", async () => {
-    const { engine, storyId, head, play, state, mac } = playable(hogwartsStoryFile(), { director: [bringsHer, bringsHer] });
+    const { engine, storyId, head, play, state, mac, models } = playable(hogwartsStoryFile(), { director: [bringsHer, bringsHer] });
+    // The Outline is written at the first Scene's end, on each Path.
+    models.outline.then(withTheClub, withTheClub);
     await play("I say goodnight.");
     const reply = head();
     engine.endScene(storyId, head(), "end");
@@ -667,6 +668,7 @@ describe("someone new in the Story (openspec stories: The Director can bring som
     expect(head()).toBe(reply);
     expect(state().people["Elspeth Vane"]).toBeUndefined();
     expect(state().plan).toBeNull();
+    expect(state().outline).toBeNull();
     // The Path set aside still has her.
     const aside = mac.tree.paths(storyId).find(path => !path.isCurrent)!;
     expect(mac.states.at(aside.headEntryId).people["Elspeth Vane"]).toBeDefined();
@@ -710,8 +712,9 @@ describe("The Story So Far follows the Path (openspec living-world: Every agent 
     await play("I sit as far from Hermione as I can.");
     await endScene();
     const asked = models.requests.slice(before);
-    // Every agent that worked on this Path, the Director too (the Scene peaked), was given the Story as it stood.
-    expect(asked.map(request => request.agent)).toEqual(["writer", "actor", "chronicler", "director", "weaver"]);
+    // Every agent that worked on this Path was given the Story as it stood: the Director too, reconsidering the Outline
+    // and, since the Scene peaked, planning the next Stretch.
+    expect(asked.map(request => request.agent)).toEqual(["writer", "actor", "editor", "chronicler", "director", "director", "weaver"]);
     for (const request of asked) {
       const given = `${request.system}\n${request.prompt}`;
       expect(given, request.agent).toContain(told.one);

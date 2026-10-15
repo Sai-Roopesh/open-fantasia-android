@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { emptyUpdate } from "../../src/story/truth.js";
 import { engagementsAhead, missedBetween, nextTime, occurrencesBetween, offersOn, plannedAhead, todayOn } from "../../src/story/day.js";
 import type { Chronicle, DirectorPlan, Entry, Payload, WorldMoved } from "../../src/story/entries.js";
 import { apply } from "../../src/story/reducer.js";
@@ -16,15 +17,15 @@ const library: Engagement = { id: "g-library", what: "Draconia's hour in the lib
 const summons: Engagement = { id: "g-office", what: "McGonagall wants an account of the fight.", at: "Day 6 09:00", place: "McGonagall's office", who: ["Minerva McGonagall"], expected: true, every: null, quotes };
 
 function planned(at: string, place: string, id = "s1.1"): PlannedScene {
-  return { id, at, place, who: ["Draconia Malfoy"], for: "Draconia has to ask him for something.", offer: "Something is going on there that matters to him.", headline: `${place}: she asks`, lead: "Draconia Malfoy", engagement: null, quiet: false };
+  return { id, at, place, who: ["Draconia Malfoy"], for: "Draconia has to ask him for something.", offer: "Something is going on there that matters to him.", headline: `${place}: she asks`, lead: "Draconia Malfoy", engagement: null, quiet: false, serves: { turn: null, lives: ["Draconia Malfoy"] } };
 }
 
-const chronicle = (engagements: Engagement[]): Chronicle => ({ kind: "chronicle", scene: 1, summary: "s", paragraph: "p", moments: [], told: [], known: [], bonds: [], engagements, changed: [], dropped: [], callId: "c", model: SONNET });
+const chronicle = (engagements: Engagement[]): Chronicle => ({ kind: "chronicle", truth: emptyUpdate(), scene: 1, summary: "s", paragraph: "p", moments: [], told: [], known: [], bonds: [], engagements, changed: [], dropped: [], callId: "c", model: SONNET });
 const plan = (scenes: PlannedScene[]): DirectorPlan => ({
   kind: "director_plan", from: 5, until: 9, toward: "the flying test", landmark: null, phase: "build", scenes, leads: [], arcs: [], roadmap: [], premise: "",
-  newThings: [{ kind: "mystery", what: "A locked door.", scene: null, person: null }], people: [], reason: "r", afterScene: 1, dropped: [], callId: "d", model: SONNET
+  newThings: [{ kind: "mystery", what: "A locked door.", scene: null, person: null, setup: "u1" }], people: [], reason: "r", afterScene: 1, dropped: [], callId: "d", model: SONNET
 });
-const moved = (on: On[]): WorldMoved => ({ kind: "world_moved", scene: 1, gap: false, from: "Day 5 09:00", until: "Day 5 09:00", lives: [], threads: [], happened: [], meanwhile: [], on, dropped: [], callId: "w", model: SONNET });
+const moved = (on: On[]): WorldMoved => ({ kind: "world_moved", truth: emptyUpdate(), scene: 1, gap: false, from: "Day 5 09:00", until: "Day 5 09:00", lives: [], threads: [], happened: [], meanwhile: [], on, dropped: [], callId: "w", model: SONNET });
 
 /** Hogwarts at the Day View on Sunday at nine, after a Scene in the common room, its end done as far as [ends] says. */
 function atTheDayView(ends: { engagements?: Engagement[]; scenes?: PlannedScene[]; on?: On[] } = {}): State {
@@ -125,23 +126,25 @@ describe("the Day View, from the State", () => {
       { kind: "story_set_up", storyFile: hogwartsStoryFile({ at: "Day 5 09:00" }), portraits: {} },
       { kind: "scene_opened", number: 1, title: "Sunday morning", place: "The Gryffindor common room", at: "Day 5 09:00", who: [], prose: null, startsAt: null, purpose: null, exit: null },
       { kind: "scene_closed", by: "player" });
-    expect(dayView(opened, { step: "chronicler", failed: null })).toMatchObject({ scene_end: { step: "chronicler", failed: null }, happenings: [] });
+    expect(dayView(opened, { step: "chronicler", failed: null, rethinking: null })).toMatchObject({ scene_end: { step: "chronicler", failed: null, rethinking: null }, happenings: [] });
     const recorded = play(opened, chronicle([library]), plan(ends.scenes));
-    expect(dayView(recorded, { step: "weaver", failed: null }).happenings).toEqual([]);
+    expect(dayView(recorded, { step: "weaver", failed: null, rethinking: null }).happenings).toEqual([]);
     const failed = { step: "weaver" as const, reason: "Sonnet is overloaded", trace_id: "t" };
-    expect(dayView(recorded, { step: null, failed })).toMatchObject({ scene_end: { step: null, failed }, happenings: [] });
+    expect(dayView(recorded, { step: null, failed, rethinking: null })).toMatchObject({ scene_end: { step: null, failed }, happenings: [] });
     const done = play(recorded, moved([]));
     expect(dayView(done).happenings.map(item => item.id)).toEqual(["p-s1.1", "e-g-library-Day51930"]);
     // A step still owed after the World moved on, the Folder's, holds the Day View too.
-    expect(dayView(done, { step: "folder", failed: null }).happenings).toEqual([]);
+    expect(dayView(done, { step: "folder", failed: null, rethinking: null }).happenings).toEqual([]);
   });
 
   it("says what reached him after this Scene, not over the Gap, and the player's reaction to it", () => {
     const meanwhile = (text: string, gap: boolean): WorldMoved => ({ ...moved([]), gap, happened: [{ id: `h-${text}`, what: text, at: "Day 5 09:00", where: "The common room", knownTo: [], landmark: null, move: null }],
       meanwhile: [{ text, how: "rumour", fact: `h-${text}`, toldBy: null, about: [], engagement: null }] });
     const state = atTheDayView(ends);
-    const heard = play(state, meanwhile("Lavender says Snape is in a mood.", false), { kind: "reaction_set", scene: 1, reaction: "less", note: null });
-    expect(dayView(heard)).toMatchObject({ meanwhile: [{ text: "Lavender says Snape is in a mood.", how: "rumour" }], reaction: "less" });
+    const heard = play(state, meanwhile("Lavender says Snape is in a mood.", false));
+    // The player's reaction is kept beside the Story (docs/adr/0020).
+    const reactions = [{ scene: 1, title: state.scene!.title, reaction: "less" as const, note: null }];
+    expect(dayView(heard, undefined, reactions)).toMatchObject({ meanwhile: [{ text: "Lavender says Snape is in a mood.", how: "rumour" }], reaction: "less" });
     expect(dayView(play(state, { kind: "move", text: "I wait." }, meanwhile("Over the Gap.", true))).meanwhile).toEqual([]);
   });
 });

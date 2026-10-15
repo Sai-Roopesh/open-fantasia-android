@@ -222,7 +222,8 @@ Outline in the light of how the Scene went.
 _Avoid_: Planner, showrunner, plot manager
 
 **Folder**:
-Folds the oldest of The Story So Far into a week, and old weeks into a chapter, so it stays short.
+Folds each finished Act of The Story So Far into one account of it, keeping every turning point and name, so it
+stays short however long the Story runs.
 _Avoid_: Summarizer, compressor
 
 ### The living World
@@ -256,7 +257,8 @@ feelings are in it.
 _Avoid_: Relationship meter, affinity, affection score, relationship memory
 
 **The Story So Far**:
-What has happened in the Story, a paragraph for each recent Scene, then weeks, then chapters. Every agent is given it.
+What has happened in the Story: a paragraph for each Scene of the current Act, and an account of each Act before it.
+Every agent is given it.
 _Avoid_: Summary, recap, history, context
 
 ### What the player sees

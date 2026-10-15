@@ -1,4 +1,5 @@
-
+import type { Outline } from "./outline.js";
+import type { TruthState } from "./truth.js";
 /** Which model does a job: the provider and the id it lists the model under. */
 export interface ModelChoice {
   provider: "claude" | "codex" | "antigravity";
@@ -79,6 +80,11 @@ export interface CurrentScene {
   endedAt: string | null;
   /** The steps of its end already done, once it has closed. */
   ended: SceneEndStep[];
+  /**
+   * The record kept of it while it was played, once it ran long (the-storys-mind design decision 8): the last passage
+   * it covers, and the Scene so far told in a paragraph. Prompts carry it, and the passages after it word for word.
+   */
+  recorded?: { through: string; paragraph: string };
 }
 
 export interface PendingDirection {
@@ -187,6 +193,14 @@ export interface PlannedScene {
   lead: string | null;
   engagement: string | null;
   quiet: boolean;
+  /** What it serves in the Outline (openspec the-outline: Each Stretch is the next step of the current Act). */
+  serves: Serves;
+}
+
+/** The turn of the current Act a Scene that matters moves, and the people whose own Lives it is about. */
+export interface Serves {
+  turn: string | null;
+  lives: string[];
 }
 
 export interface LeadMove {
@@ -213,6 +227,8 @@ export interface NewThing {
   what: string;
   scene: string | null;
   person: string | null;
+  /** The Outline's setup it brings in: nothing enters without a payoff (openspec the-outline). */
+  setup: string;
 }
 
 /** The Director's plan for a Stretch, numbered on the Path. */
@@ -233,23 +249,32 @@ export interface Plan {
   afterScene: number;
 }
 
-/** One part of The Story So Far: a Scene's paragraph, a week's recap or a chapter. */
+/** One part of The Story So Far: a Scene's paragraph, a week's recap or a finished Act's account. */
 export interface Told {
   from: string;
   until: string;
   text: string;
   /** The Scene's number and title, for a Scene's paragraph. */
   scene: { number: number; title: string } | null;
-  /** Who was there besides him, for a Scene's paragraph: the Actor is given only what the people present lived. */
+  /** Who was there besides him: for a Scene's paragraph, and everyone an Act's account gathers. */
   who: string[];
+  /** The Act a Scene was played in, once the Story has an Outline; the Act an account tells. */
+  act?: { number: number; title: string };
+  /** The Scenes an Act's account tells, first and last. */
+  scenes?: { first: number; last: number };
 }
 
+/**
+ * The Story So Far (the-storys-mind design decision 8): each finished Act as one account, then the current Act's
+ * oldest weeks once it has grown long, then every other Scene of the current Act a paragraph each.
+ */
 export interface StorySoFar {
-  chapters: Told[];
+  acts: Told[];
   weeks: Told[];
   scenes: Told[];
 }
 
+/** The player's reaction to a played Scene, kept beside the Story (docs/adr/0020). */
 export interface Reaction {
   scene: number;
   title: string;
@@ -285,7 +310,6 @@ export interface State {
   worldAt: string;
   world: { summary: string; history: string; places: Place[]; institutions: Place[] };
   routine: string[];
-  brief: { more: string[]; less: string[] };
   people: Record<string, Person>;
   groups: Place[];
   leads: string[];
@@ -307,7 +331,6 @@ export interface State {
   storySoFar: StorySoFar;
   /** Each played Scene's own intensity, in order. */
   curve: { scene: number; title: string; peak: number }[];
-  reactions: Reaction[];
   recorded: Recorded[];
   /** The Engagements kept, as "id@at", by a choice for them. */
   kept: string[];
@@ -315,9 +338,12 @@ export interface State {
   played: string[];
   /** Everything the Stretches brought that was new, oldest first. */
   introduced: { stretch: number; kind: string; what: string }[];
+  /** Everything kept of what is true now and how it came to be (openspec the-truth). */
+  truth: TruthState;
+  /** Where the whole Story is going (openspec the-outline); null until the Director has written it. */
+  outline: Outline | null;
   scene: CurrentScene | null;
   scenesPlayed: number;
-  taste: string[];
   directions: string[];
   pendingDirection: PendingDirection | null;
 }

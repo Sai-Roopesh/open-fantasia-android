@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { WorldMoved } from "../../src/story/entries.js";
 import type { State } from "../../src/story/state.js";
+import { besideOf, learnLesson, tasteOf } from "../../src/store/beside.js";
 import { backstageView } from "../../src/views/backstage.js";
 import { worldView } from "../../src/views/world.js";
 import { playable } from "../support/play.js";
@@ -99,7 +100,7 @@ describe("editing the Story on the Path (editing-the-story design decisions 1 an
     expect(refused(() => engine.setClock(storyId, "Day 3 21:40", undefined, head(), "t"))).toBe("The clock only moves on.");
     expect(refused(() => engine.setClock(storyId, "Day 4 09:00", "funday", head(), "t"))).toBe("\"funday\" is not a date like \"1991-09-01\".");
 
-    expect(refused(() => engine.rewordTaste(storyId, "keep Ron in the background", "x", head(), "t"))).toBe("Taste has no such line.");
+    expect(refused(() => engine.rewordTaste(storyId, "keep Ron in the background", "x", "story", "t"))).toBe("Taste has no such line.");
     expect(refused(() => engine.setPremise(storyId, "A romance.", "not-the-head", "t"))).toBe("The Story has moved on since you last looked. Nothing was changed.");
 
     expect(head()).toBe(at);
@@ -115,14 +116,16 @@ describe("editing the Story on the Path (editing-the-story design decisions 1 an
     expect(refused(() => engine.setLandmark(storyId, { name: "The betrothal", at: "Day 9 07:00", what: "Early." }, false, head(), "t"))).toBe("That time has passed on this Path.");
   });
 
-  it("rewords a Taste line in its place", () => {
-    const { engine, storyId, head, state, mac } = playable(storyFile());
-    const path = mac.tree.currentPath(storyId)!;
-    const taste = mac.tree.append(storyId, head(), { kind: "taste_set", lines: ["Keep school procedure to a line.", "keep Ron in the background"] });
-    mac.tree.moveHead(path.id, path.headEntryId, taste.id);
-    expect(refused(() => engine.rewordTaste(storyId, "keep Ron in the background", " ", head(), "t"))).toBe("Say the lesson, or delete it.");
-    engine.rewordTaste(storyId, "keep Ron in the background", "keep Ron in the background unless he's needed", head(), "t");
-    expect(state().taste).toEqual(["Keep school procedure to a line.", "keep Ron in the background unless he's needed"]);
+  it("rewords a Taste line in its place, the Story's or the player's own", () => {
+    const { engine, storyId, mac } = playable(storyFile());
+    for (const lesson of ["Keep school procedure to a line.", "keep Ron in the background"]) learnLesson(mac, storyId, "story", lesson);
+    learnLesson(mac, storyId, "player", "Don't decide what my character feels.");
+    expect(refused(() => engine.rewordTaste(storyId, "keep Ron in the background", " ", "story", "t"))).toBe("Say the lesson, or delete it.");
+    expect(refused(() => engine.rewordTaste(storyId, "keep Ron in the background", "x", "player", "t"))).toBe("Taste has no such line.");
+    engine.rewordTaste(storyId, "keep Ron in the background", "keep Ron in the background unless he's needed", "story", "t");
+    engine.rewordTaste(storyId, "Don't decide what my character feels.", "Never decide what my character feels.", "player", "t");
+    expect(tasteOf(mac, storyId, "story")).toEqual(["Keep school procedure to a line.", "keep Ron in the background unless he's needed"]);
+    expect(tasteOf(mac, storyId, "player")).toEqual(["Never decide what my character feels."]);
   });
 });
 
@@ -311,16 +314,14 @@ describe("long-run › Taste is short, readable and the player's", () => {
   // WHEN the player rewords it to "keep Ron in the background unless he's needed"
   // THEN later Scenes read the new words, and the old ones are gone from Taste
   it("long-run › Taste is short, readable and the player's › Rewording a lesson", async () => {
-    const { mac, engine, storyId, head, state, play, models } = playable(storyFile());
-    const path = mac.tree.currentPath(storyId)!;
-    const taste = mac.tree.append(storyId, head(), { kind: "taste_set", lines: ["keep Ron in the background"] });
-    mac.tree.moveHead(path.id, path.headEntryId, taste.id);
-    engine.rewordTaste(storyId, "keep Ron in the background", "keep Ron in the background unless he's needed", head(), "reword");
-    expect(state().taste).toEqual(["keep Ron in the background unless he's needed"]);
+    const { mac, engine, storyId, play, models } = playable(storyFile());
+    learnLesson(mac, storyId, "story", "keep Ron in the background");
+    engine.rewordTaste(storyId, "keep Ron in the background", "keep Ron in the background unless he's needed", "story", "reword");
+    expect(tasteOf(mac, storyId, "story")).toEqual(["keep Ron in the background unless he's needed"]);
     await play("I sit at the other end of the sofa.");
-    // The Writer and the Actor read Taste with the Move, in their message.
+    // The Writer and the Actor read Taste, and only the new words.
     for (const job of [models.writer, models.actor]) {
-      const asked = job.requests.at(-1)!.prompt;
+      const asked = `${job.requests.at(-1)!.system}\n${job.requests.at(-1)!.prompt}`;
       expect(asked).toContain("- keep Ron in the background unless he's needed");
       expect(asked.split("keep Ron in the background").length - 1).toBe(1);
     }
@@ -340,7 +341,7 @@ describe("long-run › The player steers with a brief and reactions", () => {
     const story = storyFile();
     story.world.places.push({ name: "The library", description: "Dust, lamplight and Madam Pince." });
     story.opening = { ...story.opening, title: "The library", place: "The library" };
-    const { engine, storyId, head, view, state, play, models } = playable(story);
+    const { engine, storyId, head, view, play, models, mac } = playable(story);
     const end = async (trace: string) => {
       engine.endScene(storyId, head(), trace);
       await engine.ended(storyId);
@@ -348,7 +349,7 @@ describe("long-run › The player steers with a brief and reactions", () => {
     // Scene 1 is in the library; the player reacts to it at the Day View, and the reaction is on the Path.
     await play("I find Hermione at the end table.");
     await end("end-1");
-    engine.setReaction(storyId, 1, "less", null, head(), "react-1");
+    engine.setReaction(storyId, 1, "less", null, "react-1");
     expect(view().day_view!.reaction).toBe("less");
     // Scene 2 is back in the library. The Stretch planned after Scene 1 still runs, so no plan is due at its end.
     models.writer.then(opening({ title: "Back to the library", place: "The library" }, ["Hermione Granger"]));
@@ -356,8 +357,8 @@ describe("long-run › The player steers with a brief and reactions", () => {
     await engine.settled(storyId);
     await end("end-2");
     expect(models.director.requests).toHaveLength(1);
-    engine.setReaction(storyId, 2, "less", "Too much reading.", head(), "react-2");
-    expect(state().reactions).toEqual([
+    engine.setReaction(storyId, 2, "less", "Too much reading.", "react-2");
+    expect(besideOf(mac, storyId).reactions).toEqual([
       { scene: 1, title: "The library", reaction: "less", note: null },
       { scene: 2, title: "Back to the library", reaction: "less", note: "Too much reading." }
     ]);
@@ -370,7 +371,7 @@ describe("long-run › The player steers with a brief and reactions", () => {
     const [first, next] = models.director.requests.map(request => request.prompt);
     expect(first).not.toContain("Reactions to recent Scenes");
     // It plans from both reactions, and knows from The Story So Far what each of those Scenes was.
-    expect(next).toContain("<the_players_wishes>\nReactions to recent Scenes:\n- Scene 1, The library: less like this\n- Scene 2, Back to the library: less like this (Too much reading.)\n</the_players_wishes>");
+    expect(next).toContain("Reactions to recent Scenes:\n- Scene 1, The library: less like this\n- Scene 2, Back to the library: less like this (Too much reading.)\n</the_players_wishes>");
     expect(next).toMatch(/<story_so_far>[\s\S]*Scene 1, The library \([\s\S]*Scene 2, Back to the library \([\s\S]*<\/story_so_far>/);
   });
 });
@@ -383,11 +384,11 @@ describe("the Premise and the World, and phones told of every edit", () => {
     await play("I sit at the other end of the sofa.");
     engine.endScene(storyId, head(), "end");
     await engine.ended(storyId);
-    for (const job of [models.writer, models.weaver, models.director]) {
+    // Every one of them reads the Story in four layers: the Premise, and the World as its own part of layer 1.
+    for (const job of [models.writer, models.actor, models.weaver, models.director]) {
       expect(job.requests.at(-1)!.system).toContain("Premise: A rivalry that turns, slowly, into something else.");
-      expect(job.requests.at(-1)!.system).toContain("World: Hogwarts in 1991, cold and candlelit.");
+      expect(job.requests.at(-1)!.system).toContain("<world>\nThe World.\nHogwarts in 1991, cold and candlelit.\nHistory: The war ended in a truce nobody trusts.");
     }
-    expect(models.actor.requests.at(-1)!.system).toContain("Hogwarts in 1991, cold and candlelit.\n\nThe war ended in a truce nobody trusts.");
   });
 
   it("tells a phone watching that the Story changed, for each of the nine edits", () => {

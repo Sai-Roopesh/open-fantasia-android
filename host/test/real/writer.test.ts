@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { writeBeat, type WriterAsk } from "../../src/agents/writer.js";
+import { nothingBeside } from "../../src/story/beside.js";
 import { Engine } from "../../src/engine/engine.js";
 import { ClaudeRunner } from "../../src/models/claude.js";
 import { DEFAULT_JOB_MODELS } from "../../src/models/jobs.js";
@@ -32,7 +33,7 @@ function onClaude(storyFile: StoryFile) {
 async function writerAnswers(storyFile: StoryFile, move: string) {
   const { mac, runner, models, head } = onClaude(storyFile);
   const state = mac.states.at(head());
-  const ask: WriterAsk = { state, scene: sceneEntries(mac, head()).entries, move, choice: null };
+  const ask: WriterAsk = { state, scene: sceneEntries(mac, head()).entries, move, choice: null, beside: nothingBeside() };
   try {
     return await writeBeat(models, [DEFAULT_JOB_MODELS.writer], ask, "real", "real-writer", new AbortController().signal);
   } finally {

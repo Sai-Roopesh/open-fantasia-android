@@ -29,31 +29,32 @@ private val StillToComeDot = Color(0xFF4A4554)
 private val ReactedGround = Color(0xFF2B2342)
 
 internal enum class StepState(val said: String) { Done("Done"), UnderWay("Under way"), ToCome("Still to come") }
-internal data class SceneEndRow(val step: SceneEndStep, val state: StepState)
+internal data class SceneEndRow(val step: SceneEndStep, val state: StepState, val line: String)
 
 /**
  * The rows MovingOn.dc.html draws for a Scene's end that is under way or stopped: each step done, the one under way
- * (or stopped), and those still to come. The Director's and the Folder's rows show only when they run, since each
- * runs only when due; the Director's stays, done, once the phone has seen it run ([ran]).
+ * (or stopped), and those still to come. The Director reconsiders the Outline after every Scene, so his row is always
+ * there; the Folder's shows only when it runs, at an Act's end. While the Director re-plans an Act deeply, his line
+ * says so ("Rethinking Year One…").
  */
-internal fun sceneEndRows(end: SceneEnd, ran: Set<SceneEndStep>): List<SceneEndRow> {
+internal fun sceneEndRows(end: SceneEnd): List<SceneEndRow> {
     val at = end.failed?.step ?: end.step ?: return emptyList()
     val index = SCENE_END_ORDER.indexOf(at)
     return SCENE_END_ORDER.mapIndexedNotNull { place, step ->
         val state = when { place < index -> StepState.Done; place == index -> StepState.UnderWay; else -> StepState.ToCome }
-        val shown = when (step) {
-            SceneEndStep.Director -> step == at || (state == StepState.Done && step in ran)
-            SceneEndStep.Folder -> step == at
-            else -> true
-        }
-        if (shown) SceneEndRow(step, state) else null
+        if (step == SceneEndStep.Folder && step != at) null
+        else SceneEndRow(step, state, sceneEndStepLine(step, underWay = state != StepState.Done, rethinking = end.rethinking))
     }
 }
 
-/** A step as the Day View's line says it: done, or under way and still to come. */
-internal fun sceneEndStepLine(step: SceneEndStep, underWay: Boolean): String = when (step) {
+/** A step as the Day View's line says it: done, or under way and still to come; the Director's while he rethinks an Act. */
+internal fun sceneEndStepLine(step: SceneEndStep, underWay: Boolean, rethinking: String? = null): String = when (step) {
     SceneEndStep.Chronicler -> if (underWay) "Recording the Scene" else "The Scene is recorded"
-    SceneEndStep.Director -> if (underWay) "The Director is planning the days ahead" else "The days ahead are planned"
+    SceneEndStep.Director -> when {
+        !underWay -> "The Outline is reconsidered"
+        rethinking != null -> "Rethinking $rethinking…"
+        else -> "The Director is reconsidering the Outline"
+    }
     SceneEndStep.Weaver -> if (underWay) "The World moves on" else "The World has moved on"
     SceneEndStep.Folder -> if (underWay) "Folding The Story So Far" else "The Story So Far is folded"
 }
@@ -61,7 +62,7 @@ internal fun sceneEndStepLine(step: SceneEndStep, underWay: Boolean): String = w
 /** "The <Agent> could not <its work>" (SceneEndFailed.dc.html). */
 internal fun sceneEndFailureTitle(step: SceneEndStep): String = when (step) {
     SceneEndStep.Chronicler -> "The Chronicler could not record the Scene"
-    SceneEndStep.Director -> "The Director could not plan the days ahead"
+    SceneEndStep.Director -> "The Director could not reconsider the Outline"
     SceneEndStep.Weaver -> "The Weaver could not move the World on"
     SceneEndStep.Folder -> "The Folder could not fold The Story So Far"
 }
@@ -69,14 +70,14 @@ internal fun sceneEndFailureTitle(step: SceneEndStep): String = when (step) {
 /** What waits for the step that stopped: nothing after it runs without it (openspec presence: Nothing fails silently). */
 private fun sceneEndWaits(step: SceneEndStep): String = when (step) {
     SceneEndStep.Chronicler -> "The World waits for the record."
-    SceneEndStep.Director -> "The World waits for the plan."
+    SceneEndStep.Director -> "The World waits for the Outline."
     SceneEndStep.Weaver -> "The Day View waits for the World."
     SceneEndStep.Folder -> "The Day View waits for The Story So Far."
 }
 
 private fun anotherModelFor(step: SceneEndStep): String = when (step) {
     SceneEndStep.Chronicler -> "Record the Scene with another model"
-    SceneEndStep.Director -> "Plan the days ahead with another model"
+    SceneEndStep.Director -> "Reconsider the Outline with another model"
     SceneEndStep.Weaver -> "Move the World on with another model"
     SceneEndStep.Folder -> "Fold The Story So Far with another model"
 }
@@ -106,7 +107,7 @@ private fun anotherModelFor(step: SceneEndStep): String = when (step) {
                         Spacer(Modifier.size(6.dp).background(StillToComeDot, FantasiaShapes.round))
                     }
                 }
-                Text(sceneEndStepLine(row.step, underWay = row.state != StepState.Done), style = FantasiaType.metadata,
+                Text(row.line, style = FantasiaType.metadata,
                     color = when (row.state) { StepState.Done -> FantasiaCaption; StepState.UnderWay -> FantasiaProse; StepState.ToCome -> FantasiaDisabled })
             }
         }

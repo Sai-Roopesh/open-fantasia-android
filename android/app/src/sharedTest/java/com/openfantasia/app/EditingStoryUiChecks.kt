@@ -145,8 +145,8 @@ open class EditingStoryUiChecks : WorldUiChecks() {
         compose.onNodeWithText("A lesson").assertIsDisplayed()
         compose.onNodeWithTag("story-words").performTextReplacement("Keep Ron in the background unless he's needed.")
         compose.onNodeWithText("Save").performClick()
-        compose.waitUntil(5_000) { link.storyEdits.isNotEmpty() }
-        assertEquals("taste/reword" to RewordTasteRequest(after = "reply", line = "Keep Ron in the background.", text = "Keep Ron in the background unless he's needed."), lastEdit())
+        compose.waitUntil(5_000) { link.tasteRewords.isNotEmpty() }
+        assertEquals(listOf(RewordTasteRequest(line = "Keep Ron in the background.", scope = ClosedBy.Story, text = "Keep Ron in the background unless he's needed.")), link.tasteRewords)
         compose.onNodeWithTag("backstage").performScrollToNode(hasText("Keep Ron in the background unless he's needed."))
         compose.onNodeWithText("Keep Ron in the background.").assertDoesNotExist()
     }

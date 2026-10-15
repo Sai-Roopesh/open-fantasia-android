@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { SceneView, StoryView } from "../../src/protocol/generated/link.js";
+import { besideOf, learnLesson } from "../../src/store/beside.js";
 import { runningMac } from "../support/link.js";
 
 const closers: (() => Promise<unknown>)[] = [];
@@ -69,10 +70,20 @@ describe("editing the Story over the link (editing-the-story design decision 4)"
   });
 
   it("rewords a lesson in Taste, and refuses an edit against a head the Story has moved past, or one it cannot take", async () => {
-    const { call, storyId, send, message } = await mac();
-    const missing = await send("POST", "taste/reword", { line: "keep Ron in the background", text: "x" });
+    const { call, storyId, send, message, mac: home } = await mac();
+    // Taste is kept beside the Story (docs/adr/0020): a reword names whose Taste, and no head.
+    const reword = async (body: Record<string, unknown>) => await call(`/stories/${storyId}/taste/reword`, { method: "POST", body: JSON.stringify(body) });
+    const missing = await reword({ line: "keep Ron in the background", text: "x", scope: "story" });
     expect(missing.status).toBe(400);
     expect(await message(missing)).toBe("Taste has no such line.");
+    expect((await reword({ line: "keep Ron in the background", text: "x", scope: "story", after: "a-head" })).status).toBe(400);
+    learnLesson(home, storyId, "story", "keep Ron in the background");
+    learnLesson(home, storyId, "player", "Don't decide what my character feels.");
+    const reworded = await reword({ line: "keep Ron in the background", text: "keep Ron in the background unless he's needed", scope: "story" });
+    expect(reworded.status).toBe(200);
+    expect(await reworded.json()).toMatchObject({ story_id: storyId, title: "The Malfoy Problem" });
+    expect((await reword({ line: "Don't decide what my character feels.", text: "Never decide what my character feels.", scope: "player" })).status).toBe(200);
+    expect(besideOf(home, storyId)).toMatchObject({ taste: ["keep Ron in the background unless he's needed"], playerTaste: ["Never decide what my character feels."] });
     const stale = await call(`/stories/${storyId}/premise`, { method: "PUT", body: JSON.stringify({ premise: "A romance.", after: "an-old-head" }) });
     expect(stale.status).toBe(409);
     const back = await send("PUT", "clock", { at: "Day 1 08:00", day_one: null });

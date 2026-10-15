@@ -10,12 +10,8 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.selectable
@@ -30,6 +26,8 @@ import androidx.compose.ui.platform.*
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -40,8 +38,19 @@ import java.util.Locale
 
 internal fun firstName(name: String) = name.trim().substringBefore(' ')
 internal val SceneView.replyComing: Boolean
-    get() = turn.kind == TurnStateKind.Writing ||
+    get() = turn.underWay ||
         (turn.kind == TurnStateKind.Idle && exchanges.lastOrNull()?.let { it.move != null && it.reply == null } == true)
+
+/**
+ * The one line while a Reply is under way (SceneWriting.dc.html; openspec presence: A Reply arrives checked and whole):
+ * looking something up, being written, or being checked. Before the Mac has said which, the Story is looking back:
+ * nothing is said to be written before it is.
+ */
+internal fun turnLine(kind: TurnStateKind): String = when (kind) {
+    TurnStateKind.Writing -> "Writing…"
+    TurnStateKind.Checking -> "Checking…"
+    else -> "Looking back…"
+}
 
 // Owned by the current Scene's navigation entry so reading its past does not discard the scroll position.
 class SceneScrollState(val list: LazyListState) {
@@ -148,11 +157,16 @@ class SceneScrollState(val list: LazyListState) {
                         }
                         HeldReply(reply, held = held == reply.entryID, dimmed = held != null && held != reply.entryID,
                             actions = actions(reply, isMove = false), hold = { held = reply.entryID }, release = { held = null })
-                        if (reply == latestReply && !replyComing && scene.turn.kind != TurnStateKind.Failed) {
+                        val latestActions = reply == latestReply && !replyComing && scene.turn.kind != TurnStateKind.Failed
+                        val canRedo = latestActions && scene.dayView?.closedBy != ClosedBy.Player &&
+                            scene.exchanges.lastOrNull()?.let { it.move != null && it.reply != null } == true
+                        // The Editor's note, when the Reply still breaks something after it was written again; Redo moves into it.
+                        reply.note?.let { note -> EditorNote(note, if (canRedo) ({ showRedo = true }) else null, controlsEnabled) }
+                        if (latestActions) {
                             // The latest Reply's actions, in view without a menu, as drawn in Scene.dc.html.
                             Row(Modifier.offset(x = (-8).dp).testTag("latest-actions"), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                 ReplyAction("Copy", onClick = { copy(reply.text) })
-                                if (scene.dayView?.closedBy != ClosedBy.Player && scene.exchanges.lastOrNull()?.let { it.move != null && it.reply != null } == true) {
+                                if (canRedo && reply.note == null) {
                                     ReplyAction("Redo", enabled = controlsEnabled, onClick = { showRedo = true })
                                 }
                                 ReplyAction("Edit", enabled = pathsEnabled, onClick = { editing = Editing(reply.entryID, reply.text, isMove = false, latest = true) })
@@ -171,13 +185,12 @@ class SceneScrollState(val list: LazyListState) {
                         story = { day.happenings.firstOrNull { it.pick }?.let { destination(it, ChooseRequestKind.Story) } })
                 }
             } }
-            if (replyComing && scene.opening == null) item(key = "reply-being-written") {
-                Column(Modifier.padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Spacer(Modifier.size(6.dp).background(FantasiaLabel, FantasiaShapes.round))
-                        Text("Reply being written", color = FantasiaCaption, style = FantasiaType.small)
-                    }
-                    ArrivingReply(scene.turn.textSoFar.orEmpty())
+            // No words arrive before the Editor has checked them: one line says what is under way (SceneWriting.dc.html).
+            if (replyComing && scene.opening == null) item(key = "reply-under-way") {
+                Row(Modifier.padding(bottom = 8.dp).testTag("reply-under-way").semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Spacer(Modifier.size(6.dp).background(FantasiaLabel, FantasiaShapes.round))
+                    Text(turnLine(scene.turn.kind), color = FantasiaCaption, style = FantasiaType.small)
                 }
             }
             if (scene.turn.kind == TurnStateKind.Failed) item(key = "reply-failure") { Box(Modifier.padding(bottom = 8.dp)) { failure() } }
@@ -239,9 +252,9 @@ class SceneScrollState(val list: LazyListState) {
     }
     var lastHead by remember { mutableStateOf<String?>(null) }
     val measuredViewport = viewportSize
-    // A new Move, Reply or Scene change brings the player to the end; words arriving, the keyboard opening and the
-    // viewport resizing keep them there only if they are at it.
-    LaunchedEffect(scene.storyID, scene.headEntryID, scene.exchanges, scene.turn.kind, replyComing, scene.turn.textSoFar, scene.dayView, imeBottom, measuredViewport) {
+    // A new Move, Reply or Scene change brings the player to the end; the turn's line changing, the keyboard opening and
+    // the viewport resizing keep them there only if they are at it.
+    LaunchedEffect(scene.storyID, scene.headEntryID, scene.exchanges, scene.turn.kind, replyComing, scene.dayView, imeBottom, measuredViewport) {
         if (measuredViewport == IntSize.Zero) return@LaunchedEffect
         if (entering) {
             entering = false
@@ -370,20 +383,6 @@ class SceneScrollState(val list: LazyListState) {
     }
 }
 
-@Composable private fun ArrivingReply(text: String) {
-    val shown = remember(text) { prose(text, arriving = true) }
-    var layout by remember(text) { mutableStateOf<TextLayoutResult?>(null) }
-    Text(shown, style = FantasiaType.prose, color = FantasiaProse, onTextLayout = { layout = it },
-        modifier = Modifier.fillMaxWidth().testTag("reply-caret").drawWithContent {
-            drawContent()
-            layout?.let {
-                val cursor = it.getCursorRect(shown.length)
-                val baseline = it.getLineBaseline(it.lineCount - 1)
-                drawRect(FantasiaLabel, Offset((cursor.left + 2.dp.toPx()).coerceAtMost(size.width - 2.dp.toPx()), baseline - 15.dp.toPx()), Size(2.dp.toPx(), 18.dp.toPx()))
-            }
-        })
-}
-
 @Composable fun ReplyFailure(state: FantasiaState, retry: (ModelChoice?) -> Unit, loadModels: () -> Unit = {}) {
     val turn = state.scene?.turn ?: return
     StoryFailure("The Reply could not be written", turn.reason.orEmpty(), turn.traceID, retry,
@@ -481,6 +480,26 @@ class SceneScrollState(val list: LazyListState) {
         }
     }
 }
+
+/**
+ * The Editor's note under a Reply (SceneWriting.dc.html; docs/adr/0019): what the Reply still breaks after it was
+ * written again, in amber, with Redo when it is the latest Reply and can be redone.
+ */
+@Composable internal fun EditorNote(note: String, redo: (() -> Unit)?, enabled: Boolean) {
+    Column(Modifier.fillMaxWidth().testTag("editor-note").background(EditorNoteGround, RoundedCornerShape(14.dp))
+        .border(1.dp, EditorNoteLine, RoundedCornerShape(14.dp)).padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("THE EDITOR'S NOTE", style = FantasiaType.meanwhileTag.copy(letterSpacing = 1.1.sp), color = FantasiaRumour)
+        Text(note, style = FantasiaType.metadata.copy(lineHeight = 21.sp), color = FantasiaProse)
+        if (redo != null) OutlinedButton(onClick = redo, enabled = enabled, modifier = Modifier.height(36.dp).testTag("editor-note-redo"),
+            shape = FantasiaShapes.round, border = BorderStroke(1.dp, FantasiaStrongLine), contentPadding = PaddingValues(horizontal = 16.dp)) {
+            Text("Redo", style = FantasiaType.meta, color = if (enabled) FantasiaText else FantasiaDisabled)
+        }
+    }
+}
+
+private val EditorNoteGround = androidx.compose.ui.graphics.Color(0xFF211B14)
+private val EditorNoteLine = androidx.compose.ui.graphics.Color(0xFF4A3A22)
 
 @Composable private fun ReplyAction(label: String, enabled: Boolean = true, onClick: () -> Unit) {
     Box(Modifier.height(36.dp).clip(FantasiaShapes.round).clickable(enabled = enabled, role = Role.Button, onClick = onClick).padding(horizontal = 10.dp),

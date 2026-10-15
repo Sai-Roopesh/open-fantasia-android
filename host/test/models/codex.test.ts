@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import { CodexRunner } from "../../src/models/codex.js";
-import type { ModelRequest } from "../../src/models/model-call.js";
+import { CodexRunner, webSearchLine } from "../../src/models/codex.js";
+import { NO_TOOLS, type ModelRequest } from "../../src/models/model-call.js";
 
 const fake = fileURLToPath(new URL("../support/fakes/codex-app-server.mjs", import.meta.url));
 
@@ -45,6 +45,22 @@ describe("Codex through one warm app server (docs/adr/0005)", () => {
     const turn = received().find(message => message.method === "turn/start")!.params!;
     expect(turn).toMatchObject({ threadId: "thread-1", model: "gpt-6.1-sol", effort: "high", input: [{ type: "text", text: "The Scene ended at 11:05 pm." }] });
     expect(turn.outputSchema).toBeUndefined();
+  });
+
+  it("keeps Codex off the web unless the call may use it, and then gives it live search (docs/adr/0018)", async () => {
+    const { runner: codex, received } = runner();
+    await codex.run(request("The Scene ended at 11:05 pm."), () => {}, new AbortController().signal);
+    await codex.run(request("Plan Year Two.", { tools: { story: null, web: true } }), () => {}, new AbortController().signal, { ...NO_TOOLS, web: true });
+    const threads = received().filter(message => message.method === "thread/start").map(message => message.params!.config);
+    expect(threads).toEqual([{ web_search: "disabled" }, { web_search: "live" }]);
+  });
+
+  it("says each web search and page Codex opened in a line, as every provider's lookups are", () => {
+    expect(webSearchLine({ type: "webSearch", query: "", action: { type: "search", query: "Chamber of Secrets plot" } })).toBe("searched the web for “Chamber of Secrets plot”");
+    expect(webSearchLine({ type: "webSearch", query: "", action: { type: "search", query: null, queries: ["Gilderoy Lockhart", "Dobby"] } })).toBe("searched the web for “Gilderoy Lockhart; Dobby”");
+    expect(webSearchLine({ type: "webSearch", query: "", action: { type: "openPage", url: "https://harrypotter.fandom.com/wiki/Dobby" } })).toBe("read https://harrypotter.fandom.com/wiki/Dobby");
+    expect(webSearchLine({ type: "webSearch", query: "Polyjuice Potion", action: null })).toBe("searched the web for “Polyjuice Potion”");
+    expect(webSearchLine({ type: "webSearch", query: "", action: { type: "other" } })).toBeNull();
   });
 
   it("asks for the schema when the call has one, and answers with the JSON", async () => {
@@ -125,12 +141,12 @@ describe("Codex through one warm app server (docs/adr/0005)", () => {
     expect(received().some(message => message.method === "turn/start")).toBe(false);
   });
 
-  it("declines a request to run a command: the agents use no tools", async () => {
+  it("declines a request to run a command: the agents run none", async () => {
     const { runner: codex, received } = runner();
     const answer = await codex.run(request("approval"), () => {}, new AbortController().signal);
     expect(answer).toMatch(/She closes the book/);
     const reply = received().find(message => (message as { id?: number }).id === 900) as { error?: { message: string }; result?: unknown };
-    expect(reply.error?.message).toMatch(/no tools/);
+    expect(reply.error?.message).toMatch(/run no commands/);
     expect(reply.result).toBeUndefined();
   });
 });

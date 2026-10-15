@@ -106,12 +106,15 @@ function fridayNight(weave: Record<string, unknown>, director: Script[] = []) {
   return playable(story, { weaver: [weaveOf(weave)], director });
 }
 
-/** A Director's plan for the Stretch from the Day View's day: its Scenes that matter, the rest by default. */
+/**
+ * A Director's plan for the Stretch from the Day View's day: its Scenes that matter, the rest by default, each serving
+ * the first turn of the Act the scripted Director outlines, and bringing in that Outline's locked door.
+ */
 function plan(scenes: Record<string, unknown>[], changes: Record<string, unknown> = {}): Script {
   return { answer: JSON.stringify({
     days: 6, toward: "the flying test", landmark: null, phase: "build",
-    scenes: scenes.map((scene, index) => ({ id: `S${index + 1}`, date: "1991-09-08", time: "10:00", place: "The Great Hall", who: [], for: "A step for the Story.", offer: "Something is on.", headline: "A step", lead: null, engagement: null, quiet: false, ...scene })),
-    new: [{ kind: "mystery", what: "A locked door nobody admits to.", scene: null, person: null }],
+    scenes: scenes.map((scene, index) => ({ id: `S${index + 1}`, date: "1991-09-08", time: "10:00", place: "The Great Hall", who: [], serves: { turn: "T1", lives: [] }, for: "A step for the Story.", offer: "Something is on.", headline: "A step", lead: null, engagement: null, quiet: false, ...scene })),
+    new: [{ setup: "U1", kind: "mystery", scene: null, person: null }],
     leads: [], arcs: [], roadmap: [], premise: "Some Scenes serve it.", ...changes
   }) };
 }
@@ -349,7 +352,7 @@ describe("the Day View fills in (openspec presence)", () => {
     // The Day View shows its choices only when every step of the Scene's end is done.
     expect(view().day_view).toMatchObject({ scene_end: { step: "chronicler", failed: null }, happenings: [] });
     await engine.ended(storyId);
-    expect(view().day_view!.scene_end).toEqual({ step: null, failed: null });
+    expect(view().day_view!.scene_end).toEqual({ step: null, failed: null, rethinking: null });
     expect(view().day_view!.happenings).toEqual(expect.arrayContaining([expect.objectContaining({ time: "7:00 pm", place: "The library", who: ["Hermione Granger"], expected: false })]));
     const kinds = path().map(payload => payload.kind);
     expect(kinds.indexOf("chronicle")).toBeLessThan(kinds.indexOf("world_moved"));

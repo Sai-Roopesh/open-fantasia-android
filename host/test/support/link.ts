@@ -5,7 +5,7 @@ import { Engine } from "../../src/engine/engine.js";
 import { buildLink } from "../../src/link/server.js";
 import { Pairing } from "../../src/link/pairing.js";
 import { Models, type ModelRequest, type ModelRunner } from "../../src/models/model-call.js";
-import { fakeChronicleAnswer, fakeDirectorAnswer, fakeFoldAnswer, fakeWeaveAnswer, fakeWriterAnswer } from "../../src/models/fake.js";
+import { fakeChronicleAnswer, fakeDirectorAnswer, fakeEditorAnswer, fakeFoldAnswer, fakeWeaveAnswer, fakeWriterAnswer } from "../../src/models/fake.js";
 import { ScriptedRunner } from "../../src/models/scripted.js";
 import { CONTRACT_VERSION } from "../../src/protocol/generated/contract.js";
 import type { StoryEvent } from "../../src/protocol/generated/link.js";
@@ -67,13 +67,16 @@ export class HeldRunner implements ModelRunner {
   }
 }
 
-/** Models where [actor] writes the Replies, and a scripted Writer, Chronicler and Weaver do their jobs, keeping every rule. */
-export function withWriter(actor: ModelRunner, writer: ModelRunner = new ScriptedRunner([], fakeWriterAnswer)): ModelRunner {
+/**
+ * Models where [actor] writes the Replies, and a scripted Writer, Editor, Chronicler, Weaver, Director and Folder do
+ * their jobs, keeping every rule.
+ */
+export function withWriter(actor: ModelRunner, writer: ModelRunner = new ScriptedRunner([], fakeWriterAnswer), editor: ModelRunner = new ScriptedRunner([], fakeEditorAnswer)): ModelRunner {
   const chronicler = new ScriptedRunner([], fakeChronicleAnswer);
   const weaver = new ScriptedRunner([], fakeWeaveAnswer);
   const director = new ScriptedRunner([], fakeDirectorAnswer);
   const folder = new ScriptedRunner([], fakeFoldAnswer);
-  const runners: Record<string, ModelRunner> = { writer, chronicler, weaver, director, folder };
+  const runners: Record<string, ModelRunner> = { writer, editor, chronicler, weaver, director, folder };
   return { run: (request, onText, signal) => (runners[request.agent] ?? actor).run(request, onText, signal) };
 }
 

@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { MoveWritten } from "../../src/story/entries.js";
+import { emptyUpdate } from "../../src/story/truth.js";
+import type { MoveWritten, WorldMoved } from "../../src/story/entries.js";
+import { minutesOf, parseStoryTime } from "../../src/time.js";
+import { betweenKey } from "../../src/story/truth.js";
 import { playable } from "../support/play.js";
 import { hogwartsWorldStoryFile } from "../support/story-files.js";
 
@@ -7,11 +10,14 @@ const beats = [{ text: "a", status: "in_play" }, { text: "b", status: "pending" 
 /** A Writer's answer, with [changes]. */
 const writer = (changes: Record<string, unknown>) => ({ answer: JSON.stringify({ leaves_scene: false, frame: null, comes_in: [], goes: [], beats, note: "n", call: "continue", intensity: 2, arc_moved: true, minutes: 2, taste: null, in_play: [], moves_to: null, ...changes }) });
 
-/** The Director's plan: Saturday's Scene that matters is the hospital wing at 11:00, about Draconia. */
+/**
+ * The Director's plan: Saturday's Scene that matters is the hospital wing at 11:00, about Draconia, serving the first
+ * turn of the Act the scripted Director outlines, and bringing in that Outline's locked door.
+ */
 const plan = {
   days: 4, toward: "Draconia's flying test", landmark: null, phase: "build",
-  scenes: [{ id: "S1", date: "1991-09-07", time: "11:00", place: "Outside the hospital wing", who: ["Draconia Malfoy", "Severus Snape"], for: "Draconia needs a witness.", offer: "Draconia is fighting Snape for her bed back.", headline: "The hospital wing: Draconia wants out", lead: "Draconia Malfoy", engagement: null, quiet: false }],
-  new: [{ kind: "mystery", what: "Who hexed Draconia's broom.", scene: "S1", person: null }],
+  scenes: [{ id: "S1", date: "1991-09-07", time: "11:00", place: "Outside the hospital wing", who: ["Draconia Malfoy", "Severus Snape"], serves: { turn: "T1", lives: ["Draconia Malfoy"] }, for: "Draconia needs a witness.", offer: "Draconia is fighting Snape for her bed back.", headline: "The hospital wing: Draconia wants out", lead: "Draconia Malfoy", engagement: null, quiet: false }],
+  new: [{ setup: "U1", kind: "mystery", scene: "S1", person: null }],
   leads: [{ who: "Draconia Malfoy", move: "She makes him her witness.", scene: "S1" }, { who: "Hermione Granger", move: "She asks where he was.", scene: "S1" }],
   arcs: [], roadmap: [], premise: "The romance turns on a debt."
 };
@@ -75,7 +81,7 @@ describe("the Gap", () => {
     expect(models.weaver.requests.at(-1)!.prompt).toContain("- G1 Saturday 7 September 1991, 9:00 am, McGonagall's office: Your account of the troll. With Minerva McGonagall, Hermione Granger. He was expected.");
     // The World's move over the Gap is on the Path right after the Move, and what was missed keeps its time and place.
     const gap = mac.tree.pathTo(head()).find(entry => entry.parentId === move.id)!;
-    expect(gap.payload).toMatchObject({ kind: "world_moved", gap: true, from: "Day 4 07:30", until: "Day 4 11:00",
+    expect(gap.payload).toMatchObject({ kind: "world_moved", truth: emptyUpdate(), gap: true, from: "Day 4 07:30", until: "Day 4 11:00",
       happened: [{ what: "McGonagall took the accounts of the troll without Roopesh, and asked Hermione where he was.", at: "Day 4 09:00", where: "McGonagall's office", knownTo: ["Minerva McGonagall", "Hermione Granger"] }] });
     expect(state().facts.filter(fact => fact.source === "world").at(-1)).toMatchObject({ at: "Day 4 09:00", knownTo: ["Minerva McGonagall", "Hermione Granger"] });
     expect(models.writer.requests.at(-1)!.prompt).toContain("McGonagall took the accounts of the troll without Roopesh");
@@ -124,7 +130,7 @@ describe("the Gap", () => {
     await engine.settled(storyId);
     expect(view().turn.kind).toBe("idle");
     expect(view().scene.place).toBe("Outside the hospital wing");
-    expect(mac.tree.pathTo(head()).find(entry => entry.parentId === lastMove().id)!.payload).toMatchObject({ kind: "world_moved", gap: true });
+    expect(mac.tree.pathTo(head()).find(entry => entry.parentId === lastMove().id)!.payload).toMatchObject({ kind: "world_moved", truth: emptyUpdate(), gap: true });
   });
 
   it("does not weave a short Gap with nothing in it", async () => {
@@ -164,7 +170,88 @@ describe("the Gap", () => {
     engine.move(storyId, "At noon I knock on McGonagall's door.", head(), "trace-office");
     await engine.settled(storyId);
     const withMcGonagall = models.actor.requests.at(-1)!;
-    expect(withMcGonagall.system).toMatch(/<person name="Minerva McGonagall">[\s\S]*McGonagall took the accounts of the troll without Roopesh, and asked Hermione where he was\./);
-    expect(withMcGonagall.prompt).toContain("known to Minerva McGonagall, Hermione Granger) McGonagall took the accounts of the troll without Roopesh, and asked Hermione where he was.");
+    expect(withMcGonagall.prompt).toContain("McGonagall's office: McGonagall took the accounts of the troll without Roopesh, and asked Hermione where he was. Known to Minerva McGonagall and Hermione Granger.");
   });
 });
+
+describe("a span skipped as asked (openspec living-world: Off-screen time is resolved only as far as it reaches the player)", () => {
+  const skip = "A month passes. I go to my classes, and spend my evenings in the library with Draconia and Hermione. Their feelings for me grow.";
+  /** Overnight, Draconia sets him a session at the library's end table every Wednesday evening, and he is expected. */
+  const wednesdays = {
+    lives: [], threads: [], on: [],
+    happened: [{ id: "H1", what: "Draconia left word: the end table in the library, every Wednesday at half past seven.", at: "Day 4 07:00", where: "The Slytherin common room", known_to: ["Draconia Malfoy", "Roopesh Gantasala"], landmark: null, move: null, missed: null }],
+    meanwhile: [{ text: "Draconia's note: the end table, Wednesdays, half past seven. Don't be late.", how: "told", happened: "H1", told_by: "Draconia Malfoy", about: ["Draconia Malfoy"],
+      engagement: { what: "Draconia's Wednesday session at the end table.", at: "Day 8 19:30", place: "The library", who: ["Draconia Malfoy"], expected: true, every: "week" } }]
+  };
+  const grown = (who: string, feels: string) => ({ who, now: `${who.split(" ")[0]} spends her evenings in the library with him.`, feelings: [{ about: "Roopesh Gantasala", feels }], wants: "Him, though she would not say so.", hides: "How much she looks forward to the evenings." });
+  const session = (label: string, at: string) => ({ id: label, what: "Draconia kept her Wednesday session at the end table, and Roopesh came.", at, where: "The library", known_to: ["Draconia Malfoy", "Roopesh Gantasala"], landmark: null, move: null, missed: label.replace("W", "G") });
+  /** The month as his Move has it: with him there, the girls' feelings for him grown by its end. */
+  const month = {
+    lives: [], threads: [], meanwhile: [], on: [],
+    happened: [
+      { id: "H1", what: "Every evening that month, Draconia and Hermione sat with Roopesh at the library's end table.", at: "Day 20 20:00", where: "The library", known_to: ["Draconia Malfoy", "Hermione Granger", "Roopesh Gantasala"], landmark: null, move: null, missed: null },
+      session("W1", "Day 8 19:30"), session("W2", "Day 15 19:30"), session("W3", "Day 22 19:30"), session("W4", "Day 29 19:30")
+    ],
+    truth: {
+      people: [grown("Draconia Malfoy", "She waits for him at the end table, and has stopped pretending she comes for the books."), grown("Hermione Granger", "Fonder of him than she will admit.")],
+      beliefs: { open: [], close: [] },
+      between: [
+        { people: ["Roopesh Gantasala", "Draconia Malfoy"], stands: "A month of evenings together; she waits for him now.", turn: "She stopped pretending she came for the books." },
+        { people: ["Roopesh Gantasala", "Hermione Granger"], stands: "She saves him the seat beside hers.", turn: "A month of evenings in the library." }
+      ],
+      truths: { open: [], close: [] }, rules: { open: [], close: [] }, names: []
+    }
+  };
+
+  // GIVEN the player skips a month and writes that the girls' feelings for him grow
+  // WHEN the World moves on over the month
+  // THEN it is lived with him there, as the Move said, and their feelings have grown at its end
+  it("living-world › Off-screen time is resolved only as far as it reaches the player › A month skipped as asked", async () => {
+    const story = hogwartsWorldStoryFile({ title: "After curfew", place: "The Gryffindor common room", at: "Day 3 22:40", who: ["Hermione Granger"] });
+    story.landmarks = [{ name: "Half-term", at: "Day 34 08:00", what: "Half-term begins, and the school empties for the week." }];
+    const played = playable(story, { weaver: [wednesdays, month].map(answer => ({ answer: JSON.stringify(answer) })) });
+    const { engine, storyId, head, view, state, models, mac } = played;
+    await played.play("I say goodnight to Hermione and go up.");
+    engine.endScene(storyId, head(), "trace-end");
+    await engine.ended(storyId);
+    const halfTerm = view().day_view!.choices.skips.find(item => item.label === "Half-term")!;
+    expect(halfTerm.days_away).toBe(30);
+
+    engine.choose(storyId, { after: head(), kind: "skip", at: halfTerm.at, gap: skip }, "trace-skip");
+    await engine.settled(storyId);
+
+    // The month is lived as his Move says it was spent, with him there: Draconia's Wednesdays were on in it, and he
+    // was expected at each.
+    const asked = models.weaver.requests.at(-1)!;
+    expect(asked.facts).toMatchObject({ gap: true, from: "Day 4 07:30", until: "Day 34 08:00" });
+    expect(asked.prompt).toContain(`<the_gap>\n<move by="Roopesh Gantasala">\n${skip}`);
+    expect(asked.prompt).toContain("Live the span as it says, with him there where it puts him");
+    expect(asked.prompt).toContain("- G1 Wednesday 11 September 1991, 7:30 pm, The library: Draconia's Wednesday session at the end table. With Draconia Malfoy. He was expected.");
+    expect(asked.prompt).toContain("- G4 Wednesday 2 October 1991, 7:30 pm, The library");
+    expect(asked.prompt).not.toContain("<missed>");
+    const lived = mac.tree.pathTo(head()).map(entry => entry.payload).find((payload): payload is WorldMoved => payload.kind === "world_moved" && payload.gap)!;
+    expect(lived).toMatchObject({ gap: true, from: "Day 4 07:30", until: "Day 34 08:00" });
+    // Every evening of it was with him: he knows it, and nothing says he did not come.
+    const evenings = state().facts.filter(fact => lived.happened.some(item => item.id === fact.id));
+    expect(evenings.map(fact => [fact.at, fact.knownTo.includes("Roopesh Gantasala")])).toEqual([
+      ["Day 20 20:00", true], ["Day 8 19:30", true], ["Day 15 19:30", true], ["Day 22 19:30", true], ["Day 29 19:30", true]
+    ]);
+    expect(state().facts.some(fact => /did not come|without him/.test(fact.what))).toBe(false);
+
+    // Their feelings have grown by its end, and the Scene it opens is written from the month as it was lived.
+    expect(state().truth.now["Draconia Malfoy"]!.feelings).toEqual([{ about: "Roopesh Gantasala", feels: "She waits for him at the end table, and has stopped pretending she comes for the books." }]);
+    expect(state().truth.now["Hermione Granger"]!.feelings[0]).toEqual({ about: "Roopesh Gantasala", feels: "Fonder of him than she will admit." });
+    expect(state().truth.between[betweenKey("Draconia Malfoy", "Roopesh Gantasala")]).toMatchObject({ stands: "A month of evenings together; she waits for him now." });
+    expect(state().scene).toMatchObject({ number: 2, at: "Day 34 08:00" });
+    expect(models.writer.requests.at(-1)!.prompt).toContain("Every evening that month, Draconia and Hermione sat with Roopesh at the library's end table. Known to Draconia Malfoy, Hermione Granger and Roopesh Gantasala.");
+
+    // The month is not lived again as one he missed when the next Scene ends.
+    engine.endScene(storyId, head(), "trace-end-2");
+    await engine.ended(storyId);
+    const next = models.weaver.requests.at(-1)!;
+    expect(next.facts).toMatchObject({ gap: false });
+    const before = (at: string) => minutesOf(parseStoryTime(at)!) < minutesOf(parseStoryTime("Day 34 08:00")!);
+    expect((next.facts as { missed: { at: string }[] }).missed.filter(item => before(item.at))).toEqual([]);
+  });
+});
+

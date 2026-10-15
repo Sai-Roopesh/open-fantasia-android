@@ -1,7 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { BUDGET, calendarPart, castPart, factsPart, momentsPart, recallFacts, section, steeringPart, storyPart, storySoFarPart } from "../../src/context/lens.js";
-import type { Moment } from "../../src/story/entries.js";
-import { ledger } from "../agents/ledger.js";
+import { BUDGET, calendarPart, castPart, factsPart, momentsPart, recallFacts, section, steeringPart, storyPart, storySoFarPart, tokens } from "../../src/context/lens.js";
+import { nothingBeside, type Beside } from "../../src/story/beside.js";
+import type { Moment, OutlineSet } from "../../src/story/entries.js";
+import { ledger, SONNET } from "../agents/ledger.js";
+
+/** The Director's Outline in two years, at Act [current]. */
+const outlineAt = (current: number): OutlineSet => ({
+  kind: "outline_set", reason: "", planFollows: false, dropped: [], callId: "c", model: SONNET,
+  outline: {
+    current, ending: "", intentions: [], setups: [], promoted: [], revisedAfter: 0, deep: true, lookedUp: [],
+    acts: ["Year One", "Year Two"].map((title, index) => ({ number: index + 1, title, question: "", buildsTo: "", detail: "sketched", turns: [], relationships: [], movers: [], handsOn: "" }))
+  }
+});
 
 const moment = (what: string, weight: number, there: string[]): Moment => ({ what, quotes: [{ entry: "e", text: `"${what}," she says.` }], there, weight });
 
@@ -46,21 +56,40 @@ describe("the parts of every prompt (one-truth design decision 3)", () => {
     expect(storyPart(story.state())).not.toBe(before);
   });
 
-  it("tells The Story So Far in time order: chapters, then weeks, then each Scene", () => {
+  it("tells The Story So Far in time order: each finished Act's account, then the current Act's weeks, then each of its Scenes", () => {
     const story = ledger();
+    story.add(outlineAt(1));
     story.close();
     story.chronicle({ paragraph: "Hermione caught him out after curfew, and he lied about where he had been." });
-    story.fold({ into: "week", count: 0, from: "Day 1 08:00", until: "Day 2 22:00", text: "The first days." });
-    story.fold({ into: "chapter", count: 0, from: "Day 1 08:00", until: "Day 2 22:00", text: "The first chapter." });
+    story.add(outlineAt(2));
+    story.fold({ into: "act", count: 1, from: "Day 3 21:40", until: "Day 3 23:00", text: "Year One, told whole." });
+    story.open("Breakfast", "The Great Hall", "Day 4 08:00", ["Hermione Granger"]);
+    story.close();
+    story.chronicle({ paragraph: "Breakfast went badly, and everyone saw." });
+    story.fold({ into: "week", count: 0, from: "Day 4 06:00", until: "Day 4 07:00", text: "The first days of Year Two." });
     expect(storySoFarPart(story.state())).toBe([
       "<story_so_far>",
-      "Chapters:\nWednesday 4 September 1991, 8:00 am to Thursday 5 September 1991, 10:00 pm: The first chapter.",
+      "Acts:\nAct 1, Year One (Friday 6 September 1991, 9:40 pm to Friday 6 September 1991, 11:00 pm, Scenes 1 to 1): Year One, told whole.",
       "",
-      "Weeks:\nWednesday 4 September 1991, 8:00 am to Thursday 5 September 1991, 10:00 pm: The first days.",
+      "Weeks:\nSaturday 7 September 1991, 6:00 am to Saturday 7 September 1991, 7:00 am: The first days of Year Two.",
       "",
-      "Scenes:\nScene 1, After curfew (Friday 6 September 1991, 9:40 pm): Hermione caught him out after curfew, and he lied about where he had been.",
+      "Scenes:\nScene 2, Breakfast (Saturday 7 September 1991, 8:00 am): Breakfast went badly, and everyone saw.",
       "</story_so_far>"
     ].join("\n"));
+  });
+
+  it("leaves the oldest of The Story So Far out past its limit, and says so", () => {
+    const story = ledger();
+    for (let number = 1; number <= 12; number++) {
+      if (number > 1) story.open(`Scene ${number}`, "The library", `Day ${3 + number} 10:00`, ["Hermione Granger"]);
+      story.close();
+      story.chronicle({ paragraph: `Paragraph ${number}. ${"Then they talked. ".repeat(20)}` });
+    }
+    const part = storySoFarPart(story.state(), "", 600)!;
+    expect(tokens(part)).toBeLessThanOrEqual(600);
+    expect(part).toMatch(/\(The \d+ oldest parts are left out for length\.\)/);
+    expect(part).toContain("Paragraph 12.");
+    expect(part).not.toContain("Paragraph 1.");
   });
 
   it("gives the cast by salience: who is here and the Leads in full, others near the Story in a line, the rest as a count", () => {
@@ -82,7 +111,7 @@ describe("the parts of every prompt (one-truth design decision 3)", () => {
     story.add({ kind: "landmark_set", landmark: { name: "The Halloween feast", at: "Day 5 19:00", what: "The feast." } });
     story.close();
     story.chronicle({ engagements: [{ id: "g-1", what: "Revision with Hermione.", at: "Day 4 19:30", place: "The library's end table", who: ["Hermione Granger"], expected: true, every: "week", quotes: [] }] });
-    story.plan({ scenes: [{ id: "s1.1", at: "Day 4 10:00", place: "The Great Hall", who: ["Draconia Malfoy"], for: "She claims him in front of Slytherin.", offer: "Draconia is at breakfast.", headline: "Breakfast: Draconia", lead: "Draconia Malfoy", engagement: null, quiet: false }] });
+    story.plan({ scenes: [{ id: "s1.1", at: "Day 4 10:00", place: "The Great Hall", who: ["Draconia Malfoy"], for: "She claims him in front of Slytherin.", offer: "Draconia is at breakfast.", headline: "Breakfast: Draconia", lead: "Draconia Malfoy", engagement: null, quiet: false, serves: { turn: null, lives: [] } }] });
     const author = calendarPart(story.state(), "author")!;
     expect(author).toContain("- E1 Saturday 7 September 1991, 7:30 pm, every week, The library's end table: Revision with Hermione. With Hermione Granger. He is expected.");
     expect(author).toContain("Landmarks next:\n- The Halloween feast, Sunday 8 September 1991, 7:00 pm\n- Draconia's flying test, Wednesday 11 September 1991, 10:00 am");
@@ -105,12 +134,9 @@ describe("the parts of every prompt (one-truth design decision 3)", () => {
     expect(calendarPart(story.state(), "character") ?? "").not.toContain("What is on ahead");
   });
 
-  it("gives the player's brief, reactions and Taste to those who steer", () => {
-    const story = ledger();
-    story.close();
-    story.add({ kind: "brief_set", more: ["more danger"], less: ["the library"] });
-    story.add({ kind: "reaction_set", scene: 1, reaction: "less", note: "too slow" });
-    expect(steeringPart(story.state())).toBe("<the_players_wishes>\nMore of:\n- more danger\n\nLess of:\n- the library\n\nReactions to recent Scenes:\n- Scene 1, After curfew: less like this (too slow)\n</the_players_wishes>");
+  it("gives the player's brief, reactions and Taste, kept beside the Story, to those who steer", () => {
+    const beside: Beside = { ...nothingBeside(), brief: { more: ["more danger"], less: ["the library"] }, reactions: [{ scene: 1, title: "After curfew", reaction: "less", note: "too slow" }] };
+    expect(steeringPart(beside)).toBe("<the_players_wishes>\nMore of:\n- more danger\n\nLess of:\n- the library\n\nReactions to recent Scenes:\n- Scene 1, After curfew: less like this (too slow)\n</the_players_wishes>");
   });
 });
 

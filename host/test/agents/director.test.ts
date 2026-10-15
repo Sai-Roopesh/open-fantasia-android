@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { checkPlan, directionDue, directorPrompt, PEAK, SCENES, writePlan } from "../../src/agents/director.js";
+import { checkPlan, directionDue, directorPrompt, PEAK, planFollows, SCENES, writePlan } from "../../src/agents/director.js";
 import { foldDue } from "../../src/agents/folder.js";
-import { AgentFailed } from "../../src/agents/step.js";
+import { outlinePrompt } from "../../src/agents/outline.js";
+import { AgentFailed, BUDGETS } from "../../src/agents/step.js";
 import { FakeModels } from "../../src/models/fake.js";
 import { Models } from "../../src/models/model-call.js";
 import { ScriptedRunner } from "../../src/models/scripted.js";
+import { nothingBeside } from "../../src/story/beside.js";
+import type { Outline } from "../../src/story/outline.js";
 import type { PlannedScene } from "../../src/story/state.js";
 import { formatDate } from "../../src/time.js";
 import { malfoyProblemStoryFile } from "../support/story-files.js";
@@ -14,30 +17,51 @@ const ARC = "Draconia comes round to Roopesh, slowly, against everything she was
 const HALLOWEEN = "The Halloween feast";
 const TRIWIZARD = "The Triwizard Tournament";
 
+/** The first Act of the Outline the Director wrote as the Story started: three turns, and a door set up to pay off. */
+const YEAR_ONE: Omit<Outline, "version"> = {
+  current: 1,
+  acts: [{
+    number: 1, title: "Year One", question: "Can a Malfoy owe a Muggle-born her life and keep her name?", buildsTo: HALLOWEEN, detail: "detailed",
+    turns: [
+      { id: "T1", when: "the first week", what: "Draconia claims him in front of Slytherin.", serves: ["Draconia Malfoy"], state: "ahead" },
+      { id: "T2", when: "the second week", what: "The flying lesson shows who is better than whom.", serves: ["Harry Potter"], state: "ahead" },
+      { id: "T3", when: "Halloween", what: "The troll.", serves: ["Hermione Granger"], state: "ahead" }
+    ],
+    relationships: [], movers: [], handsOn: ""
+  }],
+  ending: "The war ends.", intentions: [],
+  setups: [{ id: "U1", what: "A locked door on the fourth floor nobody admits to.", planted: null, payoff: "The troll came through it.", turn: "T3", state: "waiting", settled: null }],
+  promoted: [], revisedAfter: 0, deep: true, lookedUp: []
+};
+
 /**
  * The Malfoy Problem on its first night, Friday 6 September 1991 (Day 1) at 9:40 pm, with the Tournament ahead and Halloween added after
- * it, as the player would add a Landmark; [people] join the Story's people.
+ * it, as the player would add a Landmark, and Year One's Outline written; [people] join the Story's people.
  */
 function malfoy(people: { name: string; who_they_are: string }[] = []): Ledger {
   const file = malfoyProblemStoryFile();
   file.people = [...file.people, ...people] as typeof file.people;
   const story = ledger(file);
   story.add({ kind: "landmark_set", landmark: { name: HALLOWEEN, at: "Day 61 19:00", what: "The feast, and the troll." } });
+  story.add({ kind: "outline_set", outline: YEAR_ONE, reason: "The Story is starting.", planFollows: false, dropped: [], callId: "c", model: SONNET });
   return story;
 }
+
+const signal = () => new AbortController().signal;
+const at = (story: Ledger) => ({ storyId: story.storyId, head: story.head() });
 
 /** The date the Director writes for a Story day: Day 1 is Friday 6 September 1991. */
 const dateOf = (day: number) => formatDate(day, "1991-09-06");
 
-const charms = { id: "S1", date: dateOf(4), time: "14:00", place: "The Charms classroom", who: ["Draconia Malfoy", "hermione"], for: "Flitwick pairs him with Draconia, and Hermione watches.", offer: "Flitwick is pairing people up for the practical.", headline: "Charms: Flitwick pairs him with Draconia", lead: "Draconia Malfoy", engagement: null, quiet: false };
-const pitch = { id: "S2", date: dateOf(6), time: "10:00", place: "The Quidditch pitch", who: ["Draconia Malfoy", "Harry Potter"], for: "The flying lesson: Harry is better than her, and Roopesh is there to see it.", offer: "The first-years have their flying lesson.", headline: "The pitch: the flying lesson", lead: "Harry Potter", engagement: null, quiet: false };
+const charms = { id: "S1", date: dateOf(4), time: "14:00", place: "The Charms classroom", who: ["Draconia Malfoy", "hermione"], serves: { turn: "T1", lives: ["Draconia Malfoy"] }, for: "Flitwick pairs him with Draconia, and Hermione watches.", offer: "Flitwick is pairing people up for the practical.", headline: "Charms: Flitwick pairs him with Draconia", lead: "Draconia Malfoy", engagement: null, quiet: false };
+const pitch = { id: "S2", date: dateOf(6), time: "10:00", place: "The Quidditch pitch", who: ["Draconia Malfoy", "Harry Potter"], serves: { turn: "T2", lives: [] }, for: "The flying lesson: Harry is better than her, and Roopesh is there to see it.", offer: "The first-years have their flying lesson.", headline: "The pitch: the flying lesson", lead: "Harry Potter", engagement: null, quiet: false };
 
-/** A Stretch plan in the Director's format: six days from tonight, with two Scenes that matter and something new. */
+/** A Stretch plan in the Director's format: six days from tonight, with two Scenes that matter and the Outline's door. */
 function plan(changes: Record<string, unknown> = {}) {
   return {
     days: 6, toward: "the first flying lesson", landmark: null, phase: "build",
     scenes: [charms, pitch],
-    new: [{ kind: "mystery", what: "A locked door on the fourth floor nobody admits to.", scene: "S2", person: null }],
+    new: [{ setup: "U1", kind: "mystery", scene: "S2", person: null }],
     leads: [
       { who: "Draconia Malfoy", move: "Has herself paired with him in Charms, and calls it a punishment.", scene: "S1" },
       { who: "Hermione Granger", move: "Leaves her Charms notes on his bed, annotated.", scene: null },
@@ -51,7 +75,7 @@ function plan(changes: Record<string, unknown> = {}) {
 }
 
 const scene = (id: string, at: string, place: string, who: string[], headline: string, changes: Partial<PlannedScene> = {}): PlannedScene =>
-  ({ id, at, place, who, for: headline, offer: headline, headline, lead: null, engagement: null, quiet: false, ...changes });
+  ({ id, at, place, who, serves: { turn: null, lives: who }, for: headline, offer: headline, headline, lead: null, engagement: null, quiet: false, ...changes });
 
 /** Plays a Scene to its end on the ledger: opened, played at [peak], closed and recorded. */
 function played(story: Ledger, title: string, at: string, who: string[], paragraph = `${title} was played.`, peak = 2) {
@@ -79,7 +103,8 @@ describe("the Director's plan (openspec long-run: The Director shapes the long r
       { who: "Hermione Granger", move: "Leaves her Charms notes on his bed, annotated.", scene: null },
       { who: "Harry Potter", move: "Asks him to the pitch to watch the lesson.", scene: "s1.2" }
     ]);
-    expect(value.newThings).toEqual([{ kind: "mystery", what: "A locked door on the fourth floor nobody admits to.", scene: "s1.2", person: null }]);
+    expect(value.newThings).toEqual([{ setup: "U1", kind: "mystery", what: "A locked door on the fourth floor nobody admits to.", scene: "s1.2", person: null }]);
+    expect(value.scenes.map(item => item.serves)).toEqual([{ turn: "T1", lives: ["Draconia Malfoy"] }, { turn: "T2", lives: [] }]);
     expect(value.arcs).toEqual([{ arc: ARC, now: "open contempt", next: "she defends him in front of Slytherin without meaning to", notYet: "any kindness she admits to" }]);
   });
 
@@ -98,7 +123,7 @@ describe("the Director's plan (openspec long-run: The Director shapes the long r
     expect(SCENES.max).toBe(5);
     expect(many.ok && many.value.scenes.map(item => item.at)).toEqual(["Day 2 14:00", "Day 3 14:00", "Day 4 14:00", "Day 5 14:00"]);
     expect(many.ok && many.dropped).toEqual(["scenes: S1 is not at a time after now"]);
-    expect(checkPlan(state, plan({ scenes: [{ ...charms, date: dateOf(1), time: "08:00" }, { ...pitch, time: "ten" }] }))).toEqual({ ok: false, problems: ["scenes: none of the Scenes that matter can be kept; plan two to five, each after now, within the Stretch"] });
+    expect(checkPlan(state, plan({ scenes: [{ ...charms, date: dateOf(1), time: "08:00" }, { ...pitch, time: "ten" }] }))).toEqual({ ok: false, problems: ["scenes: none of the Scenes that matter can be kept; plan two to five, each after now, within the Stretch, each serving a turn of the current Act or someone's Life"] });
   });
 
   // GIVEN the Story has Rolanda Hooch and Minerva McGonagall
@@ -111,7 +136,7 @@ describe("the Director's plan (openspec long-run: The Director shapes the long r
     expect(checked.ok && checked.value.scenes[1]!.who).toEqual(["Harry Potter", "Rolanda Hooch", "Minerva McGonagall"]);
     expect(checked.ok && checked.dropped).toEqual([]);
     const runner = new ScriptedRunner([{ answer: JSON.stringify(lesson) }]);
-    await writePlan(new Models(story.mac.db, { claude: runner }), [SONNET], story.state(), "A plan is due.", story.storyId, "trace-d", new AbortController().signal);
+    await writePlan(new Models(story.mac.db, { claude: runner }), [SONNET], story.state(), nothingBeside(), "A plan is due.", at(story), "trace-d", signal());
     expect(runner.requests).toHaveLength(1);
   });
 
@@ -122,28 +147,29 @@ describe("the Director's plan (openspec long-run: The Director shapes the long r
     const story = malfoy();
     const library = plan({ scenes: [charms, { ...pitch, place: "The library", who: ["Hermione Granger", "Madam Pince"] }] });
     const runner = new ScriptedRunner([{ answer: JSON.stringify(library) }]);
-    const written = await writePlan(new Models(story.mac.db, { claude: runner }), [SONNET], story.state(), "A plan is due.", story.storyId, "trace-d", new AbortController().signal);
+    const written = await writePlan(new Models(story.mac.db, { claude: runner }), [SONNET], story.state(), nothingBeside(), "A plan is due.", at(story), "trace-d", signal());
     expect(written.value.scenes[1]!.who).toEqual(["Hermione Granger"]);
     expect(written.value.scenes.flatMap(item => item.who).every(name => story.state().people[name])).toBe(true);
     expect(written.dropped).toEqual(["scenes.who: Madam Pince is not in the Story"]);
     expect(runner.requests).toHaveLength(1);
-    const { system } = directorPrompt(story.state(), "A plan is due.");
+    const { system } = directorPrompt(story.state(), nothingBeside(), "A plan is due.");
     expect(system).toContain("`who`: who is there besides the player's character, from the story's people; anyone else there stays unnamed.");
-    expect(system).toContain("<places>\n- The Three Broomsticks: A pub in Hogsmeade.\n</places>");
-    expect(system).not.toMatch(/<people>[^]*- Roopesh Gantasala:/);
+    expect(system).toContain("Places:\n- The Three Broomsticks: A pub in Hogsmeade.");
+    // The Story's people are in layer 1, his character marked as the player's: never one the Director names in `who`.
+    expect(system).toMatch(/<people>[^]*- Roopesh Gantasala, the player's character:/);
   });
 
-  it("brings something new each Stretch, and at most one new person, who joins the Story's people and the Scene they enter in", () => {
-    const state = malfoy().state();
-    expect(checkPlan(state, plan({ new: [] }))).toEqual({ ok: false, problems: ["new: bring at least one thing the player's character has not met: a person, a secret, a threat, a mystery or a place"] });
-    const stranger = { kind: "person", what: "A stranger in Hogsmeade asking about the train.", scene: "S1", person: { name: "Elspeth Vane", who_they_are: "A seventh-year who runs the Hogsmeade duelling club.", appearance: "Tall, ink on her cuffs." } };
-    const checked = checkPlan(state, plan({ new: [stranger, { ...stranger, person: { ...stranger.person, name: "Draconia Malfoy" } }] }));
+  it("brings in a new person only as a setup of the Outline, and they join the Story's people and the Scene they enter in", () => {
+    const story = malfoy();
+    story.add({ kind: "outline_set", outline: { ...YEAR_ONE, setups: [...YEAR_ONE.setups, { id: "U2", what: "A stranger in Hogsmeade asking about the train.", planted: null, payoff: "He hired the masked wizards.", turn: "T3", state: "waiting", settled: null }] }, reason: "Revised.", planFollows: false, dropped: [], callId: "c", model: SONNET });
+    const stranger = { setup: "U2", kind: "person", scene: "S1", person: { name: "Elspeth Vane", who_they_are: "A seventh-year who runs the Hogsmeade duelling club.", appearance: "Tall, ink on her cuffs." } };
+    const checked = checkPlan(story.state(), plan({ new: [stranger, { ...stranger, setup: "U1", person: { ...stranger.person, name: "Draconia Malfoy" } }] }));
     expect(checked.ok).toBe(true);
     if (!checked.ok) return;
     expect(checked.value.people).toEqual([{ name: "Elspeth Vane", aliases: [], whoTheyAre: "A seventh-year who runs the Hogsmeade duelling club.", known: null, appearance: "Tall, ink on her cuffs.", after: "", knows: [], voice: [], group: null }]);
-    expect(checked.value.newThings).toEqual([{ kind: "person", what: stranger.what, scene: "s1.1", person: "Elspeth Vane" }]);
+    expect(checked.value.newThings).toEqual([{ setup: "U2", kind: "person", what: "A stranger in Hogsmeade asking about the train.", scene: "s1.1", person: "Elspeth Vane" }]);
     expect(checked.value.scenes[0]!.who).toEqual(["Draconia Malfoy", "Hermione Granger", "Elspeth Vane"]);
-    expect(checked.dropped).toEqual(["new: Draconia Malfoy cannot be brought in: the story already has them, or one new person is enough"]);
+    expect(checked.dropped).toEqual(["new: Draconia Malfoy cannot be brought in: the story already has them"]);
   });
 
   it("gives every Lead a move, on screen in a Scene of the plan or off it, and holds an Arc it forgot", () => {
@@ -169,7 +195,7 @@ describe("the Director's plan (openspec long-run: The Director shapes the long r
     const story = malfoy();
     story.close();
     story.chronicle({ engagements: [{ id: "g-library", what: "Draconia, about the train and what she owes.", at: "Day 2 10:00", place: "The library", who: ["Draconia Malfoy"], expected: true, every: null, quotes: [] }] });
-    const { prompt } = directorPrompt(story.state(), "A plan is due.");
+    const { prompt } = directorPrompt(story.state(), nothingBeside(), "A plan is due.");
     expect(prompt).toContain("- E1 Saturday 7 September 1991, 10:00 am, The library: Draconia, about the train and what she owes. With Draconia Malfoy. He is expected.");
     const checked = checkPlan(story.state(), plan({ scenes: [{ ...charms, who: ["Hermione Granger"], engagement: "E1" }, pitch] }));
     expect(checked.ok && checked.value.scenes[0]).toMatchObject({ at: "Day 2 10:00", place: "The library", who: ["Hermione Granger", "Draconia Malfoy"], engagement: "g-library" });
@@ -208,8 +234,8 @@ describe("when the Director plans (one-truth design decision 8)", () => {
     played(story, "Tuesday", "Day 5 09:00", []);
     const reason = directionDue(story.state());
     expect(reason).toBe("The player went off the plan: Breakfast: Draconia at the Slytherin table (Monday 9 September 1991, 8:00 am) passed without him. Plan from where the story now is.");
-    const { prompt } = directorPrompt(story.state(), reason!);
-    expect(prompt).toContain(`<task>\n${reason} Plan the next Stretch, from today, Tuesday 10 September 1991.\n</task>`);
+    const { prompt } = directorPrompt(story.state(), nothingBeside(), reason!);
+    expect(prompt).toContain(`<task>\n${reason} Plan the next Stretch, from today, Tuesday 10 September 1991.\nIt is the next step of Act 1, Year One:`);
     expect(prompt).toContain("Scene 2, Tuesday (Tuesday 10 September 1991, 9:00 am): Tuesday was played.");
     expect(checkPlan(story.state(), plan()).ok && (checkPlan(story.state(), plan()) as { value: { from: number } }).value.from).toBe(5);
   });
@@ -224,6 +250,24 @@ describe("when the Director plans (one-truth design decision 8)", () => {
     expect(directionDue(over.state())).toBe("The last Stretch has run its course.");
   });
 
+  it("plans again once the Outline was re-planned deeply since the plan, and not after a focused revision", () => {
+    const story = planned();
+    played(story, "Breakfast", "Day 4 08:00", ["Draconia Malfoy"]);
+    story.add({ kind: "outline_set", outline: { ...YEAR_ONE, revisedAfter: 2, deep: false }, reason: "Scene 2 has ended.", planFollows: false, dropped: [], callId: "c", model: SONNET });
+    expect(directionDue(story.state())).toBeNull();
+    story.add({ kind: "outline_set", outline: { ...YEAR_ONE, revisedAfter: 2, deep: true }, reason: "Lucius is dead.", planFollows: true, dropped: [], callId: "c", model: SONNET });
+    expect(directionDue(story.state())).toBe("The Outline was re-planned after Scene 2: plan the Stretch as the next step of Year One as it now stands.");
+  });
+
+  it("says whether a Stretch plan follows the Outline in the same step: always after a deep re-plan, after a focused one only when due", () => {
+    const story = planned();
+    played(story, "Breakfast", "Day 4 08:00", ["Draconia Malfoy"]);
+    expect(planFollows(story.state(), { ...YEAR_ONE, revisedAfter: 2, deep: false })).toBe(false);
+    expect(planFollows(story.state(), { ...YEAR_ONE, revisedAfter: 2, deep: true })).toBe(true);
+    played(story, "A week on", "Day 12 09:00", []);
+    expect(planFollows(story.state(), { ...YEAR_ONE, revisedAfter: 3, deep: false })).toBe(true);
+  });
+
   // GIVEN Scene 7 peaked
   // WHEN the Director plans the Stretch after it
   // THEN its first Scene that matters is quiet, and its others build again
@@ -236,7 +280,7 @@ describe("when the Director plans (one-truth design decision 8)", () => {
     expect(story.state().curve.at(-1)).toEqual({ scene: 7, title: "The Great Hall", peak: 5 });
     const reason = directionDue(story.state());
     expect(reason).toBe("Scene 7, The Great Hall, peaked: give the characters a breath, then build again.");
-    const { system, prompt } = directorPrompt(story.state(), reason!);
+    const { system, prompt } = directorPrompt(story.state(), nothingBeside(), reason!);
     expect(prompt).toContain("- Scene 6, Scene 6: 2\n- Scene 7, The Great Hall: 5\n</pace>");
     expect(system.replace(/\s+/g, " ")).toContain("After a peak, give the characters a breath: the first Scene that matters is quiet (`quiet` true), an ordinary moment where they live with what happened, and then things move again.");
     expect(system.replace(/\s+/g, " ")).toContain("Nothing is at stake in a quiet Scene from its start to its end: no warning, threat, secret, price or hint of trouble in it, not even as a closing line");
@@ -246,7 +290,7 @@ describe("when the Director plans (one-truth design decision 8)", () => {
     expect(breath.ok && breath.value).toMatchObject({ phase: "build", scenes: [{ quiet: true }, { quiet: false }] });
     // The Director the pipeline runs on when no model answers is told of the peak, and answers so.
     const fake = new FakeModels();
-    const written = await writePlan(new Models(story.mac.db, { claude: fake }), [SONNET], story.state(), reason!, story.storyId, "trace-d", new AbortController().signal);
+    const written = await writePlan(new Models(story.mac.db, { claude: fake }), [SONNET], story.state(), nothingBeside(), reason!, at(story), "trace-d", signal());
     expect(fake.requests[0]!.facts).toMatchObject({ afterPeak: true });
     expect(written.value.scenes.map(item => item.quiet)).toEqual([true, false]);
     // Once the Director has planned after the peak, the peak does not call for another plan.
@@ -267,7 +311,7 @@ describe("when the Director plans (one-truth design decision 8)", () => {
     story.plan({ scenes: [endTable("s1.1", "Day 2 19:30"), scene("s1.2", "Day 3 10:00", "The Great Hall", ["Draconia Malfoy"], "Breakfast: Draconia")] });
     story.plan({ scenes: [endTable("s2.1", "Day 9 19:30"), scene("s2.2", "Day 10 10:00", "The Quidditch pitch", ["Harry Potter"], "The pitch: Harry flies")] });
     story.plan({ scenes: [endTable("s3.1", "Day 16 19:30"), scene("s3.2", "Day 17 15:00", "The owlery", ["Draconia Malfoy"], "The owlery: a letter from her father")] });
-    const { system, prompt } = directorPrompt(story.state(), "The last Stretch has run its course.");
+    const { system, prompt } = directorPrompt(story.state(), nothingBeside(), "The last Stretch has run its course.");
     expect(prompt).toContain([
       "<recent_stretches>",
       "Stretch 1:\n- The end table: revision with Hermione (The library's end table; Hermione Granger)\n- Breakfast: Draconia (The Great Hall; Draconia Malfoy)",
@@ -294,7 +338,7 @@ describe("when the Director plans (one-truth design decision 8)", () => {
     }
     expect(story.state().clock).toMatch(/^Day 9 /);
     const runner = new ScriptedRunner([{ answer: JSON.stringify(plan({ scenes: [{ ...charms, date: dateOf(12) }, { ...pitch, date: dateOf(14) }] })) }]);
-    await writePlan(new Models(story.mac.db, { claude: runner }), [SONNET], story.state(), directionDue(story.state())!, story.storyId, "trace-d", new AbortController().signal);
+    await writePlan(new Models(story.mac.db, { claude: runner }), [SONNET], story.state(), nothingBeside(), directionDue(story.state())!, at(story), "trace-d", signal());
     const sent = runner.requests[0]!.prompt;
     expect(sent).toContain(confrontation);
     expect(sent.indexOf(confrontation)).toBeGreaterThan(sent.indexOf("<story_so_far>"));
@@ -317,13 +361,13 @@ describe("Arcs keep pace with the run (openspec long-run)", () => {
   // Landmark first, and the rule, and that its roadmap by Halloween is kept.)
   it("long-run › Arcs keep pace with the run › Four years of romance, paced", async () => {
     const story = fourYears();
-    const { system, prompt } = directorPrompt(story.state(), "There is no plan yet: this is the Story's first.");
+    const { system, prompt } = directorPrompt(story.state(), nothingBeside(), "There is no plan yet: this is the Story's first.");
     expect(prompt).toContain(`<the_run>\nToday is Friday 6 September 1991. The dates a Stretch from today can use: 1991-09-06 (Friday 6 September), 1991-09-07 (Saturday 7 September), 1991-09-08 (Sunday 8 September), 1991-09-09 (Monday 9 September), 1991-09-10 (Tuesday 10 September), 1991-09-11 (Wednesday 11 September). The Story runs to Voldemort's defeat, Tuesday 3 September 1996, 11:00 pm. Next: ${HALLOWEEN}, Tuesday 5 November 1991, 7:00 pm; then ${TRIWIZARD}, Wednesday 25 August 1993, 6:00 pm.\n</the_run>`);
     const rules = system.replace(/\s+/g, " ");
     expect(rules).toContain("`next`: the step this Stretch needs for the Arc to stand where the roadmap says by the next Landmark.");
     expect(rules).toContain("For every Arc, one `roadmap` row for each of the next two Landmarks: where the Arc should stand by then");
     const fake = new FakeModels();
-    const written = await writePlan(new Models(story.mac.db, { claude: fake }), [SONNET], story.state(), "There is no plan yet: this is the Story's first.", story.storyId, "trace-d", new AbortController().signal);
+    const written = await writePlan(new Models(story.mac.db, { claude: fake }), [SONNET], story.state(), nothingBeside(), "There is no plan yet: this is the Story's first.", at(story), "trace-d", signal());
     expect(fake.requests[0]!.facts).toMatchObject({ coming: [HALLOWEEN, TRIWIZARD] });
     expect(written.value.roadmap.map(point => [point.arc, point.by])).toEqual([[ARC, HALLOWEEN], [ARC, TRIWIZARD]]);
   });
@@ -340,7 +384,7 @@ describe("Arcs keep pace with the run (openspec long-run)", () => {
     story.chronicle();
     story.plan({ arcs: [{ arc: ARC, now: "open contempt", next: "a grudging truce", notYet: "any public claim" }], roadmap: [{ arc: ARC, by: HALLOWEEN, stands: "Her first public claim on him." }] });
     played(story, "The Great Hall", "Day 9 08:00", ["Draconia Malfoy"], "In front of all Slytherin, Draconia said he was hers to insult and no one else's.");
-    const { system, prompt } = directorPrompt(story.state(), "The last Stretch has run its course.");
+    const { system, prompt } = directorPrompt(story.state(), nothingBeside(), "The last Stretch has run its course.");
     expect(prompt).toContain(`<last_plan>\n- ${ARC}: was open contempt; next a grudging truce; not yet any public claim\n- Roadmap: ${ARC}, by ${HALLOWEEN}: Her first public claim on him.\n</last_plan>`);
     expect(prompt).toContain("In front of all Slytherin, Draconia said he was hers to insult and no one else's.");
     expect(system.replace(/\s+/g, " ")).toContain("Keep your last roadmap unless the story has moved; when the player has run ahead, move it on; never hold an Arc back to wait for its dates.");
@@ -348,30 +392,58 @@ describe("Arcs keep pace with the run (openspec long-run)", () => {
 });
 
 describe("the Director's call", () => {
-  it("is given the Story in its cached part, and in its task the run, the player's wishes, the pace, The Story So Far, the cast and the calendar", () => {
+  // The four layers (docs/research/design.md decision 14), as every agent reads the Story.
+  it("reads the Story in four layers: its instructions and the Story, where things stand, the Scene, then the run, the pace and its task", () => {
     const story = malfoy();
     story.close();
     story.chronicle({ paragraph: "Draconia mocked Roopesh in front of the whole pub." });
-    story.add({ kind: "brief_set", more: ["more danger"], less: ["the library"] });
-    const { system, prompt } = directorPrompt(story.state(), "There is no plan yet: this is the Story's first.");
-    expect(system).toContain("You are the Director of a long interactive story.");
+    const beside = { ...nothingBeside(), brief: { more: ["more danger"], less: ["the library"] }, playerTaste: ["don't decide what my character feels"] };
+    const { system, prompt } = directorPrompt(story.state(), beside, "There is no plan yet: this is the Story's first.");
+    // Layer 1, cached: how the Director works, then the Story with its Arcs.
+    expect(system.startsWith("You are the Director of an interactive story.")).toBe(true);
     expect(system).toContain("Premise: An enemies-to-lovers romance with Draconia Malfoy");
     expect(system).toContain(`- ${ARC}`);
-    expect(prompt).toContain("<now>\nIt is Friday 6 September 1991, 9:40 pm (1991-09-06 21:40).\n</now>");
-    expect(prompt).toContain("Less of:\n- the library");
-    expect(prompt).toContain("<pace>\n- Scene 1, The insult: 0\n</pace>");
+    // Layer 2, where things stand: The Story So Far first, the Outline, the player's wishes, who matters now.
+    expect(prompt.indexOf("<story_so_far>")).toBe(0);
     expect(prompt).toContain("Scene 1, The insult (Friday 6 September 1991, 9:40 pm): Draconia mocked Roopesh in front of the whole pub.");
-    expect(prompt).toContain("<cast_now>\nDraconia Malfoy");
-    expect(prompt).toContain("<task>\nThere is no plan yet: this is the Story's first. Plan the next Stretch, from today, Friday 6 September 1991.\n</task>");
+    expect(prompt).toContain("<outline>\nWhere the Story is going, the Outline, as last revised when the Story started.\nAct 1, Year One, now. Its question: Can a Malfoy owe a Muggle-born her life and keep her name? It builds to The Halloween feast.");
+    expect(prompt).toContain("Less of:\n- the library");
+    expect(prompt).toContain("Taste, the lessons the player has taught:\n- don't decide what my character feels");
+    expect(prompt).toContain("<people_now>\nWho each person who matters is now, as of the last Scene's end.");
+    expect(prompt).toContain("\nDraconia Malfoy\n  Now: as when the Story began.");
+    // Layer 3, the Scene that ended; layer 4, this moment: the time, whose Life is kept how, the run, the pace, the task.
+    expect(prompt.indexOf("<scene>\nThe insult.")).toBeGreaterThan(prompt.indexOf("</people_now>"));
+    expect(prompt.indexOf("<now>\nIt is Friday 6 September 1991, 9:40 pm (1991-09-06 21:40).\n</now>")).toBeGreaterThan(prompt.indexOf("</scene>"));
+    expect(prompt).toContain("<lives_by_tier>\nClose, each with a full Life: Draconia Malfoy (a Lead), Hermione Granger (a Lead), Harry Potter (a Lead).");
+    expect(prompt).toContain("<pace>\n- Scene 1, The insult: 0\n</pace>");
+    expect(prompt.endsWith("<task>\nThere is no plan yet: this is the Story's first. Plan the next Stretch, from today, Friday 6 September 1991.\nIt is the next step of Act 1, Year One: every Scene that matters serves one of its turns or someone's Life, and nothing enters but a setup the Outline means to pay off.\n</task>")).toBe(true);
+  });
+
+  it("is given the same layer 1 for the Stretch as for the Outline, so the provider caches it across both", () => {
+    const story = malfoy();
+    story.close();
+    story.chronicle();
+    const stretch = directorPrompt(story.state(), nothingBeside(), "A plan is due.");
+    const outline = outlinePrompt(story.state(), nothingBeside(), { why: "focused", reason: "Scene 1 has ended." });
+    expect(stretch.system).toBe(outline.system);
+    expect(stretch.prompt.slice(0, stretch.prompt.indexOf("<now>"))).toBe(outline.prompt.slice(0, outline.prompt.indexOf("<now>")));
   });
 
   it("is one step: a plan with nothing it can keep is sent back once, and the step fails only when neither model gives one", async () => {
     const story = malfoy();
-    const runner = new ScriptedRunner([{ answer: JSON.stringify(plan({ new: [] })) }, { answer: JSON.stringify(plan()) }]);
-    const written = await writePlan(new Models(story.mac.db, { claude: runner }), [SONNET], story.state(), "A plan is due.", story.storyId, "trace-d", new AbortController().signal);
+    const servingNothing = plan({ scenes: [charms, pitch].map(item => ({ ...item, serves: { turn: null, lives: [] } })) });
+    const runner = new ScriptedRunner([{ answer: JSON.stringify(servingNothing) }, { answer: JSON.stringify(plan()) }]);
+    const written = await writePlan(new Models(story.mac.db, { claude: runner }), [SONNET], story.state(), nothingBeside(), "A plan is due.", at(story), "trace-d", signal());
     expect(written.value.toward).toBe("the first flying lesson");
-    expect(runner.requests[1]!.prompt).toContain("- new: bring at least one thing the player's character has not met");
+    expect(runner.requests[1]!.prompt).toContain("- scenes: none of the Scenes that matter can be kept; plan two to five, each after now, within the Stretch, each serving a turn of the current Act or someone's Life");
     const failing = new ScriptedRunner([{ answer: JSON.stringify({ toward: "x" }) }, { answer: JSON.stringify(plan({ scenes: [] })) }]);
-    await expect(writePlan(new Models(story.mac.db, { claude: failing }), [SONNET], story.state(), "A plan is due.", story.storyId, "trace-d", new AbortController().signal)).rejects.toBeInstanceOf(AgentFailed);
+    await expect(writePlan(new Models(story.mac.db, { claude: failing }), [SONNET], story.state(), nothingBeside(), "A plan is due.", at(story), "trace-d", signal())).rejects.toBeInstanceOf(AgentFailed);
+  });
+
+  it("works in the Director's few steps, with the Story's tools and not the web", async () => {
+    const story = malfoy();
+    const runner = new ScriptedRunner([{ answer: JSON.stringify(plan()) }]);
+    await writePlan(new Models(story.mac.db, { claude: runner }), [SONNET], story.state(), nothingBeside(), "A plan is due.", at(story), "trace-d", signal());
+    expect(runner.requests[0]).toMatchObject({ tools: { story: at(story), web: false }, turns: BUDGETS.directorFocused.turns });
   });
 });

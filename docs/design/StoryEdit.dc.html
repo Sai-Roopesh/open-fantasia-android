@@ -105,8 +105,37 @@ button{font:inherit;cursor:pointer}
     </div>
   </section>
 </div>
+<!-- A lesson of the player's own Taste, opened from Backstage's YOUR OWN TASTE (the-storys-mind; long-run: Taste is short,
+     readable and the player's): the same sheet, saying whose it is. A lesson of the Story's own Taste reads "A lesson" and
+     "A line of this Story's Taste: the Story reads it in every Scene." Deleting is the ✕ beside the line in Backstage. -->
+<div style="position:relative;width:390px;height:844px;margin-top:40px;box-sizing:border-box;background:#100E13;color:#EEEAF4;font-family:Manrope,system-ui,sans-serif;overflow:hidden">
+  <div aria-hidden="true" style="display:flex;flex-direction:column;gap:10px;padding:72px 16px 0">
+    <span style="font-size:12px;font-weight:700;letter-spacing:0.1em;color:#8E879C">TASTE · WHAT THE STORY HAS LEARNED</span>
+    <span style="height:14px;width:80%;border-radius:7px;background:#211E28"></span>
+    <span style="margin-top:12px;font-size:12px;font-weight:700;letter-spacing:0.1em;color:#8E879C">YOUR OWN TASTE · EVERY STORY</span>
+    <span style="height:14px;width:70%;border-radius:7px;background:#211E28"></span>
+  </div>
+  <div aria-hidden="true" style="position:absolute;inset:0;background:rgba(8,6,12,0.66)"></div>
+
+  <section role="dialog" aria-labelledby="taste-title" style="position:absolute;left:0;right:0;bottom:0;display:flex;flex-direction:column;gap:16px;padding:12px 20px 24px;border-radius:24px 24px 0 0;background:#1E1B24;border-top:1px solid #34303D">
+    <span aria-hidden="true" style="align-self:center;width:36px;height:4px;border-radius:2px;background:#3A3544"></span>
+    <div style="display:flex;flex-direction:column;gap:4px">
+      <h2 id="taste-title" style="margin:0;font-family:Literata,Georgia,serif;font-size:21px;font-weight:600">A lesson of yours</h2>
+      <span style="font-size:13px;line-height:1.5;color:#B3ACC0">A line of your own Taste: every Story you play reads it, this one and the next.</span>
+    </div>
+    <label style="display:flex;flex-direction:column;gap:6px">
+      <span style="font-size:13px;font-weight:600;color:#B3ACC0">The lesson</span>
+      <textarea rows="3" style="resize:none;box-sizing:border-box;padding:12px 14px;border-radius:14px;border:1px solid #3A3544;background:#141218;color:#EEEAF4;font-family:Manrope,system-ui,sans-serif;font-size:15px;line-height:1.45">Don't decide what my character feels.</textarea>
+    </label>
+    <div style="display:flex;gap:10px;align-items:center;margin-top:4px">
+      <span style="flex:1"></span>
+      <a href="Backstage.dc.html" style="display:flex;align-items:center;height:48px;padding:0 20px;border-radius:24px;color:#B3ACC0;font-size:15px">Cancel</a>
+      <a href="Backstage.dc.html" style="display:flex;align-items:center;height:48px;padding:0 24px;border-radius:24px;background:#7552DD;color:#FFFFFF;font-weight:600;font-size:15px">Save</a>
+    </div>
+  </section>
+</div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1728}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":2612}}'>
 class Component extends DCLogic {
   renderVals() { return {}; }
 }

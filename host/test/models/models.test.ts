@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { ModelCallFailed, Models, type ModelRequest } from "../../src/models/model-call.js";
 import { ScriptedRunner } from "../../src/models/scripted.js";
-import { freshHome } from "../support/host.js";
+import { ledger } from "../agents/ledger.js";
+import { freshHome, openHome } from "../support/host.js";
 
 const request: ModelRequest = {
   agent: "actor",
@@ -53,6 +54,32 @@ describe("model calls", () => {
     expect(failure!.message).toMatch(/not JSON/);
     const row = db.prepare("SELECT answer, error FROM calls WHERE id = ?").get((failure as ModelCallFailed).callId) as { answer: string; error: string };
     expect(row.answer).toBe("Meera looks up.");
+  });
+
+  it("keeps what a call looked up, a line each, even when the call then fails (docs/adr/0018)", async () => {
+    const story = ledger();
+    story.move("I ask about the egg.");
+    story.reply("\"Hagrid has a dragon egg,\" Hermione whispers.");
+    const tools = { story: { storyId: story.storyId, head: story.head() }, web: true };
+    const models = new Models(story.mac.db, { claude: new ScriptedRunner([
+      { lookUp: [{ tool: "read_person", args: { name: "Hermione" } }], then: { answer: "Meera looks up." } },
+      { lookUp: [{ tool: "web_search", args: { query: "dragon eggs" } }], then: { fail: "Claude is overloaded" } }
+    ]) });
+    const answer = await models.call({ ...request, tools, turns: 4 });
+    expect(answer.lookups).toEqual(["read Hermione Granger's history"]);
+    const failure = await models.call({ ...request, tools, turns: 4 }).catch(error => error as ModelCallFailed);
+    const rows = story.mac.db.prepare("SELECT lookups, error FROM calls ORDER BY rowid").all() as { lookups: string | null; error: string | null }[];
+    expect(rows).toEqual([{ lookups: "[\"read Hermione Granger's history\"]", error: null }, { lookups: "[\"searched the web for “dragon eggs”\"]", error: "Claude is overloaded" }]);
+    expect(models.lookedUp((failure as ModelCallFailed).callId)).toEqual(["searched the web for “dragon eggs”"]);
+  });
+
+  it("gives a store from before lookups the column for them", () => {
+    const { home, db } = freshHome();
+    db.exec("ALTER TABLE calls DROP COLUMN lookups");
+    db.close();
+    const reopened = openHome(home);
+    const columns = (reopened.db.prepare("PRAGMA table_info(calls)").all() as { name: string }[]).map(column => column.name);
+    expect(columns).toContain("lookups");
   });
 
   it("fails a provider it has no way to reach", async () => {

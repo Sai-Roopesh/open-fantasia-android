@@ -65,7 +65,8 @@ CREATE TABLE IF NOT EXISTS calls (
   answer TEXT,
   error TEXT,
   started_at TEXT NOT NULL,
-  finished_at TEXT
+  finished_at TEXT,
+  lookups TEXT
 );
 CREATE INDEX IF NOT EXISTS calls_trace ON calls(trace_id);
 CREATE INDEX IF NOT EXISTS calls_entry ON calls(entry_id);
@@ -98,7 +99,7 @@ CREATE TABLE IF NOT EXISTS pairing_codes (
  * The shape of the State that saved States have. When the State gains or changes a field, this goes up, and the
  * saved States are thrown away the next time the store opens: they are a cache, and the entries are the truth.
  */
-export const STATE_SHAPE = 7;
+export const STATE_SHAPE = 8;
 
 /**
  * What a Path card needs (openspec paths): how the Path began, the entry it branched from, whether the player has
@@ -127,12 +128,24 @@ function addPathColumns(db: Db): void {
   for (const [name, type] of PATH_COLUMNS) if (!has.has(name)) db.exec(`ALTER TABLE paths ADD COLUMN ${name} ${type}`);
 }
 
+/**
+ * What a call looked up, a line each, as JSON (docs/adr/0018). A store from before agents could look things up gains
+ * it in place.
+ */
+const CALL_COLUMNS: [string, string][] = [["lookups", "TEXT"]];
+
+function addCallColumns(db: Db): void {
+  const has = new Set((db.prepare("PRAGMA table_info(calls)").all() as { name: string }[]).map(column => column.name));
+  for (const [name, type] of CALL_COLUMNS) if (!has.has(name)) db.exec(`ALTER TABLE calls ADD COLUMN ${name} ${type}`);
+}
+
 export function openDb(file: string): Db {
   const db = new Database(file);
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
   db.exec(SCHEMA);
   addPathColumns(db);
+  addCallColumns(db);
   setStoriesBeforeLedgerAside(db);
   if (db.pragma("user_version", { simple: true }) !== STATE_SHAPE) {
     db.exec("DELETE FROM states");

@@ -68,6 +68,8 @@ import com.openfantasia.protocol.SceneSummaryLine
                     exchange.reply?.let { reply ->
                         HeldReply(reply, held = held == reply.entryID, dimmed = held != null && held != reply.entryID,
                             actions = actions(reply, isMove = false), hold = { held = reply.entryID }, release = { held = null })
+                        // An earlier Reply keeps the Editor's note it arrived with, without Redo.
+                        reply.note?.let { EditorNote(it, redo = null, enabled = false) }
                     }
                 }
             }

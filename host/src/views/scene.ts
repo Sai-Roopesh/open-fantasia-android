@@ -1,13 +1,14 @@
-import type { Countdown, DayView, Exchange, NextScene, PastScene, Previously, SceneCard, SceneView, StoryEvent } from "../protocol/generated/link.js";
+import type { Countdown, DayView, Exchange, NextScene, Passage, PastScene, Previously, SceneCard, SceneView, StoryEvent } from "../protocol/generated/link.js";
 import { dayChoicesOf, todayOn } from "../story/day.js";
 import type { SceneEnd } from "../protocol/generated/link.js";
 import type { Engine } from "../engine/engine.js";
 import { LinkError } from "../link/errors.js";
 import type { Mac } from "../mac.js";
 import { lastPlayed } from "../story/played.js";
-import type { Entry } from "../story/entries.js";
+import type { Entry, ReplyWritten } from "../story/entries.js";
 import { sceneSpans } from "../story/spans.js";
-import type { State } from "../story/state.js";
+import { besideOf } from "../store/beside.js";
+import type { Reaction, State } from "../story/state.js";
 import { minutesOf, parseStoryTime, sayDate, sayStoryTime, sayTime, type StoryTime } from "../time.js";
 
 /** How many Landmarks ahead the Day View counts down to. */
@@ -82,7 +83,7 @@ export function countdown(now: StoryTime, at: StoryTime, name: string): Countdow
  * record for this Scene's end exists, then ready with what the Player Character learned meanwhile, or failed with why
  * (openspec presence: Between Scenes is quiet, and shows progress).
  */
-export function dayView(state: State, sceneEnd: SceneEnd = { step: null, failed: null }): DayView {
+export function dayView(state: State, sceneEnd: SceneEnd = { step: null, failed: null, rethinking: null }, reactions: Reaction[] = []): DayView {
   if (!state.scene?.closed) throw new Error("The Day View opens once a Scene has closed");
   const now = parseStoryTime(state.clock);
   const countdowns: Countdown[] = now === null ? [] : state.landmarks
@@ -105,7 +106,7 @@ export function dayView(state: State, sceneEnd: SceneEnd = { step: null, failed:
     countdowns,
     scene_span: sceneSpan(state, state.scene.at, state.scene.endedAt ?? state.clock),
     scene_end: sceneEnd,
-    reaction: state.reactions.find(item => item.scene === number)?.reaction ?? null,
+    reaction: reactions.find(item => item.scene === number)?.reaction ?? null,
     meanwhile: state.meanwhile.filter(line => line.scene === number && !line.gap).map(line => ({ text: line.text, how: line.how })),
     happenings: ready ? todayOn(state) : [],
     choices: dayChoicesOf(state)
@@ -148,6 +149,8 @@ export function sceneView(mac: Mac, engine: Engine, storyId: string, traceId: st
   const summaries = summariesOn(mac, path.headEntryId);
   // A Move at the Day View opens the next Scene at once: its card, the Move, and the closed Scene among the earlier ones.
   const opening = openingEntries(state, all);
+  // What the Story has learned from the player is kept beside it (docs/adr/0020).
+  const beside = besideOf(mac, storyId);
   return {
     story_id: storyId,
     path_id: path.id,
@@ -158,8 +161,8 @@ export function sceneView(mac: Mac, engine: Engine, storyId: string, traceId: st
     player_character: state.playerCharacter,
     focus: scene.focus,
     linger: scene.linger,
-    day_view: scene.closed && !opening ? dayView(state, engine.sceneEndOf(storyId)) : null,
-    brief: state.brief,
+    day_view: scene.closed && !opening ? dayView(state, engine.sceneEndOf(storyId), beside.reactions) : null,
+    brief: beside.brief,
     earlier_scenes: all.flatMap(entry => entry.payload.kind === "scene_opened" && (opening || entry.id !== scene.openedBy)
       ? [{ number: entry.payload.number, title: entry.payload.title, summary: summaries.get(entry.id) ?? "" }]
       : []),
@@ -228,11 +231,16 @@ function exchanges(entries: Entry[]): Exchange[] {
     if (payload.kind === "move") result.push({ move: { entry_id: entry.id, text: payload.text }, reply: null });
     if (payload.kind === "reply") {
       const last = result.at(-1);
-      if (last && last.move && !last.reply) last.reply = { entry_id: entry.id, text: payload.text };
-      else result.push({ move: null, reply: { entry_id: entry.id, text: payload.text } });
+      if (last && last.move && !last.reply) last.reply = replyPassage(entry.id, payload);
+      else result.push({ move: null, reply: replyPassage(entry.id, payload) });
     }
   }
   return result;
+}
+
+/** A Reply as the phone shows it: its words, with the Editor's note when it still breaks something (docs/adr/0019). */
+function replyPassage(entryId: string, reply: ReplyWritten): Passage {
+  return reply.note ? { entry_id: entryId, text: reply.text, note: reply.note } : { entry_id: entryId, text: reply.text };
 }
 
 /** The live event an entry becomes once it is written; the Writer's Beat Notes belong to Backstage and send none. */
@@ -250,17 +258,15 @@ export function entryEvent(mac: Mac, storyId: string, entry: Entry): StoryEvent 
       return state.scene?.closed ? { kind: "move", seq: entry.seq, passage, opening: nextScene(state, entry) } : { kind: "move", seq: entry.seq, passage };
     }
     case "reply":
-      return { kind: "reply", seq: entry.seq, passage: { entry_id: entry.id, text: payload.text }, scene: sceneCard(storyId, mac.states.at(entry.id)) };
+      return { kind: "reply", seq: entry.seq, passage: replyPassage(entry.id, payload), scene: sceneCard(storyId, mac.states.at(entry.id)) };
     case "scene_closed":
-      return { kind: "scene_closed", seq: entry.seq, day_view: dayView(mac.states.at(entry.id), { step: "chronicler", failed: null }) };
+      return { kind: "scene_closed", seq: entry.seq, day_view: dayView(mac.states.at(entry.id), { step: "chronicler", failed: null, rethinking: null }, besideOf(mac, storyId).reactions) };
     case "focus_set":
       return { kind: "focus_set", seq: entry.seq, focus: payload.on };
     case "linger_set":
       return { kind: "linger_set", seq: entry.seq, linger: payload.on };
     case "redo":
       return { kind: "redo", seq: entry.seq };
-    // A lesson deleted from Taste changes the Scene's head and nothing a phone shows: it reads the Scene again.
-    case "taste_set":
     case "known_set":
     case "person_set":
     case "lead_set":
@@ -275,14 +281,14 @@ export function entryEvent(mac: Mac, storyId: string, entry: Entry): StoryEvent 
     case "place_set":
     case "world_set":
     case "clock_set":
-    case "brief_set":
     case "routine_set":
-    case "reaction_set":
       return { kind: "path_changed", seq: entry.seq };
     case "world_moved":
       return payload.gap ? null : { kind: "world_moved", seq: entry.seq };
     case "beat_note":
+    case "scene_recorded":
     case "chronicle":
+    case "outline_set":
     case "director_plan":
     case "story_folded":
     case "story_set_up":

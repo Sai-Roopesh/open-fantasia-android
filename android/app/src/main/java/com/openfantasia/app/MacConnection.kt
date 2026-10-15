@@ -134,11 +134,13 @@ class MacConnection(
     override suspend fun setPlace(storyID: String, name: String, request: PlaceRequest): StoryView = command { it.setPlace(storyID, name, request) }
     override suspend fun setWorld(storyID: String, request: WorldRequest): StoryView = command { it.setWorld(storyID, request) }
     override suspend fun setClock(storyID: String, request: ClockRequest): StoryView = command { it.setClock(storyID, request) }
-    override suspend fun rewordTaste(storyID: String, request: RewordTasteRequest): StoryView = command { it.rewordTaste(storyID, request) }
     override suspend fun uploadPortrait(storyID: String, name: String, image: ByteArray, type: String, after: String): Accepted =
         command { it.uploadPortrait(storyID, name, image, type, after) }
     override suspend fun backstage(storyID: String): BackstageView = read { it.backstage(storyID) }
-    override suspend fun removeTaste(storyID: String, request: RemoveTasteRequest): Accepted = command { it.removeTaste(storyID, request) }
+    override suspend fun removeTaste(storyID: String, request: RemoveTasteRequest) = command { it.removeTaste(storyID, request) }
+    override suspend fun rewordTaste(storyID: String, request: RewordTasteRequest) = command { it.rewordTaste(storyID, request) }
+    override suspend fun writeNote(storyID: String, request: SteeringNoteRequest) = command { it.writeNote(storyID, request) }
+    override suspend fun deleteNote(storyID: String, noteID: String) = command { it.deleteNote(storyID, noteID) }
     override suspend fun setBrief(storyID: String, request: BriefRequest): Accepted = command { it.setBrief(storyID, request) }
     override suspend fun react(storyID: String, request: ReactionRequest): Accepted = command { it.react(storyID, request) }
     override fun watch(initial: SceneView): Flow<SceneView> = StoryStream(

@@ -104,6 +104,11 @@ world:
       description: Twelve old families who oversee Hogwarts; Lucius Malfoy sits on it and likes everyone to know.
     - name: The Ouroboros Society
       description: A pure-blood dining club of old Slytherin families, run by Evander Selwyn; membership is by birth and invitation.
+rules:
+  - "Hogwarts is a university: students arrive at eighteen and leave four years later."
+  - Everyone at Hogwarts, students and staff, is eighteen or older.
+  - "Roopesh's power is hidden: nobody knows it, and he does not use it unless the player chooses to."
+  - "It is 1991: there are no mobile phones and no internet."
 people:
   - name: Roopesh Gantasala
     aliases: [Roo]

@@ -5,26 +5,32 @@ import { backupModels, DEFAULT_JOB_MODELS, JOBS, jobModels, setBackupModel, setJ
 import { freshHome } from "../support/host.js";
 
 describe("the Mac's model settings (docs/adr/0008)", () => {
-  it("lists every job, the Director and the Folder included, each on its default until it is set", () => {
+  it("lists every job, the Editor, the Director and the Folder included, each on its default until it is set", () => {
     const { home } = freshHome();
-    expect(JOBS).toEqual(["writer", "chronicler", "weaver", "director", "folder"]);
+    expect(JOBS).toEqual(["writer", "editor", "chronicler", "director", "weaver", "folder"]);
     expect(jobModels(home)).toEqual(DEFAULT_JOB_MODELS);
-    expect(DEFAULT_JOB_MODELS.director).toEqual({ provider: "claude", model: "claude-opus-5-5" });
-    expect(DEFAULT_JOB_MODELS.folder).toEqual({ provider: "claude", model: "claude-haiku-4-5-20251001" });
+    const opus = { provider: "claude", model: "claude-opus-5-5" };
+    expect(DEFAULT_JOB_MODELS).toEqual({
+      writer: { ...opus, effort: "medium" },
+      editor: { provider: "claude", model: "claude-sonnet-5-5" },
+      chronicler: opus,
+      weaver: opus,
+      director: { provider: "claude", model: "claude-fable-5-1", effort: "high" },
+      folder: opus
+    });
   });
 
-  it("gives every job a second model: Sonnet 5.5, or GPT 6.1 Sol for a job already on Sonnet, until it is set", () => {
+  it("gives every job, the Actor too, GPT 6.1 Sol as its second model until one is set", () => {
     const { home } = freshHome();
-    const sonnet = { provider: "claude", model: "claude-sonnet-5-5" };
     const sol = { provider: "codex", model: "gpt-6.1-sol" };
-    expect(backupModels(home)).toEqual({ writer: sol, chronicler: sol, weaver: sol, director: sonnet, folder: sonnet, actor: sonnet });
-    // A job moved off Sonnet takes Sonnet as its second model; one set keeps it, whatever the job's own model.
+    expect(backupModels(home)).toEqual({ writer: sol, editor: sol, chronicler: sol, weaver: sol, director: sol, folder: sol, actor: sol });
+    // A job moved to another model keeps GPT 6.1 Sol; one set keeps what it was set to, whatever the job's own model.
     setJobModel(home, "writer", { provider: "antigravity", model: "gemini-3.8-flash", effort: "high" });
     setBackupModel(home, "director", { provider: "codex", model: "gpt-6-luna", effort: "medium" });
     setBackupModel(home, "actor", { provider: "claude", model: "claude-opus-5-5" });
     setJobModel(home, "director", { provider: "claude", model: "claude-sonnet-5-5" });
-    expect(backupModels(home)).toMatchObject({ writer: sonnet, director: { provider: "codex", model: "gpt-6-luna", effort: "medium" }, actor: { provider: "claude", model: "claude-opus-5-5" } });
-    expect(jobModels(home).director).toEqual(sonnet);
+    expect(backupModels(home)).toMatchObject({ writer: sol, director: { provider: "codex", model: "gpt-6-luna", effort: "medium" }, actor: { provider: "claude", model: "claude-opus-5-5" } });
+    expect(jobModels(home).director).toEqual({ provider: "claude", model: "claude-sonnet-5-5" });
   });
 
   it("keeps a job's model and a Story's own Actor, each without disturbing the other", () => {

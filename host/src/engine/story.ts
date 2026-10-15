@@ -1,5 +1,5 @@
 import { LinkError } from "../link/errors.js";
-import type { ArcsSet, ClockSet, LandmarkDropped, LandmarkSet, PlaceSet, PremiseSet, ReplyLengthSet, StyleSet, TasteSet, WorldSet } from "../story/entries.js";
+import type { ArcsSet, ClockSet, LandmarkDropped, LandmarkSet, PlaceSet, PremiseSet, ReplyLengthSet, StyleSet, WorldSet } from "../story/entries.js";
 import type { State } from "../story/state.js";
 import { formatStoryTime, isDate, minutesOf, parseStoryTime } from "../time.js";
 
@@ -96,11 +96,4 @@ export function clockSet(state: State, at: string, dayOne?: string | null): Cloc
     : dayOne === null || !dayOne.trim() ? null
     : isDate(dayOne) ? dayOne.trim() : refuse(`"${dayOne.trim()}" is not a date like "1991-09-01".`);
   return { kind: "clock_set", clock: formatStoryTime(time), dayOne: day };
-}
-
-export function tasteReworded(state: State, line: string, text: string): TasteSet {
-  const index = state.taste.indexOf(line);
-  if (index < 0) refuse("Taste has no such line.");
-  const words = text.trim() || refuse("Say the lesson, or delete it.");
-  return { kind: "taste_set", lines: state.taste.map((lesson, at) => at === index ? words : lesson) };
 }

@@ -4,11 +4,14 @@ import type { MoveWritten } from "../../src/story/entries.js";
 import { playable } from "../support/play.js";
 import { hogwartsWorldStoryFile } from "../support/story-files.js";
 
-/** The Director's plan: Saturday's Scene that matters is the hospital wing at 11:00, about Draconia. */
+/**
+ * The Director's plan: Saturday's Scene that matters is the hospital wing at 11:00, about Draconia, serving the first
+ * turn of the Act the scripted Director outlines, and bringing in that Outline's locked door.
+ */
 const plan = {
   days: 4, toward: "Draconia's flying test", landmark: null, phase: "build",
-  scenes: [{ id: "S1", date: "1991-09-07", time: "11:00", place: "Outside the hospital wing", who: ["Draconia Malfoy", "Severus Snape"], for: "Draconia needs a witness.", offer: "Draconia is fighting Snape for her bed back.", headline: "The hospital wing: Draconia wants out", lead: "Draconia Malfoy", engagement: null, quiet: false }],
-  new: [{ kind: "mystery", what: "Who hexed Draconia's broom.", scene: "S1", person: null }],
+  scenes: [{ id: "S1", date: "1991-09-07", time: "11:00", place: "Outside the hospital wing", who: ["Draconia Malfoy", "Severus Snape"], serves: { turn: "T1", lives: ["Draconia Malfoy"] }, for: "Draconia needs a witness.", offer: "Draconia is fighting Snape for her bed back.", headline: "The hospital wing: Draconia wants out", lead: "Draconia Malfoy", engagement: null, quiet: false }],
+  new: [{ setup: "U1", kind: "mystery", scene: "S1", person: null }],
   leads: [{ who: "Draconia Malfoy", move: "She makes him her witness.", scene: "S1" }, { who: "Hermione Granger", move: "She asks where he was.", scene: "S1" }],
   arcs: [], roadmap: [], premise: "The romance turns on a debt."
 };
@@ -161,7 +164,8 @@ describe("the Scene a choice opens", () => {
     await engine.settled(storyId);
     const asked = models.writer.requests.at(-1)!;
     expect(asked.prompt).toContain("The player chose at the Day View: follow Hermione Granger. Open the Scene it begins.");
-    expect(asked.prompt).toMatch(/<cast_now>\nHermione Granger/);
+    // She is among the people the Writer is given as they are now, to open the Scene with.
+    expect(asked.prompt).toMatch(/<people_now>\n(?:[^\n]*\n)*?Hermione Granger\n/);
     expect(view().scene.people.map(person => person.name)).toContain("Hermione Granger");
   });
 

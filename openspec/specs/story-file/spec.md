@@ -26,7 +26,7 @@ import SHALL refuse a version it does not understand, naming the versions it doe
 A Story File SHALL be able to set up: the Story's title; the **World** (its places, institutions and history); the
 people, each with who they are, how they talk, what they are after, their Portrait, their **Group** if any, what
 the **Player Character** knows of them when the Story begins, and their **Bond** with him when they already have
-history; the **Leads**; the **Player Character**; the **Premise**; the **Arcs**; the **Landmarks** with their times;
+history; the World's starting **Rules**; the **Leads**; the **Player Character**; the **Premise**; the **Arcs**; the **Landmarks** with their times;
 the **Threads**, each with where it stands; the **Style**; the reply length; the **Actor**'s model; the clock's
 starting day and time and the date of the Story's first day; the daily routine, such as classes on weekday mornings; the player's
 brief, what they want more of and less of; and the opening **Scene** with its title, place, time, who is there
@@ -65,6 +65,11 @@ Character knows of them, their Bond, and a place's description, SHALL be what he
 - **GIVEN** a Story File whose first day is Sunday 1 September 1991 and whose clock starts on Day 6 at 21:40
 - **WHEN** it is imported
 - **THEN** the Story begins on Friday 6 September 1991 at 9:40 pm
+
+#### Scenario: Rules to start from
+- **GIVEN** a Story File whose Rules say Hogwarts is a university and everyone in it is eighteen or older
+- **WHEN** it is imported
+- **THEN** the Story keeps those Rules from its first Scene
 
 ### Requirement: People are referred to by name
 

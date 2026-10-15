@@ -41,7 +41,12 @@ async function atKalka(writers: Script[]) {
   return played;
 }
 
-const lastActorSystem = (models: ReturnType<typeof playable>["models"]) => models.actor.requests.at(-1)!.system;
+/** Whether the latest Reply's Actor was given [name] among the people here, as each of them is now. */
+const actorGiven = (models: ReturnType<typeof playable>["models"], name: string) => {
+  const prompt = models.actor.requests.at(-1)!.prompt;
+  const here = prompt.slice(prompt.indexOf("<people_now>"), prompt.indexOf("</people_now>"));
+  return prompt.includes("<people_now>") && here.split("\n").some(line => line.startsWith(name));
+};
 
 /** The Chronicles on the Path, oldest first. */
 const chronicles = (path: Payload[]) => path.filter((payload): payload is Chronicle => payload.kind === "chronicle");
@@ -55,7 +60,7 @@ describe("who is in a Scene", () => {
     const { play, state, models } = await atKalka([writer({}, 10)]);
     await play("On the toy train I hold up the last biscuit from her packet.");
     expect(state().scene).toMatchObject({ here: ["Meera Kulkarni"], focus: "Meera Kulkarni" });
-    expect(lastActorSystem(models)).toContain('<person name="Meera Kulkarni">');
+    expect(actorGiven(models, "Meera Kulkarni")).toBe(true);
     // What she remembers of him, in his own words.
     const remembered = models.actor.requests.at(-1)!.prompt;
     expect(remembered).toContain("<remembered>\n(Scene 1; known to Ishaan Mehra, Meera Kulkarni) Ishaan tells Meera he doesn't want the interview.");
@@ -69,10 +74,10 @@ describe("who is in a Scene", () => {
     const { play, state, models } = await atKalka([writer({ goes: ["Meera Kulkarni"] }, 100), writer({}, 10)]);
     await play("At Barog I watch her climb down to the jeep");
     // She is in the Reply that has her go, and out of the Scene once it is written.
-    expect(lastActorSystem(models)).toContain('<person name="Meera Kulkarni">');
+    expect(actorGiven(models, "Meera Kulkarni")).toBe(true);
     expect(state().scene).toMatchObject({ here: [], focus: null });
     await play("I watch the jeep until the cloud takes it.");
-    expect(lastActorSystem(models)).not.toContain('<person name="Meera Kulkarni">');
+    expect(actorGiven(models, "Meera Kulkarni")).toBe(false);
   });
 });
 

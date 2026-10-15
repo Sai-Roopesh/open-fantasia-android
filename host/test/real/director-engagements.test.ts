@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { emptyUpdate } from "../../src/story/truth.js";
 import { directionDue, writePlan } from "../../src/agents/director.js";
 import { ClaudeRunner } from "../../src/models/claude.js";
 import { DEFAULT_JOB_MODELS } from "../../src/models/jobs.js";
 import { Models } from "../../src/models/model-call.js";
 import { CLAUDE_TOKEN, readSecret } from "../../src/secrets.js";
 import type { Payload } from "../../src/story/entries.js";
+import { nothingBeside } from "../../src/story/beside.js";
 import { samePlace } from "../../src/story/places.js";
 import type { Engagement } from "../../src/story/state.js";
 import { importStoryFile } from "../../src/storyfile/import.js";
@@ -40,7 +42,7 @@ async function planned(): Promise<{ scenes: { at: string; place: string; who: st
   const meeting: Engagement = { id: "g-library", what: "His meeting with Draconia about the train and what she owes.", at: "Day 2 10:00", place: "The library", who: ["Draconia Malfoy"], expected: true, every: null, quotes: [{ entry: moved.id, text: "she can meet me in the library tomorrow at ten" }] };
   // The Scene's record, as the Chronicler keeps it: the meeting is on his calendar before the Director plans.
   const recorded = append({
-    kind: "chronicle", scene: 1, summary: "He set a library meeting with Draconia; she said she would think about it.",
+    kind: "chronicle", truth: emptyUpdate(), scene: 1, summary: "He set a library meeting with Draconia; she said she would think about it.",
     paragraph: "At the Three Broomsticks Draconia called Roopesh Stray in front of her friends. He told her quietly that if she wanted to talk about the train and what she owed, she could meet him in the library at ten the next morning; she made a show of it, and said she would think about it.",
     moments: [], told: [], known: [], bonds: [], engagements: [meeting], changed: [], dropped: [], callId: "written-by-the-test", model: WRITTEN
   });
@@ -48,7 +50,7 @@ async function planned(): Promise<{ scenes: { at: string; place: string; who: st
   try {
     const due = directionDue(state);
     if (!due) throw new Error("no plan was due after the first Scene");
-    const plan = await writePlan(models, [DEFAULT_JOB_MODELS.director], state, due, storyId, "real-plan", new AbortController().signal);
+    const plan = await writePlan(models, [DEFAULT_JOB_MODELS.director], state, nothingBeside(), due, { storyId, head: recorded.id }, "real-plan", new AbortController().signal);
     return { scenes: plan.value.scenes, meeting: meeting.at, said: JSON.stringify({ scenes: plan.value.scenes, dropped: plan.dropped }) };
   } finally {
     runner.close();

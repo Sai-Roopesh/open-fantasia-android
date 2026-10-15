@@ -251,6 +251,13 @@
         },
         "text": {
           "type": "string"
+        },
+        "note": {
+          "description": "On a Reply only: the Editor's note when the Reply still breaks what is established after it was written again (docs/adr/0019); null otherwise.",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       }
     },
@@ -286,7 +293,7 @@
       }
     },
     "TurnState": {
-      "description": "Whether a Reply is being written, has failed, or nothing is under way.",
+      "description": "Whether a Reply is under way (looking back, being written, being checked), has failed, or nothing is under way (openspec presence: A Reply arrives checked and whole).",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -297,13 +304,11 @@
           "type": "string",
           "enum": [
             "idle",
+            "looking_back",
             "writing",
+            "checking",
             "failed"
           ]
-        },
-        "text_so_far": {
-          "description": "While writing: the Reply's words so far.",
-          "type": "string"
         },
         "reason": {
           "description": "When failed: why, in words the player can read.",
@@ -535,7 +540,7 @@
       }
     },
     "StoryEvent": {
-      "description": "One event on a Story's live stream. Entry events (scene_opened, move, reply, scene_closed, focus_set, linger_set, redo, world_moved) are replayed after a reconnect; reply_started, reply_delta and reply_failed describe the turn under way; scene_end_step says which step of a Scene's end is under way, null when it is done, and scene_end_failed where it stopped and why (docs/adr/0016). path_changed says the Story is now on another Path, or its Path was moved back, or a Move or Reply on it was edited. After scene_opened, scene_closed, redo, world_moved, scene_end_step, scene_end_failed and path_changed, and after a move that opens the next Scene, the phone reads the Scene again, because they change more than one part of it.",
+      "description": "One event on a Story's live stream. Entry events (scene_opened, move, reply, scene_closed, focus_set, linger_set, redo, world_moved) are replayed after a reconnect; reply_started, turn_step and reply_failed describe the turn under way; a Reply's words arrive whole, in its reply event; scene_end_step says which step of a Scene's end is under way, null when it is done, and scene_end_failed where it stopped and why (docs/adr/0016). path_changed says the Story is now on another Path, or its Path was moved back, or a Move or Reply on it was edited. After scene_opened, scene_closed, redo, world_moved, scene_end_step, scene_end_failed and path_changed, and after a move that opens the next Scene, the phone reads the Scene again, because they change more than one part of it.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -554,7 +559,7 @@
             "linger_set",
             "redo",
             "reply_started",
-            "reply_delta",
+            "turn_step",
             "reply_failed",
             "world_moved",
             "path_changed",
@@ -572,10 +577,6 @@
         },
         "passage": {
           "$ref": "#/$defs/Passage"
-        },
-        "text": {
-          "description": "reply_delta: the words that just arrived.",
-          "type": "string"
         },
         "reason": {
           "type": "string"
@@ -611,6 +612,15 @@
             {
               "type": "null"
             }
+          ]
+        },
+        "turn_step": {
+          "description": "turn_step: what the Reply under way is doing.",
+          "type": "string",
+          "enum": [
+            "looking_back",
+            "writing",
+            "checking"
           ]
         }
       }
@@ -1275,7 +1285,12 @@
         "director",
         "record",
         "how_its_going",
-        "new_things"
+        "new_things",
+        "outline",
+        "lives_by_tier",
+        "notes",
+        "truth",
+        "player_taste"
       ],
       "properties": {
         "story_id": {
@@ -1345,6 +1360,35 @@
           "type": "array",
           "items": {
             "$ref": "#/$defs/NewThingRow"
+          }
+        },
+        "outline": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/OutlineView"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lives_by_tier": {
+          "$ref": "#/$defs/LivesByTier"
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SteeringNote"
+          }
+        },
+        "truth": {
+          "$ref": "#/$defs/TruthView"
+        },
+        "player_taste": {
+          "description": "The player's own Taste, which every Story starts with (openspec long-run: Taste is short, readable and the player's).",
+          "type": "array",
+          "items": {
+            "type": "string"
           }
         }
       }
@@ -1513,21 +1557,25 @@
       }
     },
     "RemoveTasteRequest": {
-      "description": "Delete a lesson from Taste on the Path the player is on (openspec long-run: Taste is short, readable and the player's).",
+      "description": "Delete a lesson from a Taste (openspec long-run: Taste is short, readable and the player's).",
       "type": "object",
       "additionalProperties": false,
       "required": [
         "line",
-        "after"
+        "scope"
       ],
       "properties": {
         "line": {
           "description": "The lesson to delete, as Taste reads it.",
           "type": "string"
         },
-        "after": {
-          "description": "The head the phone saw; refused as stale if the Story has moved on.",
-          "type": "string"
+        "scope": {
+          "description": "Whose Taste: the Story's own, or the player's own across every Story.",
+          "type": "string",
+          "enum": [
+            "story",
+            "player"
+          ]
         }
       }
     },
@@ -1691,6 +1739,7 @@
       "enum": [
         "actor",
         "writer",
+        "editor",
         "chronicler",
         "weaver",
         "director",
@@ -2883,21 +2932,25 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "after",
         "line",
-        "text"
+        "text",
+        "scope"
       ],
       "properties": {
-        "after": {
-          "type": "string",
-          "description": "The head the phone saw."
-        },
         "line": {
           "type": "string",
           "description": "The lesson as Taste reads it now."
         },
         "text": {
           "type": "string"
+        },
+        "scope": {
+          "description": "Whose Taste: the Story's own, or the player's own across every Story.",
+          "type": "string",
+          "enum": [
+            "story",
+            "player"
+          ]
         }
       }
     },
@@ -3103,7 +3156,8 @@
       "additionalProperties": false,
       "required": [
         "step",
-        "failed"
+        "failed",
+        "rethinking"
       ],
       "properties": {
         "step": {
@@ -3124,6 +3178,13 @@
             {
               "type": "null"
             }
+          ]
+        },
+        "rethinking": {
+          "description": "While the Director re-plans an Act deeply: its title, such as \"Year One\"; null otherwise.",
+          "type": [
+            "string",
+            "null"
           ]
         }
       }
@@ -3152,18 +3213,14 @@
       }
     },
     "BriefRequest": {
-      "description": "Sets the brief, from this moment on the Path.",
+      "description": "Sets the brief, kept beside the Story.",
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "after",
         "more",
         "less"
       ],
       "properties": {
-        "after": {
-          "type": "string"
-        },
         "more": {
           "type": "array",
           "items": {
@@ -3183,14 +3240,10 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "after",
         "scene_number",
         "reaction"
       ],
       "properties": {
-        "after": {
-          "type": "string"
-        },
         "scene_number": {
           "type": "integer"
         },
@@ -3270,7 +3323,10 @@
         "picks_offered",
         "picks_taken",
         "more",
-        "less"
+        "less",
+        "reply_seconds",
+        "editor_fixed",
+        "editor_rewrote"
       ],
       "properties": {
         "scene_end_seconds": {
@@ -3302,6 +3358,21 @@
           "type": "integer"
         },
         "less": {
+          "type": "integer"
+        },
+        "reply_seconds": {
+          "description": "How long the last Replies took, newest last.",
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "editor_fixed": {
+          "description": "How many Replies the Editor set right in place.",
+          "type": "integer"
+        },
+        "editor_rewrote": {
+          "description": "How many Replies the Editor sent back to be written again.",
           "type": "integer"
         }
       }
@@ -3335,6 +3406,571 @@
         "passed",
         "ahead"
       ]
+    },
+    "SourceRow": {
+      "description": "Where something kept came from: the Scene and the words (openspec the-truth: Nothing is deleted).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scene_number",
+        "text"
+      ],
+      "properties": {
+        "scene_number": {
+          "oneOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        }
+      }
+    },
+    "TurnRow": {
+      "description": "One turn of an Act.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "when",
+        "what",
+        "done"
+      ],
+      "properties": {
+        "when": {
+          "type": "string"
+        },
+        "what": {
+          "type": "string"
+        },
+        "done": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ActView": {
+      "description": "The current Act in detail.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "number",
+        "title",
+        "question",
+        "builds_to",
+        "turns",
+        "relationships",
+        "movers",
+        "intentions"
+      ],
+      "properties": {
+        "number": {
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        },
+        "question": {
+          "type": "string"
+        },
+        "builds_to": {
+          "type": "string"
+        },
+        "turns": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TurnRow"
+          }
+        },
+        "relationships": {
+          "type": "array",
+          "items": {
+            "description": "Where a relationship should stand by the Act's end.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "people",
+              "by_end"
+            ],
+            "properties": {
+              "people": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "by_end": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "movers": {
+          "type": "array",
+          "items": {
+            "description": "What someone who drives the World is doing this Act.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "who",
+              "doing"
+            ],
+            "properties": {
+              "who": {
+                "type": "string"
+              },
+              "doing": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "intentions": {
+          "type": "array",
+          "items": {
+            "description": "A person's own direction this Act.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "who",
+              "pursues",
+              "heading"
+            ],
+            "properties": {
+              "who": {
+                "type": "string"
+              },
+              "pursues": {
+                "type": "string"
+              },
+              "heading": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "ActSketch": {
+      "description": "An Act after the current one, outlined or sketched.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "number",
+        "title",
+        "question",
+        "builds_to",
+        "detail"
+      ],
+      "properties": {
+        "number": {
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        },
+        "question": {
+          "type": "string"
+        },
+        "builds_to": {
+          "type": "string"
+        },
+        "detail": {
+          "type": "string",
+          "enum": [
+            "outlined",
+            "sketched"
+          ]
+        }
+      }
+    },
+    "SetupRow": {
+      "description": "Something planted that the Outline means to pay off.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "what",
+        "payoff",
+        "state",
+        "planted"
+      ],
+      "properties": {
+        "what": {
+          "type": "string"
+        },
+        "payoff": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "waiting",
+            "paid",
+            "dropped"
+          ]
+        },
+        "planted": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "OutlineView": {
+      "description": "The Outline (openspec the-outline: The player sees and steers the Outline).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "current",
+        "later",
+        "ending",
+        "setups",
+        "looked_up",
+        "revised"
+      ],
+      "properties": {
+        "current": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/ActView"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "later": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ActSketch"
+          }
+        },
+        "ending": {
+          "type": "string"
+        },
+        "setups": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SetupRow"
+          }
+        },
+        "looked_up": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "revised": {
+          "description": "When it was last revised and how: \"after Scene 19, deeply\".",
+          "type": "string"
+        }
+      }
+    },
+    "LifeRow": {
+      "description": "A person's Life as Backstage shows it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "who",
+        "now",
+        "wants",
+        "heading"
+      ],
+      "properties": {
+        "who": {
+          "type": "string"
+        },
+        "now": {
+          "type": "string"
+        },
+        "wants": {
+          "type": "string"
+        },
+        "heading": {
+          "type": "string"
+        }
+      }
+    },
+    "LivesByTier": {
+      "description": "Lives by how much each person matters (openspec living-world: Everyone has a Life).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "close",
+        "movers",
+        "others"
+      ],
+      "properties": {
+        "close": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LifeRow"
+          }
+        },
+        "movers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LifeRow"
+          }
+        },
+        "others": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "SteeringNote": {
+      "description": "A note the player wrote to steer the Outline.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "text",
+        "written_at",
+        "answered"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "written_at": {
+          "type": "string"
+        },
+        "answered": {
+          "type": "boolean"
+        }
+      }
+    },
+    "TruthView": {
+      "description": "What the Story keeps (openspec the-truth), each item with where it came from.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "people",
+        "between",
+        "truths",
+        "rules",
+        "names"
+      ],
+      "properties": {
+        "people": {
+          "type": "array",
+          "items": {
+            "description": "Who someone is now.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "who",
+              "now",
+              "sources"
+            ],
+            "properties": {
+              "who": {
+                "type": "string"
+              },
+              "now": {
+                "type": "string"
+              },
+              "sources": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/SourceRow"
+                }
+              }
+            }
+          }
+        },
+        "between": {
+          "type": "array",
+          "items": {
+            "description": "Where things stand between two people.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "people",
+              "stands",
+              "keepsakes",
+              "sources"
+            ],
+            "properties": {
+              "people": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "stands": {
+                "type": "string"
+              },
+              "keepsakes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "sources": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/SourceRow"
+                }
+              }
+            }
+          }
+        },
+        "truths": {
+          "type": "array",
+          "items": {
+            "description": "Something true, or true until a Scene ended it.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "what",
+              "terms",
+              "due_label",
+              "known_to",
+              "ended",
+              "sources"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "agreement",
+                  "promise",
+                  "debt",
+                  "threat",
+                  "secret",
+                  "status"
+                ]
+              },
+              "what": {
+                "type": "string"
+              },
+              "terms": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "due_label": {
+                "oneOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "known_to": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "ended": {
+                "oneOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "sources": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/SourceRow"
+                }
+              }
+            }
+          }
+        },
+        "rules": {
+          "type": "array",
+          "items": {
+            "description": "How the World works.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "what",
+              "sources"
+            ],
+            "properties": {
+              "what": {
+                "type": "string"
+              },
+              "sources": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/SourceRow"
+                }
+              }
+            }
+          }
+        },
+        "names": {
+          "type": "array",
+          "items": {
+            "description": "A name made on the page.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "kind",
+              "what",
+              "first_scene"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "person",
+                  "place",
+                  "thing"
+                ]
+              },
+              "what": {
+                "type": "string"
+              },
+              "first_scene": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      }
+    },
+    "SteeringNoteRequest": {
+      "description": "Writes a note that steers the Outline; the Director answers it at the next Scene's end.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text"
+      ],
+      "properties": {
+        "text": {
+          "type": "string"
+        }
+      }
     }
   }
 }

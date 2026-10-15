@@ -87,7 +87,7 @@ open class EditingUiChecks : WorldUiChecks() {
     }
 
     fun editingWaitsForTheReply() {
-        link.current.value = link.current.value.copy(turn = TurnState(kind = TurnStateKind.Writing, textSoFar = "She", traceID = "turn"))
+        link.current.value = link.current.value.copy(turn = TurnState(kind = TurnStateKind.Writing, traceID = "turn"))
         withAnotherExchange()
         openScene()
         longPress("I sit beside her.")
@@ -134,6 +134,6 @@ open class EditingUiChecks : WorldUiChecks() {
         }
         compose.onNodeWithText("I sit at the far end of the sofa.").assertIsDisplayed()
         compose.onNodeWithText("She smiles.").assertDoesNotExist()
-        compose.onNodeWithTag("scene-passages").performScrollToNode(hasText("Reply being written"))
+        compose.onNodeWithTag("scene-passages").performScrollToNode(hasText("Looking back…"))
     }
 }

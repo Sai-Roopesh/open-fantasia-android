@@ -30,6 +30,10 @@ export interface StoryFile {
   clock?: ClockSetup;
   world?: WorldSetup;
   /**
+   * How the World works from the start, a line each (openspec story-file: Rules to start from).
+   */
+  rules?: string[];
+  /**
    * @minItems 1
    */
   people: [PersonSetup, ...PersonSetup[]];

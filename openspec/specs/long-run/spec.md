@@ -35,7 +35,8 @@ The player SHALL be able to add, rewrite or drop Arcs at any time.
 ### Requirement: The Director shapes the long run around Arcs and Landmarks
 
 The **Director** SHALL shape the Story into **Stretches** that build, peak and rest around the **Arcs** and
-**Landmarks**. A Stretch is three to six days of story time. Its plan SHALL say:
+**Landmarks**, each the next step of the current **Act** of the **Outline**. A Stretch is three to six days of story
+time. Its plan SHALL say:
 - what it builds toward, and its phase;
 - the Scenes that matter in it, two to five, each with its day and time, its place, who is there and what it is for;
 - the step each Arc may take in it;
@@ -122,8 +123,11 @@ read the same Style. Reply length (Short, Medium, Full) SHALL be set separately.
 
 ### Requirement: Taste is short, readable and the player's
 
-**Taste** SHALL hold at most ten lines of lasting lessons. The player SHALL be able to read, edit and delete every
-line. Everything that writes for the Story SHALL read it.
+**Taste** SHALL hold at most ten lines of lasting lessons for each Story, and at most ten for the player, about how
+they like to read, which every Story starts with. A lesson SHALL go to the player's own only when it is about how they
+like to read and not about one **World**. A Story's Taste SHALL belong to the Story, not to a **Path**: a **Redo** or
+another Path SHALL never lose it. The player SHALL be able to read, edit and delete every line. Everything that writes
+for the Story SHALL read both.
 
 #### Scenario: Deleting a lesson
 - **GIVEN** Taste has the line "keep Ron in the background"
@@ -134,6 +138,16 @@ line. Everything that writes for the Story SHALL read it.
 - **GIVEN** Taste has the line "keep Ron in the background"
 - **WHEN** the player rewords it to "keep Ron in the background unless he's needed"
 - **THEN** later Scenes read the new words, and the old ones are gone from Taste
+
+#### Scenario: A lesson outlives its Redo
+- **GIVEN** the player redid a Reply with the Direction "never write her as a first-timer", to be remembered
+- **WHEN** the player plays on along the Reply that was written again
+- **THEN** Taste has the lesson, and later Scenes keep to it
+
+#### Scenario: The player's own Taste in a new Story
+- **GIVEN** the player's own Taste says "don't decide what my character feels"
+- **WHEN** they start The Night Train to Kalka for the first time
+- **THEN** its Scenes keep to that line before anything is learned in it
 
 ### Requirement: Arcs keep pace with the run
 
@@ -177,18 +191,6 @@ reach him as **Meanwhile**, as something found, or as a consequence he meets.
 - **WHEN** four Stretches are planned
 - **THEN** in at least one of them a Lead's move is made off-screen, and a Scene that matters is about none of the
   Leads
-
-### Requirement: Something new every Stretch
-
-Every **Stretch** SHALL bring at least one thing the **Player Character** has not met: a new person, a secret, a
-threat, a mystery or a place. It SHALL be planned into a Scene that matters, or set moving off-screen so that it
-reaches him. It SHALL serve the **Premise**, the **Arcs** and the player's brief, and keep to the **Style**.
-
-#### Scenario: A stranger in Hogsmeade
-- **GIVEN** the Story has met no one new in its last two Stretches
-- **WHEN** the Director plans the next Stretch
-- **THEN** it brings in something he has not met, such as a stranger asking about the train in Hogsmeade, and a Scene
-  that matters or a line of **Meanwhile** puts it in front of him
 
 ### Requirement: The player steers with a brief and reactions
 

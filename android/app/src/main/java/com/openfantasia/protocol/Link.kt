@@ -114,6 +114,17 @@
 // val howItsGoing          = json.parse(HowItsGoing.serializer(), jsonString)
 // val newThingRow          = json.parse(NewThingRow.serializer(), jsonString)
 // val stretchSceneState    = json.parse(StretchSceneState.serializer(), jsonString)
+// val sourceRow            = json.parse(SourceRow.serializer(), jsonString)
+// val turnRow              = json.parse(TurnRow.serializer(), jsonString)
+// val actView              = json.parse(ActView.serializer(), jsonString)
+// val actSketch            = json.parse(ActSketch.serializer(), jsonString)
+// val setupRow             = json.parse(SetupRow.serializer(), jsonString)
+// val outlineView          = json.parse(OutlineView.serializer(), jsonString)
+// val lifeRow              = json.parse(LifeRow.serializer(), jsonString)
+// val livesByTier          = json.parse(LivesByTier.serializer(), jsonString)
+// val steeringNote         = json.parse(SteeringNote.serializer(), jsonString)
+// val truthView            = json.parse(TruthView.serializer(), jsonString)
+// val steeringNoteRequest  = json.parse(SteeringNoteRequest.serializer(), jsonString)
 
 package com.openfantasia.protocol
 
@@ -451,6 +462,8 @@ data class Skip (
 /**
  * Who closed the last Scene: the Story, whose closing Reply can be redone, or the player,
  * with End scene.
+ *
+ * Whose Taste: the Story's own, or the player's own across every Story.
  */
 @Serializable
 enum class ClosedBy(val value: String) {
@@ -562,6 +575,12 @@ enum class Reaction(val value: String) {
 @Serializable
 data class SceneEnd (
     val failed: SceneEndFailure? = null,
+
+    /**
+     * While the Director re-plans an Act deeply: its title, such as "Year One"; null otherwise.
+     */
+    val rethinking: String? = null,
+
     val step: SceneEndStep? = null
 )
 
@@ -616,6 +635,12 @@ data class Exchange (
 data class Passage (
     @SerialName("entry_id")
     val entryID: String,
+
+    /**
+     * On a Reply only: the Editor's note when the Reply still breaks what is established after
+     * it was written again (docs/adr/0019); null otherwise.
+     */
+    val note: String? = null,
 
     val text: String
 )
@@ -696,7 +721,8 @@ data class PersonCard (
 )
 
 /**
- * Whether a Reply is being written, has failed, or nothing is under way.
+ * Whether a Reply is under way (looking back, being written, being checked), has failed, or
+ * nothing is under way (openspec presence: A Reply arrives checked and whole).
  */
 @Serializable
 data class TurnState (
@@ -711,12 +737,6 @@ data class TurnState (
      * When failed: why, in words the player can read.
      */
     val reason: String? = null,
-
-    /**
-     * While writing: the Reply's words so far.
-     */
-    @SerialName("text_so_far")
-    val textSoFar: String? = null,
 
     /**
      * When writing or failed: the turn's trace id.
@@ -735,6 +755,7 @@ enum class ModelJob(val value: String) {
     @SerialName("actor") Actor("actor"),
     @SerialName("chronicler") Chronicler("chronicler"),
     @SerialName("director") Director("director"),
+    @SerialName("editor") Editor("editor"),
     @SerialName("folder") Folder("folder"),
     @SerialName("weaver") Weaver("weaver"),
     @SerialName("writer") Writer("writer");
@@ -742,8 +763,10 @@ enum class ModelJob(val value: String) {
 
 @Serializable
 enum class TurnStateKind(val value: String) {
+    @SerialName("checking") Checking("checking"),
     @SerialName("failed") Failed("failed"),
     @SerialName("idle") Idle("idle"),
+    @SerialName("looking_back") LookingBack("looking_back"),
     @SerialName("writing") Writing("writing");
 }
 
@@ -769,13 +792,14 @@ data class TurnAccepted (
 /**
  * One event on a Story's live stream. Entry events (scene_opened, move, reply,
  * scene_closed, focus_set, linger_set, redo, world_moved) are replayed after a reconnect;
- * reply_started, reply_delta and reply_failed describe the turn under way; scene_end_step
- * says which step of a Scene's end is under way, null when it is done, and scene_end_failed
- * where it stopped and why (docs/adr/0016). path_changed says the Story is now on another
- * Path, or its Path was moved back, or a Move or Reply on it was edited. After
- * scene_opened, scene_closed, redo, world_moved, scene_end_step, scene_end_failed and
- * path_changed, and after a move that opens the next Scene, the phone reads the Scene
- * again, because they change more than one part of it.
+ * reply_started, turn_step and reply_failed describe the turn under way; a Reply's words
+ * arrive whole, in its reply event; scene_end_step says which step of a Scene's end is
+ * under way, null when it is done, and scene_end_failed where it stopped and why
+ * (docs/adr/0016). path_changed says the Story is now on another Path, or its Path was
+ * moved back, or a Move or Reply on it was edited. After scene_opened, scene_closed, redo,
+ * world_moved, scene_end_step, scene_end_failed and path_changed, and after a move that
+ * opens the next Scene, the phone reads the Scene again, because they change more than one
+ * part of it.
  */
 @Serializable
 data class StoryEvent (
@@ -821,13 +845,14 @@ data class StoryEvent (
      */
     val step: SceneEndStep? = null,
 
-    /**
-     * reply_delta: the words that just arrived.
-     */
-    val text: String? = null,
-
     @SerialName("trace_id")
-    val traceID: String? = null
+    val traceID: String? = null,
+
+    /**
+     * turn_step: what the Reply under way is doing.
+     */
+    @SerialName("turn_step")
+    val turnStep: TurnStep? = null
 )
 
 @Serializable
@@ -838,14 +863,24 @@ enum class StoryEventKind(val value: String) {
     @SerialName("path_changed") PathChanged("path_changed"),
     @SerialName("redo") Redo("redo"),
     @SerialName("reply") Reply("reply"),
-    @SerialName("reply_delta") ReplyDelta("reply_delta"),
     @SerialName("reply_failed") ReplyFailed("reply_failed"),
     @SerialName("reply_started") ReplyStarted("reply_started"),
     @SerialName("scene_closed") SceneClosed("scene_closed"),
     @SerialName("scene_end_failed") SceneEndFailed("scene_end_failed"),
     @SerialName("scene_end_step") SceneEndStep("scene_end_step"),
     @SerialName("scene_opened") SceneOpened("scene_opened"),
+    @SerialName("turn_step") TurnStep("turn_step"),
     @SerialName("world_moved") WorldMoved("world_moved");
+}
+
+/**
+ * turn_step: what the Reply under way is doing.
+ */
+@Serializable
+enum class TurnStep(val value: String) {
+    @SerialName("checking") Checking("checking"),
+    @SerialName("looking_back") LookingBack("looking_back"),
+    @SerialName("writing") Writing("writing");
 }
 
 /**
@@ -1133,13 +1168,27 @@ data class BackstageView (
 
     val lives: List<BackstageLife>,
 
+    @SerialName("lives_by_tier")
+    val livesByTier: LivesByTier,
+
     @SerialName("new_things")
     val newThings: List<NewThingRow>,
+
+    val notes: List<SteeringNote>,
 
     /**
      * What happened off-screen, by day, newest first, the last seven days.
      */
     val offscreen: List<BackstageDay>,
+
+    val outline: OutlineView? = null,
+
+    /**
+     * The player's own Taste, which every Story starts with (openspec long-run: Taste is short,
+     * readable and the player's).
+     */
+    @SerialName("player_taste")
+    val playerTaste: List<String>,
 
     /**
      * The record: each Scene not yet recorded, and each recorded with parts left out, newest
@@ -1155,6 +1204,8 @@ data class BackstageView (
 
     @SerialName("trace_id")
     val traceID: String,
+
+    val truth: TruthView,
 
     /**
      * The Writer's plan for the Scene the player is in; null between Scenes.
@@ -1274,6 +1325,18 @@ enum class StretchSceneState(val value: String) {
  */
 @Serializable
 data class HowItsGoing (
+    /**
+     * How many Replies the Editor set right in place.
+     */
+    @SerialName("editor_fixed")
+    val editorFixed: Long,
+
+    /**
+     * How many Replies the Editor sent back to be written again.
+     */
+    @SerialName("editor_rewrote")
+    val editorRewrote: Long,
+
     val jobs: List<JobHealth>,
     val less: Long,
     val more: Long,
@@ -1284,6 +1347,12 @@ data class HowItsGoing (
 
     @SerialName("picks_taken")
     val picksTaken: Long,
+
+    /**
+     * How long the last Replies took, newest last.
+     */
+    @SerialName("reply_seconds")
+    val replySeconds: List<Long>,
 
     /**
      * How long the last Scene ends took, newest last.
@@ -1327,6 +1396,27 @@ data class BackstageLife (
     val who: String
 )
 
+/**
+ * Lives by how much each person matters (openspec living-world: Everyone has a Life).
+ */
+@Serializable
+data class LivesByTier (
+    val close: List<LifeRow>,
+    val movers: List<LifeRow>,
+    val others: List<String>
+)
+
+/**
+ * A person's Life as Backstage shows it.
+ */
+@Serializable
+data class LifeRow (
+    val heading: String,
+    val now: String,
+    val wants: String,
+    val who: String
+)
+
 @Serializable
 data class NewThingRow (
     val kind: String,
@@ -1337,6 +1427,19 @@ data class NewThingRow (
     val stretch: String,
 
     val what: String
+)
+
+/**
+ * A note the player wrote to steer the Outline.
+ */
+@Serializable
+data class SteeringNote (
+    val answered: Boolean,
+    val id: String,
+    val text: String,
+
+    @SerialName("written_at")
+    val writtenAt: String
 )
 
 @Serializable
@@ -1361,6 +1464,123 @@ data class BackstageItem (
 
     val what: String
 )
+
+/**
+ * The Outline (openspec the-outline: The player sees and steers the Outline).
+ */
+@Serializable
+data class OutlineView (
+    val current: ActView? = null,
+    val ending: String,
+    val later: List<ActSketch>,
+
+    @SerialName("looked_up")
+    val lookedUp: List<String>,
+
+    /**
+     * When it was last revised and how: "after Scene 19, deeply".
+     */
+    val revised: String,
+
+    val setups: List<SetupRow>
+)
+
+/**
+ * The current Act in detail.
+ */
+@Serializable
+data class ActView (
+    @SerialName("builds_to")
+    val buildsTo: String,
+
+    val intentions: List<Intention>,
+    val movers: List<Mover>,
+    val number: Long,
+    val question: String,
+    val relationships: List<Relationship>,
+    val title: String,
+    val turns: List<TurnRow>
+)
+
+/**
+ * A person's own direction this Act.
+ */
+@Serializable
+data class Intention (
+    val heading: String,
+    val pursues: String,
+    val who: String
+)
+
+/**
+ * What someone who drives the World is doing this Act.
+ */
+@Serializable
+data class Mover (
+    val doing: String,
+    val who: String
+)
+
+/**
+ * Where a relationship should stand by the Act's end.
+ */
+@Serializable
+data class Relationship (
+    @SerialName("by_end")
+    val byEnd: String,
+
+    val people: List<String>
+)
+
+/**
+ * One turn of an Act.
+ */
+@Serializable
+data class TurnRow (
+    val done: Boolean,
+    val what: String,
+
+    @SerialName("when")
+    val linkSchemaWhen: String
+)
+
+/**
+ * An Act after the current one, outlined or sketched.
+ */
+@Serializable
+data class ActSketch (
+    @SerialName("builds_to")
+    val buildsTo: String,
+
+    val detail: Detail,
+    val number: Long,
+    val question: String,
+    val title: String
+)
+
+@Serializable
+enum class Detail(val value: String) {
+    @SerialName("outlined") Outlined("outlined"),
+    @SerialName("sketched") Sketched("sketched");
+}
+
+/**
+ * Something planted that the Outline means to pay off.
+ */
+@Serializable
+data class SetupRow (
+    val payoff: String,
+    val planted: String? = null,
+    val state: State,
+    val what: String
+)
+
+@Serializable
+enum class State(val value: String) {
+    @SerialName("dropped") Dropped("dropped"),
+    @SerialName("paid") Paid("paid"),
+    @SerialName("waiting") Waiting("waiting");
+}
 
 /**
  * A Scene in The record that was kept with parts left out.
@@ -1388,6 +1608,109 @@ data class BackstageThread (
      */
     val now: String
 )
+
+/**
+ * What the Story keeps (openspec the-truth), each item with where it came from.
+ */
+@Serializable
+data class TruthView (
+    val between: List<BetweenElement>,
+    val names: List<Name>,
+    val people: List<Person>,
+    val rules: List<Rule>,
+    val truths: List<Truth>
+)
+
+/**
+ * Where things stand between two people.
+ */
+@Serializable
+data class BetweenElement (
+    val keepsakes: List<String>,
+    val people: List<String>,
+    val sources: List<SourceRow>,
+    val stands: String
+)
+
+/**
+ * Where something kept came from: the Scene and the words (openspec the-truth: Nothing is
+ * deleted).
+ */
+@Serializable
+data class SourceRow (
+    @SerialName("scene_number")
+    val sceneNumber: Long? = null,
+
+    val text: String
+)
+
+/**
+ * A name made on the page.
+ */
+@Serializable
+data class Name (
+    @SerialName("first_scene")
+    val firstScene: Long,
+
+    val kind: NameKind,
+    val name: String,
+    val what: String
+)
+
+@Serializable
+enum class NameKind(val value: String) {
+    @SerialName("person") Person("person"),
+    @SerialName("place") Place("place"),
+    @SerialName("thing") Thing("thing");
+}
+
+/**
+ * Who someone is now.
+ */
+@Serializable
+data class Person (
+    val now: String,
+    val sources: List<SourceRow>,
+    val who: String
+)
+
+/**
+ * How the World works.
+ */
+@Serializable
+data class Rule (
+    val sources: List<SourceRow>,
+    val what: String
+)
+
+/**
+ * Something true, or true until a Scene ended it.
+ */
+@Serializable
+data class Truth (
+    @SerialName("due_label")
+    val dueLabel: String? = null,
+
+    val ended: String? = null,
+    val kind: TruthKind,
+
+    @SerialName("known_to")
+    val knownTo: List<String>,
+
+    val sources: List<SourceRow>,
+    val terms: List<String>,
+    val what: String
+)
+
+@Serializable
+enum class TruthKind(val value: String) {
+    @SerialName("agreement") Agreement("agreement"),
+    @SerialName("debt") Debt("debt"),
+    @SerialName("promise") Promise("promise"),
+    @SerialName("secret") Secret("secret"),
+    @SerialName("status") Status("status"),
+    @SerialName("threat") Threat("threat");
+}
 
 @Serializable
 data class WriterPlan (
@@ -1430,20 +1753,20 @@ enum class SceneCall(val value: String) {
 }
 
 /**
- * Delete a lesson from Taste on the Path the player is on (openspec long-run: Taste is
- * short, readable and the player's).
+ * Delete a lesson from a Taste (openspec long-run: Taste is short, readable and the
+ * player's).
  */
 @Serializable
 data class RemoveTasteRequest (
     /**
-     * The head the phone saw; refused as stale if the Story has moved on.
-     */
-    val after: String,
-
-    /**
      * The lesson to delete, as Taste reads it.
      */
-    val line: String
+    val line: String,
+
+    /**
+     * Whose Taste: the Story's own, or the player's own across every Story.
+     */
+    val scope: ClosedBy
 )
 
 @Serializable
@@ -2301,24 +2624,23 @@ data class ClockRequest (
 @Serializable
 data class RewordTasteRequest (
     /**
-     * The head the phone saw.
-     */
-    val after: String,
-
-    /**
      * The lesson as Taste reads it now.
      */
     val line: String,
+
+    /**
+     * Whose Taste: the Story's own, or the player's own across every Story.
+     */
+    val scope: ClosedBy,
 
     val text: String
 )
 
 /**
- * Sets the brief, from this moment on the Path.
+ * Sets the brief, kept beside the Story.
  */
 @Serializable
 data class BriefRequest (
-    val after: String,
     val less: List<String>,
     val more: List<String>
 )
@@ -2328,10 +2650,17 @@ data class BriefRequest (
  */
 @Serializable
 data class ReactionRequest (
-    val after: String,
     val note: String? = null,
     val reaction: Reaction? = null,
 
     @SerialName("scene_number")
     val sceneNumber: Long
+)
+
+/**
+ * Writes a note that steers the Outline; the Director answers it at the next Scene's end.
+ */
+@Serializable
+data class SteeringNoteRequest (
+    val text: String
 )

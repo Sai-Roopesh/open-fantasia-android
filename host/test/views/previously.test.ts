@@ -77,8 +77,8 @@ describe("the Previously card", () => {
     played.engine.setStyle(played.storyId, "Dry and British.", played.head(), "trace-style");
     played.engine.setClock(played.storyId, "Day 4 09:00", undefined, played.head(), "trace-clock");
     played.engine.setLandmark(played.storyId, { name: "The Yule Ball", at: "Day 100 19:00", what: "A dance." }, true, played.head(), "trace-landmark");
-    played.engine.setBrief(played.storyId, ["Draconia's temper"], [], played.head(), "trace-brief");
-    played.engine.setReaction(played.storyId, 1, "more", null, played.head(), "trace-reaction");
+    played.engine.setBrief(played.storyId, ["Draconia's temper"], [], "trace-brief");
+    played.engine.setReaction(played.storyId, 1, "more", null, "trace-reaction");
     const view = openedAfter(played, played.lastPlayed, 30);
     expect(view.previously).toEqual({ summary: "The Scene was played to its end.", since: played.lastPlayed });
   });

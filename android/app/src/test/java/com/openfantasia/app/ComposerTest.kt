@@ -9,12 +9,12 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ComposerTest {
-    // GIVEN a Reply is still streaming in
-    // THEN the player can type in the composer, and sends once the Reply is complete
+    // GIVEN a Reply is being written
+    // THEN the player can type in the composer, and sends once the Reply has appeared
     @Test fun `presence › The player can always write › Typing during a Reply`() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         try {
-            val view = MutableStateFlow(sceneFixture().copy(turn = TurnState(kind = TurnStateKind.Writing, textSoFar = "She ")))
+            val view = MutableStateFlow(sceneFixture().copy(turn = TurnState(kind = TurnStateKind.Writing)))
             val moves = mutableListOf<MoveRequest>()
             val link = object : StubFantasiaLink() {
                 override val isPaired = true

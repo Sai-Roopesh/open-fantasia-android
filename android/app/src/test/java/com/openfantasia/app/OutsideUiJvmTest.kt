@@ -37,5 +37,16 @@ class OutsideUiJvmTest : OutsideUiChecks() {
     @Test fun brief() = aBriefFromThePhone()
 
     @Test fun stretch() = theStretchBackstage()
-}
 
+    @Test fun outline() = theOutlineBackstage()
+
+    @Scenario("the-outline › The player sees and steers the Outline › Steering a year's end")
+    @Test fun steering() = steeringAYearsEnd()
+
+    @Test fun deletingNote() = deletingANote()
+
+    @Scenario("the-truth › Nothing is deleted › Where it came from")
+    @Test fun source() = whereItCameFrom()
+
+    @Test fun ownTaste() = thePlayersOwnTaste()
+}

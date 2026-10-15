@@ -108,8 +108,9 @@ open class DayViewUiChecks : WorldUiChecks() {
         tap("Let the Story choose")
         sent(ChooseRequest(after = "closed", kind = ChooseRequestKind.Story))
         compose.onNodeWithText("What did you do in the Gap?").assertDoesNotExist()
-        compose.onNodeWithTag("scene-passages").performScrollToNode(hasText("Reply being written"))
-        compose.onNodeWithText("Reply being written").assertIsDisplayed()
+        // Taken, and the Mac has not yet said what the Reply is doing.
+        compose.onNodeWithTag("scene-passages").performScrollToNode(hasText("Looking back…"))
+        compose.onNodeWithText("Looking back…").assertIsDisplayed()
         compose.runOnIdle {
             link.current.value = link.current.value.copy(dayView = null, seq = 5, headEntryID = "next-reply",
                 scene = link.current.value.scene.copy(number = 15, title = "The accounts", at = "Day 3 07:40",
@@ -117,7 +118,7 @@ open class DayViewUiChecks : WorldUiChecks() {
         }
         compose.onNodeWithTag("scene-passages").performScrollToNode(hasText("The accounts"))
         compose.onNodeWithText("The accounts").assertIsDisplayed()
-        compose.onNodeWithText("Reply being written").assertDoesNotExist()
+        compose.onNodeWithTag("reply-under-way").assertDoesNotExist()
     }
 
     // WHEN the player chooses Follow and picks Hermione
@@ -265,7 +266,7 @@ open class DayViewUiChecks : WorldUiChecks() {
     private val ride = "I ride on to Shimla, go to the interview at eleven, and come out not sure of anything."
     private val chosenMove = Exchange(move = Passage(entryID = "move", text = "$ride I let the time pass until this evening: Sunday 6:00 pm."))
     /** What the Mac sends once it has taken the choice: the Move, under the next Scene's card, and no Day View. */
-    private fun opening(turn: TurnState = TurnState(kind = TurnStateKind.Writing, textSoFar = "", traceID = "choose")) = compose.runOnIdle {
+    private fun opening(turn: TurnState = TurnState(kind = TurnStateKind.Writing, traceID = "choose")) = compose.runOnIdle {
         val view = link.current.value
         link.current.value = view.copy(dayView = null, opening = NextScene(at = evening.at, atLabel = "Sunday 6:00 pm"),
             exchanges = listOf(chosenMove), headEntryID = "move", seq = 5, lastEventID = "5", turn = turn,
@@ -292,7 +293,7 @@ open class DayViewUiChecks : WorldUiChecks() {
         compose.onNodeWithText("NEXT SCENE").assertIsDisplayed()
         compose.onNodeWithText("Sunday 6:00 pm").assertIsDisplayed()
         compose.onNodeWithText("Scene being written").assertIsDisplayed()
-        compose.onNodeWithText("Reply being written").assertDoesNotExist()
+        compose.onNodeWithTag("reply-under-way").assertDoesNotExist()
         compose.onNodeWithTag("scene-passages").performScrollToNode(hasText(chosenMove.move!!.text))
         compose.onNodeWithText(chosenMove.move!!.text).assertIsDisplayed()
         compose.onNodeWithContentDescription("Linger").assertIsNotEnabled()

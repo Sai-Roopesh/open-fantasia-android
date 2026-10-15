@@ -27,6 +27,10 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
     var journalView = journalFixture()
     var backstageView = backstageFixture()
     val tasteRemovals = mutableListOf<RemoveTasteRequest>()
+    val tasteRewords = mutableListOf<RewordTasteRequest>()
+    /** Steering notes as written, and the ids of those deleted (openspec the-outline: The player sees and steers the Outline). */
+    val notes = mutableListOf<SteeringNoteRequest>()
+    val deletedNotes = mutableListOf<String>()
     var retries = 0
     val retryRequests = mutableListOf<RetryRequest>()
     val briefs = mutableListOf<BriefRequest>()
@@ -108,18 +112,15 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
         day?.sceneEnd?.failed?.let { failed -> current.value = current.value.copy(dayView = day.copy(sceneEnd = SceneEnd(step = failed.step))) }
         return TurnAccepted(moveEntryID = if (day != null) current.value.headEntryID else "move", traceID = "retry")
     }
+    // The brief and reactions are kept beside the Story (docs/adr/0020): neither names nor moves a place on the Path.
     override suspend fun setBrief(storyID: String, request: BriefRequest): Accepted {
-        if (request.after != current.value.headEntryID) throw LinkFailure("The Story has moved on since you last looked. Nothing was changed.")
         briefs += request
-        current.value = current.value.copy(brief = Brief(more = request.more, less = request.less), headEntryID = "brief-${briefs.size}",
-            seq = current.value.seq + 1, lastEventID = (current.value.seq + 1).toString())
+        current.value = current.value.copy(brief = Brief(more = request.more, less = request.less))
         return Accepted(headEntryID = current.value.headEntryID, traceID = "brief")
     }
     override suspend fun react(storyID: String, request: ReactionRequest): Accepted {
-        if (request.after != current.value.headEntryID) throw LinkFailure("The Story has moved on since you last looked. Nothing was changed.")
         reactions += request
-        current.value = current.value.copy(dayView = current.value.dayView?.copy(reaction = request.reaction), headEntryID = "reaction-${reactions.size}",
-            seq = current.value.seq + 1, lastEventID = (current.value.seq + 1).toString())
+        current.value = current.value.copy(dayView = current.value.dayView?.copy(reaction = request.reaction))
         return Accepted(headEntryID = current.value.headEntryID, traceID = "reaction")
     }
     override suspend fun edit(storyID: String, request: EditRequest): Accepted {
@@ -210,11 +211,6 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
         current.value.dayView?.let { dayView -> current.value = current.value.copy(dayView = dayView.copy(at = request.at, atLabel = "$weekday $time", day = weekday, time = time)) }
         story.copy(clock = StoryClock(at = request.at, atLabel = "$weekday $time", dayOne = request.dayOne), worldStands = request.at)
     }
-    override suspend fun rewordTaste(storyID: String, request: RewordTasteRequest) = storyEdit("taste/reword", request, request.after) { story ->
-        if (request.line !in backstageView.taste) throw LinkFailure("Taste has no such line.")
-        backstageView = backstageView.copy(taste = backstageView.taste.map { if (it == request.line) request.text else it })
-        story
-    }
     /** An edit as the Mac takes it: against the head the phone saw, moving the head on, answering with The Story. */
     private fun storyEdit(route: String, request: Any, after: String, change: (StoryView) -> StoryView): StoryView {
         if (after != current.value.headEntryID) throw LinkFailure("The Story has moved on since you last looked. Nothing was changed.")
@@ -226,11 +222,27 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
         return storyView
     }
     private fun minutes(at: String) = ((dayOf(at) ?: 0) - 1) * 24 * 60 + (minuteOf(at) ?: 0)
-    override suspend fun removeTaste(storyID: String, request: RemoveTasteRequest): Accepted {
+    // Taste and steering notes live beside the Story: none moves the head (docs/adr/0020).
+    override suspend fun removeTaste(storyID: String, request: RemoveTasteRequest) {
         tasteRemovals += request
-        backstageView = backstageView.copy(taste = backstageView.taste - request.line)
-        current.value = current.value.copy(headEntryID = "taste", seq = current.value.seq + 1, lastEventID = (current.value.seq + 1).toString())
-        return Accepted(headEntryID = "taste", traceID = "taste")
+        backstageView = if (request.scope == ClosedBy.Player) backstageView.copy(playerTaste = backstageView.playerTaste - request.line)
+            else backstageView.copy(taste = backstageView.taste - request.line)
+    }
+    override suspend fun rewordTaste(storyID: String, request: RewordTasteRequest) {
+        val lessons = if (request.scope == ClosedBy.Player) backstageView.playerTaste else backstageView.taste
+        if (request.line !in lessons) throw LinkFailure("Taste has no such line.")
+        tasteRewords += request
+        val reworded = lessons.map { if (it == request.line) request.text else it }
+        backstageView = if (request.scope == ClosedBy.Player) backstageView.copy(playerTaste = reworded) else backstageView.copy(taste = reworded)
+    }
+    override suspend fun writeNote(storyID: String, request: SteeringNoteRequest) {
+        notes += request
+        backstageView = backstageView.copy(notes = backstageView.notes + SteeringNote(id = "note-${notes.size}", text = request.text,
+            writtenAt = "2026-10-15T09:00:00Z", answered = false))
+    }
+    override suspend fun deleteNote(storyID: String, noteID: String) {
+        deletedNotes += noteID
+        backstageView = backstageView.copy(notes = backstageView.notes.filter { it.id != noteID })
     }
     /** The Scene as the Mac would show it with its head at [entryID]: what came after is not on this Path. */
     private fun backTo(entryID: String, pathID: String) {
@@ -343,24 +355,23 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
         fun chosen(provider: ModelProvider, model: String, label: String, effort: String? = null) =
             ChosenModel(choice = ModelChoice(provider = provider, model = model, effort = effort), label = label)
         private val UP_TO_MAX = listOf("low", "medium", "high", "xhigh", "max")
-        // The Models screen as drawn in Models.dc.html, the providers as they listed their models on 6 October 2026.
+        // The Models screen as drawn in Models.dc.html, the providers as they listed their models on 6 October 2026, and
+        // every job on its default (the-storys-mind design decision 10): the Director on Fable 5.1 at high effort, the
+        // Editor on Sonnet 5.5, the rest on Opus 5.5, and GPT 6.1 Sol as every second model.
+        private val SECOND = chosen(ModelProvider.Codex, "gpt-6.1-sol", "GPT 6.1 Sol · low", "low")
         fun modelsFixture(antigravityReason: String? = null) = ModelsView(traceID = "models",
-            actorBackup = chosen(ModelProvider.Claude, "claude-sonnet-5-5", "Sonnet 5.5"),
+            actorBackup = SECOND,
             stories = listOf(
                 StoryActor(storyID = "story", title = "The Malfoy Problem", actor = chosen(ModelProvider.Claude, "claude-opus-5-5", "Opus 5.5"), own = false),
                 StoryActor(storyID = "other", title = "The coast", actor = chosen(ModelProvider.Claude, "claude-opus-5-5", "Opus 5.5"), own = false)),
-            // Each job's second model: Sonnet 5.5, or GPT 6.1 Sol for a job already on Sonnet (one-truth design decision 9).
             jobs = listOf(
-                JobModel(job = ModelJob.Writer, title = "Writer", does = "Plans each Reply before it starts", model = chosen(ModelProvider.Claude, "claude-sonnet-5-5", "Sonnet 5.5"),
-                    backup = chosen(ModelProvider.Codex, "gpt-6.1-sol", "GPT 6.1 Sol · low", "low")),
-                JobModel(job = ModelJob.Chronicler, title = "Chronicler", does = "Records what happened", model = chosen(ModelProvider.Claude, "claude-sonnet-5-5", "Sonnet 5.5"),
-                    backup = chosen(ModelProvider.Codex, "gpt-6.1-sol", "GPT 6.1 Sol · low", "low")),
-                JobModel(job = ModelJob.Weaver, title = "Weaver", does = "Moves the World on", model = chosen(ModelProvider.Claude, "claude-sonnet-5-5", "Sonnet 5.5"),
-                    backup = chosen(ModelProvider.Codex, "gpt-6.1-sol", "GPT 6.1 Sol · low", "low")),
-                JobModel(job = ModelJob.Folder, title = "Folder", does = "Keeps The Story So Far short", model = chosen(ModelProvider.Claude, "claude-haiku-4-5-20251001", "Haiku 4.5"),
-                    backup = chosen(ModelProvider.Claude, "claude-sonnet-5-5", "Sonnet 5.5")),
-                JobModel(job = ModelJob.Director, title = "Director", does = "Shapes the long run", model = chosen(ModelProvider.Claude, "claude-opus-5-5", "Opus 5.5"),
-                    backup = chosen(ModelProvider.Claude, "claude-sonnet-5-5", "Sonnet 5.5"))),
+                JobModel(job = ModelJob.Writer, title = "Writer", does = "Plans each Reply before it starts", model = chosen(ModelProvider.Claude, "claude-opus-5-5", "Opus 5.5"), backup = SECOND),
+                JobModel(job = ModelJob.Editor, title = "Editor", does = "Checks each Reply before you read it", model = chosen(ModelProvider.Claude, "claude-sonnet-5-5", "Sonnet 5.5"), backup = SECOND),
+                JobModel(job = ModelJob.Chronicler, title = "Chronicler", does = "Records what happened", model = chosen(ModelProvider.Claude, "claude-opus-5-5", "Opus 5.5"), backup = SECOND),
+                JobModel(job = ModelJob.Director, title = "Director", does = "Keeps the Outline and plans the days ahead",
+                    model = chosen(ModelProvider.Claude, "claude-fable-5-1", "Fable 5.1 · high", "high"), backup = SECOND),
+                JobModel(job = ModelJob.Weaver, title = "Weaver", does = "Moves the World on", model = chosen(ModelProvider.Claude, "claude-opus-5-5", "Opus 5.5"), backup = SECOND),
+                JobModel(job = ModelJob.Folder, title = "Folder", does = "Keeps The Story So Far short", model = chosen(ModelProvider.Claude, "claude-opus-5-5", "Opus 5.5"), backup = SECOND)),
             providers = listOf(
                 ProviderModels(provider = ModelProvider.Claude, label = "CLAUDE", reachable = true, reason = null, models = listOf(
                     ModelOption(id = "claude-opus-5-5", name = "Opus 5.5", efforts = UP_TO_MAX, defaultEffort = null),
@@ -405,16 +416,56 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
                 BackstageItem(time = "6:20 am", what = "Draconia writes to her mother about the bed Snape gave away. She leaves out the cuffs.", knownTo = listOf("Draconia Malfoy")))),
                 BackstageDay(day = "Friday", items = listOf(BackstageItem(time = "10:00 pm", what = "Hagrid's lantern stops at the edge of the forest.", knownTo = listOf("Rubeus Hagrid"))))),
             threads = listOf(BackstageThread(name = "The third-floor door", now = "Quirrell has tried the wards twice and scorched the door")),
-            lives = listOf(BackstageLife(who = "Quirinus Quirrell", where = "the third-floor corridor", doing = "After the Stone. Tonight: the wards again.")),
+            lives = emptyList(),
+            livesByTier = LivesByTier(
+                close = listOf(LifeRow(who = "Draconia Malfoy", now = "Taken, and says so; furious that she means it.",
+                    wants = "The Seeker's place, with her father watching.", heading = "Toward breaking with him.")),
+                movers = listOf(LifeRow(who = "Quirinus Quirrell", now = "After the Stone. Tonight: the wards again.",
+                    wants = "The Stone, for the one on the back of his head.", heading = "Through the wards by Christmas.")),
+                others = listOf("Pansy Parkinson", "Crabbe and Goyle")),
             writer = WriterPlan(call = SceneCall.Land, purpose = "Hermione decides whether to ask what he is, before she finds out what she feels.",
                 beats = listOf(WriterBeat(text = "She stops pretending to read.", status = BeatStatus.Done),
                     WriterBeat(text = "The lantern goes into the forest.", status = BeatStatus.InPlay)),
                 exit = "she goes up to bed, or asks him to come and look."),
             taste = listOf("Keep school procedure to a line.", "Keep Ron in the background unless he's needed."),
-            record = emptyList(), newThings = emptyList(),
-            howItsGoing = HowItsGoing(sceneEndSeconds = listOf(150, 170, 160), picksOffered = 10, picksTaken = 7, more = 3, less = 1,
-                jobs = listOf(JobHealth(job = ModelJob.Actor, calls = 40, secondModel = 0, failed = 0), JobHealth(job = ModelJob.Weaver, calls = 10, secondModel = 2, failed = 0)),
+            playerTaste = listOf("Don't decide what my character feels."),
+            record = emptyList(), newThings = emptyList(), notes = emptyList(), outline = outlineFixture(), truth = truthFixture(),
+            howItsGoing = HowItsGoing(sceneEndSeconds = listOf(150, 170, 160), replySeconds = listOf(40, 50, 54), picksOffered = 10, picksTaken = 7, more = 3, less = 1,
+                editorFixed = 4, editorRewrote = 2,
+                jobs = listOf(JobHealth(job = ModelJob.Actor, calls = 40, secondModel = 0, failed = 0), JobHealth(job = ModelJob.Editor, calls = 40, secondModel = 0, failed = 0),
+                    JobHealth(job = ModelJob.Weaver, calls = 10, secondModel = 2, failed = 0)),
                 pace = listOf(1L, 2L, 3L, 5L, 1L, 3L, 4L, 2L, 4L, 5L).mapIndexed { index, intensity -> PaceRow(sceneNumber = index + 5L, title = "Scene ${index + 5}", intensity = intensity) }))
+        // The Outline as Backstage.dc.html draws it: Year One in detail, the years after outlined and sketched.
+        fun outlineFixture() = OutlineView(revised = "after Scene 13, deeply", ending = "At the Battle of Hogwarts, Draconia beside him, her father's name behind her.",
+            current = ActView(number = 1, title = "Year One", question = "Will Draconia choose him over the name she was raised to carry?",
+                buildsTo = "the Philosopher's Stone, in June",
+                turns = listOf(TurnRow(linkSchemaWhen = "September", what = "The Sorting, the slap, and the debt she bills him for", done = true),
+                    TurnRow(linkSchemaWhen = "November", what = "Draconia's flying test, her father in the stands", done = false),
+                    TurnRow(linkSchemaWhen = "June", what = "The Stone, and what Draconia does when it counts", done = false)),
+                relationships = listOf(Relationship(people = listOf("Draconia", "Hermione"), byEnd = "Rivals who would fight for each other.")),
+                intentions = listOf(Intention(who = "Draconia", pursues = "The Seeker's place, and a way out from under her father's plans for her", heading = "Toward breaking with him")),
+                movers = listOf(Mover(who = "Quirrell", doing = "After the Stone: through the third-floor wards by Christmas"))),
+            setups = listOf(SetupRow(what = "Nine dementors missing from Azkaban", payoff = "in June, at the Stone", planted = "Scene 12", state = State.Waiting),
+                SetupRow(what = "Someone in the trophy room at night", payoff = "at Christmas, with the Mirror", planted = "Scene 9", state = State.Dropped)),
+            later = listOf(ActSketch(number = 2, title = "Year Two", question = "Does the betrothal hold?", buildsTo = "the Chamber", detail = Detail.Outlined),
+                ActSketch(number = 3, title = "Years Three to Seven", question = "The war comes back.", buildsTo = "the Battle of Hogwarts", detail = Detail.Sketched)),
+            lookedUp = listOf("The Philosopher's Stone, chapters 13 to 17: the Stone's protections"))
+        // What the Story keeps, as Backstage.dc.html draws it: the contract with where it was made, a betrothal that ended.
+        fun truthFixture() = TruthView(
+            people = listOf(Person(who = "Draconia Malfoy", now = "Declared him taken in front of the school, and no longer hides that she wants him.",
+                sources = listOf(SourceRow(sceneNumber = 12, text = "He's mine. Anyone who wants to argue can do it to my face.")))),
+            between = listOf(BetweenElement(people = listOf("Draconia", "Hermione"), stands = "Rivals bound by a contract neither will break first.",
+                keepsakes = listOf("Saturdays are mine, Malfoy. Write it down."), sources = listOf(SourceRow(sceneNumber = 8, text = "Saturdays are mine, Malfoy. Write it down.")))),
+            truths = listOf(
+                Truth(kind = TruthKind.Agreement, what = "The contract", terms = listOf("Nobody comes second.", "Saturdays are Hermione's."),
+                    knownTo = listOf("Draconia", "Hermione", "Roopesh"), sources = listOf(SourceRow(sceneNumber = 8, text = "Nobody comes second. Saturdays are mine. Sign it."))),
+                Truth(kind = TruthKind.Promise, what = "Draconia says it back", terms = emptyList(), dueLabel = "By Christmas · in 9 weeks",
+                    knownTo = listOf("Hermione", "Draconia"), sources = listOf(SourceRow(sceneNumber = 13, text = "You'll say it back by Christmas, or I'll say it for you."))),
+                Truth(kind = TruthKind.Status, what = "Draconia is betrothed to Selwyn", terms = emptyList(), ended = "ended in Scene 13", knownTo = listOf("Draconia"),
+                    sources = listOf(SourceRow(sceneNumber = 4, text = "Father has promised me to Selwyn.")))),
+            rules = listOf(Rule(what = "His doubles last only minutes.", sources = listOf(SourceRow(sceneNumber = 9, text = "The second him was already thinning at the edges."))),
+                Rule(what = "Everyone at Hogwarts is eighteen or older.", sources = listOf(SourceRow(sceneNumber = null, text = "Hogwarts is a university; its first-years are eighteen.")))),
+            names = listOf(Name(name = "Silas Penhallow", kind = NameKind.Person, what = "An Auror of Madam Bones's office.", firstScene = 11)))
         // The Paths screen as drawn in Paths.dc.html: Main, and the lantern tried from Scene 13 two days ago.
         fun pathsFixture() = PathsView(storyID = "story", traceID = "paths", clearable = 1, rows = listOf(
             PathRow(kind = PathRowKind.Scenes, depth = 0, label = "Scenes 1 – 12 · Friday 6:10 pm", title = null, path = null),

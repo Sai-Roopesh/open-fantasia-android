@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { recallFacts } from "../../src/context/lens.js";
-import { BEAT_CAP, checkWriter, STALL_AFTER, writeBeat, writerPrompt, type WriterAsk } from "../../src/agents/writer.js";
+import { BEAT_CAP, checkWriter, LONG_SCENE, recordDue, STALL_AFTER, writeBeat, writerPrompt, type WriterAsk } from "../../src/agents/writer.js";
 import { Models } from "../../src/models/model-call.js";
 import { ScriptedRunner } from "../../src/models/scripted.js";
 import type { Choice } from "../../src/story/entries.js";
 import type { BeatNote } from "../../src/story/entries.js";
 import { nightTrainStoryFile } from "../support/story-files.js";
+import { nothingBeside, type Beside } from "../../src/story/beside.js";
+import { emptyUpdate } from "../../src/story/truth.js";
 import { ledger, SONNET, type Ledger } from "./ledger.js";
 
 const BEATS = [
@@ -23,8 +25,8 @@ function planned(changes: Partial<BeatNote> = {}): Ledger {
   return story;
 }
 
-function ask(story: Ledger, move: string, choice: Choice | null = null): WriterAsk {
-  return { state: story.state(), scene: story.scene(), move, choice };
+function ask(story: Ledger, move: string, choice: Choice | null = null, beside: Beside = nothingBeside()): WriterAsk {
+  return { state: story.state(), scene: story.scene(), move, choice, beside };
 }
 
 /** An answer in the Writer's format, for the open, planned Scene. */
@@ -185,26 +187,70 @@ describe("a Scene that stalls, and Linger (openspec scenes)", () => {
 });
 
 describe("the Writer's call", () => {
-  it("sends the Story in its cached part, and in its task the plan, The Story So Far, who knows what, the Scene and the Move", () => {
+  it("is four layers: the Story and its instructions, cached; where things stand; the Scene; then the plan, the Move and its task", () => {
     const story = planned();
     story.close();
     story.chronicle({ paragraph: "Ishaan gave Meera the window berth, and she gave him biscuits for the tea." });
     story.world({ happened: [{ id: "h-call", what: "Meera's mother rang the station master at Kalka.", at: "Day 2 06:00", where: "Pune", knownTo: ["Meera Kulkarni"], landmark: null, move: null }] });
     story.plan({ toward: "the night she finds out what he is", phase: "rest", premise: "Two of these Scenes are with Meera.", arcs: [{ arc: "Meera trusts Ishaan", now: "she lets him carry her bag", next: "she tells him why she is going", notYet: "anything about her mother" }],
-      scenes: [{ id: "s1.1", at: "Day 2 07:30", place: "The platform at Kalka", who: ["Meera Kulkarni"], for: "She decides whether to give him her number.", offer: "Meera is waiting for the toy train.", headline: "Kalka: Meera waits", lead: "Meera Kulkarni", engagement: null, quiet: true }] });
-    story.add({ kind: "brief_set", more: ["more danger"], less: [] });
+      scenes: [{ id: "s1.1", at: "Day 2 07:30", place: "The platform at Kalka", who: ["Meera Kulkarni"], for: "She decides whether to give him her number.", offer: "Meera is waiting for the toy train.", headline: "Kalka: Meera waits", lead: "Meera Kulkarni", engagement: null, quiet: true, serves: { turn: null, lives: [] } }] });
     const choice: Choice = { kind: "story", place: "The platform at Kalka", at: "Day 2 07:30", who: ["Meera Kulkarni"], scene: "s1.1", engagement: null };
-    const { system, prompt } = writerPrompt(ask(story, "I look for her on the platform.", choice), []);
-    expect(system).toContain("# The Writer");
+    const { system, prompt } = writerPrompt(ask(story, "I look for her on the platform.", choice, { ...nothingBeside(), brief: { more: ["more danger"], less: [] } }), []);
+    expect(system).toMatch(/^# The Writer/);
     expect(system).toContain(story.state().premise);
     expect(system).toContain(story.state().arcs[0]);
-    expect(prompt).toContain("<the_players_wishes>\nMore of:\n- more danger");
+    expect(system).not.toMatch(/7:30 am/);
+    const order = ["<story_so_far>", "<the_players_wishes>", "<lately>", "<scene>", "<now>", "<long_run>", "<scene_that_matters>", "<move by=\"Ishaan Mehra\">", "<task>"].map(tag => prompt.lastIndexOf(tag));
+    expect(order.every(at => at >= 0)).toBe(true);
+    expect([...order].sort((left, right) => left - right)).toEqual(order);
+    expect(prompt).toContain("<the_players_wishes>\nWhat the player wants.\nMore of:\n- more danger");
     expect(prompt).toContain("<long_run>\nToward the night she finds out what he is, a rest Stretch.\n- Meera trusts Ishaan: now she lets him carry her bag; may move to she tells him why she is going; not yet anything about her mother\nPremise: Two of these Scenes are with Meera.\n</long_run>");
     expect(prompt).toContain("<scene_that_matters>\nShe decides whether to give him her number. It is about Meera Kulkarni.\n</scene_that_matters>");
     expect(prompt).toContain("<story_so_far>\nScenes:\nScene 1, The wrong berth");
-    expect(prompt).toContain("Meera's mother rang the station master at Kalka. Known to: Meera Kulkarni.");
+    expect(prompt).toContain("Meera's mother rang the station master at Kalka. Known to Meera Kulkarni.");
     expect(prompt).toContain("<move by=\"Ishaan Mehra\">\nI look for her on the platform.\n</move>");
     expect(prompt).toContain("The player chose at the Day View: go to The platform at Kalka on Friday 17 July 2026 at 7:30 am with Meera Kulkarni. Open the Scene it begins.");
+  });
+
+  it("looks things up in the Story on its Path and on the web, telling each lookup as it is made, and hands on what it gathered", async () => {
+    const story = planned();
+    const given = { ...ask(story, "I ask Meera what she said about the window seat."), path: story.mac.tree.pathTo(story.head()) };
+    const runner = new ScriptedRunner([{
+      lookUp: [{ tool: "search_story", args: { words: "seat" } }, { tool: "web_search", args: { query: "Kalka Shimla toy train" } }],
+      then: { answer: JSON.stringify(answer({ gathered: [{ words: "\"You're in my seat,\" she says." }, { words: "She says she has always hated trains." }] })) }
+    }]);
+    const heard: string[] = [];
+    const { plan, lookups } = await writeBeat(new Models(story.mac.db, { claude: runner }), [SONNET], given, story.storyId, "trace-w", new AbortController().signal, line => heard.push(line));
+    expect(runner.requests[0]!.tools).toEqual({ story: { storyId: story.storyId, head: story.head() }, web: true });
+    expect(heard).toEqual(lookups);
+    expect(lookups).toEqual([expect.stringContaining("searched the Story for “seat”"), "searched the web for “Kalka Shimla toy train”"]);
+    // Kept in the Story's own words, from the Scene it was played in; words the Story never had are left out.
+    expect(plan.gathered).toEqual([{ scene: 1, words: "\"You're in my seat,\" she says." }]);
+  });
+
+  it("says whose lesson its Taste is: the player's own, or the Story's", () => {
+    const given = ask(planned(), "I offer her the window seat.");
+    expect(check(given, answer({ taste: "Never end a Reply on a question to me.", taste_for: "player" }))).toMatchObject({ ok: true, value: { taste: "Never end a Reply on a question to me.", tasteFor: "player" } });
+    expect(check(given, answer({ taste: null, taste_for: "player" }))).toMatchObject({ ok: true, value: { taste: null, tasteFor: null } });
+    expect(check(given, answer({ taste: "Keep Uncle Bhalla to the edges." }))).toMatchObject({ ok: true, value: { tasteFor: null } });
+  });
+
+  it("is told when a long Scene was recorded so far, and to close it if it has become another", () => {
+    const story = planned();
+    for (let exchange = 1; exchange <= LONG_SCENE.exchanges; exchange++) {
+      story.move(`I look out of the window (${exchange}).`);
+      story.note({ beats: BEATS });
+      story.reply(`The hills go by (${exchange}).`);
+    }
+    const scene = story.scene();
+    expect(recordDue(story.state(), scene)).toBe(true);
+    expect(recordDue(story.state(), scene.slice(0, -3))).toBe(false);
+    expect(writerPrompt(ask(story, "I ask Meera where she is going."), []).prompt).not.toMatch(/has run \d+ exchanges/);
+    story.add({ kind: "scene_recorded", scene: 1, through: story.head(), paragraph: "They watched the hills.", moments: [], told: [], known: [], bonds: [], engagements: [], changed: [], truth: emptyUpdate(), dropped: [], callId: "c", model: SONNET });
+    expect(recordDue(story.state(), scene)).toBe(false);
+    const { prompt } = writerPrompt(ask(story, "I ask Meera where she is going."), []);
+    expect(prompt).toContain("This Scene has run 31 exchanges, and was recorded so far. If it has become another one");
+    expect(prompt).toContain("<recorded_so_far>\nThe Scene so far, as it was recorded while it was played: They watched the hills.\n</recorded_so_far>");
   });
 
   it("is one step: an answer that decides for him is sent back once, with what was wrong", async () => {

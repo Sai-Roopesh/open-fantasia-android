@@ -7,27 +7,19 @@ done.
 
 ## Requirements
 
-### Requirement: Replies stream in
-
-A Reply SHALL appear word by word as it is written.
-
-#### Scenario: Watching a Reply arrive
-- **WHEN** the player sends a Move
-- **THEN** the Reply's first words appear before it is finished, and the rest follows as it is written
-
 ### Requirement: The player can always write
 
-The player SHALL be able to type the next Move at any time, including while a Reply is still arriving.
+The player SHALL be able to type the next Move at any time, including while a Reply is being written or checked.
 
 #### Scenario: Typing during a Reply
-- **GIVEN** a Reply is still streaming in
-- **THEN** the player can type in the composer, and sends once the Reply is complete
+- **GIVEN** a Reply is being written
+- **THEN** the player can type in the composer, and sends once the Reply has appeared
 
 ### Requirement: Between Scenes is quiet, and shows progress
 
-Between Scenes, one line SHALL say which step of a **Scene**'s end is under way: recorded, the next **Stretch** planned,
-the **World** moving on, The Story So Far written. Each step SHALL start only when the one before it has finished,
-and the **Day View** SHALL show its choices once every step is done. A
+Between Scenes, one line SHALL say which step of a **Scene**'s end is under way: recorded, the **Outline** reconsidered
+(saying when the **Director** is rethinking an **Act**), the **World** moving on, The Story So Far written. Each step
+SHALL start only when the one before it has finished, and the **Day View** SHALL show its choices once every step is done. A
 **Move** at the **Day View**, a choice or the player's own, SHALL open the next **Scene** at once: the **Move** shows
 straight away, the **Gap** first, under a card that says when the **Scene** is, when the choice set a time, and one
 line saying the **Scene** is being written. The card SHALL take the **Scene**'s title, place and **Portrait**s when the
@@ -47,6 +39,11 @@ line saying the **Scene** is being written. The card SHALL take the **Scene**'s 
 - **GIVEN** a Scene ended in which Hermione said she would be at the library's end table at seven
 - **WHEN** the Day View shows its choices
 - **THEN** the library at seven is already among them: the Scene was recorded before the World moved on
+
+#### Scenario: Rethinking a year
+- **GIVEN** a Scene ended that turned the Story
+- **WHEN** the Director re-plans the current Act deeply
+- **THEN** the line says it is rethinking Year One, until the World moves on
 
 ### Requirement: The phone buzzes for two things only
 
@@ -127,3 +124,16 @@ Work under way SHALL carry on with the phone locked or the app closed.
 #### Scenario: Ending a Scene and locking the phone
 - **WHEN** the player ends a Scene and locks the phone at once
 - **THEN** the Day View is ready when they next open the app
+
+### Requirement: A Reply arrives checked and whole
+
+A Reply SHALL appear once it has been written and checked, whole. While the player waits, one line SHALL say what is
+under way: what is being looked up, the Reply being written, or the Reply being checked.
+
+#### Scenario: Watching a Reply come
+- **WHEN** the player sends a Move
+- **THEN** one line says the Reply is being written, then that it is being checked, and the Reply appears whole
+
+#### Scenario: Looking something up
+- **GIVEN** the Writer looks up how Hermione learned his secret before it plans the Reply
+- **THEN** the line says it is looking back, before it says the Reply is being written

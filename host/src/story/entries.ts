@@ -1,4 +1,6 @@
 import type { StoryFile } from "../protocol/generated/story-file.js";
+import type { Outline } from "./outline.js";
+import type { TruthUpdate } from "./truth.js";
 import type { ArcStep, Beat, Engagement, Landmark, LeadMove, ModelChoice, NewThing, Person, Place, PlannedScene, Quote, RoadmapPoint, SceneCall, State } from "./state.js";
 
 /**
@@ -6,18 +8,22 @@ import type { ArcStep, Beat, Engagement, Landmark, LeadMove, ModelChoice, NewThi
  * agents recorded at a Scene's end. The State on a Path is what all of them add up to.
  */
 export type Payload = StorySetUp | SceneOpened | MoveWritten | Redo | BeatNote | ReplyWritten | SceneClosed | FocusSet
-  | LingerSet | TasteSet | KnownSet | PersonSet | LeadSet | GroupSet | PortraitSet | StoryEdit | ReactionSet
-  | Chronicle | WorldMoved | DirectorPlan | StoryFolded;
+  | LingerSet | KnownSet | PersonSet | LeadSet | GroupSet | PortraitSet | StoryEdit
+  | SceneRecorded | Chronicle | WorldMoved | DirectorPlan | StoryFolded | OutlineSet;
 
-/** The edits to the Story, by the player or Claude: neither Home nor the Previously card counts them as play. */
+/**
+ * The edits to the Story, by the player or Claude: neither Home nor the Previously card counts them as play. What the
+ * Story learns about the player (Taste, the brief, reactions, steering notes) is kept beside the Story, not on a Path
+ * (docs/adr/0020).
+ */
 export const EDIT_KINDS: ReadonlySet<string> = new Set([
-  "taste_set", "known_set", "person_set", "lead_set", "group_set", "portrait_set", "premise_set", "style_set",
+  "known_set", "person_set", "lead_set", "group_set", "portrait_set", "premise_set", "style_set",
   "reply_length_set", "arcs_set", "landmark_set", "landmark_dropped", "place_set", "world_set", "clock_set",
-  "brief_set", "routine_set", "reaction_set"
+  "routine_set"
 ] satisfies Payload["kind"][]);
 
 /** What a Scene's end writes, each by its step (docs/adr/0016). */
-export const SCENE_END_KINDS: ReadonlySet<string> = new Set(["chronicle", "director_plan", "world_moved", "story_folded"] satisfies Payload["kind"][]);
+export const SCENE_END_KINDS: ReadonlySet<string> = new Set(["chronicle", "outline_set", "director_plan", "world_moved", "story_folded"] satisfies Payload["kind"][]);
 
 export interface StorySetUp {
   kind: "story_set_up";
@@ -75,11 +81,19 @@ export interface BeatNote {
   intensity: number;
   arcMoved: boolean;
   clock: string;
-  taste: string | null;
   inPlay: string[];
   place?: string;
+  /** What the Writer found in its lookups that the Reply needs, in the Story's own words (docs/adr/0018). */
+  gathered?: Gathered[];
   callId: string;
   model: ModelChoice;
+}
+
+/** A passage the Writer gathered for the Actor: its words as the Story has them, and the Scene they are from. */
+export interface Gathered {
+  /** The Scene the words were played in; null for what happened off the page. */
+  scene: number | null;
+  words: string;
 }
 
 export interface SceneClosed {
@@ -96,11 +110,6 @@ export interface FocusSet {
 export interface LingerSet {
   kind: "linger_set";
   on: boolean;
-}
-
-export interface TasteSet {
-  kind: "taste_set";
-  lines: string[];
 }
 
 export interface KnownSet {
@@ -133,7 +142,7 @@ export interface PortraitSet {
 }
 
 export type StoryEdit = PremiseSet | StyleSet | ReplyLengthSet | ArcsSet | LandmarkSet | LandmarkDropped | PlaceSet
-  | WorldSet | ClockSet | BriefSet | RoutineSet;
+  | WorldSet | ClockSet | RoutineSet;
 
 export interface PremiseSet { kind: "premise_set"; premise: string }
 export interface StyleSet { kind: "style_set"; style: string }
@@ -144,21 +153,37 @@ export interface LandmarkDropped { kind: "landmark_dropped"; name: string }
 export interface PlaceSet { kind: "place_set"; place: Place; institution: boolean }
 export interface WorldSet { kind: "world_set"; summary: string; history: string }
 export interface ClockSet { kind: "clock_set"; clock: string; /** Day 1's date, "YYYY-MM-DD", or null for no calendar. */ dayOne: string | null }
-/** What the player wants more of and less of (openspec long-run: The player steers with a brief and reactions). */
-export interface BriefSet { kind: "brief_set"; more: string[]; less: string[] }
 export interface RoutineSet { kind: "routine_set"; routine: string[] }
-
-/** The player's reaction to a played Scene, or its clearing (null). */
-export interface ReactionSet {
-  kind: "reaction_set";
-  scene: number;
-  reaction: "more" | "less" | null;
-  note: string | null;
-}
 
 export interface ReplyWritten {
   kind: "reply";
   text: string;
+  callId: string;
+  model: ModelChoice;
+  /** The Editor's note, when the Reply still breaks what is established after it was written again (docs/adr/0019). */
+  note?: string;
+}
+
+/**
+ * The Chronicler's record of a Scene still being played, once it has run past the length it can be carried word for
+ * word (the-storys-mind design decision 8): recorded as a finished Scene is, once, before the Writer plans the next
+ * Reply. Its truth and Moments join the State; the Scene's end records only what came after [through].
+ */
+export interface SceneRecorded {
+  kind: "scene_recorded";
+  scene: number;
+  /** The last passage the record covers. */
+  through: string;
+  /** The Scene so far told in a paragraph. */
+  paragraph: string;
+  moments: Moment[];
+  told: ToldOn[];
+  known: { who: string; now: string }[];
+  bonds: { who: string; standing: string; turn: string }[];
+  engagements: Engagement[];
+  changed: { engagement: string; to: string }[];
+  truth: TruthUpdate;
+  dropped: string[];
   callId: string;
   model: ModelChoice;
 }
@@ -191,6 +216,8 @@ export interface Chronicle {
   bonds: { who: string; standing: string; turn: string }[];
   engagements: Engagement[];
   changed: { engagement: string; to: string }[];
+  /** What the Scene changed in the truth (openspec the-truth). */
+  truth: TruthUpdate;
   dropped: string[];
   callId: string;
   model: ModelChoice;
@@ -227,9 +254,24 @@ export interface WorldMoved {
   happened: Happened[];
   meanwhile: MeanwhileLine[];
   on: { id: string; at: string; place: string; what: string; who: string[] }[];
+  /** What the span changed in the truth, off the page. */
+  truth: TruthUpdate;
   dropped: string[];
   callId: string | null;
   model: ModelChoice | null;
+}
+
+/** The Director's Outline, written when a Story starts and reconsidered after each Scene (openspec the-outline). */
+export interface OutlineSet {
+  kind: "outline_set";
+  outline: Omit<Outline, "version">;
+  /** Why it was written: the Story starting, a focused revision, or a deep one and why. */
+  reason: string;
+  /** Whether a Stretch plan follows it in the same step of the Scene's end; when not, it ends the Director's step. */
+  planFollows: boolean;
+  dropped: string[];
+  callId: string;
+  model: ModelChoice;
 }
 
 /** The Director's plan for the next Stretch, and the people it brings into the Story. */
@@ -255,11 +297,14 @@ export interface DirectorPlan {
   model: ModelChoice;
 }
 
-/** The Folder gathered the oldest Scenes into a week, or the oldest weeks into a chapter. */
+/**
+ * The Folder gathered the current Act's oldest Scenes into a week, or a finished Act's weeks and Scenes into one account
+ * of it (the-storys-mind design decision 8).
+ */
 export interface StoryFolded {
   kind: "story_folded";
-  into: "week" | "chapter";
-  /** How many of the oldest Scene paragraphs, or weeks, it replaces. */
+  into: "week" | "act";
+  /** How many of the oldest parts it replaces: Scene paragraphs for a week; an Act's weeks, then its Scenes, for an Act. */
   count: number;
   from: string;
   until: string;

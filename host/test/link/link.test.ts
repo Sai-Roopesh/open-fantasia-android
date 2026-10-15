@@ -12,23 +12,17 @@ afterEach(async () => {
   while (closers.length) await closers.pop()!();
 });
 
-async function mac(actor?: ConstructorParameters<typeof ScriptedRunner>[0] | GatedRunner) {
-  const running = await runningMac(actor instanceof GatedRunner ? actor : new ScriptedRunner(actor ?? []));
+async function mac(actor?: ConstructorParameters<typeof ScriptedRunner>[0] | GatedRunner | HeldRunner) {
+  const running = await runningMac(actor instanceof GatedRunner || actor instanceof HeldRunner ? actor : new ScriptedRunner(actor ?? []));
   closers.push(running.close);
   return running;
 }
 
-/** What the phone ends up showing as the Reply, from the events it received. */
-function shownReply(events: ReceivedEvent[]): string {
-  let writing = "";
-  let finished: string | null = null;
-  for (const { event } of events) {
-    if (event.kind === "reply_started") writing = "";
-    if (event.kind === "reply_delta") writing += event.text;
-    if (event.kind === "reply") finished = event.passage!.text;
-  }
-  return finished ?? writing;
-}
+/** The Replies the phone was sent, whole, in order. */
+const replies = (events: ReceivedEvent[]) => events.flatMap(({ event }) => (event.kind === "reply" ? [event.passage!.text] : []));
+
+/** What a turn told the phone, in order: each entry's kind, and each step of the Reply under way as "<kind>:<step>". */
+const told = (events: ReceivedEvent[]) => events.map(({ event }) => (event.turn_step ? `${event.kind}:${event.turn_step}` : event.kind));
 
 describe("mac-link", () => {
   // WHEN the player runs the pairing command on the Mac and scans the QR code it shows with the phone
@@ -56,42 +50,40 @@ describe("mac-link", () => {
   });
 
   // WHEN the Mac starts writing a Reply
-  // THEN the phone shows its words as they are written, in order
+  // THEN the phone shows each step of it as it happens, in order, and the Reply whole once it is checked
   it("mac-link › A Story's changes reach the phone live and in order › A Reply arrives live", async () => {
-    const { base, headers, storyId, call } = await mac([{ answer: "She sets down her glass and does not look at you." }]);
+    const reply = "She sets down her glass and does not look at you.";
+    const actor = new HeldRunner(new ScriptedRunner([{ answer: reply }]));
+    const { base, headers, storyId, call, engine } = await mac(actor);
     const scene = await (await call(`/stories/${storyId}/scene`)).json() as SceneView;
     const stream = openStream(base, storyId, headers, String(scene.seq));
     closers.push(stream.close);
+    actor.hold();
     await call(`/stories/${storyId}/moves`, { method: "POST", body: JSON.stringify({ text: "I raise my glass.", after: scene.head_entry_id }) });
+    // While the Actor writes, the phone has been told so, and has none of its words.
+    await stream.until(events => events.some(event => event.event.turn_step === "writing"));
+    expect(told(stream.received)).toEqual(["move", "turn_step:writing"]);
+    actor.release();
     await stream.until(events => events.some(event => event.event.kind === "reply"));
-    const kinds = stream.received.map(event => event.event.kind);
-    expect(kinds[0]).toBe("move");
-    expect(kinds[1]).toBe("reply_started");
-    expect(kinds.filter(kind => kind === "reply_delta").length).toBeGreaterThan(3);
-    expect(kinds.at(-1)).toBe("reply");
-    const deltas = stream.received.filter(event => event.event.kind === "reply_delta").map(event => event.event.text).join("");
-    expect(deltas).toBe("She sets down her glass and does not look at you.");
+    expect(told(stream.received)).toEqual(["move", "turn_step:writing", "turn_step:checking", "reply"]);
+    expect(replies(stream.received)).toEqual([reply]);
+    await engine.settled(storyId);
   });
 
   // GIVEN the connection drops while a Reply is being written and returns after the Reply is finished
   // THEN the phone shows the whole finished Reply and everything after it, with nothing missing or repeated
   it("mac-link › A dropped connection loses nothing › Wi-Fi drops mid-Reply", async () => {
-    const words = ["She ", "turns ", "the ", "glass ", "in ", "her ", "fingers."];
-    const actor = new GatedRunner(words);
+    const actor = new HeldRunner(new ScriptedRunner([{ answer: "She turns the glass in her fingers." }]));
     const { base, headers, storyId, call, engine } = await mac(actor);
     const scene = await (await call(`/stories/${storyId}/scene`)).json() as SceneView;
     const first = openStream(base, storyId, headers, String(scene.seq));
+    actor.hold();
     await call(`/stories/${storyId}/moves`, { method: "POST", body: JSON.stringify({ text: "I wait.", after: scene.head_entry_id }) });
-    await actor.ready();
-    actor.release(3);
-    await first.until(events => events.filter(event => event.event.kind === "reply_delta").length === 3);
+    await first.until(events => events.some(event => event.event.turn_step === "writing"));
     await first.close();
 
     // The Reply finishes while the phone is away.
-    for (let index = 3; index < words.length; index++) {
-      await actor.ready();
-      actor.release();
-    }
+    actor.release();
     await engine.settled(storyId);
 
     const second = openStream(base, storyId, headers, first.received.at(-1)!.id);
@@ -99,33 +91,33 @@ describe("mac-link", () => {
     await second.until(events => events.some(event => event.event.kind === "reply"));
     const all = [...first.received, ...second.received];
     expect(new Set(all.map(event => event.id)).size).toBe(all.length);
-    expect(shownReply(all)).toBe(words.join(""));
+    expect(all.filter(event => event.event.kind === "move")).toHaveLength(1);
+    expect(replies(all)).toEqual(["She turns the glass in her fingers."]);
   });
 
-  it("resumes a Reply still being written from the word the phone last saw", async () => {
-    const words = ["One ", "two ", "three ", "four ", "five."];
-    const actor = new GatedRunner(words);
+  it("tells a phone that comes back mid-Reply what the Reply is doing, and nothing twice", async () => {
+    const actor = new HeldRunner(new ScriptedRunner([{ answer: "One, two, three, four." }]));
     const { base, headers, storyId, call, engine } = await mac(actor);
     const scene = await (await call(`/stories/${storyId}/scene`)).json() as SceneView;
     const first = openStream(base, storyId, headers, String(scene.seq));
+    actor.hold();
     await call(`/stories/${storyId}/moves`, { method: "POST", body: JSON.stringify({ text: "Count.", after: scene.head_entry_id }) });
-    await actor.ready();
-    actor.release(2);
-    await first.until(events => events.filter(event => event.event.kind === "reply_delta").length === 2);
+    await first.until(events => events.some(event => event.event.turn_step === "writing"));
     await first.close();
-    await actor.ready();
-    actor.release();
-    await actor.ready();
 
-    const second = openStream(base, storyId, headers, first.received.at(-1)!.id);
+    // The Scene read mid-Reply says what it is doing; the stream from there says it once, then the rest as it happens.
+    const midway = await (await call(`/stories/${storyId}/scene`)).json() as SceneView;
+    expect(midway.turn).toEqual({ kind: "writing", trace_id: expect.any(String) });
+    expect(midway.last_event_id).toMatch(/^\d+$/);
+    expect(midway.exchanges.at(-1)).toEqual({ move: { entry_id: expect.any(String), text: "Count." }, reply: null });
+    const second = openStream(base, storyId, headers, midway.last_event_id);
     closers.push(second.close);
-    await second.until(events => events.filter(event => event.event.kind === "reply_delta").length === 1);
-    actor.release(2);
+    await second.until(events => events.length > 0);
+    actor.release();
     await engine.settled(storyId);
     await second.until(events => events.some(event => event.event.kind === "reply"));
-    const all = [...first.received, ...second.received];
-    expect(new Set(all.map(event => event.id)).size).toBe(all.length);
-    expect(all.filter(event => event.event.kind === "reply_delta").map(event => event.event.text).join("")).toBe(words.join(""));
+    expect(told(second.received)).toEqual(["reply_started:writing", "turn_step:checking", "reply"]);
+    expect(replies(second.received)).toEqual(["One, two, three, four."]);
   });
 
   // GIVEN the Mac speaks a newer contract than the app
@@ -200,9 +192,10 @@ describe("mac-link", () => {
     expect((await view()).day_view).toMatchObject({ place: "The Three Broomsticks" });
     // The Scene's end says each step as it starts, the World moves on, and the end says it is done: all reach the phone.
     await stream.until(events => events.some(event => event.event.kind === "scene_end_step" && event.event.step === null));
-    const kinds = stream.received.map(event => event.event.kind).filter(kind => kind !== "reply_delta");
-    expect(kinds).toEqual(["move", "reply_started", "reply", "focus_set", "linger_set", "redo", "reply_started", "reply", "scene_closed",
+    const kinds = stream.received.map(event => event.event.kind).filter(kind => kind !== "turn_step");
+    expect(kinds).toEqual(["move", "reply", "focus_set", "linger_set", "redo", "reply", "scene_closed",
       "scene_end_step", "scene_end_step", "scene_end_step", "world_moved", "scene_end_step"]);
+    expect(stream.received.flatMap(event => (event.event.kind === "turn_step" ? [event.event.turn_step] : []))).toEqual(["writing", "checking", "writing", "checking"]);
     expect(stream.received.filter(event => event.event.kind === "scene_end_step").map(event => event.event.step)).toEqual(["chronicler", "director", "weaver", null]);
     expect(stream.received.find(event => event.event.kind === "focus_set")!.event.focus).toBe("Hermione Granger");
     expect(stream.received.find(event => event.event.kind === "scene_closed")!.event.day_view).toMatchObject({ place: "The Three Broomsticks" });
@@ -340,30 +333,6 @@ describe("mac-link", () => {
       const refused = await call(`/stories/${storyId}/${path}`, { method: "POST", body: JSON.stringify(body) });
       expect(refused.status, path).toBe(400);
     }
-  });
-
-  it("says in the Scene view how far into a Reply it is, so reading it mid-Reply repeats no word", async () => {
-    const words = ["One ", "two ", "three ", "four."];
-    const actor = new GatedRunner(words);
-    const { base, headers, storyId, call, engine } = await mac(actor);
-    const scene = await (await call(`/stories/${storyId}/scene`)).json() as SceneView;
-    await call(`/stories/${storyId}/moves`, { method: "POST", body: JSON.stringify({ text: "Count.", after: scene.head_entry_id }) });
-    await actor.ready();
-    actor.release(2);
-    await actor.ready();
-    const midway = await (await call(`/stories/${storyId}/scene`)).json() as SceneView;
-    expect(midway.turn).toMatchObject({ kind: "writing", text_so_far: "One two " });
-    expect(midway.last_event_id).toMatch(/^\d+\.2$/);
-    actor.release();
-    await actor.ready();
-    const stream = openStream(base, storyId, headers, midway.last_event_id);
-    closers.push(stream.close);
-    await stream.until(events => events.some(event => event.event.kind === "reply_delta"));
-    actor.release();
-    await engine.settled(storyId);
-    await stream.until(events => events.some(event => event.event.kind === "reply"));
-    expect(stream.received.filter(event => event.event.kind === "reply_delta").map(event => event.event.text).join("")).toBe("three four.");
-    expect(stream.received.some(event => event.event.kind === "reply_started")).toBe(false);
   });
 
   // GIVEN the player is in Scene 14

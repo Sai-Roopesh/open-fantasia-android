@@ -95,16 +95,18 @@ class ReplyWatch : Service() {
         following?.cancel()
         following = scope.launch {
             val notes = getSystemService(NotificationManager::class.java)
-            var step: com.openfantasia.protocol.SceneEndStep? = null
+            var line: String? = null
             val end = try {
                 val link = (application as LinkHolder).link
                 val initial = link.scene(storyID)
                 followUntilDone(flow { emit(initial); emitAll(link.watch(initial)) }.onEach { view ->
-                    // The quiet note names the step under way, as the Day View's line does.
-                    view.dayView?.sceneEnd?.step?.takeIf { watched == Watched.DayView && it != step }?.let {
-                        step = it
-                        notes.notify(WRITING_NOTE, quiet(sceneEndStepLine(it, underWay = true)))
-                    }
+                    // The quiet note names the step under way, as the Day View's line does, rethinking an Act included.
+                    val sceneEnd = view.dayView?.sceneEnd
+                    sceneEnd?.step?.let { sceneEndStepLine(it, underWay = true, rethinking = sceneEnd.rethinking) }
+                        ?.takeIf { watched == Watched.DayView && it != line }?.let {
+                            line = it
+                            notes.notify(WRITING_NOTE, quiet(it))
+                        }
                 }, watched)
             } catch (e: CancellationException) { throw e
             } catch (_: Exception) { WatchEnd.Quiet }

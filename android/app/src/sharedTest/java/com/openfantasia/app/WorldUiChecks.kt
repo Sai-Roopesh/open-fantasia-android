@@ -49,10 +49,10 @@ open class WorldUiChecks {
         compose.onNodeWithText("Less like this").assertIsDisplayed().assertIsOff()
         compose.onNodeWithText("Saturday").assertIsDisplayed()
         compose.onNodeWithText("7:10 am · you're in Gryffindor Tower").assertIsDisplayed()
-        // The record first; the Director's row shows only when he plans.
+        // The record first; the Director reconsiders the Outline after every Scene, so his row is there from the start.
         step("Recording the Scene", "Under way").assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
+        step("The Director is reconsidering the Outline", "Still to come")
         step("The World moves on", "Still to come")
-        compose.onNodeWithText("The Director is planning the days ahead").assertDoesNotExist()
         compose.onNodeWithTag("world-placeholders", useUnmergedTree = true).assertIsDisplayed()
         compose.onNodeWithText("MEANWHILE", useUnmergedTree = true).assertExists()
         compose.onNodeWithText("WHAT'S ON TODAY", useUnmergedTree = true).assertExists()
@@ -62,12 +62,12 @@ open class WorldUiChecks {
         compose.runOnIdle { assertEquals(EndSceneRequest(after = "reply"), link.endScenes.single()) }
         sceneEndAt(SceneEnd(step = SceneEndStep.Director))
         step("The Scene is recorded", "Done")
-        step("The Director is planning the days ahead", "Under way")
+        step("The Director is reconsidering the Outline", "Under way")
         step("The World moves on", "Still to come")
         compose.onAllNodesWithTag("scene-end").assertCountEquals(1)
         compose.preview("MovingOn")
         sceneEndAt(SceneEnd(step = SceneEndStep.Weaver))
-        step("The days ahead are planned", "Done")
+        step("The Outline is reconsidered", "Done")
         step("The World moves on", "Under way")
         // The Folder's row shows only when it runs.
         compose.onNodeWithText("Folding The Story So Far").assertDoesNotExist()
@@ -102,7 +102,7 @@ open class WorldUiChecks {
         compose.runOnIdle { assertTrue(link.reactions.isEmpty()) }
         // The end stops at the Weaver: the reaction held is sent, once.
         sceneEndAt(SceneEnd(failed = SceneEndFailure(step = SceneEndStep.Weaver, reason = "The Weaver is unavailable.", traceID = "weaver")))
-        compose.runOnIdle { assertEquals(listOf(ReactionRequest(after = "closed", sceneNumber = 14, reaction = Reaction.Less)), link.reactions) }
+        compose.runOnIdle { assertEquals(listOf(ReactionRequest(sceneNumber = 14, reaction = Reaction.Less)), link.reactions) }
         compose.onNodeWithText("Less like this").assertIsOn()
         // Now it goes to the Mac at once, and tapping it again takes it back.
         compose.onNodeWithText("Less like this").performClick()
@@ -111,9 +111,9 @@ open class WorldUiChecks {
         compose.onNodeWithText("More like this").assertIsOn()
         compose.runOnIdle {
             assertEquals(listOf(
-                ReactionRequest(after = "closed", sceneNumber = 14, reaction = Reaction.Less),
-                ReactionRequest(after = "reaction-1", sceneNumber = 14, reaction = null),
-                ReactionRequest(after = "reaction-2", sceneNumber = 14, reaction = Reaction.More)), link.reactions)
+                ReactionRequest(sceneNumber = 14, reaction = Reaction.Less),
+                ReactionRequest(sceneNumber = 14, reaction = null),
+                ReactionRequest(sceneNumber = 14, reaction = Reaction.More)), link.reactions)
         }
     }
 
@@ -129,11 +129,11 @@ open class WorldUiChecks {
         compose.onNodeWithContentDescription("Your reaction").assertIsDisplayed()
         compose.onNodeWithText("More like this").assertIsOff().performClick()
         compose.onNodeWithText("More like this").assertIsOn()
-        compose.runOnIdle { assertEquals(listOf(ReactionRequest(after = "closed", sceneNumber = 14, reaction = Reaction.More)), link.reactions) }
+        compose.runOnIdle { assertEquals(listOf(ReactionRequest(sceneNumber = 14, reaction = Reaction.More)), link.reactions) }
         compose.preview("DayViewReaction")
         compose.onNodeWithText("More like this").performClick()
         compose.onNodeWithText("More like this").assertIsOff()
-        compose.runOnIdle { assertEquals(ReactionRequest(after = "reaction-1", sceneNumber = 14, reaction = null), link.reactions.last()) }
+        compose.runOnIdle { assertEquals(ReactionRequest(sceneNumber = 14, reaction = null), link.reactions.last()) }
         // The Day View's choices are as they were.
         compose.onNodeWithText("3 days").assertIsDisplayed()
         compose.onNodeWithTag("composer").assertIsDisplayed()
@@ -191,11 +191,11 @@ open class WorldUiChecks {
         compose.runOnIdle {
             link.current.value = link.current.value.copy(headEntryID = "closed", seq = 4, lastEventID = "4",
                 dayView = FakeFantasiaLink.dayView(closedBy = ClosedBy.Player).copy(sceneEnd = SceneEnd(failed = SceneEndFailure(
-                    step = SceneEndStep.Director, reason = "Opus 5.5 and Sonnet 5.5 both ran out of time.", traceID = "3f1c09ab"))))
+                    step = SceneEndStep.Director, reason = "Fable 5.1 and GPT 6.1 Sol both ran out of time.", traceID = "3f1c09ab"))))
         }
         compose.onNodeWithTag("scene-passages").performScrollToNode(hasText("Trace 3f1c09ab"))
-        compose.onNodeWithText("The Director could not plan the days ahead").assertIsDisplayed()
-        compose.onNodeWithText("Opus 5.5 and Sonnet 5.5 both ran out of time. The World waits for the plan.").assertIsDisplayed()
+        compose.onNodeWithText("The Director could not reconsider the Outline").assertIsDisplayed()
+        compose.onNodeWithText("Fable 5.1 and GPT 6.1 Sol both ran out of time. The World waits for the Outline.").assertIsDisplayed()
         compose.onNodeWithText("Trace 3f1c09ab").assertIsDisplayed()
         compose.onNodeWithText("Another model").assertIsDisplayed()
         compose.onNodeWithTag("scene-end-failure").assert(
@@ -203,7 +203,7 @@ open class WorldUiChecks {
         // The steps done stay; nothing after the Director is offered as under way.
         step("The Scene is recorded", "Done")
         compose.onNodeWithText("The World moves on").assertDoesNotExist()
-        compose.onNodeWithText("The Director is planning the days ahead").assertDoesNotExist()
+        compose.onNodeWithText("The Director is reconsidering the Outline").assertDoesNotExist()
         compose.onNodeWithTag("composer").assertDoesNotExist()
         compose.onNodeWithTag("send-move").assertDoesNotExist()
         compose.onNodeWithText("3 days").assertDoesNotExist()
@@ -213,8 +213,8 @@ open class WorldUiChecks {
         compose.runOnIdle { link.reachable.value = true }
         compose.onNodeWithText("Retry").assertIsEnabled().performClick()
         compose.runOnIdle { assertEquals(listOf(RetryRequest(model = null)), link.retryRequests) }
-        step("The Director is planning the days ahead", "Under way")
-        compose.onNodeWithText("The Director could not plan the days ahead").assertDoesNotExist()
+        step("The Director is reconsidering the Outline", "Under way")
+        compose.onNodeWithText("The Director could not reconsider the Outline").assertDoesNotExist()
         compose.onNodeWithTag("composer").assertDoesNotExist()
         sceneEndAt(SceneEnd()) { it.copy(meanwhile = listOf(MeanwhileItem(how = How.Told, text = "Neville brings news from downstairs."))) }
         compose.onNodeWithText("Neville brings news from downstairs.").assertIsDisplayed()

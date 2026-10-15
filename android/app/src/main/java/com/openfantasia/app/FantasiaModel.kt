@@ -28,8 +28,11 @@ sealed interface StoryEdit {
     /** A Landmark by name, or a new one. */
     data class Landmark(val name: String?) : StoryEdit
     data class Place(val name: String?, val institution: Boolean) : StoryEdit
-    /** A lesson in Taste, from Backstage. */
-    data class Taste(val line: String) : StoryEdit
+    /**
+     * A lesson in a Taste, from Backstage: the Story's own, or the player's own across every Story ([scope]; the
+     * generated protocol names the story|player choice ClosedBy, after its first use).
+     */
+    data class Taste(val line: String, val scope: ClosedBy) : StoryEdit
     /** The player's brief, from Backstage: what they want more of and less of, as it stands. */
     data class Brief(val more: List<String>, val less: List<String>) : StoryEdit
 }
@@ -69,6 +72,8 @@ data class FantasiaState(
     val showingModels: Boolean = false,
     val models: ModelsView? = null,
     val draft: String = "",
+    /** A steering note being written in Backstage, kept until the Mac has it (openspec the-outline). */
+    val noteDraft: String = "",
     val waitingMove: WaitingMove? = null,
     val heldReaction: HeldReaction? = null,
     val sending: Boolean = false,
@@ -331,10 +336,9 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
     fun dropLandmark(name: String) = storyChange { link.dropLandmark(it.storyID, name, DropLandmarkRequest(after = it.headEntryID)) }
     fun savePlace(name: String, institution: Boolean, creating: Boolean, description: String) =
         storyChange { link.setPlace(it.storyID, name, PlaceRequest(after = it.headEntryID, description = description, institution = institution, create = creating)) }
-    fun rewordTaste(line: String, text: String) = storyChange { link.rewordTaste(it.storyID, RewordTasteRequest(after = it.headEntryID, line = line, text = text)) }
     /** The brief, a line a thing (openspec long-run: The player steers with a brief and reactions). */
     fun saveBrief(more: List<String>, less: List<String>) = storyChange {
-        link.setBrief(it.storyID, BriefRequest(after = it.headEntryID, more = more.map(String::trim).filter(String::isNotEmpty), less = less.map(String::trim).filter(String::isNotEmpty)))
+        link.setBrief(it.storyID, BriefRequest(more = more.map(String::trim).filter(String::isNotEmpty), less = less.map(String::trim).filter(String::isNotEmpty)))
     }
 
     /**
@@ -361,7 +365,7 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
         if (day.sceneEnd.step != null || !state.canChangePath) return
         mutable.update { it.copy(heldReaction = null) }
         if (day.reaction == held.reaction) return
-        edit { link.react(it.storyID, ReactionRequest(after = it.headEntryID, sceneNumber = held.sceneNumber, reaction = held.reaction)) }
+        edit { link.react(it.storyID, ReactionRequest(sceneNumber = held.sceneNumber, reaction = held.reaction)) }
     }
 
     /** Adds an Arc, or rewords the one at [index]; the Arcs are sent whole. */
@@ -415,20 +419,47 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
         }
     }
 
-    /** Deletes a lesson from Taste on this Path (openspec long-run), then reads Backstage again. */
-    fun removeTaste(line: String) {
+    /** Deletes a lesson from the Story's Taste or the player's own (openspec long-run: Taste is short, readable and the player's). */
+    fun removeTaste(scope: ClosedBy, line: String) = besideChange { link.removeTaste(it, RemoveTasteRequest(line = line, scope = scope)) }
+    /** Rewords a lesson, from the sheet: later Scenes read the new words, and the old ones are gone. */
+    fun rewordTaste(scope: ClosedBy, line: String, text: String) = besideChange { link.rewordTaste(it, RewordTasteRequest(line = line, scope = scope, text = text)) }
+
+    fun writeNote(text: String) { mutable.update { it.copy(noteDraft = text) } }
+    /**
+     * Sends the note being written to the Director (openspec the-outline: The player sees and steers the Outline): it
+     * shows in Backstage as waiting until the next Scene's end answers it. The words stay in the field if it is refused.
+     */
+    fun sendNote() {
+        val text = mutable.value.noteDraft.trim()
+        if (text.isEmpty()) return
+        besideChange(done = { mutable.update { state -> state.copy(noteDraft = if (state.noteDraft.trim() == text) "" else state.noteDraft) } }) {
+            link.writeNote(it, SteeringNoteRequest(text = text))
+        }
+    }
+    fun deleteNote(id: String) = besideChange { link.deleteNote(it, id) }
+
+    /**
+     * Changes what lives beside the Story rather than on a Path (docs/adr/0020): Taste and the steering notes, taken
+     * whatever the Scene is doing, then Backstage is read again. A refusal stays in the sheet that sent it with what was
+     * written, or shows as the screen's problem.
+     */
+    private fun besideChange(done: () -> Unit = {}, change: suspend (String) -> Unit) {
         val state = mutable.value
         val scene = state.scene ?: return
-        if (!state.canChangePath) return
-        mutable.update { it.copy(sending = true, problem = null) }
+        if (!state.canChangeBeside) return
+        mutable.update { it.copy(sending = true, problem = null, storyEditing = it.storyEditing?.copy(problem = null, saving = true)) }
         viewModelScope.launch {
             try {
-                link.removeTaste(scene.storyID, RemoveTasteRequest(line = line, after = scene.headEntryID))
-                val fresh = link.scene(scene.storyID)
-                val backstage = link.backstage(scene.storyID)
-                mutable.update { it.copy(scene = visibleScene(fresh), backstage = backstage) }
+                change(scene.storyID)
+                mutable.update { it.copy(storyEditing = null) }
+                done()
+                if (mutable.value.showingBackstage) link.backstage(scene.storyID).let { backstage -> mutable.update { it.copy(backstage = backstage) } }
             } catch (e: CancellationException) { throw e
-            } catch (e: Exception) { showProblem(e)
+            } catch (e: Exception) {
+                if (mutable.value.storyEditing != null) {
+                    val reason = (e as? LinkFailure)?.reason ?: "The Mac is unreachable. Nothing was saved."
+                    mutable.update { it.copy(storyEditing = it.storyEditing?.copy(problem = reason, saving = false)) }
+                } else showProblem(e)
             } finally { mutable.update { it.copy(sending = false) } }
         }
     }
@@ -718,6 +749,10 @@ internal val FantasiaState.replyComing: Boolean
  */
 internal val FantasiaState.canChangePath: Boolean
     get() = scene != null && !replyComing && scene.dayView?.sceneEnd?.step == null && reachable && !loading && !sending && problem?.needsUpdate != true
+
+/** Taste and steering notes live beside the Story, not on a Path: they change whenever the Mac is there to take them. */
+internal val FantasiaState.canChangeBeside: Boolean
+    get() = scene != null && reachable && !loading && !sending && problem?.needsUpdate != true
 
 /** A reaction can be given at any time after a Scene ends; one given while its end runs is held until it is done. */
 internal val FantasiaState.canReact: Boolean

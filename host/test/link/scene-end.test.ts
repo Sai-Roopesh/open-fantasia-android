@@ -24,10 +24,10 @@ describe("a Scene's end over the link", () => {
     await engine.ended(storyId);
 
     const stopped = (await scene()).day_view!;
-    expect(stopped.scene_end).toEqual({ step: null, failed: { step: "director", reason: expect.stringMatching(/Opus is overloaded.*Sonnet is overloaded/), trace_id: expect.any(String) } });
+    expect(stopped.scene_end).toEqual({ step: null, failed: { step: "director", reason: expect.stringMatching(/Opus is overloaded.*Sonnet is overloaded/), trace_id: expect.any(String) }, rethinking: null });
     expect(stopped.happenings).toEqual([]);
-    // The World does not move on without the plan.
-    expect(path().map(entry => entry.kind).slice(-2)).toEqual(["scene_closed", "chronicle"]);
+    // The Outline was written; the World does not move on without the plan.
+    expect(path().map(entry => entry.kind).slice(-3)).toEqual(["scene_closed", "chronicle", "outline_set"]);
     await stream.until(events => events.some(event => event.event.kind === "scene_end_failed"));
     expect(stream.received.find(event => event.event.kind === "scene_end_failed")!.event).toMatchObject({ step: "director", trace_id: stopped.scene_end.failed!.trace_id });
 
@@ -35,12 +35,13 @@ describe("a Scene's end over the link", () => {
     const retried = await post("retry", { model: { provider: "codex", model: "gpt-6.1-sol", effort: null } });
     expect(retried.status).toBe(200);
     await engine.ended(storyId);
-    expect(path().map(entry => entry.kind).slice(-4)).toEqual(["scene_closed", "chronicle", "director_plan", "world_moved"]);
+    expect(path().map(entry => entry.kind).slice(-5)).toEqual(["scene_closed", "chronicle", "outline_set", "director_plan", "world_moved"]);
     expect(models.chronicler.requests).toHaveLength(1);
+    expect(models.outline.requests).toHaveLength(1);
     expect(callsFor(story.mac.db, "director").at(-1)).toMatchObject({ provider: "codex", model: "gpt-6.1-sol" });
-    expect(jobModels(story.mac.home).director).toEqual({ provider: "claude", model: "claude-opus-5-5" });
+    expect(jobModels(story.mac.home).director).toEqual({ provider: "claude", model: "claude-fable-5-1", effort: "high" });
     const ready = (await scene()).day_view!;
-    expect(ready.scene_end).toEqual({ step: null, failed: null });
+    expect(ready.scene_end).toEqual({ step: null, failed: null, rethinking: null });
     expect(ready.happenings.length).toBeGreaterThan(0);
     await stream.until(events => events.some(event => event.event.kind === "scene_end_step" && event.event.step === null));
     const steps = stream.received.filter(event => event.event.kind === "scene_end_step").map(event => event.event.step);

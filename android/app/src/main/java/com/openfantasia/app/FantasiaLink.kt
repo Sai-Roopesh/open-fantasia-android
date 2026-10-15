@@ -42,10 +42,15 @@ interface FantasiaLink {
     suspend fun setPlace(storyID: String, name: String, request: PlaceRequest): StoryView = throw LinkFailure("Editing is not on this link")
     suspend fun setWorld(storyID: String, request: WorldRequest): StoryView = throw LinkFailure("Editing is not on this link")
     suspend fun setClock(storyID: String, request: ClockRequest): StoryView = throw LinkFailure("Editing is not on this link")
-    suspend fun rewordTaste(storyID: String, request: RewordTasteRequest): StoryView = throw LinkFailure("Editing is not on this link")
     suspend fun uploadPortrait(storyID: String, name: String, image: ByteArray, type: String, after: String): Accepted = throw LinkFailure("Editing is not on this link")
     suspend fun backstage(storyID: String): BackstageView = throw LinkFailure("Backstage is not on this link")
-    suspend fun removeTaste(storyID: String, request: RemoveTasteRequest): Accepted = throw LinkFailure("Taste is not on this link")
+    // Taste and steering notes live beside the Story, not on a Path (docs/adr/0020): none needs the head, and what each
+    // changed is read again from Backstage.
+    suspend fun removeTaste(storyID: String, request: RemoveTasteRequest): Unit = throw LinkFailure("Taste is not on this link")
+    suspend fun rewordTaste(storyID: String, request: RewordTasteRequest): Unit = throw LinkFailure("Taste is not on this link")
+    // Steering notes (openspec the-outline: The player sees and steers the Outline).
+    suspend fun writeNote(storyID: String, request: SteeringNoteRequest): Unit = throw LinkFailure("Notes are not on this link")
+    suspend fun deleteNote(storyID: String, noteID: String): Unit = throw LinkFailure("Notes are not on this link")
     // The player's brief and reactions (openspec long-run: The player steers with a brief and reactions).
     suspend fun setBrief(storyID: String, request: BriefRequest): Accepted = throw LinkFailure("The brief is not on this link")
     suspend fun react(storyID: String, request: ReactionRequest): Accepted = throw LinkFailure("Reactions are not on this link")

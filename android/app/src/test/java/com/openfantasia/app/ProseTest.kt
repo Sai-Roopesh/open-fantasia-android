@@ -20,11 +20,4 @@ class ProseTest {
         assertEquals("Five * three, and a star * here.\n*Not across\nparagraphs*", shown.text)
         assertEquals(emptyList<String>(), italics(shown))
     }
-
-    @Test fun whileArrivingAnOpenedItalicRunsToTheEnd() {
-        assertEquals("a porter shouts coolie, coo", prose("a porter shouts *coolie, coo", arriving = true).text)
-        assertEquals(listOf("coolie, coo"), italics(prose("a porter shouts *coolie, coo", arriving = true)))
-        assertEquals("a porter shouts ", prose("a porter shouts *", arriving = true).text)
-        assertEquals("a porter shouts *coolie, coo", prose("a porter shouts *coolie, coo").text)
-    }
 }

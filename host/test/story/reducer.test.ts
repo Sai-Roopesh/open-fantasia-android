@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { emptyUpdate } from "../../src/story/truth.js";
 import { writerPrompt } from "../../src/agents/writer.js";
+import { nothingBeside } from "../../src/story/beside.js";
 import type { BeatNote, Chronicle, DirectorPlan, Entry, Payload, StoryFolded, WorldMoved } from "../../src/story/entries.js";
 import { apply, RECENT_PLANS } from "../../src/story/reducer.js";
 import type { Beat, Engagement, PlannedScene, State } from "../../src/story/state.js";
@@ -15,7 +17,7 @@ function entry(payload: Payload): Entry {
 const beats = (inPlay: number): Beat[] => [0, 1, 2].map(index => ({ text: `beat ${index + 1}`, status: index < inPlay ? "done" : index === inPlay ? "in_play" : "pending" }));
 
 function note(changes: Partial<BeatNote> = {}): Payload {
-  return { kind: "beat_note", plan: null, here: ["Meera Kulkarni", "Uncle Bhalla"], goes: [], beats: beats(0), note: "Meera sits.", call: "continue", intensity: 2, arcMoved: true, clock: "Day 1 22:45", taste: null, inPlay: [], callId: "c", model: { provider: "claude", model: "claude-sonnet-5-5" }, ...changes };
+  return { kind: "beat_note", plan: null, here: ["Meera Kulkarni", "Uncle Bhalla"], goes: [], beats: beats(0), note: "Meera sits.", call: "continue", intensity: 2, arcMoved: true, clock: "Day 1 22:45", inPlay: [], callId: "c", model: { provider: "claude", model: "claude-sonnet-5-5" }, ...changes };
 }
 
 const play = (state: State, ...payloads: Payload[]) => payloads.reduce((current, payload) => apply(current, entry(payload)), state);
@@ -25,7 +27,7 @@ describe("the reducer", () => {
     const { state } = nightTrain();
     expect(state.scene).toMatchObject({ here: ["Meera Kulkarni", "Uncle Bhalla"], purpose: null, exit: null, beats: [], focus: null, linger: false, closed: null, beatInPlayFor: 0, withoutArc: 0 });
     expect(state.scene!.startsAt).toBe(state.scene!.openedBy);
-    expect(state).toMatchObject({ taste: [], directions: [], pendingDirection: null });
+    expect(state).toMatchObject({ directions: [], pendingDirection: null });
   });
 
   it("starts a Scene with one other person focused on them", () => {
@@ -55,14 +57,6 @@ describe("the reducer", () => {
     expect(planned.scene).toMatchObject({ here: ["Meera Kulkarni", "Uncle Bhalla"], goes: ["Uncle Bhalla"], focus: "Uncle Bhalla" });
     const written = play(planned, { kind: "reply", text: "Bhalla takes his thermos and goes.", callId: "c", model });
     expect(written.scene).toMatchObject({ here: ["Meera Kulkarni"], goes: [], focus: null });
-  });
-
-  it("keeps Taste to ten lines, dropping the oldest", () => {
-    const { state } = nightTrain();
-    const after = play(state, ...Array.from({ length: 11 }, (_, index) => note({ taste: `lesson ${index + 1}` })));
-    expect(after.taste).toHaveLength(10);
-    expect(after.taste[0]).toBe("lesson 2");
-    expect(after.taste.at(-1)).toBe("lesson 11");
   });
 
   it("closes a Scene, clearing Focus and Linger", () => {
@@ -120,7 +114,7 @@ describe("what code counts, not the Writer", () => {
   it("gives the Writer the counts once they reach their limits", () => {
     const { state } = nightTrain();
     const stalled = play(state, ...Array.from({ length: 5 }, () => note({ plan: { purpose: "p", exit: "e" }, arcMoved: false })));
-    const task = writerPrompt({ state: stalled, scene: [], move: "I say nothing.", choice: null }, []).prompt;
+    const task = writerPrompt({ state: stalled, scene: [], move: "I say nothing.", choice: null, beside: nothingBeside() }, []).prompt;
     expect(task).toMatch(/in play for 5 Replies/);
     expect(task).toMatch(/No Arc has moved for 5 Replies/);
   });
@@ -130,22 +124,22 @@ const SONNET = { provider: "claude", model: "claude-sonnet-5-5" } as const;
 const PC = "Ishaan Mehra";
 
 function chronicle(changes: Partial<Chronicle> = {}): Chronicle {
-  return { kind: "chronicle", scene: 1, summary: "Meera took the window seat.", paragraph: "Ishaan gave up the window; Meera took it, and talked.", moments: [], told: [], known: [], bonds: [], engagements: [], changed: [], dropped: [], callId: "c", model: SONNET, ...changes };
+  return { kind: "chronicle", truth: emptyUpdate(), scene: 1, summary: "Meera took the window seat.", paragraph: "Ishaan gave up the window; Meera took it, and talked.", moments: [], told: [], known: [], bonds: [], engagements: [], changed: [], dropped: [], callId: "c", model: SONNET, ...changes };
 }
 
 function moved(changes: Partial<WorldMoved> = {}): WorldMoved {
-  return { kind: "world_moved", scene: 1, gap: false, from: "Day 1 22:45", until: "Day 2 07:30", lives: [], threads: [], happened: [], meanwhile: [], on: [], dropped: [], callId: "w", model: SONNET, ...changes };
+  return { kind: "world_moved", truth: emptyUpdate(), scene: 1, gap: false, from: "Day 1 22:45", until: "Day 2 07:30", lives: [], threads: [], happened: [], meanwhile: [], on: [], dropped: [], callId: "w", model: SONNET, ...changes };
 }
 
 function planned(changes: Partial<DirectorPlan> = {}): DirectorPlan {
   return {
     kind: "director_plan", from: 2, until: 6, toward: "Kalka", landmark: null, phase: "build", scenes: [scene("s1.1", "Day 3 10:00")], leads: [], arcs: [], roadmap: [], premise: "",
-    newThings: [{ kind: "mystery", what: "A locked compartment.", scene: null, person: null }], people: [], reason: "There is no plan yet.", afterScene: 1, dropped: [], callId: "d", model: SONNET, ...changes
+    newThings: [{ kind: "mystery", what: "A locked compartment.", scene: null, person: null, setup: "u1" }], people: [], reason: "There is no plan yet.", afterScene: 1, dropped: [], callId: "d", model: SONNET, ...changes
   };
 }
 
 function scene(id: string, at: string): PlannedScene {
-  return { id, at, place: "The dining car", who: ["Meera Kulkarni"], for: "A step.", offer: "Breakfast is being served.", headline: "The dining car: a step", lead: "Meera Kulkarni", engagement: null, quiet: false };
+  return { id, at, place: "The dining car", who: ["Meera Kulkarni"], for: "A step.", offer: "Breakfast is being served.", headline: "The dining car: a step", lead: "Meera Kulkarni", engagement: null, quiet: false, serves: { turn: null, lives: ["Meera Kulkarni"] } };
 }
 
 const tea: Engagement = { id: "g-tea", what: "Tea with Meera.", at: "Day 2 08:00", place: "The dining car", who: ["Meera Kulkarni"], expected: true, every: null, quotes: [{ entry: "e1", text: "Tea at eight, then." }] };
@@ -256,7 +250,7 @@ describe("the State, one fold of the Path (docs/adr/0015)", () => {
 
   it("numbers the Director's plans, brings his new people into the Story from that plan on, and keeps the earlier plans' Scenes", () => {
     const elspeth = { name: "Elspeth Vane", aliases: [], whoTheyAre: "A conductor's daughter who knows every carriage.", known: null, appearance: "", after: "", knows: [], voice: [], group: null };
-    const first = play(closed(), chronicle(), planned({ people: [elspeth], newThings: [{ kind: "person", what: "Elspeth, who knows every carriage.", scene: "s1.1", person: "Elspeth Vane" }] }));
+    const first = play(closed(), chronicle(), planned({ people: [elspeth], newThings: [{ kind: "person", what: "Elspeth, who knows every carriage.", scene: "s1.1", person: "Elspeth Vane", setup: "u2" }] }));
     expect(first.plan).toMatchObject({ number: 1, from: 2, until: 6, toward: "Kalka", afterScene: 1, scenes: [scene("s1.1", "Day 3 10:00")] });
     expect(first.people["Elspeth Vane"]).toMatchObject({ name: "Elspeth Vane", broughtIn: 1, portrait: null });
     expect(first.introduced).toEqual([{ stretch: 1, kind: "person", what: "Elspeth, who knows every carriage." }]);
@@ -270,8 +264,8 @@ describe("the State, one fold of the Path (docs/adr/0015)", () => {
     expect(state.people["Elspeth Vane"]).toMatchObject({ whoTheyAre: "A conductor's daughter who knows every carriage.", broughtIn: 1 });
   });
 
-  it("folds the oldest Scene paragraphs into a week, and the oldest weeks into a chapter", () => {
-    const fold = (into: "week" | "chapter", count: number, text: string): StoryFolded => ({ kind: "story_folded", into, count, from: "Day 1 22:40", until: "Day 7 22:00", text, callId: "f", model: SONNET });
+  it("folds the oldest Scene paragraphs into a week, and an Act's weeks and Scenes into its account", () => {
+    const fold = (into: "week" | "act", count: number, text: string): StoryFolded => ({ kind: "story_folded", into, count, from: "Day 1 22:40", until: "Day 7 22:00", text, callId: "f", model: SONNET });
     let state = closed();
     for (let number = 1; number <= 3; number++) {
       if (number > 1) state = play(state, { kind: "scene_opened", number, title: `Scene ${number}`, place: "The sleeper bay", at: `Day ${number + 1} 09:00`, who: [], prose: null, startsAt: "m", purpose: null, exit: null }, { kind: "scene_closed", by: "player" });
@@ -281,8 +275,8 @@ describe("the State, one fold of the Path (docs/adr/0015)", () => {
     expect(weekly.storySoFar.scenes.map(part => part.text)).toEqual(["Paragraph 3."]);
     expect(weekly.storySoFar.weeks).toEqual([{ from: "Day 1 22:40", until: "Day 7 22:00", text: "The first week.", scene: null, who: [] }]);
     expect(weekly.scene!.ended).toEqual(["chronicler", "folder"]);
-    const chaptered = play(weekly, fold("chapter", 1, "Chapter one."));
-    expect(chaptered.storySoFar).toMatchObject({ weeks: [], chapters: [{ text: "Chapter one." }] });
+    const acted = play(weekly, fold("act", 2, "Act one."));
+    expect(acted.storySoFar).toMatchObject({ weeks: [], scenes: [], acts: [{ text: "Act one.", scenes: { first: 1, last: 3 } }] });
   });
 
   it("counts a choice for one of the plan's Scenes as played, and the Engagement time it keeps as kept", () => {
@@ -292,13 +286,8 @@ describe("the State, one fold of the Path (docs/adr/0015)", () => {
     expect(play(closed(), { kind: "move", text: "I sleep in." })).toMatchObject({ played: [], kept: [] });
   });
 
-  it("takes the player's brief and routine, and a reaction to a played Scene by its title until it is cleared", () => {
-    const state = closed();
-    const steered = play(state, { kind: "brief_set", more: ["Meera's music"], less: ["Bhalla's lectures"] }, { kind: "routine_set", routine: ["Breakfast is served at eight."] },
-      { kind: "reaction_set", scene: 1, reaction: "more", note: "The window." });
-    expect(steered).toMatchObject({ brief: { more: ["Meera's music"], less: ["Bhalla's lectures"] }, routine: ["Breakfast is served at eight."] });
-    expect(steered.reactions).toEqual([{ scene: 1, title: state.scene!.title, reaction: "more", note: "The window." }]);
-    expect(play(steered, { kind: "reaction_set", scene: 1, reaction: "less", note: null }).reactions).toEqual([{ scene: 1, title: state.scene!.title, reaction: "less", note: null }]);
-    expect(play(steered, { kind: "reaction_set", scene: 1, reaction: null, note: null }).reactions).toEqual([]);
+  it("takes the routine; the brief and reactions are kept beside the Story, not on the Path (docs/adr/0020)", () => {
+    const steered = play(closed(), { kind: "routine_set", routine: ["Breakfast is served at eight."] });
+    expect(steered.routine).toEqual(["Breakfast is served at eight."]);
   });
 });

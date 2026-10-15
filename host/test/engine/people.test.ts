@@ -93,10 +93,10 @@ describe("the Story's people, as the player keeps them", () => {
     engine.setLead(storyId, "Theodore Nott", true, head(), "lead");
     expect(state().leads).toContain("Theodore Nott");
     await play("I look for Theo in the library.");
-    expect(models.writer.requests.at(-1)!.system).toMatch(/<leads>[\s\S]*Theodore Nott[\s\S]*<\/leads>/);
+    expect(models.writer.requests.at(-1)!.system).toMatch(/<people>[\s\S]*- Theodore Nott, a Lead/);
     engine.endScene(storyId, head(), "end");
     await engine.ended(storyId);
-    expect(models.weaver.requests.at(-1)!.system).toMatch(/<leads>[\s\S]*Theodore Nott/);
+    expect(models.weaver.requests.at(-1)!.system).toMatch(/<people>[\s\S]*- Theodore Nott, a Lead/);
   });
 
   // GIVEN the Player Character has spent five Scenes in a row with Neville, who is not a Lead

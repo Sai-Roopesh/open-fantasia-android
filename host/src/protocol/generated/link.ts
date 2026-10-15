@@ -47,7 +47,7 @@ export type StretchSceneState = "played" | "passed" | "ahead";
  * This interface was referenced by `Link`'s JSON-Schema
  * via the `definition` "ModelJob".
  */
-export type ModelJob = "actor" | "writer" | "chronicler" | "weaver" | "director" | "folder";
+export type ModelJob = "actor" | "writer" | "editor" | "chronicler" | "weaver" | "director" | "folder";
 /**
  * Who offers a model: each is reached through the player's own subscription (docs/adr/0005).
  *
@@ -186,6 +186,10 @@ export interface SceneCard {
 export interface Passage {
   entry_id: string;
   text: string;
+  /**
+   * On a Reply only: the Editor's note when the Reply still breaks what is established after it was written again (docs/adr/0019); null otherwise.
+   */
+  note?: string | null;
 }
 /**
  * A Move and the Reply that answered it. The opening Scene's first Reply has no Move.
@@ -198,17 +202,13 @@ export interface Exchange {
   reply: Passage | null;
 }
 /**
- * Whether a Reply is being written, has failed, or nothing is under way.
+ * Whether a Reply is under way (looking back, being written, being checked), has failed, or nothing is under way (openspec presence: A Reply arrives checked and whole).
  *
  * This interface was referenced by `Link`'s JSON-Schema
  * via the `definition` "TurnState".
  */
 export interface TurnState {
-  kind: "idle" | "writing" | "failed";
-  /**
-   * While writing: the Reply's words so far.
-   */
-  text_so_far?: string;
+  kind: "idle" | "looking_back" | "writing" | "checking" | "failed";
   /**
    * When failed: why, in words the player can read.
    */
@@ -220,7 +220,7 @@ export interface TurnState {
   /**
    * When failed: the job that failed.
    */
-  job?: "actor" | "writer" | "chronicler" | "weaver" | "director" | "folder";
+  job?: "actor" | "writer" | "editor" | "chronicler" | "weaver" | "director" | "folder";
 }
 /**
  * The Scene screen as the Mac sees it on the Story's current Path.
@@ -459,6 +459,10 @@ export interface Skip {
 export interface SceneEnd {
   step: SceneEndStep | null;
   failed: SceneEndFailure | null;
+  /**
+   * While the Director re-plans an Act deeply: its title, such as "Year One"; null otherwise.
+   */
+  rethinking: string | null;
 }
 /**
  * Why a Scene's end stopped, and at which step.
@@ -533,7 +537,7 @@ export interface TurnAccepted {
   trace_id: string;
 }
 /**
- * One event on a Story's live stream. Entry events (scene_opened, move, reply, scene_closed, focus_set, linger_set, redo, world_moved) are replayed after a reconnect; reply_started, reply_delta and reply_failed describe the turn under way; scene_end_step says which step of a Scene's end is under way, null when it is done, and scene_end_failed where it stopped and why (docs/adr/0016). path_changed says the Story is now on another Path, or its Path was moved back, or a Move or Reply on it was edited. After scene_opened, scene_closed, redo, world_moved, scene_end_step, scene_end_failed and path_changed, and after a move that opens the next Scene, the phone reads the Scene again, because they change more than one part of it.
+ * One event on a Story's live stream. Entry events (scene_opened, move, reply, scene_closed, focus_set, linger_set, redo, world_moved) are replayed after a reconnect; reply_started, turn_step and reply_failed describe the turn under way; a Reply's words arrive whole, in its reply event; scene_end_step says which step of a Scene's end is under way, null when it is done, and scene_end_failed where it stopped and why (docs/adr/0016). path_changed says the Story is now on another Path, or its Path was moved back, or a Move or Reply on it was edited. After scene_opened, scene_closed, redo, world_moved, scene_end_step, scene_end_failed and path_changed, and after a move that opens the next Scene, the phone reads the Scene again, because they change more than one part of it.
  *
  * This interface was referenced by `Link`'s JSON-Schema
  * via the `definition` "StoryEvent".
@@ -548,7 +552,7 @@ export interface StoryEvent {
     | "linger_set"
     | "redo"
     | "reply_started"
-    | "reply_delta"
+    | "turn_step"
     | "reply_failed"
     | "world_moved"
     | "path_changed"
@@ -560,10 +564,6 @@ export interface StoryEvent {
   seq: number;
   scene?: SceneCard1;
   passage?: Passage;
-  /**
-   * reply_delta: the words that just arrived.
-   */
-  text?: string;
   reason?: string;
   trace_id?: string;
   day_view?: DayView1;
@@ -580,6 +580,10 @@ export interface StoryEvent {
    * For scene_end_step and scene_end_failed: the step; null when the Scene's end is done.
    */
   step?: SceneEndStep | null;
+  /**
+   * turn_step: what the Reply under way is doing.
+   */
+  turn_step?: "looking_back" | "writing" | "checking";
 }
 /**
  * A Scene's title card.
@@ -908,6 +912,14 @@ export interface BackstageView {
   record: RecordRow[];
   how_its_going: HowItsGoing;
   new_things: NewThingRow[];
+  outline: OutlineView | null;
+  lives_by_tier: LivesByTier;
+  notes: SteeringNote[];
+  truth: TruthView;
+  /**
+   * The player's own Taste, which every Story starts with (openspec long-run: Taste is short, readable and the player's).
+   */
+  player_taste: string[];
 }
 /**
  * This interface was referenced by `Link`'s JSON-Schema
@@ -1077,6 +1089,18 @@ export interface HowItsGoing {
   picks_taken: number;
   more: number;
   less: number;
+  /**
+   * How long the last Replies took, newest last.
+   */
+  reply_seconds: number[];
+  /**
+   * How many Replies the Editor set right in place.
+   */
+  editor_fixed: number;
+  /**
+   * How many Replies the Editor sent back to be written again.
+   */
+  editor_rewrote: number;
 }
 /**
  * This interface was referenced by `Link`'s JSON-Schema
@@ -1116,7 +1140,193 @@ export interface NewThingRow {
   stretch: string;
 }
 /**
- * Delete a lesson from Taste on the Path the player is on (openspec long-run: Taste is short, readable and the player's).
+ * The Outline (openspec the-outline: The player sees and steers the Outline).
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "OutlineView".
+ */
+export interface OutlineView {
+  current: ActView | null;
+  later: ActSketch[];
+  ending: string;
+  setups: SetupRow[];
+  looked_up: string[];
+  /**
+   * When it was last revised and how: "after Scene 19, deeply".
+   */
+  revised: string;
+}
+/**
+ * The current Act in detail.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "ActView".
+ */
+export interface ActView {
+  number: number;
+  title: string;
+  question: string;
+  builds_to: string;
+  turns: TurnRow[];
+  /**
+   * Items: Where a relationship should stand by the Act's end.
+   */
+  relationships: {
+    people: string[];
+    by_end: string;
+  }[];
+  /**
+   * Items: What someone who drives the World is doing this Act.
+   */
+  movers: {
+    who: string;
+    doing: string;
+  }[];
+  /**
+   * Items: A person's own direction this Act.
+   */
+  intentions: {
+    who: string;
+    pursues: string;
+    heading: string;
+  }[];
+}
+/**
+ * One turn of an Act.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "TurnRow".
+ */
+export interface TurnRow {
+  when: string;
+  what: string;
+  done: boolean;
+}
+/**
+ * An Act after the current one, outlined or sketched.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "ActSketch".
+ */
+export interface ActSketch {
+  number: number;
+  title: string;
+  question: string;
+  builds_to: string;
+  detail: "outlined" | "sketched";
+}
+/**
+ * Something planted that the Outline means to pay off.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "SetupRow".
+ */
+export interface SetupRow {
+  what: string;
+  payoff: string;
+  state: "waiting" | "paid" | "dropped";
+  planted: string | null;
+}
+/**
+ * Lives by how much each person matters (openspec living-world: Everyone has a Life).
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "LivesByTier".
+ */
+export interface LivesByTier {
+  close: LifeRow[];
+  movers: LifeRow[];
+  others: string[];
+}
+/**
+ * A person's Life as Backstage shows it.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "LifeRow".
+ */
+export interface LifeRow {
+  who: string;
+  now: string;
+  wants: string;
+  heading: string;
+}
+/**
+ * A note the player wrote to steer the Outline.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "SteeringNote".
+ */
+export interface SteeringNote {
+  id: string;
+  text: string;
+  written_at: string;
+  answered: boolean;
+}
+/**
+ * What the Story keeps (openspec the-truth), each item with where it came from.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "TruthView".
+ */
+export interface TruthView {
+  /**
+   * Items: Who someone is now.
+   */
+  people: {
+    who: string;
+    now: string;
+    sources: SourceRow[];
+  }[];
+  /**
+   * Items: Where things stand between two people.
+   */
+  between: {
+    people: string[];
+    stands: string;
+    keepsakes: string[];
+    sources: SourceRow[];
+  }[];
+  /**
+   * Items: Something true, or true until a Scene ended it.
+   */
+  truths: {
+    kind: "agreement" | "promise" | "debt" | "threat" | "secret" | "status";
+    what: string;
+    terms: string[];
+    due_label: string | null;
+    known_to: string[];
+    ended: string | null;
+    sources: SourceRow[];
+  }[];
+  /**
+   * Items: How the World works.
+   */
+  rules: {
+    what: string;
+    sources: SourceRow[];
+  }[];
+  /**
+   * Items: A name made on the page.
+   */
+  names: {
+    name: string;
+    kind: "person" | "place" | "thing";
+    what: string;
+    first_scene: number;
+  }[];
+}
+/**
+ * Where something kept came from: the Scene and the words (openspec the-truth: Nothing is deleted).
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "SourceRow".
+ */
+export interface SourceRow {
+  scene_number: number | null;
+  text: string;
+}
+/**
+ * Delete a lesson from a Taste (openspec long-run: Taste is short, readable and the player's).
  *
  * This interface was referenced by `Link`'s JSON-Schema
  * via the `definition` "RemoveTasteRequest".
@@ -1127,9 +1337,9 @@ export interface RemoveTasteRequest {
    */
   line: string;
   /**
-   * The head the phone saw; refused as stale if the Story has moved on.
+   * Whose Taste: the Story's own, or the player's own across every Story.
    */
-  after: string;
+  scope: "story" | "player";
 }
 /**
  * This interface was referenced by `Link`'s JSON-Schema
@@ -1862,23 +2072,22 @@ export interface ClockRequest {
  */
 export interface RewordTasteRequest {
   /**
-   * The head the phone saw.
-   */
-  after: string;
-  /**
    * The lesson as Taste reads it now.
    */
   line: string;
   text: string;
+  /**
+   * Whose Taste: the Story's own, or the player's own across every Story.
+   */
+  scope: "story" | "player";
 }
 /**
- * Sets the brief, from this moment on the Path.
+ * Sets the brief, kept beside the Story.
  *
  * This interface was referenced by `Link`'s JSON-Schema
  * via the `definition` "BriefRequest".
  */
 export interface BriefRequest {
-  after: string;
   more: string[];
   less: string[];
 }
@@ -1889,8 +2098,16 @@ export interface BriefRequest {
  * via the `definition` "ReactionRequest".
  */
 export interface ReactionRequest {
-  after: string;
   scene_number: number;
   reaction: "more" | "less" | null;
   note?: string | null;
+}
+/**
+ * Writes a note that steers the Outline; the Director answers it at the next Scene's end.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "SteeringNoteRequest".
+ */
+export interface SteeringNoteRequest {
+  text: string;
 }

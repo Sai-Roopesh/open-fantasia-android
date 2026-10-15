@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { ModelsView } from "../../src/protocol/generated/link.js";
+import type { Act } from "../../src/story/outline.js";
 import { backupModels, jobModels, storyActor } from "../../src/models/jobs.js";
 import { callsFor } from "../support/host.js";
 import { runningMac } from "../support/link.js";
 import { playable } from "../support/play.js";
+import { hogwartsStoryFile } from "../support/story-files.js";
 import type { SceneView } from "../../src/protocol/generated/link.js";
 import { served } from "./served.js";
 
@@ -31,23 +33,22 @@ describe("the Models screen over the link", () => {
       actor: { choice: { provider: "claude", model: "claude-opus-5-5", effort: null }, label: "Opus 5.5" } }]);
     expect(view.jobs.map(job => [job.job, job.title, job.does])).toEqual([
       ["writer", "Writer", "Plans each Reply before it starts"],
+      ["editor", "Editor", "Checks each Reply before you read it"],
       ["chronicler", "Chronicler", "Records what happened"],
+      ["director", "Director", "Keeps the Outline and plans the days ahead"],
       ["weaver", "Weaver", "Moves the World on"],
-      ["director", "Director", "Shapes the long run"],
       ["folder", "Folder", "Keeps The Story So Far short"]
     ]);
     expect(view.jobs.map(job => job.model.choice)).toEqual([
-      { provider: "claude", model: "claude-sonnet-5-5", effort: null },
-      { provider: "claude", model: "claude-sonnet-5-5", effort: null },
+      { provider: "claude", model: "claude-opus-5-5", effort: "medium" },
       { provider: "claude", model: "claude-sonnet-5-5", effort: null },
       { provider: "claude", model: "claude-opus-5-5", effort: null },
-      { provider: "claude", model: "claude-haiku-4-5-20251001", effort: null }
+      { provider: "claude", model: "claude-fable-5-1", effort: "high" },
+      { provider: "claude", model: "claude-opus-5-5", effort: null },
+      { provider: "claude", model: "claude-opus-5-5", effort: null }
     ]);
-    expect(view.jobs.slice(0, 4).map(job => job.model.label)).toEqual(["Sonnet 5.5", "Sonnet 5.5", "Sonnet 5.5", "Opus 5.5"]);
-    // Each job's second model: Sonnet 5.5, or GPT 6.1 Sol for a job already on Sonnet.
-    expect(view.jobs.map(job => job.backup.label)).toEqual(["GPT 6.1 Sol", "GPT 6.1 Sol", "GPT 6.1 Sol", "Sonnet 5.5", "Sonnet 5.5"]);
     expect(view.providers.map(provider => [provider.label, provider.reachable, provider.models.map(model => model.name)])).toEqual([
-      ["CLAUDE", true, ["Opus 5.5", "Sonnet 5.5", "Haiku 4.5"]],
+      ["CLAUDE", true, ["Opus 5.5", "Fable 5.1", "Sonnet 5.5", "Haiku 4.5"]],
       ["CODEX", true, ["GPT 6.1 Sol", "GPT 6 Luna"]],
       ["ANTIGRAVITY", true, ["Gemini 3.8 Flash"]]
     ]);
@@ -94,7 +95,7 @@ describe("the Models screen over the link", () => {
     await post("end-scene", { after: (await view()).head_entry_id });
     await engine.ended(storyId);
     expect(callsFor(home.db, "weaver").at(-1)).toMatchObject({ provider: "codex", model: "gpt-6.1-sol" });
-    expect((await view()).day_view?.scene_end).toEqual({ step: null, failed: null });
+    expect((await view()).day_view?.scene_end).toEqual({ step: null, failed: null, rethinking: null });
   });
 
   // GIVEN the player set the Writer to Gemini 3.8 Flash at high effort
@@ -127,33 +128,55 @@ describe("the Models screen over the link", () => {
     expect(await message(await post("retry", { model: { provider: "codex", model: "gpt-9", effort: null } }))).toBe("Codex does not offer gpt-9.");
   });
 
-  // GIVEN the player has never set the Folder's model
-  // THEN the Models screen shows the Folder on Haiku 4.5, and the player can move it like any job
+  // GIVEN the player has never set a model
+  // THEN the Models screen shows the Director on Fable 5.1, the Editor on Sonnet 5.5, and every other job on Opus
+  //   5.5, each with GPT 6.1 Sol as its second model
+  it("outside-the-scene › One Models screen › The defaults", async () => {
+    // A Story whose Story File names no Actor takes the default one.
+    const story = await served(playable(hogwartsStoryFile()));
+    closers.push(story.close);
+    const view = await (await story.call("/models")).json() as ModelsView;
+    expect(view.jobs.map(job => [job.title, job.model.label, job.backup.label])).toEqual([
+      ["Writer", "Opus 5.5 · medium", "GPT 6.1 Sol"],
+      ["Editor", "Sonnet 5.5", "GPT 6.1 Sol"],
+      ["Chronicler", "Opus 5.5", "GPT 6.1 Sol"],
+      ["Director", "Fable 5.1 · high", "GPT 6.1 Sol"],
+      ["Weaver", "Opus 5.5", "GPT 6.1 Sol"],
+      ["Folder", "Opus 5.5", "GPT 6.1 Sol"]
+    ]);
+    expect(view.stories).toEqual([expect.objectContaining({ own: false, actor: { choice: { provider: "claude", model: "claude-opus-5-5", effort: "high" }, label: "Opus 5.5 · high" } })]);
+    expect(view.actor_backup.label).toBe("GPT 6.1 Sol");
+  });
+
+  // WHEN the player sets the Folder to Haiku 4.5
+  // THEN the Models screen shows the Folder on Haiku 4.5, and the next fold runs on it
   it("outside-the-scene › One Models screen › The Folder on Haiku", async () => {
     const story = await served(playable());
     closers.push(story.close);
-    const { call, mac: home, engine, storyId, play, head, view } = story;
+    const { call, mac: home, engine, storyId, play, head } = story;
     const folderOf = (view: ModelsView) => view.jobs.find(job => job.job === "folder")!;
-    const shown = await (await call("/models")).json() as ModelsView;
-    expect(folderOf(shown)).toMatchObject({ title: "Folder", model: { label: "Haiku 4.5", choice: { provider: "claude", model: "claude-haiku-4-5-20251001", effort: null } }, backup: { label: "Sonnet 5.5" } });
-
-    // Moved like any job: the screen shows it, and the next Folder work runs on it.
-    const moved = await call("/models/jobs/folder", { method: "PUT", body: JSON.stringify({ model: { provider: "claude", model: "claude-sonnet-5-5", effort: null } }) });
+    const moved = await call("/models/jobs/folder", { method: "PUT", body: JSON.stringify({ model: { provider: "claude", model: "claude-haiku-4-5-20251001", effort: null } }) });
     expect(moved.status).toBe(200);
-    expect(folderOf(await moved.json() as ModelsView).model.label).toBe("Sonnet 5.5");
-    // Scenes are played, the first a week before the rest, until The Story So Far has a week to fold.
-    for (let scene = 1; scene <= 14 && callsFor(home.db, "folder").length === 0; scene++) {
-      if (scene === 2) {
-        const nextWeek = view().day_view!.choices.skips.find(skip => skip.label === "Next week")!;
-        engine.choose(storyId, { after: head(), kind: "skip", at: nextWeek.at, gap: null }, "skip");
-        await engine.settled(storyId);
-      } else {
-        await play(scene === 1 ? "I say goodnight." : "In the morning I go down to breakfast.");
-      }
-      engine.endScene(storyId, head(), `end-${scene}`);
-      await engine.ended(storyId);
-    }
-    expect(callsFor(home.db, "folder")).toEqual([{ provider: "claude", model: "claude-sonnet-5-5", effort: null }]);
+    expect(folderOf(await moved.json() as ModelsView)).toMatchObject({ title: "Folder", model: { label: "Haiku 4.5", choice: { provider: "claude", model: "claude-haiku-4-5-20251001", effort: null } }, backup: { label: "GPT 6.1 Sol" } });
+    expect(folderOf(await (await call("/models")).json() as ModelsView).model.label).toBe("Haiku 4.5");
+    // The first Scene is played in the Outline's first Act; the Act then ends, so the next Scene's end folds it.
+    const act = (number: number): Act => ({ number, title: `Year ${number}`, question: "Will she?", buildsTo: "The summer", detail: number === 1 ? "detailed" : "sketched", turns: [], relationships: [], movers: [], handsOn: "" });
+    const outlined = (current: number) => {
+      const path = home.tree.currentPath(storyId)!;
+      const entry = home.tree.append(storyId, path.headEntryId, { kind: "outline_set", outline: { current, acts: [act(1), act(2)], ending: "Voldemort falls.", intentions: [], setups: [], promoted: [], revisedAfter: 0, deep: false, lookedUp: [] },
+        reason: "The Act ends.", planFollows: false, dropped: [], callId: "c", model: { provider: "claude", model: "claude-fable-5-1" } });
+      home.tree.moveHead(path.id, path.headEntryId, entry.id);
+    };
+    outlined(1);
+    await play("I say goodnight.");
+    engine.endScene(storyId, head(), "end-1");
+    await engine.ended(storyId);
+    expect(callsFor(home.db, "folder")).toEqual([]);
+    outlined(2);
+    await play("In the morning I go down to breakfast.");
+    engine.endScene(storyId, head(), "end-2");
+    await engine.ended(storyId);
+    expect(callsFor(home.db, "folder")[0]).toEqual({ provider: "claude", model: "claude-haiku-4-5-20251001", effort: null });
   }, 30_000);
 
   it("sets a job's second model, the Actor's too, from its next work, and refuses one it does not know", async () => {
@@ -161,8 +184,8 @@ describe("the Models screen over the link", () => {
     const set = await put("/models/jobs/director", { model: { provider: "codex", model: "gpt-6.1-sol", effort: "high" }, backup: true });
     expect(set.status).toBe(200);
     const director = (await set.json() as ModelsView).jobs.find(job => job.job === "director")!;
-    expect(director).toMatchObject({ model: { label: "Opus 5.5" }, backup: { label: "GPT 6.1 Sol · high" } });
-    expect(jobModels(home.home).director).toEqual({ provider: "claude", model: "claude-opus-5-5" });
+    expect(director).toMatchObject({ model: { label: "Fable 5.1 · high" }, backup: { label: "GPT 6.1 Sol · high" } });
+    expect(jobModels(home.home).director).toEqual({ provider: "claude", model: "claude-fable-5-1", effort: "high" });
     expect(backupModels(home.home).director).toEqual({ provider: "codex", model: "gpt-6.1-sol", effort: "high" });
     // The Actor has no model for every Story, but its second model is the Mac's.
     expect((await put("/models/jobs/actor", { model: { provider: "codex", model: "gpt-6-luna", effort: null }, backup: true })).status).toBe(200);

@@ -18,16 +18,17 @@ const CORNERS = "She corners him about the seating plan.";
 
 /**
  * The Director's answer on Saturday (Day 4): a Stretch to Thursday whose next Scene that matters is Draconia cornering
- * him after Charms on Thursday at ten.
+ * him after Charms on Thursday at ten. Each Scene serves the first turn of the Act the scripted Director outlines, and
+ * the Stretch brings in that Outline's locked door.
  */
 function charmsWeek(story: StoryFile, changes: Record<string, unknown> = {}): Script {
   return { answer: JSON.stringify({
     days: 6, toward: "the flying test", landmark: null, phase: "build",
     scenes: [
-      { id: "S1", date: "1991-09-12", time: "10:00", place: "The corridor outside Charms", who: ["Draconia Malfoy"], for: CORNERS, offer: "Draconia is waiting outside Charms.", headline: "Charms: she corners him", lead: "Draconia Malfoy", engagement: null, quiet: false },
-      { id: "S2", date: "1991-09-12", time: "15:00", place: "The library", who: ["Hermione Granger"], for: "Hermione's flying notes.", offer: "Hermione is in the library with her flying notes.", headline: "The library: Hermione's notes", lead: "Hermione Granger", engagement: null, quiet: false }
+      { id: "S1", date: "1991-09-12", time: "10:00", place: "The corridor outside Charms", who: ["Draconia Malfoy"], serves: { turn: "T1", lives: ["Draconia Malfoy"] }, for: CORNERS, offer: "Draconia is waiting outside Charms.", headline: "Charms: she corners him", lead: "Draconia Malfoy", engagement: null, quiet: false },
+      { id: "S2", date: "1991-09-12", time: "15:00", place: "The library", who: ["Hermione Granger"], serves: { turn: "T1", lives: ["Hermione Granger"] }, for: "Hermione's flying notes.", offer: "Hermione is in the library with her flying notes.", headline: "The library: Hermione's notes", lead: "Hermione Granger", engagement: null, quiet: false }
     ],
-    new: [{ kind: "mystery", what: "Someone keeps changing the Charms seating plan.", scene: "S1", person: null }],
+    new: [{ setup: "U1", kind: "mystery", scene: "S1", person: null }],
     leads: [{ who: "Draconia Malfoy", move: "Corners him after Charms.", scene: "S1" }, { who: "Hermione Granger", move: "Lends him her notes.", scene: "S2" }],
     arcs: story.arcs!.map(arc => ({ arc, now: "where it was", next: "a step", not_yet: "anything declared" })),
     roadmap: [], premise: "Draconia's Scenes serve it; Hermione's leave it alone.",
@@ -36,7 +37,7 @@ function charmsWeek(story: StoryFile, changes: Record<string, unknown> = {}): Sc
 }
 
 /** A Scene that matters, as the Director writes one, changed as a scenario needs. */
-const scene = (changes: Record<string, unknown>) => ({ id: "S1", date: "1991-09-08", time: "10:00", place: "The Great Hall", who: [], for: "A step.", offer: "Something is on.", headline: "A step", lead: null, engagement: null, quiet: false, ...changes });
+const scene = (changes: Record<string, unknown>) => ({ id: "S1", date: "1991-09-08", time: "10:00", place: "The Great Hall", who: [], serves: { turn: "T1", lives: [] }, for: "A step.", offer: "Something is on.", headline: "A step", lead: null, engagement: null, quiet: false, ...changes });
 
 /** The World as the fakes move it, with [happened] and [meanwhile] added and the fakes' Lead moves left out. */
 function worldWith(happened: Record<string, unknown>[], meanwhile: Record<string, unknown>[]): Script {

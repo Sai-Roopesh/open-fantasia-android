@@ -3,7 +3,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import type { OfferedModel } from "./catalog.js";
-import type { ModelRequest, ModelRunner } from "./model-call.js";
+import { NO_TOOLS, webLookup, type ModelRequest, type ModelRunner, type Tools } from "./model-call.js";
 
 type Message = { id?: number; method?: string; params?: Record<string, unknown>; result?: unknown; error?: { message?: string } };
 type Listener = (method: string, params: Record<string, unknown>) => void;
@@ -11,7 +11,7 @@ type Listener = (method: string, params: Record<string, unknown>) => void;
 /**
  * One `codex app-server` (codex-cli 0.160.0): JSON-RPC over stdio, many conversations in one process. Requests are
  * answered by id; notifications go to whoever listens for their thread. A request from the server, to approve a
- * command or a file change, is refused: the agents use no tools.
+ * command or a file change, is refused: the agents run no commands and change no files.
  */
 class AppServer {
   private readonly child: ChildProcessWithoutNullStreams;
@@ -64,7 +64,7 @@ class AppServer {
     let message: Message;
     try { message = JSON.parse(line) as Message; } catch { return; }
     if (message.id !== undefined && message.method) {
-      this.write({ id: message.id, error: { message: "Open Fantasia's agents use no tools." } } as Message);
+      this.write({ id: message.id, error: { message: "Open Fantasia's agents run no commands and change no files." } } as Message);
       return;
     }
     if (message.id !== undefined) {
@@ -92,9 +92,12 @@ class AppServer {
  * Codex, through one long-running `codex app-server` on the player's ChatGPT subscription (docs/adr/0005). Each call
  * is a fresh ephemeral thread whose only instructions are the system prompt, in a read-only sandbox in an empty
  * folder, with approvals never given: the call is exactly what the engine sent. Words stream from the agent's message
- * deltas; the answer is its finished message.
+ * deltas; the answer is its finished message. A call that may use the web gets Codex's own live web search, and each
+ * search or page it opens is kept with the call; it cannot be refused mid-turn, so its budget is the call's time
+ * (docs/adr/0018). The Story's tools run only on Claude.
  */
 export class CodexRunner implements ModelRunner {
+  readonly canLookUp = { story: false, web: true };
   private server: AppServer | null = null;
   private readonly workdir: string;
 
@@ -103,7 +106,7 @@ export class CodexRunner implements ModelRunner {
     mkdirSync(this.workdir, { recursive: true });
   }
 
-  async run(request: ModelRequest, onText: (delta: string) => void, signal: AbortSignal): Promise<string> {
+  async run(request: ModelRequest, onText: (delta: string) => void, signal: AbortSignal, tools: Tools = NO_TOOLS): Promise<string> {
     if (signal.aborted) throw new Error(`Codex ${request.model.model}: stopped`);
     const server = this.started();
     await server.ready;
@@ -113,7 +116,9 @@ export class CodexRunner implements ModelRunner {
       ephemeral: true,
       sandbox: "read-only",
       approvalPolicy: "never",
-      cwd: this.workdir
+      cwd: this.workdir,
+      // Codex searches the web on its own when it may; a call that may not is kept from it.
+      config: { web_search: tools.web ? "live" : "disabled" }
     });
     return await new Promise<string>((resolve, reject) => {
       let streamed = "";
@@ -133,8 +138,10 @@ export class CodexRunner implements ModelRunner {
           streamed += params.delta;
           onText(params.delta);
         } else if (method === "item/completed") {
-          const item = params.item as { type?: string; text?: string } | undefined;
+          const item = params.item as (CodexWebSearch & { text?: string }) | undefined;
           if (item?.type === "agentMessage" && typeof item.text === "string") message = item.text;
+          const looked = item?.type === "webSearch" ? webSearchLine(item) : null;
+          if (looked) tools.made(looked);
         } else if (method === "error") {
           const error = params.error as { message?: string } | undefined;
           if (params.willRetry !== true) failure = error?.message ?? failure;
@@ -194,6 +201,21 @@ export class CodexRunner implements ModelRunner {
     this.server = server;
     return server;
   }
+}
+
+/** A web search Codex made, as its finished item gives it (codex-cli 0.160.0's WebSearchItem). */
+export interface CodexWebSearch {
+  type?: string;
+  query?: string;
+  action?: { type: "search"; query?: string | null; queries?: string[] | null } | { type: "openPage"; url?: string | null } | { type: "findInPage"; url?: string | null; pattern?: string | null } | { type: "other" } | null;
+}
+
+/** A web search or a page Codex opened, said in a line as every provider's lookups are; null for anything else. */
+export function webSearchLine(item: CodexWebSearch): string | null {
+  const action = item.action;
+  if (action?.type === "openPage" || action?.type === "findInPage") return action.url ? webLookup.read(action.url) : null;
+  const query = action?.type === "search" ? action.query ?? action.queries?.join("; ") ?? item.query : item.query;
+  return query ? webLookup.searched(query) : null;
 }
 
 function lastLine(text: string): string {

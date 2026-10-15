@@ -37,7 +37,7 @@ class StoryActions(
     val landmark: (String, Boolean, String, String) -> Unit = { _, _, _, _ -> },
     val dropLandmark: (String) -> Unit = {},
     val place: (String, Boolean, Boolean, String) -> Unit = { _, _, _, _ -> },
-    val taste: (String, String) -> Unit = { _, _ -> },
+    val taste: (ClosedBy, String, String) -> Unit = { _, _, _ -> },
     val brief: (List<String>, List<String>) -> Unit = { _, _ -> }
 )
 
@@ -86,7 +86,8 @@ class StoryActions(
         is StoryEdit.Arc -> (if (creating) "A new Arc" else "An Arc") to "A journey the Story builds toward, with no fixed end. From now on, on this Path."
         is StoryEdit.Landmark -> (target.name ?: "A new Landmark") to "The World brings it about at its time, whether or not the Arcs are ready. From now on, on this Path."
         is StoryEdit.Place -> (target.name ?: if (target.institution) "A new institution" else "A new place") to "From now on, on this Path."
-        is StoryEdit.Taste -> "A lesson" to "A line of Taste: the Story reads it in every Scene."
+        is StoryEdit.Taste -> if (target.scope == ClosedBy.Player) "A lesson of yours" to "A line of your own Taste: every Story you play reads it, this one and the next."
+            else "A lesson" to "A line of this Story's Taste: the Story reads it in every Scene."
         is StoryEdit.Brief -> "Your brief" to "What you want more of and less of, one to a line. The Director plans every Stretch from it."
     }
     val at = day.trim().toIntOrNull()?.takeIf { it > 0 }?.let { "Day $it ${"%02d:%02d".format(minute / 60, minute % 60)}" }
@@ -109,7 +110,7 @@ class StoryActions(
             is StoryEdit.Arc -> actions.arc(target.index, first.trim())
             is StoryEdit.Landmark -> at?.let { actions.landmark(target.name ?: name.trim(), creating, it, first.trim()) }
             is StoryEdit.Place -> actions.place(target.name ?: name.trim(), target.institution, creating, first.trim())
-            is StoryEdit.Taste -> actions.taste(target.line, first.trim())
+            is StoryEdit.Taste -> actions.taste(target.scope, target.line, first.trim())
             is StoryEdit.Brief -> actions.brief(lines(first), lines(less))
         }
         Unit

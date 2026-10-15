@@ -1,4 +1,5 @@
 import { mkdtempSync } from "node:fs";
+import { emptyUpdate } from "../../src/story/truth.js";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Database from "better-sqlite3";
@@ -137,7 +138,7 @@ describe("working out the State on a Path", () => {
     const reply = tree.append("s", move.id, { kind: "reply", text: "She waves back.", callId: "c", model });
     const closed = tree.append("s", reply.id, { kind: "scene_closed", by: "player" });
     const chronicle = tree.append("s", closed.id, {
-      kind: "chronicle", scene: 1, summary: "She waved back.", paragraph: "He waved; she waved back.", told: [], known: [], bonds: [], engagements: [], changed: [], dropped: [],
+      kind: "chronicle", truth: emptyUpdate(), scene: 1, summary: "She waved back.", paragraph: "He waved; she waved back.", told: [], known: [], bonds: [], engagements: [], changed: [], dropped: [],
       moments: [{ what: "She waves back.", quotes: [{ entry: reply.id, text: "She waves back." }], there: ["Draconia Malfoy"], weight: 2 }], callId: "c", model
     });
     expect(tree.pathTo(chronicle.id).map(entry => entry.payload.kind)).toEqual(["story_set_up", "scene_opened", "move", "reply", "scene_closed", "chronicle"]);

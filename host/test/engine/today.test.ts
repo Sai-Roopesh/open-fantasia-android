@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 import { playable } from "../support/play.js";
 import { hogwartsWorldStoryFile } from "../support/story-files.js";
 
-/** The Director's plan: Saturday's Scene that matters is the hospital wing at 11:00, about Draconia. */
+/**
+ * The Director's plan: Saturday's Scene that matters is the hospital wing at 11:00, about Draconia, serving the first
+ * turn of the Act the scripted Director outlines, and bringing in that Outline's locked door.
+ */
 const plan = {
   days: 4, toward: "Draconia's flying test", landmark: null, phase: "build",
-  scenes: [{ id: "S1", date: "1991-09-07", time: "11:00", place: "Outside the hospital wing", who: ["Draconia Malfoy", "Severus Snape"], for: "Draconia needs a witness.", offer: "Draconia, on a strapped ankle, is fighting Snape for her bed back.", headline: "The hospital wing: Draconia wants out", lead: "Draconia Malfoy", engagement: null, quiet: false }],
-  new: [{ kind: "mystery", what: "Who hexed Draconia's broom.", scene: "S1", person: null }],
+  scenes: [{ id: "S1", date: "1991-09-07", time: "11:00", place: "Outside the hospital wing", who: ["Draconia Malfoy", "Severus Snape"], serves: { turn: "T1", lives: ["Draconia Malfoy"] }, for: "Draconia needs a witness.", offer: "Draconia, on a strapped ankle, is fighting Snape for her bed back.", headline: "The hospital wing: Draconia wants out", lead: "Draconia Malfoy", engagement: null, quiet: false }],
+  new: [{ setup: "U1", kind: "mystery", scene: "S1", person: null }],
   leads: [{ who: "Draconia Malfoy", move: "She makes him her witness.", scene: "S1" }, { who: "Hermione Granger", move: "She asks where he was.", scene: "S1" }],
   arcs: [], roadmap: [], premise: "The romance turns on a debt."
 };

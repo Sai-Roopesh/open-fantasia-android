@@ -61,6 +61,7 @@ It builds the design decided with the player in docs/research/design.md, against
 - `outside-the-scene`: Backstage shows the Outline, the Lives and the player's steering notes; the Models screen has
   the Editor and new defaults.
 - `story-file`: a Story File may set the World's starting Rules.
+- `mac-link`: a Reply's steps reach the phone live, and the Reply arrives whole once checked, not word by word.
 
 ## Impact
 

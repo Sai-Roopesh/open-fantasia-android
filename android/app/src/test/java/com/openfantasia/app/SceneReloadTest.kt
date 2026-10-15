@@ -38,7 +38,7 @@ class SceneReloadTest {
             val opening = NextScene(at = "Day 2 18:00", atLabel = "Friday 6:00 pm")
             val snapshot = initial.copy(dayView = null, opening = opening, exchanges = listOf(Exchange(move = move)), headEntryID = "move",
                 earlierScenes = listOf(SceneSummaryLine(number = 14, title = "After curfew", summary = "")), seq = 5, lastEventID = "5",
-                turn = TurnState(kind = TurnStateKind.Writing, textSoFar = "", traceID = "choose"))
+                turn = TurnState(kind = TurnStateKind.Writing, traceID = "choose"))
             mac.enqueue(MockResponse().setHeader("Content-Type", "text/event-stream").setBody(
                 eventData("5", StoryEvent(kind = StoryEventKind.Move, seq = 5, passage = move, opening = opening))))
             mac.enqueue(MockResponse().setBody(linkJson.encodeToString(snapshot)))
@@ -141,18 +141,17 @@ class SceneReloadTest {
             val card = sceneFixture().scene.copy(number = 15, title = "A board game", place = "Dormitory",
                 people = listOf("Harry", "Ron", "Neville").map { PersonCard(name = it, portraitURL = null) })
             val snapshot = sceneFixture().copy(scene = card, exchanges = listOf(Exchange(move = move, reply = null)),
-                seq = 6, lastEventID = "6.2", headEntryID = "writer", focus = null, linger = false, dayView = null,
-                turn = TurnState(kind = TurnStateKind.Writing, textSoFar = "Harry and Ron ", traceID = "turn"))
+                seq = 6, lastEventID = "6", headEntryID = "writer", focus = null, linger = false, dayView = null,
+                turn = TurnState(kind = TurnStateKind.Writing, traceID = "turn"))
             mac.enqueue(MockResponse().setHeader("Content-Type", "text/event-stream").setBody(
                 eventData("4", StoryEvent(kind = StoryEventKind.Move, seq = 4, passage = move)) +
                 eventData("5", StoryEvent(kind = StoryEventKind.SceneOpened, seq = 5, scene = card, focus = null)) +
                 eventData(null, StoryEvent(kind = StoryEventKind.ReplyStarted, seq = 6, traceID = "turn")) +
-                eventData("6.2", StoryEvent(kind = StoryEventKind.ReplyDelta, seq = 6, text = "and Ron ")) +
-                eventData("6.3", StoryEvent(kind = StoryEventKind.ReplyDelta, seq = 6, text = "look up."))))
+                eventData(null, StoryEvent(kind = StoryEventKind.TurnStep, seq = 6, turnStep = TurnStep.Checking, traceID = "turn"))))
             mac.enqueue(MockResponse().setBody(linkJson.encodeToString(snapshot)))
             val views = mutableListOf<SceneView>()
             withTimeout(5000) { StoryStream(loadScene = { mac.client.scene(it) }) { mac.client }.follow(sceneFixture())
-                .first { views += it; it.turn.textSoFar?.endsWith("look up.") == true } }
+                .first { views += it; it.turn.kind == TurnStateKind.Checking } }
             val opened = views.first { it.scene.number == 15L }
             assertEquals(snapshot, opened)
             val view = views.last()
@@ -160,10 +159,9 @@ class SceneReloadTest {
             assertEquals("Dormitory", view.scene.place)
             assertEquals(move, view.exchanges.first().move)
             assertNull(view.exchanges.first().reply)
-            assertEquals(TurnStateKind.Writing, view.turn.kind)
-            assertEquals("Harry and Ron look up.", view.turn.textSoFar)
+            assertEquals(TurnStateKind.Checking, view.turn.kind)
             assertNull(view.dayView)
-            assertEquals("6.3", view.lastEventID)
+            assertEquals("6", view.lastEventID)
             assertEquals("/stories/story/events?path=path&head=${sceneFixture().headEntryID}", mac.server.takeRequest().path)
             assertEquals("/stories/story/scene", mac.server.takeRequest().path)
         }
@@ -183,23 +181,22 @@ class SceneReloadTest {
         }
     }
 
-    @Test fun `Redo reloads away the old Reply and streams its replacement`() = runBlocking {
+    @Test fun `Redo reloads away the old Reply and follows its replacement`() = runBlocking {
         MacServer().use { mac ->
             val move = Passage(entryID = "move", text = "I wait.")
             val initial = sceneFixture().copy(exchanges = listOf(Exchange(move = move,
                 reply = Passage(entryID = "old", text = "She smiles."))), headEntryID = "old", seq = 3, lastEventID = "3")
-            val snapshot = initial.copy(exchanges = listOf(Exchange(move = move, reply = null)), headEntryID = "writer", seq = 5, lastEventID = "5.1",
-                turn = TurnState(kind = TurnStateKind.Writing, textSoFar = "She "))
+            val snapshot = initial.copy(exchanges = listOf(Exchange(move = move, reply = null)), headEntryID = "writer", seq = 5, lastEventID = "5",
+                turn = TurnState(kind = TurnStateKind.Writing))
             mac.enqueue(MockResponse().setHeader("Content-Type", "text/event-stream").setBody(
                 eventData("4", StoryEvent(kind = StoryEventKind.Redo, seq = 4)) +
-                eventData("5.2", StoryEvent(kind = StoryEventKind.ReplyDelta, seq = 5, text = "looks up."))))
+                eventData(null, StoryEvent(kind = StoryEventKind.TurnStep, seq = 5, turnStep = TurnStep.Checking))))
             mac.enqueue(MockResponse().setBody(linkJson.encodeToString(snapshot)))
             val view = withTimeout(5000) { StoryStream(loadScene = { mac.client.scene(it) }) { mac.client }
-                .follow(initial).first { it.turn.textSoFar?.endsWith("looks up.") == true } }
+                .follow(initial).first { it.turn.kind == TurnStateKind.Checking } }
             assertEquals(listOf(Exchange(move = move, reply = null)), view.exchanges)
-            assertEquals("She looks up.", view.turn.textSoFar)
             assertEquals("writer", view.headEntryID)
-            assertEquals("5.2", view.lastEventID)
+            assertEquals("5", view.lastEventID)
             assertEquals("/stories/story/events?path=path&head=${initial.headEntryID}", mac.server.takeRequest().path)
             assertEquals("/stories/story/scene", mac.server.takeRequest().path)
         }
@@ -210,17 +207,17 @@ class SceneReloadTest {
             val move = Passage(entryID = "move", text = "I wait.")
             val initial = sceneFixture().copy(exchanges = listOf(Exchange(move = move,
                 reply = Passage(entryID = "old", text = "She smiles."))), headEntryID = "old", seq = 3, lastEventID = "3")
-            val snapshot = initial.copy(exchanges = listOf(Exchange(move = move, reply = null)), headEntryID = "writer", seq = 5, lastEventID = "5.1",
-                turn = TurnState(kind = TurnStateKind.Writing, textSoFar = "She "))
+            val snapshot = initial.copy(exchanges = listOf(Exchange(move = move, reply = null)), headEntryID = "writer", seq = 5, lastEventID = "5",
+                turn = TurnState(kind = TurnStateKind.Writing))
             val redo = eventData("4", StoryEvent(kind = StoryEventKind.Redo, seq = 4))
             mac.enqueue(MockResponse().setHeader("Content-Type", "text/event-stream").setBody(redo))
             mac.enqueue(MockResponse().setBody(linkJson.encodeToString(snapshot)).setSocketPolicy(SocketPolicy.DISCONNECT_DURING_RESPONSE_BODY))
             mac.enqueue(MockResponse().setHeader("Content-Type", "text/event-stream").setBody(redo +
-                eventData("5.2", StoryEvent(kind = StoryEventKind.ReplyDelta, seq = 5, text = "looks up."))))
+                eventData(null, StoryEvent(kind = StoryEventKind.TurnStep, seq = 5, turnStep = TurnStep.Checking))))
             mac.enqueue(MockResponse().setBody(linkJson.encodeToString(snapshot)))
             val view = withTimeout(5000) { StoryStream(loadScene = { mac.client.scene(it) }) { mac.client }
-                .follow(initial).first { it.turn.textSoFar?.endsWith("looks up.") == true } }
-            assertEquals("She looks up.", view.turn.textSoFar)
+                .follow(initial).first { it.turn.kind == TurnStateKind.Checking } }
+            assertEquals(TurnStateKind.Checking, view.turn.kind)
             assertEquals(listOf(Exchange(move = move, reply = null)), view.exchanges)
             assertEquals("3", mac.server.takeRequest().getHeader("Last-Event-ID"))
             assertEquals("/stories/story/scene", mac.server.takeRequest().path)

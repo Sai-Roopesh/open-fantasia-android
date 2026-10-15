@@ -50,8 +50,9 @@ fun LinkClient.events(storyID: String, lastEventID: String, pathID: String? = nu
     awaitClose { source.cancel(); onConnection(false) }
 }.buffer(Channel.UNLIMITED)
 
-private data class EventOrder(val seq: Long, val delta: Long = 0) : Comparable<EventOrder> {
-    override fun compareTo(other: EventOrder): Int = compareValuesBy(this, other, { it.seq }, { it.delta })
+/** A place in the Story's order: the entry an event follows, and a part after it, such as a turn's start ("12.0"). */
+private data class EventOrder(val seq: Long, val part: Long = 0) : Comparable<EventOrder> {
+    override fun compareTo(other: EventOrder): Int = compareValuesBy(this, other, { it.seq }, { it.part })
     companion object {
         fun parse(id: String): EventOrder {
             require(id.matches(Regex("[0-9]+(\\.[0-9]+)?"))) { "Invalid Story event id" }
@@ -60,6 +61,21 @@ private data class EventOrder(val seq: Long, val delta: Long = 0) : Comparable<E
         }
     }
 }
+
+/** A Reply is under way: looking something up, being written, or being checked (openspec presence: A Reply arrives checked and whole). */
+internal val TurnState.underWay: Boolean
+    get() = kind == TurnStateKind.LookingBack || kind == TurnStateKind.Writing || kind == TurnStateKind.Checking
+
+/** What a turn's step says the Reply under way is doing. */
+internal val TurnStep.kind: TurnStateKind
+    get() = when (this) {
+        TurnStep.LookingBack -> TurnStateKind.LookingBack
+        TurnStep.Writing -> TurnStateKind.Writing
+        TurnStep.Checking -> TurnStateKind.Checking
+    }
+
+/** Events that write no entry: their ids ("12.step.weaver") are not a place in the order. */
+private val UNPLACED = setOf(StoryEventKind.ReplyFailed, StoryEventKind.TurnStep, StoryEventKind.SceneEndStep, StoryEventKind.SceneEndFailed)
 
 class SceneProjection(initial: SceneView) {
     var view: SceneView = initial
@@ -71,17 +87,13 @@ class SceneProjection(initial: SceneView) {
         val event = envelope.event
         val cursor = EventOrder.parse(lastEventID)
         if (event.seq < cursor.seq) return view
-        // A failure and a Scene end's steps write no entry: their ids ("12.step.weaver") are not a place in the order.
-        val order = if (event.kind in setOf(StoryEventKind.ReplyFailed, StoryEventKind.SceneEndStep, StoryEventKind.SceneEndFailed)) null else envelope.id?.let(EventOrder::parse)
-        // SSE carries the preceding id into an id-less reply_started event. A view reloaded
-        // mid-turn can already contain its words; that queued start must not erase them.
-        if (event.kind == StoryEventKind.ReplyStarted && view.turn.kind == TurnStateKind.Writing &&
-            EventOrder.parse(lastEventID).let { it.seq == event.seq && it.delta > 0 } &&
-            (order == null || order.seq != event.seq || envelope.id?.endsWith(".0") == true)) return view
+        val order = if (event.kind in UNPLACED) null else envelope.id?.let(EventOrder::parse)
+        // SSE carries the preceding id into an id-less reply_started event, and a view read mid-turn already knows the
+        // step it is at: that queued start must not set it back.
+        if (event.kind == StoryEventKind.ReplyStarted && view.turn.underWay && view.seq == event.seq) return view
         if (order != null && order.seq != event.seq && event.kind != StoryEventKind.ReplyStarted) throw LinkFailure("The Mac sent an out-of-order Story change")
         val entry = event.kind in setOf(StoryEventKind.Move, StoryEventKind.Reply, StoryEventKind.SceneOpened, StoryEventKind.SceneClosed, StoryEventKind.FocusSet, StoryEventKind.LingerSet, StoryEventKind.Redo)
         if (entry && (order ?: EventOrder(event.seq)) <= cursor) return view
-        if (event.kind == StoryEventKind.ReplyDelta && order != null && order <= EventOrder.parse(lastEventID)) return view
         view = when (event.kind) {
             // These say the Scene should be read again; the stream reads its snapshot.
             StoryEventKind.WorldMoved, StoryEventKind.PathChanged -> view
@@ -107,6 +119,7 @@ class SceneProjection(initial: SceneView) {
                 headEntryID = event.passage.entryID, seq = maxOf(view.seq, event.seq),
                 turn = TurnState(kind = TurnStateKind.Idle)
             )
+            // The Reply arrives whole, checked, with the Editor's note when it still breaks something (docs/adr/0019).
             StoryEventKind.Reply -> {
                 val reply = requireNotNull(event.passage)
                 val exchanges = view.exchanges.toMutableList()
@@ -116,18 +129,18 @@ class SceneProjection(initial: SceneView) {
                 view.copy(scene = event.scene ?: view.scene, exchanges = exchanges, headEntryID = reply.entryID, seq = maxOf(view.seq, event.seq),
                     turn = TurnState(kind = TurnStateKind.Idle))
             }
-            StoryEventKind.ReplyStarted -> view.copy(seq = maxOf(view.seq, event.seq), turn = TurnState(kind = TurnStateKind.Writing,
-                textSoFar = "", traceID = event.traceID))
-            StoryEventKind.ReplyDelta -> view.copy(seq = maxOf(view.seq, event.seq), turn = TurnState(kind = TurnStateKind.Writing,
-                textSoFar = view.turn.textSoFar.orEmpty() + requireNotNull(event.text),
+            // The turn begins written, unless its start says it is looking something up first; each step then says what it is doing.
+            StoryEventKind.ReplyStarted -> view.copy(seq = maxOf(view.seq, event.seq), turn = TurnState(kind = event.turnStep?.kind ?: TurnStateKind.Writing,
+                traceID = event.traceID))
+            StoryEventKind.TurnStep -> view.copy(seq = maxOf(view.seq, event.seq), turn = TurnState(kind = requireNotNull(event.turnStep).kind,
                 traceID = event.traceID ?: view.turn.traceID))
             StoryEventKind.ReplyFailed -> view.copy(seq = maxOf(view.seq, event.seq), turn = TurnState(kind = TurnStateKind.Failed,
                 reason = requireNotNull(event.reason), traceID = event.traceID))
         }
-        // A resumed turn starts with its complete text so far, then new deltas; Retry can reuse the Move's seq.
+        // Retry can reuse the Move's seq, so a start resumes from the entry it follows.
         if (event.kind == StoryEventKind.ReplyStarted) lastEventID = envelope.id?.takeIf { order?.seq == event.seq } ?: event.seq.toString()
         else if (event.kind == StoryEventKind.ReplyFailed) lastEventID = event.seq.toString()
-        else if (envelope.id != null && (entry || event.kind == StoryEventKind.ReplyDelta)) lastEventID = envelope.id
+        else if (envelope.id != null && entry) lastEventID = envelope.id
         view = view.copy(lastEventID = lastEventID)
         return view
     }

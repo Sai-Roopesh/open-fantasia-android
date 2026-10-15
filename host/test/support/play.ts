@@ -4,12 +4,14 @@ import { Models } from "../../src/models/model-call.js";
 import { scriptedRunners } from "../../src/models/runners.js";
 import type { Script } from "../../src/models/scripted.js";
 import type { StoryFile } from "../../src/protocol/generated/story-file.js";
+import type { Entry, Payload } from "../../src/story/entries.js";
 import { importStoryFile } from "../../src/storyfile/import.js";
 import { sceneView } from "../../src/views/scene.js";
 import { freshHome } from "./host.js";
 import { hogwartsStoryFile, writeStoryFile } from "./story-files.js";
 
-type Scripts = { writer?: Script[]; actor?: Script[]; chronicler?: Script[]; weaver?: Script[]; director?: Script[]; folder?: Script[] };
+/** What each job's scripted model answers, in turn; a job with nothing scripted answers by itself, keeping every rule. */
+type Scripts = { writer?: Script[]; actor?: Script[]; editor?: Script[]; chronicler?: Script[]; weaver?: Script[]; director?: Script[]; outline?: Script[]; folder?: Script[] };
 
 /** A Story ready to play on scripted models, with every event it sends kept. */
 export function playable(storyFile: StoryFile = hogwartsStoryFile(), scripts: Scripts = {}, actorFallback?: ConstructorParameters<typeof FakeModels>[1]) {
@@ -31,6 +33,13 @@ export function playable(storyFile: StoryFile = hogwartsStoryFile(), scripts: Sc
     engine.move(storyId, move, head(), `trace-${++turns}`);
     await engine.settled(storyId);
   };
-  return { mac, engine, models, storyId, events, head, path, state, view, play };
+  /** Writes [payload] at the head of the Path, as play or a Scene's end would have written it, without the models. */
+  const write = (payload: Payload): Entry => {
+    const current = mac.tree.currentPath(storyId)!;
+    const entry = mac.tree.append(storyId, current.headEntryId, payload);
+    mac.tree.moveHead(current.id, current.headEntryId, entry.id);
+    return entry;
+  };
+  return { mac, engine, models, storyId, events, head, path, state, view, play, write };
 }
 

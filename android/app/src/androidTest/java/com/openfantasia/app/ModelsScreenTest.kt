@@ -26,4 +26,7 @@ class ModelsScreenTest : ModelsUiChecks() {
 
     @Scenario("presence › Nothing fails silently › Another model for the World")
     @Test fun world() = anotherModelForTheWorld()
+
+    @Scenario("outside-the-scene › One Models screen › The defaults")
+    @Test fun defaults() = theDefaults()
 }

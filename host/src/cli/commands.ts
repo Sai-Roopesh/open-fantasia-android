@@ -19,8 +19,11 @@ import type { ModelChoice } from "../story/state.js";
 import type { Payload } from "../story/entries.js";
 import { parseStoryTime, sayStoryTime } from "../time.js";
 import { importStoryFile } from "../storyfile/import.js";
+import { besideOf, tasteOf } from "../store/beside.js";
+import { actorPrompt } from "../agents/actor.js";
+import { writerCall } from "../agents/writer.js";
 import { Traces } from "../trace.js";
-import { say } from "../views/scene.js";
+import { say, sceneEntries } from "../views/scene.js";
 import { listStories } from "../views/stories.js";
 import { identity } from "./identity.js";
 
@@ -91,7 +94,6 @@ function describe(payload: Payload): string {
     case "scene_closed": return `closed by the ${payload.by}`;
     case "focus_set": return payload.on ? `Focus on ${payload.on}` : "Focus cleared";
     case "linger_set": return payload.on ? "Linger on" : "Linger off";
-    case "taste_set": return `Taste: ${payload.lines.join(" / ") || "nothing"}`;
     case "known_set": return `Known of ${payload.person}: ${payload.text}`;
     case "person_set": return `${payload.person.name}: ${payload.person.whoTheyAre}`;
     case "lead_set": return `${payload.person} ${payload.lead ? "is" : "is no longer"} a Lead`;
@@ -106,13 +108,14 @@ function describe(payload: Payload): string {
     case "place_set": return `The ${payload.institution ? "institution" : "place"} ${payload.place.name}: ${payload.place.description}`;
     case "world_set": return `The World: ${payload.summary}`;
     case "clock_set": return `The clock moved on to ${payload.clock}${payload.dayOne ? `, Day 1 on ${payload.dayOne}` : ""}`;
-    case "brief_set": return `Brief: more ${payload.more.join(" / ") || "nothing"}; less ${payload.less.join(" / ") || "nothing"}`;
     case "routine_set": return `Routine: ${payload.routine.join(" / ")}`;
-    case "reaction_set": return `Scene ${payload.scene}: ${payload.reaction ?? "no reaction"}`;
     case "chronicle": return `Scene ${payload.scene} recorded, ${payload.moments.length} Moments: ${payload.summary}`;
     case "world_moved": return `The World moved on${payload.gap ? " over a Gap" : ""} to ${payload.until}: ${payload.lives.length} Lives, ${payload.happened.length} happened, ${payload.meanwhile.length} in Meanwhile`;
+    case "outline_set": return `The Outline: Act ${payload.outline.current} of ${payload.outline.acts.length}, ${payload.reason}`;
     case "director_plan": return `The Director: ${payload.phase} toward ${payload.toward}, ${payload.scenes.length} Scenes, new: ${payload.newThings.map(thing => thing.what).join(" / ")}`;
-    case "story_folded": return `${payload.count} folded into a ${payload.into}: ${payload.text}`;
+    case "story_folded": return `${payload.count} folded into ${payload.into === "act" ? "an Act's account" : "a week"}: ${payload.text}`;
+    // An old Path's Taste, brief or reaction, from before they were kept beside the Story (docs/adr/0020).
+    default: return `${(payload as { kind: string }).kind}, now kept beside the Story`;
   }
 }
 
@@ -220,6 +223,27 @@ export function record(mac: Mac, storyId: string, out: Out): boolean {
     out(`Scene ${row.number} · ${row.title}`);
     for (const why of row.dropped) out(`  left out: ${why}`);
   }
+  return true;
+}
+
+/**
+ * `fantasia prompts`: what the next Reply's Writer would be given for [move], and what the Actor was given for the latest
+ * Move as the Scene stands, in full, calling no model: for checking what the agents know.
+ */
+export function prompts(mac: Mac, storyId: string, move: string, out: Out): boolean {
+  const path = mac.tree.currentPath(storyId);
+  if (!path) return (out(`No Story ${storyId}.`), false);
+  const head = path.headEntryId;
+  const beside = besideOf(mac, storyId);
+  const { state, entries } = sceneEntries(mac, head);
+  const writer = writerCall({ state, scene: entries, move, choice: null, beside, path: mac.tree.pathTo(head) });
+  for (const line of [`== The Writer, for the Move: ${move}`, `-- system\n${writer.system}`, `-- prompt\n${writer.prompt}`]) out(line);
+  const note = entries.findLast(entry => entry.payload.kind === "beat_note");
+  if (!note || note.payload.kind !== "beat_note" || state.scene?.closed) return (out("== No Reply is being written in an open Scene, so there is no Actor's prompt."), true);
+  const answered = sceneEntries(mac, note.id);
+  const latest = answered.entries.findLast(entry => entry.payload.kind === "move");
+  const actor = actorPrompt({ state: answered.state, beside, scene: answered.entries, gathered: note.payload.gathered ?? [] });
+  for (const line of [`== The Actor, for the latest Move: ${latest?.payload.kind === "move" ? latest.payload.text : ""}`, `-- system\n${actor.system}`, `-- prompt\n${actor.prompt}`]) out(line);
   return true;
 }
 
@@ -560,8 +584,8 @@ export function worldIs(mac: Mac, engine: Engine, storyId: string, summary: stri
 }
 
 /** `fantasia clock`: moves the clock on, never back; [weekday] says which weekday Day 1 was. */
-export function clock(mac: Mac, engine: Engine, storyId: string, at: string, weekday: string | undefined, out: Out): boolean {
-  const ok = onPath(mac, storyId, out, head => { engine.setClock(storyId, at, weekday, head, traceFor("clock")); });
+export function clock(mac: Mac, engine: Engine, storyId: string, at: string, dayOne: string | undefined, out: Out): boolean {
+  const ok = onPath(mac, storyId, out, head => { engine.setClock(storyId, at, dayOne, head, traceFor("clock")); });
   if (ok) {
     const path = mac.tree.currentPath(storyId);
     const state = path ? mac.states.at(path.headEntryId) : null;
@@ -570,11 +594,14 @@ export function clock(mac: Mac, engine: Engine, storyId: string, at: string, wee
   return ok;
 }
 
-/** `fantasia taste`: lists the lessons numbered; `reword <n>` or `drop <n>` changes one. */
+/**
+ * `fantasia taste`: lists the Story's lessons numbered; `reword <n>` or `drop <n>` changes one. Taste is kept beside
+ * the Story (docs/adr/0020), so a change holds on every Path.
+ */
 export function taste(mac: Mac, engine: Engine, storyId: string, args: string[], out: Out): boolean {
   const path = mac.tree.currentPath(storyId);
   if (!path) return (out(`No Story ${storyId} on this Mac.`), false);
-  const lines = mac.states.at(path.headEntryId).taste;
+  const lines = tasteOf(mac, storyId, "story");
   const [action, which, ...words] = args;
   if (!action) {
     if (!lines.length) out("Taste has no lessons yet.");
@@ -584,13 +611,13 @@ export function taste(mac: Mac, engine: Engine, storyId: string, args: string[],
   const line = lines[Number(which) - 1];
   if (!line) return (out(lines.length ? `Say which lesson by its number, 1 to ${lines.length}.` : "Taste has no lessons yet."), false);
   if (action === "reword") {
-    const ok = onPath(mac, storyId, out, head => { engine.rewordTaste(storyId, line, words.join(" "), head, traceFor("taste")); });
-    if (ok) out("The lesson is reworded, from here on this Path.");
+    const ok = onPath(mac, storyId, out, () => { engine.rewordTaste(storyId, line, words.join(" "), "story", traceFor("taste")); });
+    if (ok) out("The lesson is reworded, on every Path.");
     return ok;
   }
   if (action === "drop") {
-    const ok = onPath(mac, storyId, out, head => { engine.removeTaste(storyId, line, head, traceFor("taste")); });
-    if (ok) out("The lesson is deleted, from here on this Path.");
+    const ok = onPath(mac, storyId, out, () => { engine.removeTaste(storyId, line, "story", traceFor("taste")); });
+    if (ok) out("The lesson is deleted, on every Path.");
     return ok;
   }
   return (out("Say reword or drop."), false);

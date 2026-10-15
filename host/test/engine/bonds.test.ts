@@ -46,9 +46,11 @@ describe("a Bond read in later Scenes (lasting-records design decision 6)", () =
     const actorCalls = models.actor.requests.length;
     await play("A week later I find Draconia in the library.");
     expect(state().scene).toMatchObject({ number: 2, at: "Day 10 15:00", here: ["Draconia Malfoy"] });
-    expect(models.writer.requests[writerCalls]!.prompt).toContain(`Draconia Malfoy\n  Between them and Roopesh Gantasala: ${STANDING} (latest: Scene 1: ${TURN})`);
+    // Both read where things stand between the two of them, as he has seen it, with the turn that brought it there.
+    const between = `Draconia Malfoy and Roopesh Gantasala, as he has seen it: ${STANDING}\n  Scene 1: ${TURN}`;
+    expect(models.writer.requests[writerCalls]!.prompt).toContain(between);
     const actor = models.actor.requests[actorCalls]!;
-    expect(actor.prompt).toContain(`<between>\nDraconia Malfoy: ${STANDING}\n  Latest: ${TURN}\n</between>`);
+    expect(actor.prompt).toContain(between);
     // The Actor is given only the Bonds of the people here: Hermione is not in the library.
     expect(`${actor.system}\n${actor.prompt}`).not.toContain(HERMIONE);
   });
@@ -59,7 +61,7 @@ describe("a Bond read in later Scenes (lasting-records design decision 6)", () =
     engine.endScene(storyId, head(), "t-end");
     await engine.ended(storyId);
     const prompt = models.director.requests[0]!.prompt;
-    expect(prompt).toContain(`Draconia Malfoy\n  Between them and Roopesh Gantasala: ${STANDING} (latest: Scene 1: ${TURN})`);
-    expect(prompt).toContain(`Hermione Granger\n  Between them and Roopesh Gantasala: ${HERMIONE}`);
+    expect(prompt).toContain(`Draconia Malfoy and Roopesh Gantasala, as he has seen it: ${STANDING}\n  Scene 1: ${TURN}`);
+    expect(prompt).toContain(`Hermione Granger and Roopesh Gantasala, as he has seen it: ${HERMIONE}`);
   });
 });

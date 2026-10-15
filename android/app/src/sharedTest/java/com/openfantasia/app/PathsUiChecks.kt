@@ -137,7 +137,7 @@ open class PathsUiChecks : WorldUiChecks() {
     // WHEN the player Rewinds to an earlier Reply
     // THEN the Story says a Reply is being written and stays where it is
     fun rewindingWhileAReplyIsWritten() {
-        link.current.value = link.current.value.copy(turn = TurnState(kind = TurnStateKind.Writing, textSoFar = "She", traceID = "turn"))
+        link.current.value = link.current.value.copy(turn = TurnState(kind = TurnStateKind.Writing, traceID = "turn"))
         openScene()
         longPress("Hermione looks up.")
         menu("Copy").assertIsEnabled()

@@ -3,6 +3,7 @@ import { checkChronicle, passages } from "../../src/agents/chronicler.js";
 import { checkPlan, directorPrompt, directorFormat } from "../../src/agents/director.js";
 import { nowPart, say } from "../../src/context/lens.js";
 import type { StoryFile } from "../../src/protocol/generated/story-file.js";
+import { nothingBeside } from "../../src/story/beside.js";
 import { dayOfDate, formatDated, parseAnyTime, sayDate, weekdayOf } from "../../src/time.js";
 import { checkStoryFile } from "../../src/storyfile/check.js";
 import { dayView } from "../../src/views/scene.js";
@@ -54,7 +55,7 @@ describe("the Story's calendar (openspec stories: Story time is told as dates)",
   //   each lands on the date it picked
   it("stories › Story time is told as dates › The Director plans on dates", () => {
     const state = ledger(onTheCalendar()).state();
-    const { system, prompt } = directorPrompt(state, "No plan yet.");
+    const { system, prompt } = directorPrompt(state, nothingBeside(), "No plan yet.");
     expect(prompt).toContain("Today is Friday 6 September 1991.");
     expect(prompt).toContain("1991-09-07 (Saturday 7 September)");
     expect(prompt).not.toMatch(NO_DAY_NUMBER);
@@ -64,8 +65,8 @@ describe("the Story's calendar (openspec stories: Story time is told as dates)",
 
     const checked = checkPlan(state, {
       days: 5, toward: "Sunday's picnic", landmark: null, phase: "build",
-      scenes: [{ id: "S1", date: "1991-09-08", time: "15:00", place: "The Three Broomsticks", who: ["Draconia Malfoy"], for: "She makes him pay for the round.", offer: "Draconia is holding court at the Three Broomsticks.", headline: "The Three Broomsticks: the round", lead: "Draconia Malfoy", engagement: null, quiet: false }],
-      new: [{ kind: "mystery", what: "A note in his Charms book in a hand he does not know.", scene: null, person: null }],
+      scenes: [{ id: "S1", date: "1991-09-08", time: "15:00", place: "The Three Broomsticks", who: ["Draconia Malfoy"], serves: { turn: null, lives: ["Draconia Malfoy"] }, for: "She makes him pay for the round.", offer: "Draconia is holding court at the Three Broomsticks.", headline: "The Three Broomsticks: the round", lead: "Draconia Malfoy", engagement: null, quiet: false }],
+      new: [],
       leads: [], arcs: [], roadmap: [], premise: "A debt between them."
     });
     if (!checked.ok) throw new Error(checked.problems.join("; "));

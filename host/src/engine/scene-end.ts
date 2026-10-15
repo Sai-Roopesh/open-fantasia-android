@@ -1,31 +1,91 @@
 import type { Mac } from "../mac.js";
-import { directionDue } from "../agents/director.js";
+import { directionDue, planFollows } from "../agents/director.js";
 import { foldDue } from "../agents/folder.js";
+import { endedAct, outlineDue, type OutlineAsk } from "../agents/outline.js";
 import { movesDue, type Missed, type WeaveAsk } from "../agents/weaver.js";
+import { besideOf } from "../store/beside.js";
+import { nothingBeside, type Beside } from "../story/beside.js";
 import type { Entry } from "../story/entries.js";
-import { missedBetween, plannedAhead } from "../story/day.js";
+import { missedBetween } from "../story/day.js";
+import { currentAct, type Outline } from "../story/outline.js";
 import type { SceneEndStep, State } from "../story/state.js";
 import { minutesOf, parseStoryTime } from "../time.js";
 
 /** A span shorter than this, with nothing in it, moves nothing and needs no call. */
 const EMPTY_SPAN_MINUTES = 60;
 
-/**
- * The next step a closed Scene's end owes, in order (docs/adr/0016): the Chronicler; the Director when a plan is due;
- * the Weaver; the Folder when The Story So Far needs folding. Null when every step is done.
- */
+/** The Folder folds at most this many times at one Scene's end. */
 const MAX_FOLDS = 4;
+/** As many lookups as the Outline keeps with it (agents/outline.ts). */
+const OUTLINE_LOOKUPS = 40;
 
+/**
+ * The next step a closed Scene's end owes, in order (docs/adr/0016; the-storys-mind design decision 5): the
+ * Chronicler; the Director, who reconsiders the Outline after every Scene (or writes it, when the Story still has
+ * none) and plans the next Stretch when one is due; the Weaver; the Folder when an Act has ended, or The Story So Far
+ * has grown past its limit. Null when every step is done, and for a Scene still open: the Outline is never changed
+ * between exchanges (openspec the-outline: The Outline is reconsidered after every Scene).
+ */
 export function nextStep(state: State): SceneEndStep | null {
   const scene = state.scene;
   if (!scene?.closed) return null;
   const done = (step: SceneEndStep) => scene.ended.includes(step);
   if (!done("chronicler")) return "chronicler";
-  if (!done("weaver") && !done("director") && directionDue(state)) return "director";
+  // Whether the Outline is owed does not turn on the steering notes, only how deep it goes; so none are read here.
+  if (!done("weaver") && !done("director") && (outlineDue(state, nothingBeside()) || directionDue(state))) return "director";
   if (!done("weaver")) return "weaver";
   // The Folder folds until nothing is due, so sparse play never piles paragraphs up; a few folds at most at one end.
   if (scene.ended.filter(step => step === "folder").length < MAX_FOLDS && foldDue(state)) return "folder";
   return null;
+}
+
+/**
+ * The step a Story's queue owes: the next step of its Scene's end, or, on a Story with no Outline yet, the Director's
+ * first Outline, written before any Scene's end can run (openspec the-outline: Every Story has an Outline to its end).
+ */
+export function owedStep(state: State): SceneEndStep | null {
+  return nextStep(state) ?? (state.outline ? null : "director");
+}
+
+/**
+ * Whether a Stretch plan follows [outline] in the Director's step (the Outline's `planFollows`): only while the Scene's
+ * end still owes that step, and a plan is due once the Outline is kept. The first Outline, written while a Scene is
+ * still open, ends no step.
+ */
+export function planFollowsAt(state: State, outline: Omit<Outline, "version">): boolean {
+  const scene = state.scene;
+  if (!scene?.closed || scene.ended.includes("director") || scene.ended.includes("weaver")) return false;
+  return planFollows(state, outline);
+}
+
+/** The deep pass that follows a focused one which found the Scene turned the Story: the current Act, re-planned. */
+export function turnedAsk(state: State, turned: string): OutlineAsk {
+  const scene = state.scene;
+  const which = scene ? `Scene ${scene.number}, ${scene.title},` : "The Scene";
+  const said = turned.trim().replace(/[;,]$/, "");
+  return { why: "deep", reason: `${which} turned the Story: ${/[.!?]$/.test(said) ? said : `${said}.`}` };
+}
+
+/**
+ * The Act the Director is rethinking in a deep pass, for the Scene's end's line (openspec presence: Between Scenes is
+ * quiet, and shows progress): the current Act, or the next when the current one has ended; none for the first Outline,
+ * or a focused revision.
+ */
+export function rethinkingOf(state: State, ask: OutlineAsk): string | null {
+  if (ask.why === "start" || ask.why === "focused") return null;
+  if (ask.why === "act-ended") {
+    const ended = endedAct(state);
+    return state.outline?.acts.find(act => act.number > (ended?.number ?? 0))?.title ?? null;
+  }
+  return currentAct(state.outline)?.title ?? null;
+}
+
+/**
+ * What a deep pass that followed a focused one looked up, with the focused pass's, newest first: the Outline keeps both
+ * (openspec the-outline: The Director plans by working the plan through). [kept] is the deep pass's Outline's own list.
+ */
+export function lookedUpBoth(kept: string[], deep: string[], focused: string[]): string[] {
+  return [...new Set([...deep, ...focused, ...kept])].slice(0, OUTLINE_LOOKUPS);
 }
 
 /** The entries of the Scene that ended at [head], opening to close. */
@@ -65,17 +125,21 @@ export function sceneEndWeave(mac: Mac, head: string, state: State): WeaveAsk {
   const behind = scene !== null && before(state.worldAt, scene.at);
   const from = behind ? state.worldAt : ended;
   const there = scene ? [{ place: scene.place, from: scene.at, until: ended }] : [];
-  return { state, from, until: state.clock, gap: false, scene: endedScene(mac, head, state), missed: missed(state, behind ? state.worldAt : scene?.at ?? from, state.clock, there, null) };
+  const storyId = mac.tree.entry(head)?.storyId;
+  return { state, ...(storyId ? { beside: besideOf(mac, storyId) } : {}), from, until: state.clock, gap: false, scene: endedScene(mac, head, state), missed: missed(state, behind ? state.worldAt : scene?.at ?? from, state.clock, there, null) };
 }
 
-/** The Weaver's ask over a Gap: from where the World stood, or the Day View's time, to the time the choice set. */
-export function gapWeave(state: State, move: Entry): WeaveAsk | null {
+/**
+ * The Weaver's ask over a Gap: from where the World stood, or the Day View's time, to the time the choice set, lived
+ * as the player's Move says, with what the Story has learned from the player.
+ */
+export function gapWeave(state: State, move: Entry, beside?: Beside): WeaveAsk | null {
   if (move.payload.kind !== "move" || !move.payload.choice?.at) return null;
   const at = parseStoryTime(move.payload.choice.at);
   const now = parseStoryTime(state.clock);
   if (!at || !now || minutesOf(at) <= minutesOf(now)) return null;
   const from = before(state.worldAt, state.clock) ? state.worldAt : state.clock;
-  return { state, from, until: move.payload.choice.at, gap: true, scene: [move], missed: missed(state, from, move.payload.choice.at, [], move.payload.choice.scene) };
+  return { state, ...(beside ? { beside } : {}), from, until: move.payload.choice.at, gap: true, scene: [move], missed: missed(state, from, move.payload.choice.at, [], move.payload.choice.scene) };
 }
 
 /** A span with nothing in it: short, nothing missed, no Landmark, no Lead's move due, no new plan to set going. */
@@ -91,5 +155,3 @@ export function emptySpan(ask: WeaveAsk): boolean {
     return at && minutesOf(at) >= minutesOf(from) && minutesOf(at) < minutesOf(until);
   });
 }
-
-void plannedAhead;

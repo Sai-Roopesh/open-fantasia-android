@@ -48,7 +48,7 @@ open class PreviouslyUiChecks {
         compose.onNodeWithText("Common room · Friday 9:40 pm").assertIsDisplayed()
         // The initial landing is the only special scroll: reading back still keeps the player's place.
         compose.onNodeWithTag("scene-passages").performScrollToNode(hasTestTag("earlier-13"))
-        compose.runOnIdle { link.current.value = link.current.value.copy(turn = TurnState(kind = TurnStateKind.Writing, textSoFar = "Hermione ")) }
+        compose.runOnIdle { link.current.value = link.current.value.copy(turn = TurnState(kind = TurnStateKind.Writing)) }
         compose.onNodeWithTag("earlier-13").assertIsDisplayed()
         val position = compose.onNodeWithTag("earlier-13").fetchSemanticsNode().boundsInRoot
         compose.onNodeWithTag("earlier-13").performClick()

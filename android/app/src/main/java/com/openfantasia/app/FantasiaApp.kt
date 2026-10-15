@@ -77,8 +77,10 @@ import kotlinx.coroutines.launch
                         })
                     } else if (state.showingBackstage) {
                         BackstageScreen(state.backstage, firstName(scene.playerCharacter), state.canChangePath, back = model::closeBackstage,
-                            removeTaste = model::removeTaste, modifier = Modifier.weight(1f), reword = { model.openStoryEditor(StoryEdit.Taste(it)) },
-                            brief = scene.brief, editBrief = { model.openStoryEditor(StoryEdit.Brief(scene.brief.more, scene.brief.less)) })
+                            removeTaste = model::removeTaste, modifier = Modifier.weight(1f), reword = { scope, line -> model.openStoryEditor(StoryEdit.Taste(line, scope)) },
+                            brief = scene.brief, editBrief = { model.openStoryEditor(StoryEdit.Brief(scene.brief.more, scene.brief.less)) },
+                            besideEnabled = state.canChangeBeside, note = state.noteDraft, writeNote = model::writeNote, sendNote = model::sendNote,
+                            deleteNote = model::deleteNote)
                     } else if (state.showingStory) {
                         StoryScreen(state.story, state.canChangePath, back = model::closeStoryScreen, edit = model::openStoryEditor,
                             setLength = model::setReplyLength, modifier = Modifier.weight(1f))
@@ -112,7 +114,9 @@ import kotlinx.coroutines.launch
                     HomeScreen(state, model::openStory, Modifier.weight(1f), openModels = model::openModels)
                 }
                 state.storyEditing?.let { editing ->
-                    StoryEditor(editing, state.story, state.canChangePath, storyActions, dismiss = model::closeStoryEditor)
+                    // A lesson of Taste lives beside the Story, not on the Path (docs/adr/0020).
+                    StoryEditor(editing, state.story, if (editing.target is StoryEdit.Taste) state.canChangeBeside else state.canChangePath,
+                        storyActions, dismiss = model::closeStoryEditor)
                 }
                 if (state.loading) CircularProgressIndicator()
             }

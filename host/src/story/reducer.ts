@@ -1,15 +1,16 @@
 import type { StoryFile } from "../protocol/generated/story-file.js";
+import { currentAct } from "./outline.js";
+import { applyTruth, emptyTruth, emptyUpdate, type TruthState } from "./truth.js";
 import { nextFreeAfter } from "../time.js";
-import type { BeatNote, Chronicle, DirectorPlan, Entry, SceneOpened, StoryFolded, StorySetUp, WorldMoved } from "./entries.js";
+import type { BeatNote, Chronicle, DirectorPlan, Entry, SceneOpened, SceneRecorded, StoryFolded, StorySetUp, WorldMoved } from "./entries.js";
 import type { Beat, CurrentScene, Fact, ModelChoice, Person, SceneEndStep, State, Told } from "./state.js";
 
-/** How many lines of Taste a Story keeps (openspec long-run: Taste is short, readable and the player's). */
-export const TASTE_LINES = 10;
 const DIRECTIONS_KEPT = 10;
 /** How many earlier plans' Scenes the Director is shown, so it does not repeat a shape (one-truth design decision 6). */
 export const RECENT_PLANS = 3;
 
-export const DEFAULT_ACTOR: ModelChoice = { provider: "claude", model: "claude-opus-5-5" };
+/** The Actor a Story File that names none gets (openspec outside-the-scene: One Models screen › The defaults). */
+export const DEFAULT_ACTOR: ModelChoice = { provider: "claude", model: "claude-opus-5-5", effort: "high" };
 
 /**
  * What one entry does to the State (docs/adr/0015). Pure, so the store can cache States and throw them away. Every
@@ -27,7 +28,7 @@ export function apply(state: State | null, entry: Entry): State {
     case "scene_opened":
       return openScene(state, payload, entry.id);
     case "beat_note":
-      return { ...state, clock: payload.clock, scene: followScene(inScene(state), payload), taste: payload.taste ? [...state.taste, payload.taste].slice(-TASTE_LINES) : state.taste, pendingDirection: null };
+      return { ...state, clock: payload.clock, scene: followScene(inScene(state), payload), pendingDirection: null };
     case "redo":
       return { ...state, pendingDirection: { text: payload.direction, remember: payload.remember }, directions: payload.direction ? [...state.directions, payload.direction].slice(-DIRECTIONS_KEPT) : state.directions };
     case "scene_closed": {
@@ -55,16 +56,20 @@ export function apply(state: State | null, entry: Entry): State {
         played: choice.scene ? [...state.played, choice.scene] : state.played
       };
     }
+    case "scene_recorded":
+      return recordedSoFar(state, payload, entry.id);
     case "chronicle":
       return ended(chronicled(state, payload, entry.id), "chronicler");
+    case "outline_set": {
+      const outlined = { ...state, outline: { ...payload.outline, version: (state.outline?.version ?? 0) + 1 } };
+      return payload.planFollows ? outlined : ended(outlined, "director");
+    }
     case "director_plan":
       return ended(planned(state, payload), "director");
     case "world_moved":
       return payload.gap ? woven(state, payload) : ended(woven(state, payload), "weaver");
     case "story_folded":
       return ended(folded(state, payload), "folder");
-    case "taste_set":
-      return { ...state, taste: payload.lines };
     case "person_set": {
       const name = payload.person.name;
       const before = state.people[name];
@@ -104,15 +109,12 @@ export function apply(state: State | null, entry: Entry): State {
       return { ...state, world: { ...state.world, summary: payload.summary, history: payload.history } };
     case "clock_set":
       return { ...state, clock: payload.clock, dayOne: payload.dayOne };
-    case "brief_set":
-      return { ...state, brief: { more: payload.more, less: payload.less } };
     case "routine_set":
       return { ...state, routine: payload.routine };
-    case "reaction_set": {
-      const others = state.reactions.filter(reaction => reaction.scene !== payload.scene);
-      const title = state.curve.find(item => item.scene === payload.scene)?.title ?? "";
-      return { ...state, reactions: payload.reaction ? [...others, { scene: payload.scene, title, reaction: payload.reaction, note: payload.note }] : others };
-    }
+    default:
+      // Taste, the brief and reactions were once kept on the Path; an old Path's entries for them change nothing now
+      // that they are kept beside the Story (docs/adr/0020).
+      return state;
   }
 }
 
@@ -135,8 +137,10 @@ function chronicled(state: State, record: Chronicle, entryId: string): State {
   const from = { number: record.scene, title };
   const at = scene?.at ?? state.clock;
   const pc = state.playerCharacter;
+  // A Scene recorded while it was played already has Moments; the rest follow on from them.
+  const before = state.facts.filter(fact => fact.source === "page" && fact.scene === record.scene).length;
   const moments: Fact[] = record.moments.map((moment, index) => ({
-    id: `m${record.scene}.${index + 1}`, what: moment.what, at, where: scene?.place ?? null,
+    id: `m${record.scene}.${before + index + 1}`, what: moment.what, at, where: scene?.place ?? null,
     knownTo: [...new Set([pc, ...moment.there])], source: "page", scene: record.scene, quotes: moment.quotes,
     weight: moment.weight, landmark: null, move: null
   }));
@@ -156,13 +160,27 @@ function chronicled(state: State, record: Chronicle, entryId: string): State {
   for (const change of record.changed) {
     calendar = change.to === "off" ? calendar.filter(item => item.id !== change.engagement) : calendar.map(item => (item.id === change.engagement ? { ...item, at: change.to } : item));
   }
-  const paragraph: Told = { from: at, until: scene?.endedAt ?? state.clock, text: record.paragraph, scene: from, who: scene?.met ?? [] };
+  const act = currentAct(state.outline);
+  // The Act it was played in, so the Folder knows which Scenes to gather when the Act ends.
+  const paragraph: Told = { from: at, until: scene?.endedAt ?? state.clock, text: record.paragraph, scene: from, who: scene?.met ?? [], ...(act ? { act: { number: act.number, title: act.title } } : {}) };
   void entryId;
   return {
     ...state, facts, bonds, known, calendar,
+    // A record kept before the truth was (an old Path left by a rebuild) changes nothing in it.
+    truth: applyTruth(state.truth, record.truth ?? emptyUpdate(), record.scene),
     storySoFar: { ...state.storySoFar, scenes: [...state.storySoFar.scenes, paragraph] },
     recorded: [...state.recorded, { number: record.scene, title, summary: record.summary, dropped: record.dropped }]
   };
+}
+
+/**
+ * A long Scene recorded while it is played (the-storys-mind design decision 8): its truth, Moments, Bonds and calendar
+ * join the State as a finished Scene's do, but it is not told in The Story So Far or the Journal until it ends.
+ */
+function recordedSoFar(state: State, record: SceneRecorded, entryId: string): State {
+  const kept = chronicled(state, { ...record, kind: "chronicle", summary: "" }, entryId);
+  const scene = kept.scene ? { ...kept.scene, recorded: { through: record.through, paragraph: record.paragraph } } : null;
+  return { ...kept, scene, storySoFar: state.storySoFar, recorded: state.recorded };
 }
 
 /** The Director's plan joins the State, and the people it brings in join the Story. */
@@ -203,6 +221,8 @@ function woven(state: State, record: WorldMoved): State {
   const engagements = record.meanwhile.flatMap(line => (line.engagement ? [line.engagement] : []));
   return {
     ...state, lives, threads, facts,
+    // A record kept before the truth was (an old Path left by a rebuild) changes nothing in it.
+    truth: applyTruth(state.truth, record.truth ?? emptyUpdate(), record.scene),
     meanwhile: [...state.meanwhile, ...record.meanwhile.map(line => ({ text: line.text, how: line.how, fact: line.fact, toldBy: line.toldBy, about: line.about, scene: record.scene, gap: record.gap }))],
     calendar: [...state.calendar, ...engagements],
     on: record.gap ? state.on : record.on,
@@ -210,13 +230,28 @@ function woven(state: State, record: WorldMoved): State {
   };
 }
 
-/** The Folder replaced the oldest Scene paragraphs with a week, or the oldest weeks with a chapter. */
+/**
+ * The Folder replaced the current Act's oldest Scene paragraphs with a week; or a finished Act's weeks and Scenes, the
+ * oldest parts there are, with one account of the Act (the-storys-mind design decision 8). Nothing it replaced is lost:
+ * every paragraph stays in its record on the Path.
+ */
 function folded(state: State, record: StoryFolded): State {
-  const told: Told = { from: record.from, until: record.until, text: record.text, scene: null, who: [] };
   const so = state.storySoFar;
-  return record.into === "week"
-    ? { ...state, storySoFar: { ...so, scenes: so.scenes.slice(record.count), weeks: [...so.weeks, told] } }
-    : { ...state, storySoFar: { ...so, weeks: so.weeks.slice(record.count), chapters: [...so.chapters, told] } };
+  if (record.into === "week") {
+    const told: Told = { from: record.from, until: record.until, text: record.text, scene: null, who: [] };
+    return { ...state, storySoFar: { ...so, scenes: so.scenes.slice(record.count), weeks: [...so.weeks, told] } };
+  }
+  const telling = [...so.weeks, ...so.scenes];
+  const gathered = telling.slice(0, record.count);
+  const rest = telling.slice(record.count);
+  const numbers = gathered.flatMap(part => (part.scene ? [part.scene.number] : []));
+  const act = gathered.findLast(part => part.act)?.act;
+  const account: Told = {
+    from: record.from, until: record.until, text: record.text, scene: null, who: [...new Set(gathered.flatMap(part => part.who))],
+    ...(act ? { act } : {}),
+    scenes: { first: (so.acts.at(-1)?.scenes?.last ?? 0) + 1, last: numbers.length ? Math.max(...numbers) : so.acts.at(-1)?.scenes?.last ?? 0 }
+  };
+  return { ...state, storySoFar: { acts: [...so.acts, account], weeks: rest.filter(part => !part.scene), scenes: rest.filter(part => part.scene) } };
 }
 
 function leave(scene: CurrentScene): CurrentScene {
@@ -284,15 +319,34 @@ function setUp({ storyFile, portraits }: StorySetUp): State {
       institutions: (file.world?.institutions ?? []).map(place => ({ name: place.name, description: place.description ?? "" }))
     },
     routine: file.routine ?? [],
-    brief: { more: file.brief?.more ?? [], less: file.brief?.less ?? [] },
     people, groups: (file.groups ?? []).map(group => ({ name: group.name, description: group.description ?? "" })),
     leads: file.leads ?? [], playerCharacter: file.player_character, arcs: file.arcs ?? [],
     landmarks: (file.landmarks ?? []).map(landmark => ({ name: landmark.name, at: landmark.at, what: landmark.what })),
     threads: (file.threads ?? []).map(thread => ({ name: thread.name, now: thread.now })),
     lives: {}, facts: [], meanwhile: [], bonds, known, calendar: [], on: [], plan: null, recentPlans: [],
-    storySoFar: { chapters: [], weeks: [], scenes: [] }, curve: [], reactions: [], recorded: [], kept: [], played: [], introduced: [],
-    scene: null, scenesPlayed: 0, taste: [], directions: [], pendingDirection: null
+    truth: { ...emptyTruth(), rules: startingRules(file), beliefs: startingBeliefs(file) }, outline: null,
+    storySoFar: { acts: [], weeks: [], scenes: [] }, curve: [], recorded: [], kept: [], played: [], introduced: [],
+    scene: null, scenesPlayed: 0, directions: [], pendingDirection: null
   };
+}
+
+/** The Story File's Rules, open from Scene 0, the Story's start (openspec story-file: Rules to start from). */
+function startingRules(file: StoryFile): TruthState["rules"] {
+  return Object.fromEntries((file.rules ?? []).map((what, index) => {
+    const id = `r0.${index + 1}`;
+    return [id, { id, what, opened: 0, closed: null, closedBy: null, sources: [] }];
+  }));
+}
+
+/**
+ * What each person knew when the Story began, as the Story File says it: beliefs held from Scene 0, true, so it reaches
+ * whoever writes them through the truth (openspec the-truth: What each person knows and believes is kept).
+ */
+function startingBeliefs(file: StoryFile): TruthState["beliefs"] {
+  return Object.fromEntries(file.people.flatMap(person => (person.knows ?? []).map((what, index) => {
+    const id = `k0.${person.name}.${index + 1}`;
+    return [id, { id, holder: person.name, what, true: true, opened: 0, closed: null, closedBy: null, sources: [] }];
+  })));
 }
 
 function openScene(state: State, scene: SceneOpened, entryId: string): State {

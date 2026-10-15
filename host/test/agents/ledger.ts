@@ -1,4 +1,5 @@
 import type { StoryFile } from "../../src/protocol/generated/story-file.js";
+import { emptyUpdate } from "../../src/story/truth.js";
 import type { BeatNote, Chronicle, DirectorPlan, Entry, Payload, StoryFolded, WorldMoved } from "../../src/story/entries.js";
 import type { ModelChoice, State } from "../../src/story/state.js";
 import { importStoryFile } from "../../src/storyfile/import.js";
@@ -37,12 +38,12 @@ export function ledger(file: StoryFile = hogwartsWorldStoryFile()) {
     move: (text: string, choice?: Extract<Payload, { kind: "move" }>["choice"]) => add(choice ? { kind: "move", text, choice } : { kind: "move", text }),
     note: (changes: Partial<BeatNote> = {}) => add({
       kind: "beat_note", plan: null, here: state().scene?.here ?? [], goes: [], beats: [], note: "Someone answers.", call: "continue",
-      intensity: 2, arcMoved: true, clock: state().clock, taste: null, inPlay: [], callId: "c", model: SONNET, ...changes
+      intensity: 2, arcMoved: true, clock: state().clock, inPlay: [], callId: "c", model: SONNET, ...changes
     }),
     reply: (text: string) => add({ kind: "reply", text, callId: "c", model: SONNET }),
     close: () => add({ kind: "scene_closed", by: "story" }),
     chronicle: (changes: Partial<Omit<Chronicle, "kind">> = {}) => add({
-      kind: "chronicle", scene: number(), summary: "The Scene was played.", paragraph: "The Scene was played.", moments: [], told: [], known: [],
+      kind: "chronicle", truth: emptyUpdate(), scene: number(), summary: "The Scene was played.", paragraph: "The Scene was played.", moments: [], told: [], known: [],
       bonds: [], engagements: [], changed: [], dropped: [], callId: "c", model: SONNET, ...changes
     }),
     plan: (changes: Partial<Omit<DirectorPlan, "kind">> = {}) => {
@@ -53,7 +54,7 @@ export function ledger(file: StoryFile = hogwartsWorldStoryFile()) {
       });
     },
     world: (changes: Partial<Omit<WorldMoved, "kind">> = {}) => add({
-      kind: "world_moved", scene: number(), gap: false, from: state().clock, until: state().clock, lives: [], threads: [], happened: [], meanwhile: [],
+      kind: "world_moved", truth: emptyUpdate(), scene: number(), gap: false, from: state().clock, until: state().clock, lives: [], threads: [], happened: [], meanwhile: [],
       on: [], dropped: [], callId: null, model: null, ...changes
     }),
     fold: (changes: Partial<Omit<StoryFolded, "kind">> = {}) => add({ kind: "story_folded", into: "week", count: 1, from: state().clock, until: state().clock, text: "A week.", callId: "c", model: SONNET, ...changes })

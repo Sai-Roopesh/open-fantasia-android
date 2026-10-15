@@ -2,7 +2,9 @@ schema: spec-driven
 
 context: |
   Open Fantasia is one player's roleplay app. Two parts and the contract between them:
-  - host/: the Mac server in TypeScript. It owns every Story (docs/adr/0001) and runs the five agents.
+  - host/: the Mac server in TypeScript. It owns every Story (docs/adr/0001) and runs the seven agents: the Writer,
+    Actor and Editor for each Reply; the Chronicler, Director, Weaver and Folder at a Scene's end. The Director keeps
+    the Story's Outline; what the Story keeps is the truth (docs/research/design.md, docs/goal.md).
   - android/: the phone app in Kotlin and Jetpack Compose, a thin client.
   - protocol/: the phone-to-Mac contract, defined once as a schema; the Kotlin types are generated from it.
   CONTEXT.md is the glossary; every artifact uses its terms and avoids the words it lists under Avoid.

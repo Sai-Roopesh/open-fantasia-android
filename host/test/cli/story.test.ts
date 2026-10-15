@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { arc, clock, landmark, length, place, premise, style, taste, worldIs } from "../../src/cli/commands.js";
+import { learnLesson, tasteOf } from "../../src/store/beside.js";
 import { playable } from "../support/play.js";
 import { hogwartsStoryFile } from "../support/story-files.js";
 
@@ -80,19 +81,17 @@ describe("editing the Story through the Mac's commands (editing-the-story design
   });
 
   it("lists Taste's lessons, rewords one and deletes one", () => {
-    const { mac, engine, storyId, state, head } = playable(hogwartsStoryFile());
+    const { mac, engine, storyId } = playable(hogwartsStoryFile());
     const said = capture();
     expect(taste(mac, engine, storyId, [], said.out)).toBe(true);
     expect(said.text()).toBe("Taste has no lessons yet.");
-    const path = mac.tree.currentPath(storyId)!;
-    const lessons = mac.tree.append(storyId, head(), { kind: "taste_set", lines: ["Keep school procedure to a line.", "keep Ron in the background"] });
-    mac.tree.moveHead(path.id, path.headEntryId, lessons.id);
+    for (const lesson of ["Keep school procedure to a line.", "keep Ron in the background"]) learnLesson(mac, storyId, "story", lesson);
     expect(taste(mac, engine, storyId, [], said.out)).toBe(true);
     expect(said.text()).toBe("1. Keep school procedure to a line.\n2. keep Ron in the background");
     expect(taste(mac, engine, storyId, ["reword", "2", "keep", "Ron", "in", "the", "background", "unless", "he's", "needed"], said.out)).toBe(true);
     expect(taste(mac, engine, storyId, ["drop", "1"], said.out)).toBe(true);
-    expect(said.text()).toBe("The lesson is reworded, from here on this Path.\nThe lesson is deleted, from here on this Path.");
-    expect(state().taste).toEqual(["keep Ron in the background unless he's needed"]);
+    expect(said.text()).toBe("The lesson is reworded, on every Path.\nThe lesson is deleted, on every Path.");
+    expect(tasteOf(mac, storyId, "story")).toEqual(["keep Ron in the background unless he's needed"]);
     expect(taste(mac, engine, storyId, ["reword", "3", "x"], said.out)).toBe(false);
     expect(said.text()).toBe("Say which lesson by its number, 1 to 1.");
   });

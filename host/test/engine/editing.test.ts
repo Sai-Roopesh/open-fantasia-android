@@ -32,13 +32,13 @@ describe("Editing", () => {
     expect(passages(played)).toEqual(["> I pass her the note.", "Hermione folds the note in half."]);
     expect(mac.tree.paths(storyId)).toEqual([expect.objectContaining({ id: main.id, name: "Main", isCurrent: true })]);
     // What came after the Reply comes after the edit, on the Path: Focus, the Scene's end, and what its end recorded.
-    expect(mac.tree.pathTo(head()).map(entry => entry.payload.kind).slice(-6)).toEqual(["reply", "focus_set", "scene_closed", "chronicle", "director_plan", "world_moved"]);
+    expect(mac.tree.pathTo(head()).map(entry => entry.payload.kind).slice(-7)).toEqual(["reply", "focus_set", "scene_closed", "chronicle", "outline_set", "director_plan", "world_moved"]);
     expect(mac.tree.pathTo(head()).slice(-4).map(entry => entry.payload)).toEqual(ended);
     expect(mac.states.at(head()).scene!.ended).toEqual(["chronicler", "director", "weaver"]);
     expect(view().day_view).toMatchObject({ scene_end: { step: null, failed: null } });
     // The State is folded again from the Path: nothing of the Scene's end runs twice.
     await engine.settled(storyId);
-    expect(engine.sceneEndOf(storyId)).toEqual({ step: null, failed: null });
+    expect(engine.sceneEndOf(storyId)).toEqual({ step: null, failed: null, rethinking: null });
     expect(sceneEndCalls(played)).toEqual(calls);
   });
 
@@ -97,8 +97,8 @@ describe("Editing", () => {
     await engine.settled(storyId);
     expect(mac.tree.pathTo(head()).some(entry => SCENE_END_KINDS.has(entry.payload.kind))).toBe(false);
     expect(state()).toMatchObject({ recorded: [], plan: null, facts: [], storySoFar: { scenes: [] }, curve: [], scene: { number: 1, closed: null } });
-    // Only the edited Move's turn ran: the Writer and the Actor, and nothing of a Scene's end.
-    expect(models.requests.slice(asked).map(request => request.agent)).toEqual(["writer", "actor"]);
+    // Only the edited Move's turn ran: the Writer, the Actor and the Editor, and nothing of a Scene's end.
+    expect(models.requests.slice(asked).map(request => request.agent)).toEqual(["writer", "actor", "editor"]);
     expect(mac.states.at(mac.tree.path(main.id)!.headEntryId)).toMatchObject({ recorded: [expect.objectContaining({ number: 1 })], plan: expect.objectContaining({ number: 1 }) });
   });
 });

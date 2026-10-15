@@ -3,7 +3,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { importCommand, models, moments, pair, record, show, stories, trace, world } from "../../src/cli/commands.js";
+import { importCommand, models, moments, pair, prompts, record, show, stories, trace, world } from "../../src/cli/commands.js";
 import { Engine } from "../../src/engine/engine.js";
 import { Models } from "../../src/models/model-call.js";
 import { ScriptedRunner } from "../../src/models/scripted.js";
@@ -52,6 +52,21 @@ describe("the fantasia command", () => {
     expect(JSON.parse(entry.text()).payload.title).toBe("The night train");
   });
 
+  it("prints what the next Reply's Writer and Actor would be given, calling no model", async () => {
+    const story = playable();
+    await story.play("I sit down beside Hermione.");
+    const writes = story.models.writer.requests.length;
+    const printed = capture();
+    expect(prompts(story.mac, story.storyId, "I ask her what she is reading.", printed.out)).toBe(true);
+    const text = printed.text();
+    expect(text).toContain("== The Writer, for the Move: I ask her what she is reading.");
+    expect(text).toContain("I ask her what she is reading.");
+    expect(text).toContain("== The Actor, for the latest Move: I sit down beside Hermione.");
+    expect(text.indexOf("== The Writer")).toBeLessThan(text.indexOf("== The Actor"));
+    expect(story.models.writer.requests).toHaveLength(writes);
+    expect(prompts(story.mac, "no-such-story", "Hello.", capture().out)).toBe(false);
+  });
+
   it("looks up a trace", async () => {
     const mac = freshHome();
     importCommand(mac, writeStoryFile(minimalStoryFile()), () => {});
@@ -86,13 +101,14 @@ describe("the fantasia command", () => {
     const shown = capture();
     expect(models(mac, [], shown.out)).toBe(true);
     expect(shown.text()).toBe([
-      "writer  claude  claude-sonnet-5-5  (default)",
-      "chronicler  claude  claude-sonnet-5-5  (default)",
-      "weaver  claude  claude-sonnet-5-5  (default)",
-      "director  claude  claude-opus-5-5  (default)",
-      "folder  claude  claude-haiku-4-5-20251001  (default)",
-      `actor  "After Curfew" (${storyId})  claude  claude-opus-5-5  (its Story File's)`,
-      "claude offers  claude-opus-5-5 (low medium high xhigh max), claude-sonnet-5-5 (low medium high xhigh max), claude-haiku-4-5-20251001",
+      "writer  claude  claude-opus-5-5  effort medium  (default)",
+      "editor  claude  claude-sonnet-5-5  (default)",
+      "chronicler  claude  claude-opus-5-5  (default)",
+      "director  claude  claude-fable-5-1  effort high  (default)",
+      "weaver  claude  claude-opus-5-5  (default)",
+      "folder  claude  claude-opus-5-5  (default)",
+      `actor  "After Curfew" (${storyId})  claude  claude-opus-5-5  effort high  (its Story File's)`,
+      "claude offers  claude-opus-5-5 (low medium high xhigh max), claude-fable-5-1 (low medium high xhigh max), claude-sonnet-5-5 (low medium high xhigh max), claude-haiku-4-5-20251001",
       "codex offers  gpt-6.1-sol (low medium high xhigh max ultra), gpt-6-luna (low medium high xhigh max)",
       "antigravity offers  gemini-3.8-flash (low medium high)"
     ].join("\n"));
@@ -126,7 +142,7 @@ describe("the fantasia command", () => {
     expect(storyActor(mac.home, storyId)).toEqual({ provider: "codex", model: "gpt-6.1-sol", effort: "high" });
     const back = capture();
     expect(models(mac, ["actor", storyId, "reset"], back.out)).toBe(true);
-    expect(back.text()).toBe("The Actor of \"After Curfew\" is its Story File's again: claude claude-opus-5-5.");
+    expect(back.text()).toBe("The Actor of \"After Curfew\" is its Story File's again: claude claude-opus-5-5 (effort high).");
     expect(storyActor(mac.home, storyId)).toBeNull();
   });
 
@@ -135,7 +151,7 @@ describe("the fantasia command", () => {
     await offeredCatalog(mac.home);
     const job = capture();
     expect(models(mac, ["narrator", "claude", "claude-opus-5-5"], job.out)).toBe(false);
-    expect(job.text()).toMatch(/No job "narrator"\. The jobs are: writer, chronicler, weaver, director, folder, or actor "<Story>"/);
+    expect(job.text()).toMatch(/No job "narrator"\. The jobs are: writer, editor, chronicler, director, weaver, folder, or actor "<Story>"/);
     const provider = capture();
     expect(models(mac, ["writer", "openai", "gpt-6.1-sol"], provider.out)).toBe(false);
     expect(provider.text()).toMatch(/No provider "openai"\. The providers are: claude, codex, antigravity/);

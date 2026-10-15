@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
@@ -28,9 +27,6 @@ import com.openfantasia.protocol.*
     enabled: Boolean = true, go: (Happening) -> Unit = {}, picker: (DayPicker) -> Unit = {}, story: () -> Unit = {}) {
     val end = day.sceneEnd
     val ready = end.done
-    // The steps this phone has seen run, so the Director's row stays once he has planned.
-    var ran by rememberSaveable(scene.number) { mutableStateOf(listOf<String>()) }
-    end.step?.let { step -> LaunchedEffect(step) { if (step.value !in ran) ran = ran + step.value } }
     Column(modifier.padding(top = 4.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(if (ready) 22.dp else 18.dp)) {
         if (!ready) EndedSceneCard(scene, day.sceneSpan, reaction, reactEnabled, react)
         else EndedSceneLine(scene, reaction, reactEnabled, react)
@@ -39,11 +35,10 @@ import com.openfantasia.protocol.*
             Text("${day.time} · you're in ${day.place}", style = FantasiaType.metadata, color = FantasiaSecondary)
         }
         if (!ready) {
-            val seen = SceneEndStep.entries.filter { it.value in ran }.toSet()
             val failed = end.failed
-            if (failed == null) SceneEndSteps(sceneEndRows(end, seen), framed = true)
+            if (failed == null) SceneEndSteps(sceneEndRows(end), framed = true)
             else {
-                sceneEndRows(end, seen).filter { it.state == StepState.Done }.takeIf { it.isNotEmpty() }?.let { SceneEndSteps(it, framed = false) }
+                sceneEndRows(end).filter { it.state == StepState.Done }.takeIf { it.isNotEmpty() }?.let { SceneEndSteps(it, framed = false) }
                 stopped(failed)
             }
             WorldPlaceholders()
