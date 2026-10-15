@@ -16,6 +16,12 @@ Where a Story happens: its places, people, institutions and history, which go on
 player is there.
 _Avoid_: Setting, universe, scenario
 
+**Rule**:
+Something established about how this World works, such as what Roopesh's power can do and who has seen it, a room
+behind the Gryffindor dorms, or the Duelling Statute of 1792. Once established, in the Story File or in play, it holds
+for the rest of the Story unless the Story changes it on the page.
+_Avoid_: Lore, canon, fact, world-building
+
 **Premise**:
 What the player came to the Story to experience, such as an enemies-to-lovers romance or being a superhero. The
 Story serves it without fixating on it.
@@ -82,6 +88,17 @@ One thing happening between its people, played Move by Reply. It may move from p
 on, as when Draconia and the Player Character argue all the way up the lane. It ends when a Move turns to something
 else or skips more than a couple of hours, when the Story brings it to a close, or when the player ends it.
 _Avoid_: Chapter, session, segment
+
+**Outline**:
+Where the whole Story is going, from now to its end, in Acts: what each Act is about, what it builds toward, the turns
+along the way, and where each Arc and main relationship should stand by its end. It is reconsidered after every Scene,
+so it follows wherever the player takes the Story; nothing new enters the Story except as a setup it means to pay off.
+_Avoid_: Spine, roadmap, master plan, script
+
+**Act**:
+One part of the Outline, such as a school year: the question it asks, the Landmark it builds to, and how it hands on
+to the next.
+_Avoid_: Season, book, chapter, arc
 
 **Stretch**:
 About a week of story time, planned as a whole: the few Scenes in it that matter, each with its day, place, people
@@ -151,9 +168,11 @@ The Player Character's ordinary week (classes, meals, practice) that the Directo
 _Avoid_: Schedule, timetable, calendar
 
 **Taste**:
-The short list of lasting lessons about what this player wants from this Story, learned from Directions that
-recur or that the player asks it to remember. The player can read and edit it.
-_Avoid_: Preferences, profile, memory, player taste
+The short lists of lasting lessons about what this player wants, learned from Directions that recur or that the
+player asks it to remember: a Story's own Taste, which belongs to the Story and not to one Path, so a Redo or another
+Path never loses it; and the player's own, about how they like to read, which every Story starts with. The player can
+read and edit both.
+_Avoid_: Preferences, profile, memory
 
 ### Paths
 
@@ -185,12 +204,21 @@ Records what happened in a Scene, inventing nothing.
 _Avoid_: Continuity engine, memory, summarizer
 
 **Weaver**:
-Moves the World forward off-screen: what everyone else does while the Player Character is elsewhere, and what
-is happening that they could go to.
+Moves the World forward off-screen by living out everyone's Lives and the Outline while the Player Character is
+elsewhere: what each person does about what they want, how their feelings move, and what is happening that he could
+go to.
 _Avoid_: World agent, simulator, world turn
 
+**Editor**:
+Reads each Reply before the player does, against what the Story has established: its Rules, what each person knows
+and believes, the clock, and what only the player may decide; sets right or sends back what breaks them. Checks the
+records and recaps of what happened against what they cover.
+_Avoid_: Checker, validator, critic, continuity
+
 **Director**:
-Shapes the long run of the Story around its Arcs and Landmarks, a Stretch at a time, bringing something new each time.
+Keeps the Story's Outline, woven from the world's direction and everyone's Lives, and plans each Stretch as the next
+step of the current Act, arranging where Lives cross the Player Character. After every Scene it reconsiders the
+Outline in the light of how the Scene went.
 _Avoid_: Planner, showrunner, plot manager
 
 **Folder**:
@@ -200,9 +228,11 @@ _Avoid_: Summarizer, compressor
 ### The living World
 
 **Life**:
-Where a person or Group is, what they are doing and what they are after, which the Weaver moves on while the
-Player Character is elsewhere.
-_Avoid_: Agenda, schedule, routine, status
+A person's own story, lived for its own sake and not only for the Player Character's: who they are now, what they want
+this Act and what they are doing about it, how they feel about the people around them, and where they are heading.
+The Outline is woven from Lives; the Player Character's story is where they cross his. The Weaver lives them out
+while he is elsewhere.
+_Avoid_: Agenda, schedule, routine, status, NPC behaviour
 
 **Thread**:
 A situation developing in the World on its own, such as who broke Selwyn or a smuggled dragon egg: the World's
