@@ -50,7 +50,7 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
     val jobModelSets = mutableListOf<Pair<ModelJob, ModelChoice>>()
     val backupSets = mutableListOf<Pair<ModelJob, ModelChoice>>()
     val actorSets = mutableListOf<Pair<String, ModelChoice?>>()
-    var endedDayView = dayView(ClosedBy.Player)
+    var endedDayView = dayView()
     val redos = mutableListOf<RedoRequest>()
     val lingers = mutableListOf<LingerRequest>()
     val focuses = mutableListOf<FocusRequest>()
@@ -225,15 +225,15 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
     // Taste and steering notes live beside the Story: none moves the head (docs/adr/0020).
     override suspend fun removeTaste(storyID: String, request: RemoveTasteRequest) {
         tasteRemovals += request
-        backstageView = if (request.scope == ClosedBy.Player) backstageView.copy(playerTaste = backstageView.playerTaste - request.line)
+        backstageView = if (request.scope == Scope.Player) backstageView.copy(playerTaste = backstageView.playerTaste - request.line)
             else backstageView.copy(taste = backstageView.taste - request.line)
     }
     override suspend fun rewordTaste(storyID: String, request: RewordTasteRequest) {
-        val lessons = if (request.scope == ClosedBy.Player) backstageView.playerTaste else backstageView.taste
+        val lessons = if (request.scope == Scope.Player) backstageView.playerTaste else backstageView.taste
         if (request.line !in lessons) throw LinkFailure("Taste has no such line.")
         tasteRewords += request
         val reworded = lessons.map { if (it == request.line) request.text else it }
-        backstageView = if (request.scope == ClosedBy.Player) backstageView.copy(playerTaste = reworded) else backstageView.copy(taste = reworded)
+        backstageView = if (request.scope == Scope.Player) backstageView.copy(playerTaste = reworded) else backstageView.copy(taste = reworded)
     }
     override suspend fun writeNote(storyID: String, request: SteeringNoteRequest) {
         notes += request
@@ -395,7 +395,7 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
                 Exchange(move = null, reply = Passage(entryID = "past-last-reply", text = "They reach the corridor."))))
         // Named arguments throughout: the generated classes list their fields alphabetically, so positional ones
         // put a summary where a title belongs without a compiler error.
-        fun dayView(closedBy: ClosedBy = ClosedBy.Story) = DayView(at = "Day 3 07:40", atLabel = "Sunday 7:40 am", day = "Sunday", time = "7:40 am", place = "Common room", closedBy = closedBy,
+        fun dayView() = DayView(at = "Day 3 07:40", atLabel = "Sunday 7:40 am", day = "Sunday", time = "7:40 am", place = "Common room",
             happenings = emptyList(), choices = DayChoices(follow = emptyList(), places = emptyList(), skips = emptyList()),
             sceneEnd = SceneEnd(), reaction = null, sceneSpan = "Friday 9:40 pm – 11:05 pm", meanwhile = emptyList(),
             countdowns = listOf(Countdown(linkSchemaWhen = "3 days", landmark = "Draconia's flying test", label = "3 days to Draconia's flying test"),

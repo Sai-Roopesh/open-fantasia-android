@@ -14,12 +14,12 @@ export type ErrorCode =
  */
 export type SceneEndStep = "chronicler" | "director" | "weaver" | "folder";
 /**
- * Go on, bring the Scene to its turn, or close it.
+ * Go on, or bring the Scene to its turn; only the player, or a Move that leaves it, closes a Scene.
  *
  * This interface was referenced by `Link`'s JSON-Schema
  * via the `definition` "SceneCall".
  */
-export type SceneCall = "continue" | "land" | "end";
+export type SceneCall = "continue" | "land";
 /**
  * Where a beat stands: to come, under way, done, or passed over.
  *
@@ -313,10 +313,6 @@ export interface DayView {
    * Where the Player Character is.
    */
   place: string;
-  /**
-   * Who closed the last Scene: the Story, whose closing Reply can be redone, or the player, with End scene.
-   */
-  closed_by: "story" | "player";
   countdowns: Countdown[];
   /**
    * When the Scene that ended ran, as people say it: "Friday 9:40 pm – 11:05 pm".
@@ -629,10 +625,6 @@ export interface DayView1 {
    * Where the Player Character is.
    */
   place: string;
-  /**
-   * Who closed the last Scene: the Story, whose closing Reply can be redone, or the player, with End scene.
-   */
-  closed_by: "story" | "player";
   countdowns: Countdown[];
   /**
    * When the Scene that ended ran, as people say it: "Friday 9:40 pm – 11:05 pm".

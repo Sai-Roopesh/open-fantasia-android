@@ -151,7 +151,7 @@ describe("Every agent knows the Story So Far (openspec living-world)", () => {
     add(outlined(1));
     for (let number = 1; number <= count; number++) {
       add({ kind: "scene_opened", number, title: `Scene ${number}`, place: "The library", at: `Day ${2 + number * 3} 10:00`, who: ["Hermione Granger"], prose: null, startsAt: null, purpose: null, exit: null });
-      add({ kind: "scene_closed", by: "story" });
+      add({ kind: "scene_closed", by: "player" });
       // The Chronicler's paragraph is about eighty words.
       add({ kind: "chronicle", truth: emptyUpdate(), scene: number, summary: "s", paragraph: `Scene ${number}: ${words(78, "said")}.`, moments: [], told: [], known: [], bonds: [], engagements: [], changed: [], dropped: [], callId: "c", model: SONNET });
       if (number % perAct === 0 && number < count) add(outlined(number / perAct + 1));

@@ -118,7 +118,7 @@ open class ModelsUiChecks : WorldUiChecks() {
         openScene()
         compose.runOnIdle {
             link.current.value = link.current.value.copy(headEntryID = "closed", seq = 4, lastEventID = "4",
-                dayView = FakeFantasiaLink.dayView(closedBy = ClosedBy.Player).copy(sceneEnd = SceneEnd(failed = SceneEndFailure(
+                dayView = FakeFantasiaLink.dayView().copy(sceneEnd = SceneEnd(failed = SceneEndFailure(
                     step = SceneEndStep.Weaver, reason = "GPT 6.1 Sol is at capacity.", traceID = "weaver-trace"))))
         }
         compose.onNodeWithTag("scene-passages").performScrollToNode(hasText("Trace weaver-trace"))

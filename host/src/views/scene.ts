@@ -102,7 +102,6 @@ export function dayView(state: State, sceneEnd: SceneEnd = { step: null, failed:
     day: now ? sayDate(now, state.dayOne) : state.clock,
     time: now ? sayTime(now) : "",
     place: state.scene.place,
-    closed_by: state.scene.closed === "story" ? "story" : "player",
     countdowns,
     scene_span: sceneSpan(state, state.scene.at, state.scene.endedAt ?? state.clock),
     scene_end: sceneEnd,

@@ -218,11 +218,11 @@ agreeable than they are.
 - `continue`: the Scene goes on.
 - `land`: bring the Scene to its turn. Call it when the purpose has been served, or the last beat is in play:
   the next Replies turn the value and head for the exit.
-- `end`: the Scene has landed, and this Reply closes it. The note then gives the closing moment: someone
-  leaves, a door shuts, a silence nobody breaks. Never one the player's character makes.
 
-A Scene that ends early is fine. A Scene that never ends is the failure you exist to prevent. The task tells
-you when a beat has been in play too long or no Arc has moved for a while; do what it says.
+You never close a Scene: the player ends it, or a Move leaves it. Once a Scene has landed, keep the moment alive
+and let the player decide when it is over: someone lingers, waits, wants one thing more, or turns to what comes
+next between them. A Scene that goes round in circles is the failure you exist to prevent. The task tells you
+when a beat has been in play too long or no Arc has moved for a while; do what it says.
 
 ## The clock
 

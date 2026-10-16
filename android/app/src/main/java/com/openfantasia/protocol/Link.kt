@@ -355,14 +355,6 @@ data class DayView (
     val atLabel: String,
 
     val choices: DayChoices,
-
-    /**
-     * Who closed the last Scene: the Story, whose closing Reply can be redone, or the player,
-     * with End scene.
-     */
-    @SerialName("closed_by")
-    val closedBy: ClosedBy,
-
     val countdowns: List<Countdown>,
 
     /**
@@ -458,18 +450,6 @@ data class Skip (
      */
     val time: String
 )
-
-/**
- * Who closed the last Scene: the Story, whose closing Reply can be redone, or the player,
- * with End scene.
- *
- * Whose Taste: the Story's own, or the player's own across every Story.
- */
-@Serializable
-enum class ClosedBy(val value: String) {
-    @SerialName("player") Player("player"),
-    @SerialName("story") Story("story");
-}
 
 @Serializable
 data class Countdown (
@@ -1743,12 +1723,12 @@ enum class BeatStatus(val value: String) {
 }
 
 /**
- * Go on, bring the Scene to its turn, or close it.
+ * Go on, or bring the Scene to its turn; only the player, or a Move that leaves it, closes
+ * a Scene.
  */
 @Serializable
 enum class SceneCall(val value: String) {
     @SerialName("continue") Continue("continue"),
-    @SerialName("end") End("end"),
     @SerialName("land") Land("land");
 }
 
@@ -1766,8 +1746,17 @@ data class RemoveTasteRequest (
     /**
      * Whose Taste: the Story's own, or the player's own across every Story.
      */
-    val scope: ClosedBy
+    val scope: Scope
 )
+
+/**
+ * Whose Taste: the Story's own, or the player's own across every Story.
+ */
+@Serializable
+enum class Scope(val value: String) {
+    @SerialName("player") Player("player"),
+    @SerialName("story") Story("story");
+}
 
 @Serializable
 data class EndSceneRequest (
@@ -2631,7 +2620,7 @@ data class RewordTasteRequest (
     /**
      * Whose Taste: the Story's own, or the player's own across every Story.
      */
-    val scope: ClosedBy,
+    val scope: Scope,
 
     val text: String
 )

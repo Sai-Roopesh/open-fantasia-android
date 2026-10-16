@@ -175,11 +175,9 @@ describe("a Scene that stalls, and Linger (openspec scenes)", () => {
     const { prompt } = writerPrompt(given, []);
     expect(prompt).toContain("<task>\nLinger is on: hold the beat in play, force nothing, and call continue.\n</task>");
     expect(prompt).not.toMatch(/make it happen now|No Arc has moved|call land/);
-    // An answer that would close the Scene, or turn it, is set right: the Scene stays open, and nothing is asked again.
-    for (const call of ["end", "land"]) {
-      expect(check(given, answer({ call, beats: BEATS, arc_moved: false }))).toMatchObject({ ok: true, value: { call: "continue", beats: BEATS }, dropped: [`call: Linger is on, so the Scene goes on rather than "${call}"`] });
-    }
-    const runner = new ScriptedRunner([{ answer: JSON.stringify(answer({ call: "end", beats: BEATS, arc_moved: false })) }]);
+    // An answer that would turn the Scene is set right: it goes on as it was, and nothing is asked again.
+    expect(check(given, answer({ call: "land", beats: BEATS, arc_moved: false }))).toMatchObject({ ok: true, value: { call: "continue", beats: BEATS }, dropped: ['call: Linger is on, so the Scene goes on rather than "land"'] });
+    const runner = new ScriptedRunner([{ answer: JSON.stringify(answer({ call: "land", beats: BEATS, arc_moved: false })) }]);
     const { plan } = await writeBeat(new Models(story.mac.db, { claude: runner }), [SONNET], given, story.storyId, "trace-w", new AbortController().signal);
     expect(plan.call).toBe("continue");
     expect(runner.requests).toHaveLength(1);

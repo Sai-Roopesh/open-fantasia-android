@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Between a Scene the Story closed or the player ended and the next one, the **Day View** is where the player
+Between a Scene the player ended and the next one, the **Day View** is where the player
 chooses where to be. Time is linear: choosing one thing means not being at another.
 
 ## Requirements

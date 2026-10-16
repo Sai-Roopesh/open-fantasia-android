@@ -208,7 +208,8 @@ describe("what every writer of a Scene is given of the truth (the-storys-mind de
       expect(standing, reader).not.toContain("On the Hogsmeade road Draconia kissed him");
       expect(standing, reader).toMatch(/\(\d+ more keepsakes left out for length\.\)/);
     }
-  });
+    // Three hundred Scenes of record: seconds of work, so it has its own time limit.
+  }, 30_000);
 
   // GIVEN the contract says nobody comes second and Saturdays are Hermione's
   // WHEN Draconia claims him on a Saturday

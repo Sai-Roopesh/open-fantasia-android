@@ -41,7 +41,7 @@ export function ledger(file: StoryFile = hogwartsWorldStoryFile()) {
       intensity: 2, arcMoved: true, clock: state().clock, inPlay: [], callId: "c", model: SONNET, ...changes
     }),
     reply: (text: string) => add({ kind: "reply", text, callId: "c", model: SONNET }),
-    close: () => add({ kind: "scene_closed", by: "story" }),
+    close: () => add({ kind: "scene_closed", by: "player" }),
     chronicle: (changes: Partial<Omit<Chronicle, "kind">> = {}) => add({
       kind: "chronicle", truth: emptyUpdate(), scene: number(), summary: "The Scene was played.", paragraph: "The Scene was played.", moments: [], told: [], known: [],
       bonds: [], engagements: [], changed: [], dropped: [], callId: "c", model: SONNET, ...changes

@@ -36,7 +36,7 @@ open class WorldUiChecks {
     // WHEN the player ends a Scene
     // THEN a single line says each step in turn, until the Day View is ready with its choices
     fun worldMovesOn() {
-        link.endedDayView = FakeFantasiaLink.dayView(closedBy = ClosedBy.Player).copy(
+        link.endedDayView = FakeFantasiaLink.dayView().copy(
             sceneEnd = SceneEnd(step = SceneEndStep.Chronicler), day = "Saturday", time = "7:10 am", place = "Gryffindor Tower")
         link.current.value = link.current.value.copy(scene = link.current.value.scene.copy(place = "The Gryffindor common room"))
         openScene()
@@ -91,7 +91,7 @@ open class WorldUiChecks {
     // the end is done or stopped.
     fun reactingToTheSceneThatEnded() {
         link.current.value = link.current.value.copy(headEntryID = "closed", seq = 4, lastEventID = "4",
-            dayView = FakeFantasiaLink.dayView(closedBy = ClosedBy.Player).copy(sceneEnd = SceneEnd(step = SceneEndStep.Weaver)))
+            dayView = FakeFantasiaLink.dayView().copy(sceneEnd = SceneEnd(step = SceneEndStep.Weaver)))
         openScene()
         compose.onNodeWithContentDescription("Your reaction").assertIsDisplayed()
         compose.onNodeWithText("More like this").assertIsOff().performClick()
@@ -190,7 +190,7 @@ open class WorldUiChecks {
         compose.onNodeWithTag("composer").performTextInput("I go downstairs.")
         compose.runOnIdle {
             link.current.value = link.current.value.copy(headEntryID = "closed", seq = 4, lastEventID = "4",
-                dayView = FakeFantasiaLink.dayView(closedBy = ClosedBy.Player).copy(sceneEnd = SceneEnd(failed = SceneEndFailure(
+                dayView = FakeFantasiaLink.dayView().copy(sceneEnd = SceneEnd(failed = SceneEndFailure(
                     step = SceneEndStep.Director, reason = "Fable 5.1 and GPT 6.1 Sol both ran out of time.", traceID = "3f1c09ab"))))
         }
         compose.onNodeWithTag("scene-passages").performScrollToNode(hasText("Trace 3f1c09ab"))

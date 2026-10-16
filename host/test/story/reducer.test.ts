@@ -107,7 +107,7 @@ describe("what code counts, not the Writer", () => {
   it("restarts both counts in a new Scene", () => {
     const { state } = nightTrain();
     const stalled = play(state, note({ arcMoved: false }), note({ arcMoved: false }), note({ arcMoved: false }));
-    const next = play(stalled, { kind: "scene_closed", by: "story" }, { kind: "scene_opened", number: 2, title: "Ambala", place: "The platform", at: "Day 2 05:00", who: [], prose: null, startsAt: "m", purpose: "p", exit: "e" });
+    const next = play(stalled, { kind: "scene_closed", by: "player" }, { kind: "scene_opened", number: 2, title: "Ambala", place: "The platform", at: "Day 2 05:00", who: [], prose: null, startsAt: "m", purpose: "p", exit: "e" });
     expect(next.scene).toMatchObject({ beatInPlayFor: 0, withoutArc: 0 });
   });
 

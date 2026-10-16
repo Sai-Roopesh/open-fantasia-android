@@ -158,7 +158,7 @@ class SceneScrollState(val list: LazyListState) {
                         HeldReply(reply, held = held == reply.entryID, dimmed = held != null && held != reply.entryID,
                             actions = actions(reply, isMove = false), hold = { held = reply.entryID }, release = { held = null })
                         val latestActions = reply == latestReply && !replyComing && scene.turn.kind != TurnStateKind.Failed
-                        val canRedo = latestActions && scene.dayView?.closedBy != ClosedBy.Player &&
+                        val canRedo = latestActions && scene.dayView == null &&
                             scene.exchanges.lastOrNull()?.let { it.move != null && it.reply != null } == true
                         // The Editor's note, when the Reply still breaks something after it was written again; Redo moves into it.
                         reply.note?.let { note -> EditorNote(note, if (canRedo) ({ showRedo = true }) else null, controlsEnabled) }

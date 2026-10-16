@@ -118,7 +118,7 @@ private val FantasiaRumourGround = Color(0xFF30261A)
  * the Story ([besideEnabled]).
  */
 @Composable fun BackstageScreen(backstage: BackstageView?, playerCharacter: String, enabled: Boolean, back: () -> Unit,
-    removeTaste: (ClosedBy, String) -> Unit, modifier: Modifier = Modifier, reword: (ClosedBy, String) -> Unit = { _, _ -> },
+    removeTaste: (Scope, String) -> Unit, modifier: Modifier = Modifier, reword: (Scope, String) -> Unit = { _, _ -> },
     brief: Brief = Brief(more = emptyList(), less = emptyList()), editBrief: () -> Unit = {}, besideEnabled: Boolean = enabled,
     note: String = "", writeNote: (String) -> Unit = {}, sendNote: () -> Unit = {}, deleteNote: (String) -> Unit = {}) {
     Column(modifier.background(BackstageGround)) {
@@ -170,11 +170,11 @@ private val FantasiaRumourGround = Color(0xFF30261A)
                 ?.let { truth -> item(key = "truth") { WhatTheStoryKeeps(truth) } }
             item(key = "taste") {
                 Taste("TASTE · WHAT THE STORY HAS LEARNED", "Nothing yet. A Redo you ask it to remember becomes a line here.",
-                    backstage.taste, besideEnabled, reword = { reword(ClosedBy.Story, it) }, remove = { removeTaste(ClosedBy.Story, it) })
+                    backstage.taste, besideEnabled, reword = { reword(Scope.Story, it) }, remove = { removeTaste(Scope.Story, it) })
             }
             item(key = "player-taste") {
                 Taste("YOUR OWN TASTE · EVERY STORY", "Nothing yet. A lesson about how you like to read, learned in any Story, becomes a line here.",
-                    backstage.playerTaste, besideEnabled, reword = { reword(ClosedBy.Player, it) }, remove = { removeTaste(ClosedBy.Player, it) },
+                    backstage.playerTaste, besideEnabled, reword = { reword(Scope.Player, it) }, remove = { removeTaste(Scope.Player, it) },
                     modifier = Modifier.testTag("player-taste"))
             }
         }
@@ -672,7 +672,6 @@ internal fun editorLine(going: HowItsGoing): String {
                 val (label, color) = when (call) {
                     SceneCall.Continue -> "GOING ON" to FantasiaSecondary
                     SceneCall.Land -> "LANDING" to FantasiaRumour
-                    SceneCall.End -> "ENDING" to FailureAmber
                 }
                 Text(label, style = FantasiaType.meanwhileTag, color = color,
                     modifier = Modifier.background(FantasiaRumourGround, RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 2.dp))

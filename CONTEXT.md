@@ -86,7 +86,7 @@ _Avoid_: Response, generation, bot message, AI turn
 **Scene**:
 One thing happening between its people, played Move by Reply. It may move from place to place while that thing goes
 on, as when Draconia and the Player Character argue all the way up the lane. It ends when a Move turns to something
-else or skips more than a couple of hours, when the Story brings it to a close, or when the player ends it.
+else or skips more than a couple of hours, or when the player ends it; the Story never closes one.
 _Avoid_: Chapter, session, segment
 
 **Outline**:
@@ -130,7 +130,7 @@ read Story time as dates; day numbers are only the Story's bookkeeping.
 _Avoid_: Day N, timestamp, epoch
 
 **Day View**:
-Where the player chooses what to do next after a Scene the Story closed or the player ended: what their character
+Where the player chooses what to do next after a Scene they ended: what their character
 knows has happened meanwhile, and what is happening that they could go to. A Move that goes somewhere else
 skips it.
 _Avoid_: Menu, hub, map, interlude screen

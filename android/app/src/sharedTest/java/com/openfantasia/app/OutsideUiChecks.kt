@@ -69,7 +69,7 @@ open class OutsideUiChecks : WorldUiChecks() {
         backstage("Keep Ron in the background unless he's needed.").assertIsDisplayed()
         compose.onAllNodesWithContentDescription("Delete this line")[1].performClick()
         compose.runOnIdle {
-            assertEquals(listOf(RemoveTasteRequest(line = "Keep Ron in the background unless he's needed.", scope = ClosedBy.Story)), link.tasteRemovals)
+            assertEquals(listOf(RemoveTasteRequest(line = "Keep Ron in the background unless he's needed.", scope = Scope.Story)), link.tasteRemovals)
             // Taste is beside the Story, not on the Path: the head does not move (docs/adr/0020).
             assertEquals("reply", link.current.value.headEntryID)
         }
@@ -339,13 +339,13 @@ open class OutsideUiChecks : WorldUiChecks() {
         compose.onNodeWithTag("story-words").performTextReplacement(reworded)
         compose.onNodeWithTag("story-save").performClick()
         compose.waitUntil(5_000) { link.tasteRewords.isNotEmpty() }
-        compose.runOnIdle { assertEquals(listOf(RewordTasteRequest(line = line, scope = ClosedBy.Player, text = reworded)), link.tasteRewords) }
+        compose.runOnIdle { assertEquals(listOf(RewordTasteRequest(line = line, scope = Scope.Player, text = reworded)), link.tasteRewords) }
         compose.onNodeWithTag("story-editor").assertDoesNotExist()
         backstage(reworded).assertIsDisplayed()
         compose.onNodeWithText(line).assertDoesNotExist()
         compose.onNode(hasContentDescription("Delete this line") and hasAnyAncestor(hasTestTag("player-taste"))).performClick()
         compose.runOnIdle {
-            assertEquals(listOf(RemoveTasteRequest(line = reworded, scope = ClosedBy.Player)), link.tasteRemovals)
+            assertEquals(listOf(RemoveTasteRequest(line = reworded, scope = Scope.Player)), link.tasteRemovals)
             assertEquals("reply", link.current.value.headEntryID)
         }
         backstage("Nothing yet. A lesson about how you like to read, learned in any Story, becomes a line here.").assertIsDisplayed()

@@ -110,7 +110,7 @@ open class PresenceUiChecks : WorldUiChecks() {
     // WHEN the Director re-plans the current Act deeply
     // THEN the line says it is rethinking Year One, until the World moves on
     fun rethinkingAYear() {
-        link.endedDayView = FakeFantasiaLink.dayView(closedBy = ClosedBy.Player).copy(sceneEnd = SceneEnd(step = SceneEndStep.Chronicler))
+        link.endedDayView = FakeFantasiaLink.dayView().copy(sceneEnd = SceneEnd(step = SceneEndStep.Chronicler))
         openScene()
         compose.onNodeWithText("End scene").performClick()
         step("Recording the Scene", "Under way")

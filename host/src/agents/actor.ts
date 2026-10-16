@@ -52,8 +52,7 @@ function instructions(state: State): string {
 
 const CALL = {
   continue: null,
-  land: "Bring the Scene toward its turn.",
-  end: "This Reply closes the Scene on this moment. End on someone else's closing moment, never one of "
+  land: "Bring the Scene toward its turn."
 } as const;
 
 /** A Moment as the Actor is given it: what happened and who knows it, then its own words. */
@@ -76,7 +75,7 @@ export function actorPrompt(ask: ActorAsk): { system: string; prompt: string } {
   const call = scene.call ? CALL[scene.call] : null;
   const thisReply = [
     scene.note ? `What happens next: ${scene.note}` : "",
-    call ? (scene.call === "end" ? `${call}${pc}'s.` : call) : "",
+    call ?? "",
     scene.focus ? `Stay close beside ${scene.focus}: mostly their words, actions and thoughts. Nobody new comes in unless the Move brings them.` : "",
     scene.linger ? "Force nothing. Let the moment breathe, and answer only what the Move does." : ""
   ].filter(Boolean).join("\n");

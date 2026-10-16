@@ -45,7 +45,7 @@ export interface Beat {
 }
 
 /** What the Writer says the next Reply does with the Scene: go on, bring it to its turn, or close it. */
-export type SceneCall = "continue" | "land" | "end";
+export type SceneCall = "continue" | "land";
 
 /** The steps of a Scene's end, in order (docs/adr/0016). */
 export const SCENE_END_STEPS = ["chronicler", "director", "weaver", "folder"] as const;
@@ -76,7 +76,7 @@ export interface CurrentScene {
   withoutArc: number;
   focus: string | null;
   linger: boolean;
-  closed: "story" | "player" | "move" | null;
+  closed: "player" | "move" | null;
   endedAt: string | null;
   /** The steps of its end already done, once it has closed. */
   ended: SceneEndStep[];

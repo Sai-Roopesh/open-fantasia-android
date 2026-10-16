@@ -11,9 +11,8 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SceneReloadTest {
-    // WHEN a Reply brings the Scene to its close
-    // THEN the Day View opens after it
-    @Test fun `scenes › A Scene ends in one of three ways › The Story closes a Scene`() = runBlocking {
+    // A Scene closed on the Mac arrives as an event; the phone reads the Scene again and shows its Day View.
+    @Test fun `follows a closed Scene into its Day View`() = runBlocking {
         MacServer().use { mac ->
             val snapshot = sceneFixture().copy(dayView = FakeFantasiaLink.dayView(), focus = null, linger = false,
                 headEntryID = "closed", seq = 5, lastEventID = "5")
@@ -135,7 +134,7 @@ class SceneReloadTest {
     // WHEN the Move is "I go to my room; Harry, Ron and Neville are playing a board game"
     // THEN a new Scene opens in the dormitory with its title card, and the Reply plays it
     // AND no Day View appears
-    @Test fun `scenes › A Scene ends in one of three ways › Walking out of a Scene`() = runBlocking {
+    @Test fun `scenes › A Scene ends when a Move leaves it or the player ends it › Walking out of a Scene`() = runBlocking {
         MacServer().use { mac ->
             val move = Passage(entryID = "walk", text = "I go to my room; Harry, Ron and Neville are playing a board game")
             val card = sceneFixture().scene.copy(number = 15, title = "A board game", place = "Dormitory",

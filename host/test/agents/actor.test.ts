@@ -114,7 +114,7 @@ describe("the Actor's prompt, as a novelist (docs/adr/0017)", () => {
 });
 
 describe("the Actor's prompt for one Reply", () => {
-  const planned = (changes: { focus?: boolean; linger?: boolean; taste?: string[]; call?: "continue" | "land" | "end" } = {}) => {
+  const planned = (changes: { focus?: boolean; linger?: boolean; taste?: string[]; call?: "continue" | "land" } = {}) => {
     const story = berth();
     if (changes.focus) story.add({ kind: "focus_set", on: "Meera Kulkarni" });
     if (changes.linger) story.add({ kind: "linger_set", on: true });
@@ -176,7 +176,6 @@ describe("the Actor's prompt for one Reply", () => {
 
   it("says what the call means for this Reply", () => {
     expect(planned({ call: "land" }).prompt).toMatch(/toward its turn/);
-    expect(planned({ call: "end" }).prompt).toMatch(/This Reply closes the Scene on this moment\. End on someone else's closing moment, never one of Ishaan Mehra's\./);
     expect(planned({ call: "continue" }).prompt).not.toMatch(/closes the Scene|toward its turn/);
   });
 });

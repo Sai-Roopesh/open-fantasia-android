@@ -61,7 +61,7 @@ open class PreviouslyUiChecks {
     // WHEN they open the Story
     // THEN the Day View has a "Previously" card saying what happened in "After curfew"
     fun backToADayView() {
-        link.current.value = link.current.value.copy(dayView = FakeFantasiaLink.dayView(ClosedBy.Player),
+        link.current.value = link.current.value.copy(dayView = FakeFantasiaLink.dayView(),
             headEntryID = "closed", previously = Previously(summary = summary, since = Instant.now().minusSeconds(2 * 86400).toString()))
         compose.setContent { FantasiaApp(FantasiaModel(link), PairingScanner { error("Already paired") }) }
         compose.onNodeWithText("The Malfoy Problem").performClick()

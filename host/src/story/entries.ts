@@ -98,8 +98,8 @@ export interface Gathered {
 
 export interface SceneClosed {
   kind: "scene_closed";
-  /** The Story closed it; the player ended it; or the player's Move left it for something else, straight into the next. */
-  by: "story" | "player" | "move";
+  /** The player ended it, or the player's Move left it for something else, straight into the next. The Story never closes a Scene. */
+  by: "player" | "move";
 }
 
 export interface FocusSet {

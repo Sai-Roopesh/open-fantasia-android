@@ -49,8 +49,8 @@ class StoryLinkTest {
     @Test fun `Taste and steering notes go beside the Story, with no head`() = runBlocking {
         MacServer().use { mac ->
             repeat(4) { mac.enqueue(MockResponse().setBody("""{"trace_id":"beside"}""")) }
-            mac.client.removeTaste("story", RemoveTasteRequest(line = "Old.", scope = ClosedBy.Player))
-            mac.client.rewordTaste("story", RewordTasteRequest(line = "Old.", scope = ClosedBy.Story, text = "New."))
+            mac.client.removeTaste("story", RemoveTasteRequest(line = "Old.", scope = Scope.Player))
+            mac.client.rewordTaste("story", RewordTasteRequest(line = "Old.", scope = Scope.Story, text = "New."))
             mac.client.writeNote("story", SteeringNoteRequest(text = "Year One ends with Draconia breaking from her father"))
             mac.client.deleteNote("story", "note 1")
             val sent = List(4) { mac.server.takeRequest().let { Triple(it.method!!, it.path!!, it.body.readUtf8()) } }
@@ -60,7 +60,7 @@ class StoryLinkTest {
                 """{"text":"Year One ends with Draconia breaking from her father"}""", ""), sent.map { it.third })
             // A refusal is said with its reason.
             mac.enqueue(MockResponse().setResponseCode(409).setBody("""{"error":{"code":"invalid","message":"Taste has no such line.","trace_id":"t"}}"""))
-            val refused = runCatching { mac.client.removeTaste("story", RemoveTasteRequest(line = "Gone.", scope = ClosedBy.Story)) }.exceptionOrNull()
+            val refused = runCatching { mac.client.removeTaste("story", RemoveTasteRequest(line = "Gone.", scope = Scope.Story)) }.exceptionOrNull()
             assertEquals("Taste has no such line.", (refused as LinkFailure).reason)
         }
     }

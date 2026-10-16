@@ -29,10 +29,9 @@ sealed interface StoryEdit {
     data class Landmark(val name: String?) : StoryEdit
     data class Place(val name: String?, val institution: Boolean) : StoryEdit
     /**
-     * A lesson in a Taste, from Backstage: the Story's own, or the player's own across every Story ([scope]; the
-     * generated protocol names the story|player choice ClosedBy, after its first use).
+     * A lesson in a Taste, from Backstage: the Story's own, or the player's own across every Story ([scope]).
      */
-    data class Taste(val line: String, val scope: ClosedBy) : StoryEdit
+    data class Taste(val line: String, val scope: Scope) : StoryEdit
     /** The player's brief, from Backstage: what they want more of and less of, as it stands. */
     data class Brief(val more: List<String>, val less: List<String>) : StoryEdit
 }
@@ -420,9 +419,9 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
     }
 
     /** Deletes a lesson from the Story's Taste or the player's own (openspec long-run: Taste is short, readable and the player's). */
-    fun removeTaste(scope: ClosedBy, line: String) = besideChange { link.removeTaste(it, RemoveTasteRequest(line = line, scope = scope)) }
+    fun removeTaste(scope: Scope, line: String) = besideChange { link.removeTaste(it, RemoveTasteRequest(line = line, scope = scope)) }
     /** Rewords a lesson, from the sheet: later Scenes read the new words, and the old ones are gone. */
-    fun rewordTaste(scope: ClosedBy, line: String, text: String) = besideChange { link.rewordTaste(it, RewordTasteRequest(line = line, scope = scope, text = text)) }
+    fun rewordTaste(scope: Scope, line: String, text: String) = besideChange { link.rewordTaste(it, RewordTasteRequest(line = line, scope = scope, text = text)) }
 
     fun writeNote(text: String) { mutable.update { it.copy(noteDraft = text) } }
     /**

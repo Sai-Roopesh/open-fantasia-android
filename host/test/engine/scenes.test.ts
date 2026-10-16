@@ -49,7 +49,7 @@ describe("a turn with the Writer", () => {
   // WHEN the Move is "I go to my room; Harry, Ron and Neville are playing a board game"
   // THEN a new Scene opens in the dormitory with its title card, and the Reply plays it
   // AND no Day View appears
-  it("scenes › A Scene ends in one of three ways › Walking out of a Scene", async () => {
+  it("scenes › A Scene ends when a Move leaves it or the player ends it › Walking out of a Scene", async () => {
     const move = "I go to my room; Harry, Ron and Neville are playing a board game";
     const { play, path, view, events, models } = playable(hogwartsStoryFile(), {
       writer: [writer({ leaves_scene: true, frame: { title: "Lights out", place: "The boys' dormitory", purpose: "Ron finds out where Roopesh goes at night.", exit: "Ron asks, or lets it go." }, comes_in: ["Harry Potter", "Ron Weasley", "Neville Longbottom"], minutes: 5 })],
@@ -84,7 +84,7 @@ describe("a turn with the Writer", () => {
   // GIVEN a Scene in the Great Hall in which Hermione wants to know where he went on Wednesday
   // WHEN the Move is "I go to the library with Hermione"
   // THEN the same Scene goes on in the library, the place shown changes, and no new title card opens
-  it("scenes › A Scene ends in one of three ways › Walking somewhere together keeps the Scene", async () => {
+  it("scenes › A Scene ends when a Move leaves it or the player ends it › Walking somewhere together keeps the Scene", async () => {
     const hall = { title: "Wednesday", place: "The Great Hall", purpose: "Hermione decides whether to believe where he says he went on Wednesday.", exit: "She lets it go, or says she knows he is lying." };
     const { play, path, view, events, models } = playable(hogwartsStoryFile({ title: "Wednesday", place: "The Great Hall", at: "Day 3 12:30", who: ["Hermione Granger"] }), {
       writer: [writer({ frame: hall }), writer({ moves_to: "The library", minutes: 8 })]
@@ -98,24 +98,28 @@ describe("a turn with the Writer", () => {
     expect(models.writer.requests[1]!.system.replace(/\s+/g, " ")).toContain("A Move that walks somewhere with them while it goes on keeps the Scene: set moves_to to the new place");
   });
 
-  // WHEN a Reply brings the Scene to its close
-  // THEN the Day View opens after it
-  it("scenes › A Scene ends in one of three ways › The Story closes a Scene", async () => {
-    const { play, path, view, events } = playable(hogwartsStoryFile(), { writer: [writer({ frame: PLAN, call: "end", note: "Hermione goes up to bed without a word." })] });
+  // GIVEN a Scene whose purpose has turned: Draconia has said what she came to say
+  // WHEN the Reply lands it
+  // THEN the Scene stays open with the composer ready, and no Day View opens until the player ends the Scene or a Move
+  //   leaves it
+  it("scenes › A Scene ends when a Move leaves it or the player ends it › The Story never closes a Scene", async () => {
+    const { play, path, view, events, models } = playable(hogwartsStoryFile(), { writer: [writer({ frame: PLAN, call: "land", note: "Hermione says what she came to say, and goes quiet." })] });
     await play("I say goodnight.");
-    // The Reply closes the Scene, and its end follows on the Path (docs/adr/0015): the record, the plan, the World.
-    expect(path().slice(-6).map(payload => payload.kind)).toEqual(["reply", "scene_closed", "chronicle", "outline_set", "director_plan", "world_moved"]);
-    expect(path().at(-5)).toMatchObject({ kind: "scene_closed", by: "story" });
+    // The Reply lands the Scene, and the Scene stays open: no close, no Scene's end, no Day View.
+    expect(path().at(-1)).toMatchObject({ kind: "reply" });
+    expect(path().some(payload => payload.kind === "scene_closed")).toBe(false);
     const shown = view();
-    expect(shown.day_view).toMatchObject({ at: "Day 3 21:42", at_label: "Friday 9:42 pm", place: "The Gryffindor common room", closed_by: "story", scene_end: { step: null, failed: null } });
-    expect(shown.exchanges.at(-1)!.move!.text).toBe("I say goodnight.");
-    const kinds = events.map(event => event.event.kind).filter(kind => kind !== "turn_step" && kind !== "scene_end_step");
-    expect(kinds.slice(-3)).toEqual(["reply", "scene_closed", "world_moved"]);
+    expect(shown.day_view).toBeNull();
+    expect(shown.turn.kind).toBe("idle");
+    expect(events.some(event => event.event.kind === "scene_closed")).toBe(false);
+    // The Writer is never offered a way to close the Scene.
+    const call = (models.writer.requests[0]!.schema as { properties: { call: { enum: string[] } } }).properties.call.enum;
+    expect(call).toEqual(["continue", "land"]);
   });
 
   // WHEN the player taps End scene after a Reply
   // THEN the Scene is closed at that Reply and the Day View opens
-  it("scenes › A Scene ends in one of three ways › The player ends a Scene", async () => {
+  it("scenes › A Scene ends when a Move leaves it or the player ends it › The player ends a Scene", async () => {
     const { play, engine, storyId, head, path, view, events } = playable();
     await play("I say goodnight.");
     const reply = head();
@@ -185,9 +189,9 @@ describe("a turn with the Writer", () => {
   // THEN no beat is forced and the Scene stays open
   it("scenes › Linger holds the moment › Lingering with Hermione", async () => {
     const still = { arc_moved: false, beats: beats(0) };
-    // The fifth answer calls the Scene to its end: with Linger on, the Scene does not close on its own.
+    // The fifth answer lands the Scene: with Linger on, it goes on as it was.
     const { play, engine, storyId, head, models, state, path } = playable(hogwartsStoryFile(), {
-      writer: [writer({ ...still, frame: PLAN }), writer(still), writer(still), writer(still), writer({ ...still, call: "end" }), writer(still), writer(still), writer(still)]
+      writer: [writer({ ...still, frame: PLAN }), writer(still), writer(still), writer(still), writer({ ...still, call: "land" }), writer(still), writer(still), writer(still)]
     });
     engine.setLinger(storyId, head(), true, "trace-linger");
     for (let exchange = 1; exchange <= 8; exchange++) await play(`I stay where I am, by the fire (${exchange}).`);
@@ -333,7 +337,7 @@ describe("Focus, Linger and Redo", () => {
   it("scenes › Redo, with a Direction and another model if wanted › Remember this", async () => {
     const lesson = "Keep school procedure to a line.";
     const { play, engine, storyId, head, models, state, mac } = playable(hogwartsStoryFile(), {
-      writer: [writer({ frame: PLAN }), writer({ frame: PLAN, taste: lesson }), writer({ call: "end" }), writer({ frame: { title: "Breakfast", place: "The Great Hall", purpose: "p", exit: "e" }, comes_in: ["Draconia Malfoy"], minutes: 616 })]
+      writer: [writer({ frame: PLAN }), writer({ frame: PLAN, taste: lesson }), writer({}), writer({ leaves_scene: true, frame: { title: "Breakfast", place: "The Great Hall", purpose: "p", exit: "e" }, comes_in: ["Draconia Malfoy"], minutes: 616 })]
     });
     await play("I ask about the prefects' rota.");
     engine.redo(storyId, head(), "don't dwell on school procedure", true, "trace-redo");
@@ -348,17 +352,9 @@ describe("Focus, Linger and Redo", () => {
     expect(models.actor.requests.at(-1)!.prompt).toContain(lesson);
   });
 
-  it("redoes the Reply that closed a Scene, which opens again, and never a Reply the player closed the Scene after", async () => {
-    // Redoing the first exchange takes the Beat Note that planned the Scene off the Path, so the Writer plans it again.
-    const { play, engine, storyId, head, view, state } = playable(hogwartsStoryFile(), { writer: [writer({ frame: PLAN, call: "end" }), writer({ frame: PLAN })] });
+  it("never redoes a Reply the player closed the Scene after", async () => {
+    const { play, engine, storyId, head } = playable(hogwartsStoryFile(), { writer: [writer({ frame: PLAN })] });
     await play("I say goodnight.");
-    expect(view().day_view).not.toBeNull();
-    // The Scene's end is on the Path after the Reply; the Redo takes it off with the Reply.
-    engine.redo(storyId, head(), "she should not leave yet", false, "trace-redo");
-    await engine.settled(storyId);
-    expect(view().day_view).toBeNull();
-    expect(state().scene!.closed).toBeNull();
-    expect(state().recorded).toEqual([]);
     engine.endScene(storyId, head(), "trace-end");
     await engine.ended(storyId);
     expect(() => engine.redo(storyId, head(), null, false, "trace-again")).toThrow(expect.objectContaining({ code: "invalid" }));

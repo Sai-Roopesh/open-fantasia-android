@@ -487,14 +487,11 @@ export class Engine {
   }
 
   /**
-   * The latest Reply, if the head is it or comes only after it: Focus and Linger set since, or the Story closing the
-   * Scene and that Scene's end (docs/adr/0015), which a Redo takes off the Path with the Reply.
+   * The latest Reply, if the head is it or comes only after it: Focus and Linger set since.
    */
   private latestReply(head: Entry): Entry | null {
     let entry: Entry | null = head;
-    while (entry && SCENE_END_KINDS.has(entry.payload.kind) && entry.parentId) entry = this.mac.tree.entry(entry.parentId);
     while (entry && (entry.payload.kind === "focus_set" || entry.payload.kind === "linger_set") && entry.parentId) entry = this.mac.tree.entry(entry.parentId);
-    if (entry?.payload.kind === "scene_closed" && entry.payload.by === "story" && entry.parentId) entry = this.mac.tree.entry(entry.parentId);
     return entry?.payload.kind === "reply" ? entry : null;
   }
 
@@ -1157,7 +1154,7 @@ export class Engine {
    * The Actor writes the Reply whole, and the Editor reads it before the player can (docs/adr/0019): slips are set
    * right in place; a Reply that breaks what is established goes back to the Actor once, with the Editor's notes, and
    * is read again; one that still breaks is kept with the Editor's note. The phone is told each step, and sent the
-   * Reply once it is checked. The Scene closes after it when the Writer said so, and its end runs.
+   * Reply once it is checked. The Scene stays open: only the player, or a Move that leaves it, closes a Scene.
    */
   private async actorStep(turn: Turn, note: Entry): Promise<void> {
     const { state, entries } = sceneEntries(this.mac, note.id);
@@ -1181,20 +1178,12 @@ export class Engine {
     }
     const breaks = edit.verdict === "rewrite" ? edit.notes.join("\n") : null;
     const by = reply;
-    const written = this.mac.db.transaction(() => {
-      const kept = this.mac.tree.append(turn.storyId, note.id, { kind: "reply", text: edit.text, callId: by.callId, model: by.model, ...(breaks ? { note: breaks } : {}) });
-      const closed = state.scene?.call === "end" ? this.mac.tree.append(turn.storyId, kept.id, { kind: "scene_closed", by: "story" }) : null;
-      if (!this.mac.tree.moveHead(turn.pathId, note.id, (closed ?? kept).id)) throw new Error("The Path moved while its Reply was being written");
-      return { reply: kept, closed };
-    })();
-    this.models.attach(by.callId, written.reply.id);
-    this.models.attach(edit.callId, written.reply.id);
+    const kept = this.mac.tree.append(turn.storyId, note.id, { kind: "reply", text: edit.text, callId: by.callId, model: by.model, ...(breaks ? { note: breaks } : {}) });
+    if (!this.mac.tree.moveHead(turn.pathId, note.id, kept.id)) throw new Error("The Path moved while its Reply was being written");
+    this.models.attach(by.callId, kept.id);
+    this.models.attach(edit.callId, kept.id);
     this.turns.delete(turn.storyId);
-    this.publish(turn.storyId, written.reply);
-    if (written.closed) {
-      this.publish(turn.storyId, written.closed);
-      this.endOfScene(turn.storyId);
-    }
+    this.publish(turn.storyId, kept);
   }
 
   /** The turn's line moves on to [line], and the phone is told each time it changes (openspec mac-link). */

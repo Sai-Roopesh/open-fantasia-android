@@ -39,9 +39,8 @@ open class WriterUiChecks {
         compose.runOnIdle { assertEquals(MoveRequest(after = "closed", text = "I go to my room."), link.moves.single()) }
     }
 
-    // WHEN a Reply brings the Scene to its close
-    // THEN the Day View opens after it
-    fun storyClosesScene() {
+    // A Scene closed on the Mac (End scene, here or on another phone) arrives as an event, and the Day View opens.
+    fun closedSceneOpensDayView() {
         openScene()
         compose.runOnIdle {
             val projection = SceneProjection(link.current.value)
@@ -327,12 +326,25 @@ open class WriterUiChecks {
         compose.runOnIdle { assertEquals(RedoRequest(after = "reply", direction = null, remember = false), link.redos.single()) }
     }
 
-    fun redoOnlyWhereTheStoryClosedTheScene() {
-        link.current.value = link.current.value.copy(dayView = FakeFantasiaLink.dayView(ClosedBy.Story), headEntryID = "closed")
+    // GIVEN a Scene whose purpose has turned: Draconia has said what she came to say
+    // WHEN the Reply lands it
+    // THEN the Scene stays open with the composer ready, and no Day View opens until the player ends the Scene or a
+    //   Move leaves it
+    fun landedSceneStaysOpen() {
+        openScene()
+        compose.onNodeWithTag("scene-passages").performScrollToNode(hasText("She smiles."))
+        compose.onNodeWithText("She smiles.").assertIsDisplayed()
+        compose.onNodeWithTag("composer").assertIsDisplayed()
+        compose.onNodeWithText("End scene").assertIsEnabled()
+        compose.onNodeWithText("7:40 am · you're in Common room").assertDoesNotExist()
+    }
+
+    // The latest Reply can be redone while its Scene is open; once the player has ended the Scene, it cannot.
+    fun noRedoAtTheDayView() {
         openScene()
         compose.onNodeWithTag("scene-passages").performScrollToNode(hasText("Redo"))
         compose.onNodeWithText("Redo").assertIsDisplayed()
-        compose.runOnIdle { link.current.value = link.current.value.copy(dayView = FakeFantasiaLink.dayView(ClosedBy.Player)) }
+        compose.runOnIdle { link.current.value = link.current.value.copy(dayView = FakeFantasiaLink.dayView(), headEntryID = "closed") }
         compose.onNodeWithTag("scene-passages").performScrollToNode(hasText("She smiles."))
         compose.onNodeWithText("She smiles.").assertIsDisplayed()
         compose.onNodeWithText("Redo").assertDoesNotExist()

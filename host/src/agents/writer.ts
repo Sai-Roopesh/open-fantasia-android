@@ -124,7 +124,7 @@ export function writerFormat(state: State, moments: Fact[]) {
       goes: { type: "array", items: peopleEnum(state), description: "Who leaves the Scene in the next Reply." },
       beats: { type: "array", items: { type: "object", additionalProperties: false, required: ["text", "status"], properties: { text, status: { type: "string", enum: ["done", "in_play", "pending", "skipped"] } } } },
       note: { ...text, description: "The Beat Note for the Reply, about forty words." },
-      call: { type: "string", enum: ["continue", "land", "end"] },
+      call: { type: "string", enum: ["continue", "land"] },
       intensity: { type: "integer", minimum: 1, maximum: 5 },
       arc_moved: { type: "boolean" },
       minutes: { type: "integer", minimum: 0, description: "How many minutes after now the Reply begins: a few in an ordinary exchange, more when the Move passes time." },

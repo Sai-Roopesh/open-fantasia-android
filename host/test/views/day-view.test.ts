@@ -22,7 +22,6 @@ describe("the Day View", () => {
       day: "Sunday 8 September",
       time: "7:00 pm",
       place: "The Gryffindor common room",
-      closed_by: "player",
       countdowns: [{ landmark: "Draconia's flying test", when: "3 days", label: "3 days to Draconia's flying test" }],
       scene_span: "Sunday 7:00 pm – 7:00 pm",
       // Every step of the Scene's end is done, so the Day View is ready (openspec presence: Between Scenes is quiet).
