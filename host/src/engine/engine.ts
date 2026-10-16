@@ -471,10 +471,11 @@ export class Engine {
     const text = direction?.trim() || null;
     if (remember && !text) throw new LinkError("invalid", "Write the Direction to remember.");
     const move = this.lastMove(reply.id);
+    const from = this.redoneFrom(reply, move);
     const now = this.mac.states.at(head.id).scene;
-    const before = this.mac.states.at(move.id).scene;
+    const before = this.mac.states.at(from.id).scene;
     const redo = this.mac.db.transaction(() => {
-      let parent = move;
+      let parent = from;
       if (now && now.focus !== before?.focus) parent = this.mac.tree.append(storyId, parent.id, { kind: "focus_set", on: now.focus });
       if (now && now.linger !== before?.linger) parent = this.mac.tree.append(storyId, parent.id, { kind: "linger_set", on: now.linger });
       const written = this.mac.tree.append(storyId, parent.id, { kind: "redo", direction: text, remember, ...(model ? { model } : {}) });
@@ -484,6 +485,21 @@ export class Engine {
     this.publish(storyId, redo);
     this.startTurn(storyId, path.id, move, traceId);
     return { move_entry_id: move.id, trace_id: traceId };
+  }
+
+  /**
+   * Where a Redo of [reply] goes back to: the Writer's plan for it is made again, and nothing before. When [move]
+   * walked out of a Scene into the one the Reply opens, that Scene's end stays: it does not turn on the Reply.
+   */
+  private redoneFrom(reply: Entry, move: Entry): Entry {
+    const note = reply.parentId ? this.mac.tree.entry(reply.parentId) : null;
+    let from = note?.payload.kind === "beat_note" && note.parentId ? this.mac.tree.entry(note.parentId) : null;
+    // Back past an earlier Redo of it (with the Focus and Linger it set again), and the Scene the Move walked into.
+    while (from && from.id !== move.id && from.parentId
+      && (["redo", "focus_set", "linger_set"].includes(from.payload.kind) || (from.payload.kind === "scene_opened" && from.payload.startsAt === move.id))) {
+      from = this.mac.tree.entry(from.parentId);
+    }
+    return from ?? move;
   }
 
   /**

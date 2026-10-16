@@ -38,8 +38,13 @@ export function sayClock(state: State, at: string): string {
 export function openingEntries(state: State, path: Entry[]): Entry[] | null {
   if (!state.scene?.closed) return null;
   const closedAt = path.findLastIndex(entry => entry.payload.kind === "scene_closed");
-  // A Move that left the Scene goes straight into the next: no Day View, only that Move while the Scene ends.
-  if (state.scene.closed === "move" && path[closedAt - 1]?.payload.kind === "move") return path.slice(closedAt - 1);
+  // A Move that left the Scene goes straight into the next: no Day View, only that Move while the Scene ends, a Redo
+  // of its Reply or Focus and Linger set again on the way included.
+  if (state.scene.closed === "move") {
+    let left = closedAt - 1;
+    while (left > 0 && ["redo", "focus_set", "linger_set"].includes(path[left]?.payload.kind ?? "")) left--;
+    if (path[left]?.payload.kind === "move") return path.slice(left);
+  }
   const move = path.findIndex((entry, index) => index > closedAt && entry.payload.kind === "move");
   return closedAt >= 0 && move >= 0 ? path.slice(move) : null;
 }

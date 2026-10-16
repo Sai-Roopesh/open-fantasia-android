@@ -352,6 +352,50 @@ describe("Focus, Linger and Redo", () => {
     expect(models.actor.requests.at(-1)!.prompt).toContain(lesson);
   });
 
+  it("redoes the first Reply of a Scene a Move walked into, keeping the end of the Scene it left", async () => {
+    const dorm = { title: "Lights out", place: "The boys' dormitory", purpose: "p", exit: "e" };
+    const { play, engine, storyId, head, path, models, view } = playable(hogwartsStoryFile(), {
+      writer: [writer({ frame: PLAN }), writer({ leaves_scene: true, frame: dorm, comes_in: ["Harry Potter"], minutes: 5 }), writer({ frame: dorm, comes_in: ["Harry Potter"] }), writer({ frame: dorm, comes_in: ["Harry Potter"] })]
+    });
+    await play("I sit down by the fire.");
+    await play("I go up to the dormitory.");
+    const recorded = models.chronicler.requests.length;
+    const woven = models.weaver.requests.length;
+    expect(view().scene.title).toBe("Lights out");
+    engine.redo(storyId, head(), "don't decide for him", false, "trace-redo");
+    // While it is written, the next Scene is being written: no Day View.
+    expect(view().day_view).toBeNull();
+    expect(view().opening).not.toBeNull();
+    await engine.settled(storyId);
+    // The Scene the Move left is not ended again: one close, one record, one World.
+    expect(models.chronicler.requests).toHaveLength(recorded);
+    expect(models.weaver.requests).toHaveLength(woven);
+    expect(path().filter(payload => payload.kind === "scene_closed")).toHaveLength(1);
+    expect(path().filter(payload => payload.kind === "chronicle")).toHaveLength(1);
+    // The Move is planned again with the Direction, the Scene it walked into opens again, and the Reply is new.
+    expect(models.writer.requests.at(-1)!.prompt).toContain("don't decide for him");
+    expect(path().at(-1)).toMatchObject({ kind: "reply" });
+    expect(view().scene.title).toBe("Lights out");
+    expect(view().day_view).toBeNull();
+    // Redone again: still one Scene's end, and only the latest Redo on the Path.
+    engine.redo(storyId, head(), null, false, "trace-again");
+    await engine.settled(storyId);
+    expect(models.chronicler.requests).toHaveLength(recorded);
+    expect(path().filter(payload => payload.kind === "redo")).toEqual([{ kind: "redo", direction: null, remember: false }]);
+    expect(path().at(-1)).toMatchObject({ kind: "reply" });
+  });
+
+  it("shows the next Scene being written, not the Day View, while a Move that left the Scene waits behind a Redo", async () => {
+    const { play, write, view } = playable(hogwartsStoryFile(), { writer: [writer({ frame: PLAN })] });
+    await play("I sit down by the fire.");
+    const move = write({ kind: "move", text: "I go up to the dormitory." });
+    write({ kind: "redo", direction: null, remember: false });
+    write({ kind: "scene_closed", by: "move" });
+    expect(view().day_view).toBeNull();
+    expect(view().opening).not.toBeNull();
+    expect(view().exchanges.at(-1)!.move!.entry_id).toBe(move.id);
+  });
+
   it("never redoes a Reply the player closed the Scene after", async () => {
     const { play, engine, storyId, head } = playable(hogwartsStoryFile(), { writer: [writer({ frame: PLAN })] });
     await play("I say goodnight.");
