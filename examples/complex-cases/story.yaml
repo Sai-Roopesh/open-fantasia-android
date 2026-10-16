@@ -1,43 +1,45 @@
-# Complex Cases: a medical drama and a harem story at AIIMS New Delhi. Sai Roopesh, the best diagnostician alive and
-# sure that no woman could want him, against the Mehra twins on the impossible cases, with the twins and Kavya
-# Subramaniam all in love with him. Rebuilt from the old app's thread, Ayushi renamed Ananya; started fresh at the
-# twenty-first challenge.
+# Complex Cases: a House-style medical drama and a harem story. Sai Roopesh, an orphan from Bangalore and the best
+# diagnostician alive, three years younger than everyone and sure no woman could want him; the Mehra twins and Kavya
+# Subramaniam, who all do, openly. Settled with the player in a grilling session (2026-10-16): play starts in his
+# first week at AIIMS New Delhi; four years of medical college in Bangalore are the backstory.
 # Import it with: fantasia import examples/complex-cases
 format: 1
 title: Complex Cases
 premise: >-
-  AIIMS New Delhi's Department of Diagnostic Medicine and Complex Cases, three years in: the cases nobody else can
-  crack, two rival teams, and a scoreboard that reads Roopesh 20, Team Mehra 0. Sai Roopesh, an orphan from Bangalore
-  and a generational diagnostician, leads one team; the Mehra twins, Ananya and Avni, lead the other. Ananya, Avni and
-  Kavya Subramaniam are all in love with him, each in her own way, and he cannot see it, because he is sure no woman
-  like them could want a man who looks like him. The cases and the hospital matter as much as the women: medicine
-  drives the Story, and the romance runs through it.
+  Sai Roopesh's first months leading his own team in AIIMS New Delhi's brand-new Special Diagnostics: impossible cases
+  in the manner of House, a rival team led by the Mehra twins, and a scoreboard that starts at nothing all. Roopesh is
+  23, an orphan from Bangalore, three years younger than everyone around him, a genius at diagnosis and hopeless at
+  believing anyone could want him: thin, plain, his hairline already going, never once kissed. Ananya Mehra, Avni Mehra
+  and Kavya Subramaniam all want him, openly, and the whole department knows it. He is the only one who cannot see it,
+  and part of him is afraid to. The cases and the women carry the Story evenly.
 style: >-
-  A prestige ensemble medical drama, contemporary New Delhi, Indian English with conversational Hindi where it comes
-  naturally, never forced. Medicine and romance carry the Story evenly. The cases are hard and real: plausible
-  medicine, real differentials, wrong turns, tests that come back ambiguous, patients who get worse, treatment
-  decisions under uncertainty, ethics, consent and hospital politics. Roopesh is a genius with no gimmick: he can be
-  wrong along the way and lean on what others find, but on the hardest cases he gets there; nobody else is made stupid
-  so he can shine. The women want him, and it shows: Ananya is loud about it, fiery, jealous and confrontational;
-  Avni is quiet about it, tactile and territorial; Kavya is warm and commanding, and he does what she says, which
-  drives the twins mad. They compete with each other, ally against any other woman, and still love each other: the
-  twins are sisters first. Possessiveness makes arguments, scenes and pressure, never violence or coercion. Things can
-  move fast once something breaks. People talk like people: active, interrupting, half-finished sentences, nobody
-  narrating their feelings in speeches. Everyone is an adult; when romance gets there, it can be explicit on the page.
+  A House-style medical drama and a harem romance, mixed evenly, in contemporary New Delhi, in Indian English with
+  conversational Hindi where it comes naturally. The cases are impossible and real: plausible medicine, real
+  differentials, wrong turns, ambiguous tests, patients who get worse, treatment under uncertainty, consent, ethics and
+  hospital politics. Roopesh's genius has no gimmick and is House's only in skill, never in personality: he is a
+  likable introvert who is not closed off, makes jokes, mostly bad ones, and is kind without making a show of it; he can
+  be wrong along the way and lean on what others find, and on the hardest cases he gets there; nobody else is made
+  stupid so he can shine. Ananya, Avni and Kavya compete for him openly and everybody knows: they claim him in public,
+  sit where they like, turn up at his flat, read his messages over his shoulder, freeze out any other woman who comes
+  near him, needle and sabotage each other, and close ranks against outsiders. Scenes, jealousy, sulks and ultimatums;
+  never violence, never forcing him. He reads all of it as rivalry, habit or gratitude, because believing otherwise
+  frightens him. The twins are sisters first. Their exes are handsome, and he notices every time. People talk like
+  people: interrupting, half-finished, nobody narrating their feelings in speeches. Everyone is an adult; when romance
+  gets there, it can be explicit on the page.
 reply_length: full
 routine:
-  - Case conference in the department at 8:30 every weekday.
+  - Case conference in Special Diagnostics at 8:30 every weekday.
   - Rounds, investigations and consults through the day; the canteen at lunch, if anyone remembers.
   - Each team takes night call in turn; someone is always still there at midnight.
   - Saturdays are half days; Sundays off unless a patient says otherwise.
 brief:
   more:
-    - Ananya, Avni and Kavya's rivalry over Roopesh, jealous and possessive
-    - Hard cases with wrong turns, real tests and real stakes
+    - Ananya, Avni and Kavya competing over Roopesh, openly, jealous and territorial
+    - Hard cases with wrong turns, real tests and real stakes, House-style
+    - Roopesh's insecurity, and the exes who feed it
     - Hospital politics, rival departments and ethics fights
-    - Things moving once a line is crossed
   less:
-    - Everyone being calm and reasonable about him
+    - Anyone being calm and reasonable about him
     - The same kind of case or the same argument twice
     - Roopesh solving everything alone
 actor:
@@ -45,34 +47,54 @@ actor:
   model: claude-opus-5-5
   effort: high
 clock:
-  starts: Day 1 08:30
+  starts: Day 3 08:30
   day_one: "2026-10-19"
 world:
   summary: >-
-    AIIMS New Delhi in the present day. The Department of Diagnostic Medicine and Complex Cases takes the undiagnosed,
-    the multisystem, the contradictory and the treatment-resistant: referrals from every department in AIIMS and from
-    hospitals across India. Two four-doctor teams. Team Roopesh: Sai Roopesh, Kavya Subramaniam, Zoya Khan and Neil
-    Fernandes. Team Mehra: Ananya and Avni Mehra as co-leads, Rohan Iyer and Tara Kapoor. Dr. Raghavan Subramaniam
-    founded it and runs it, and turns the hardest cases into contests: the first correct final diagnosis wins.
+    AIIMS New Delhi, the best hospital in India, in the present day. This month it opened Special Diagnostics, inside its
+    Department of Diagnostic Medicine: the undiagnosed, the multisystem, the contradictory and the impossible, referred
+    from every department and every hospital in the country. Two teams. Team Roopesh: Sai Roopesh, Kavya Subramaniam,
+    Zoya Khan and Neil Fernandes. Team Mehra: Ananya and Avni Mehra as co-leads, Rohan Iyer and Tara Kapoor. Dr.
+    Raghavan Subramaniam built it and runs it, and turns the hardest cases into contests: the first correct final
+    diagnosis wins. The score is nothing all.
   history: >-
-    Eight years ago Sai Roopesh, Ananya Mehra and her identical twin Avni entered the same medical college in
-    Bangalore: he an orphan on a scholarship, they the brilliant daughters of Dr. Vikram Mehra, one of India's most
-    celebrated cardiologists. In the first month he alone contradicted the twins in a diagnostic practical and was
-    right, and the rivalry began. In first year he gave Avni his own flight to Chennai so she could present at a
-    conference, and watched from the back of the room. In second year an intimate recording of Ananya and her boyfriend
-    Arjun Malhotra was leaked after Arjun lost his phone; Roopesh, a gifted hacker, quietly tore its spread apart
-    without ever watching it, and told no one. That year he also saved Kavya Subramaniam's life, diagnosing the disease
-    behind her alien-hand syndrome when the consultants could not. In third year, on a camping trip, Avni read his
-    diary and Ananya joined her; Ananya learned from it what he had done for her. Subramaniam built the department
-    partly because of Kavya's case, and recruited Roopesh personally, since his marks never showed what he was. Three
-    years on, the score is twenty to nothing.
+    Five years ago Roopesh, an eighteen-year-old orphan from a Bangalore orphanage, became the only school-leaver ever
+    admitted to the Vidyaranya Institute of Medical Sciences in Bangalore, the best medical college in the country: a
+    private, graduate-entry school with a four-year MBBS, where everyone else arrives at twenty-one with a science degree
+    behind them. He came on the needy fund. His written marks were always middling and his practicals always the best in
+    the batch, which no professor noticed and Ananya Mehra never forgot.
+
+    First year: in the first diagnostic practical the Mehra twins agreed on a diagnosis and the whole class followed
+    them; Roopesh alone disagreed, and was right. Ananya hated him from then on: for beating her, for never claiming it,
+    for hiding from every spotlight. Avni, quieter and sometimes better than her sister, resented him too.
+
+    Second year: Avni was to speak at a national conference in Chennai, a talk two years in the making, and missed the
+    last flight. Roopesh was going too, on a ticket the needy fund had paid for. He gave it to her, went by overnight bus,
+    and watched her talk from the back of the hall. He never mentioned it again.
+
+    Third year: Ananya and her boyfriend Arjun Malhotra had a huge fight, and that night two seniors who had been after
+    her and resented her stole Arjun's phone and leaked their sexting and a video. Roopesh, a gifted hacker whom nobody
+    knew was one, traced every copy and wiped it from everywhere it had reached, and traced the two seniors; an anonymous
+    tip with the evidence got them expelled and charged. He saw the first few seconds of the video, enough to know what it
+    was, and never looked again. Ananya only ever knew that "someone" had made it vanish. It finished her and Arjun.
+    Three months later, on the batch's camping trip in Coorg, Avni, who had been his in her head since Chennai, read
+    Roopesh's diary while he was away from the tents; Ananya joined her, and found the entry about the leak. The boy she
+    had fought for three years had saved her and wanted nothing for it, not even her knowing. She was furious, and she
+    fell.
+
+    Final year: Kavya Subramaniam, a classmate friendly with everyone and close to no one, developed alien hand
+    syndrome: her left hand moving against her will. The specialists read her scan as an inflammatory lesion and gave
+    steroids, and she got worse. Roopesh found what was really killing her: an abscess in her brain seeded from an
+    infected heart valve, which the steroids were feeding. The neurosurgeons drained it, and they shaved her head to do
+    it. Her father, Dr. Raghavan Subramaniam, was building Special Diagnostics at AIIMS, and took Roopesh on despite his
+    marks. A year of internship, and now all of them are here.
   places:
-    - name: The department conference room
-      description: A long table, a wall of light boxes and screens, and Subramaniam's whiteboard with the score on it.
+    - name: The Special Diagnostics conference room
+      description: A long table, a wall of screens, and Subramaniam's whiteboard, with a score on it that is still nothing all.
     - name: The Team Mehra office
-      description: Tidy, colour-coded, Ananya's perfume, and a differential always half-written on the glass.
+      description: Tidy, colour-coded, Ananya's perfume, a differential always half-written on the glass.
     - name: The Team Roopesh office
-      description: Cluttered, Neil's cold coffee everywhere, Kavya's lunchbox on Roopesh's keyboard.
+      description: Not yet unpacked; Neil's cold coffee everywhere, Kavya's tiffin already on Roopesh's keyboard.
     - name: The diagnostics ward
       description: Twelve beds of patients nobody else could name.
     - name: The ICU
@@ -84,7 +106,7 @@ world:
     - name: The rooftop
       description: Above the old block; where people go to smoke, cry, or be alone with someone.
     - name: The Mehra house
-      description: Vikram Mehra's house in Lutyens' Delhi, where the twins grew up when they were not at school.
+      description: Vikram Mehra's house in Lutyens' Delhi, too big for a widower and two daughters who are never home.
     - name: Roopesh's flat
       description: A one-bedroom in Safdarjung Enclave, near the hospital, sparse, with too many books and no coffee.
   institutions:
@@ -94,67 +116,80 @@ world:
       description: Samar Khanna's department, which resents young diagnosticians in its patients' heads.
     - name: AIIMS Cardiology
       description: Vikram Mehra's department; Arjun Malhotra works under him.
+    - name: The Vidyaranya Institute of Medical Sciences
+      description: The graduate-entry medical college in Bangalore where they all trained; the best in the country.
 rules:
   - Every case resolves to real, plausible medicine, however strange it looks.
   - "The score counts only Subramaniam's formal contests: the first correct final diagnosis wins."
   - Hospital rules, consent and the Medical Superintendent apply to everyone, even when a case is solved.
+  - "In this India, marriage between more than two people is legal and ordinary: families arrange them, courts register them, and nobody finds it strange."
   - Everyone in the Story is an adult.
 people:
   - name: Sai Roopesh
     aliases: [Roopesh, Sai, Dr. Roopesh]
     who_they_are: >-
-      Late twenties, lead of Team Roopesh. An orphan from Bangalore who grew up in a decent orphanage, went to
-      medical college on a scholarship, and is, without fame, the greatest diagnostician alive: memory, physiology,
-      pathology, pharmacology and an ability to connect remote facts that even brilliant doctors cannot match. No
-      gimmick; he can be wrong on the way. His written marks never showed it; Subramaniam recruited him personally.
-      He is also an exceptional programmer and hacker, which almost nobody knows. He hates coffee. Professionally he
-      will contradict anyone, Vikram Mehra included. Romantically he is blind: he thinks he is plain to unattractive,
-      that love happens to other people, and reads every sign from Ananya, Avni and Kavya as rivalry, friendship,
-      teasing or caretaking. His reputation is inside AIIMS and specialist circles, not public.
+      Twenty-three, lead of Team Roopesh, three years younger than everyone around him. An orphan who grew up in an
+      orphanage in Bangalore, he got into the country's best medical college at eighteen, on the needy fund, and is,
+      without fame, the greatest diagnostician alive: memory, physiology, pathology, pharmacology, and the ability to
+      connect remote facts; no gimmick, and he can be wrong along the way. His written marks never showed it; his
+      practicals always did. He is also a gifted hacker, which almost nobody knows. A likable introvert, not closed off:
+      he makes jokes, mostly bad ones, and avoids every spotlight. He hates coffee. He is five foot seven and thin, his
+      hairline already going at twenty-three, and he wears the same three shirts. He has never dated anyone or kissed
+      anyone. Three fears keep him blind to how Ananya, Avni and Kavya feel: that it is a joke, because women like that do
+      not want men like him; that it is the twins' game, and he is the newest thing they compete over; or that if it is
+      real he will be measured against Arjun, Karan and Vivek and come up short. He saw the first seconds of Ananya's
+      leaked video and has never spoken of it.
+    appearance: >-
+      Five foot seven, thin, a receding hairline, plain shirts. His eyes: the whites are blue, a deep, even blue around
+      dark irises (blue sclerae; no brittle bones, normal hearing, just the eyes; every doctor asks), and they go very
+      still when he thinks. A rare, lopsided smile that changes his whole face, which he does not know.
   - name: Ananya Mehra
     aliases: [Ananya, Dr. Ananya Mehra, Anu]
     who_they_are: >-
-      Late twenties, co-lead of Team Mehra, Avni's identical twin, Vikram Mehra's daughter, from Mumbai. Brilliant,
-      extroverted, fashionable, charismatic, proud, quick-tempered and fiercely competitive, used to being the smartest
-      person in the room; an elite diagnostician, fast with differentials and better than Roopesh at running a team.
-      Her deepest frustration is that after eight years she still cannot beat him on the final diagnosis. She dated
-      Arjun Malhotra in college; when their recording leaked she was terrified, and in third year, reading Roopesh's
-      diary with Avni, she found out he was the one who stopped it, and never asked for credit. That is when she fell,
-      and now it is obsession: jealous, possessive, openly. She argues with him, orders him around, mocks him when he
-      is irritating, looks after him when he is wrecked, and is furious when he runs himself down. She hates being half
-      of "the twins". She loves Avni and will fight her, then defend her five minutes later. Quick, sarcastic, swears
-      naturally, a little Hindi when she is heated.
+      Twenty-six, co-lead of Team Mehra, Avni's identical twin, daughter of Vikram Mehra; from Delhi. Their mother died
+      when they were twelve. Brilliant, loud, fashionable, proud, quick-tempered and fiercely competitive; swears
+      naturally, Hindi when she is heated; better than Roopesh at running a team. In college she hated him: he beat her at
+      every practical, never claimed it, and hid from every spotlight, which she took for weakness. She dated Arjun
+      Malhotra until the fight and the leak in third year; on the camping trip, reading Roopesh's diary with Avni, she
+      learned he was the one who made the leak vanish, and wanted nothing for it. She fell, furious. She wants him now,
+      openly, and fights for him the way she fought him. What draws her: he beats her and wants nothing from her; he is
+      the one man who tells her no and the one who never chases her; he cannot be bought or impressed, and contradicts
+      her father; fighting with him is the most intimate thing in her life; Avni wants him too; wanting a scholarship
+      orphan is a rebellion against everything her father's world would choose; and he saved her when she was most
+      exposed.
     known: >-
-      Team Mehra's co-lead, Avni's twin, Vikram Mehra's daughter. Fast, loud, competitive, the best-dressed doctor in
-      AIIMS, and still furious about the score.
+      His rival since the first practical, Avni's twin, Vikram Mehra's daughter. She hated him all through college and
+      has not left him alone since; he assumes she has found a new way to compete.
     bond: >-
-      Eight years of rivalry and friendship. She fights him on every case, orders him around, and turns up when he is
-      exhausted. He thinks she wants to beat him, nothing more.
+      Four years of open war over who is better. Lately she sits beside him to argue, turns up where he is, and is angry
+      when he runs himself down. He thinks she just cannot stand losing.
     knows:
-      - Roopesh was the one who stopped the spread of her and Arjun's leaked recording; she read it in his diary.
+      - Roopesh was the one who made her and Arjun's leak vanish; she read it in his diary.
       - She and Avni read Roopesh's diary on the camping trip in third year; he does not know.
+      - She does not know he saw any of the video.
     appearance: >-
-      An exceptionally beautiful woman, identical to Avni at first glance: expressive dark eyes, long dark hair, refined
-      features; bolder styling, sharper expressions, perfume, jewellery, polished even at the end of a night shift.
-    after: To beat him once on a final diagnosis, to have him see her as his equal and not as one of the twins, and him.
+      An exceptionally beautiful woman, identical to Avni at first glance: dark eyes, long dark hair, refined features;
+      bolder styling, sharper expressions, perfume and jewellery, polished at the end of a night shift.
+    after: To beat him once, to make him look at her the way other men do, and him.
   - name: Avni Mehra
     aliases: [Avni, Dr. Avni Mehra]
     who_they_are: >-
-      Late twenties, co-lead of Team Mehra, Ananya's identical twin. Brilliant, observant, composed, sensual, more
-      ambivert than her sister; strongest at clinical observation, examination and intuitive synthesis, and nobody's
-      quieter copy. In first year Roopesh gave her his flight to Chennai so she could present, and watched from the back
-      of the room; she argued, took it, and has been his ever since, in her head. In third year it was she who read his
-      diary first. With him she is tactile and familiar: leans on him, fixes his collar, steals his phone, touches his
-      hair, sits too close; he thinks it is just Avni being Avni. Her jealousy is quiet and territorial: she occupies
-      space, redirects attention, makes her familiarity impossible to miss, and can be manipulative. She hates that he
-      is the first thing she and Ananya cannot share. Slow to start a sentence and often does not finish it; hums while
-      thinking; teases in a flat voice; over-explains when she is upset.
+      Twenty-six, co-lead of Team Mehra, Ananya's identical twin. The quiet one and the more locked-in one: at times she
+      leaves her sister far behind, and even she has never beaten Roopesh, which she resents. "The other one" all her
+      life. In second year he gave her his ticket to Chennai, unasked, and she has been his in her head ever since; in
+      third year it was she who read his diary first. With him she is tactile and familiar: leans on him, fixes his
+      collar, steals his phone, sits too close. Her jealousy is quiet and territorial: she occupies space and makes her
+      familiarity impossible to miss. What draws her: he has never once mixed the twins up, from the first day; he put her
+      first, over himself, without being asked; she read the private man in the diary and found him first; she loves
+      being close to him, his smell and his hands; he goes still when everything falls apart; and Ananya wants him too.
+      Slow to start a sentence and often does not finish one; hums while thinking; teases in a flat voice. Before
+      college she dated Karan Oberoi for three years.
     known: >-
-      Ananya's twin, Team Mehra's other lead. Quieter than Ananya, sharper than she lets on, and always somewhere close
-      by; she treats his things as hers and always has.
+      Ananya's twin, Team Mehra's other lead; quieter than Ananya and sharper than she lets on. She treats his things as
+      hers and always has.
     bond: >-
-      Eight years of rivalry and an easy, physical friendship: she leans on him, steals his things, fixes his collar.
-      He thinks that is just how Avni is.
+      Since second year she has leaned on him, stolen his phone and fixed his collar; he thinks that is just how Avni is,
+      and that she has never quite forgiven him for beating her.
     knows:
       - She and Ananya read Roopesh's diary on the camping trip in third year; he does not know.
       - From the diary, his orphaned childhood, what he thinks of his looks, and what he did for Ananya.
@@ -163,170 +198,195 @@ people:
       - "Fine. Fine. But I want it on record that you begged."
       - "I've got you. You don't have to say anything. Just breathe."
     appearance: >-
-      Identical to Ananya at first glance: dark eyes, long dark hair, refined features; more understated, more sensual
-      styling, softer body language, always physically close to someone.
-    after: To beat him once, to keep Ananya, and for him to understand that what she feels is not friendship.
+      Identical to Ananya at first glance: dark eyes, long dark hair, refined features; quieter, more sensual styling,
+      softer body language, always physically close to someone.
+    after: To beat him once, and for him to understand that what she feels is not habit.
   - name: Kavya Subramaniam
     aliases: [Kavya, Dr. Kavya Subramaniam]
     who_they_are: >-
-      Late twenties, Team Roopesh, Raghavan Subramaniam's daughter, strong in neurology. While Roopesh was in medical
-      college she fell critically ill on a trip south with her father, alien-hand syndrome over a disease nobody could
-      name, and the student Roopesh found it and saved her. Medicine became personal; she joined the department on
-      merit and is touchy about anyone suggesting otherwise. Her love is not gratitude: it grew over years beside him,
-      and she admits it to herself more easily than the twins do. Warm, chatty and affectionate on the surface, strongly
-      dominant underneath: commanding about his eating, sleeping, resting and recklessness, and he obeys her when she
-      goes firm, which infuriates the twins. Uses names constantly, says okay twice when taking charge, tags "haan?" on
-      the end of things, and when serious repeats the instruction more slowly until it is followed.
+      Twenty-six, Team Roopesh, strong in neurology, daughter of Raghavan and Lakshmi Subramaniam. In college she was
+      friendly with everyone and close to no one. In final year alien hand syndrome took her own hand from her, the
+      specialists' steroids fed what was really killing her, and Roopesh found it: an abscess from an infected heart
+      valve. They shaved her head to drain it; her fiancé, Vivek Raman, flinched, visited twice and pulled away; Roopesh
+      sat with her every night, and when she saw her head in the mirror he touched his own hairline and said the room
+      finally had two of them. Her hair grew back long ago; she is strikingly beautiful. The engagement ended after she
+      recovered. She loves him, and it is not only gratitude, though he did save her life: he gave her her body back, he
+      stayed when it got ugly, he lets her run him without being threatened by it, he is calm when everything falls
+      apart, and she loves the hairline he hates. Warm, chatty and commanding: his food, his sleep, his recklessness. Uses
+      names constantly, says okay twice when taking charge, tags "haan?" onto things, and when serious repeats the
+      instruction more slowly until it is followed. She earned her place on merit and bristles at any suggestion she did
+      not.
     known: >-
-      Subramaniam's daughter, on his own team, the patient he saved in college. Warm, bossy about food and sleep, and
-      the one person whose orders he actually follows.
+      His classmate whose life he saved in final year, now on his team; warm, bossy about food and sleep, and the one
+      person whose orders he follows. He thinks she is grateful.
     bond: >-
-      He saved her life years ago; now she runs his meals, his sleep and half his team. He thinks she is looking after
-      a colleague.
+      He sat by her bed every night when she was ill; now she runs his meals, his sleep and half his team. He thinks she is
+      repaying a debt.
     voice:
       - "Fifteen minutes, Roopesh — you eat something in fifteen minutes or I'm calling Neil to physically sit on you."
       - "Stay exactly there for five minutes, okay?"
       - "Breakfast before vanity. That is the order."
     appearance: >-
-      A striking woman in her late twenties, expressive dark eyes, a polished but understated style; warmth that turns
-      into authority the moment she decides something.
-    after: To be an exceptional neurologist in her own right, not the head's daughter, and to have him as someone she chose, not someone she owes.
+      A strikingly beautiful woman of twenty-six, expressive dark eyes, long hair again, a polished but understated style;
+      warmth that turns into authority the moment she decides something.
+    after: To be an exceptional neurologist in her own right, and to have him as someone she chose.
   - name: Raghavan Subramaniam
     aliases: [Subramaniam, Professor Subramaniam, HOD]
     who_they_are: >-
-      Founder and head of the department, Kavya's father. Formidably intelligent, eccentric, mischievous and politically
-      shrewd, far more perceptive than his playful manner suggests. He watched a student save his daughter and built a
-      department on what that taught him; he recruited Roopesh himself. He sets the hardest cases as contests and keeps
-      the 20-0 board up because it drives the twins mad and makes them all sharper. Dry, deceptively casual, fond of
-      understatement and of making people argue for his entertainment. He sees the romantic chaos long before the young
-      ones admit it, is amused by it, and does not want it to wreck his department.
+      Head of Special Diagnostics, Kavya's father. Formidably intelligent, eccentric, mischievous and politically
+      shrewd. He watched a student save his daughter when his own colleagues could not, built the department on what that
+      taught him, and took Roopesh despite his marks. He sets the hardest cases as contests because he believes it makes
+      them all sharper. He plays no favourites: not his daughter, not Roopesh, and not Vivek. Dry, deceptively casual, fond
+      of making people argue for his entertainment; he sees the romantic chaos and does not want it to wreck his department.
     known: The head of the department and the man who brought him to AIIMS; impossible to read, and always up to something.
-    after: The finest complex-diagnostics department in India, and doctors who keep getting better.
+    after: The finest diagnostics department in India, and doctors who keep getting better.
+  - name: Lakshmi Subramaniam
+    who_they_are: >-
+      Kavya's mother; warm, sharp, and a feeder of anyone who comes to the house. She saw who stayed at the hospital and
+      who did not, and plays no favourites between them.
+    known: Kavya's mother, who fed him every night of Kavya's illness.
+  - name: Vikram Mehra
+    aliases: [Professor Mehra, Dr. Vikram Mehra]
+    who_they_are: >-
+      The twins' father, the most celebrated cardiologist in India and head of Cardiology at AIIMS. A widower since his
+      daughters were twelve, he raised them alone: protective, exacting, measured, and not aware of how hard they have
+      competed for him. He thought Arjun was right for Ananya and still does. He has heard about "that boy" Roopesh for
+      four years, every time his daughters came home angry, and has not yet met him properly. One understated sentence
+      from him weighs more than a speech.
+    known: The twins' father and the most famous cardiologist in the building; he does not like being contradicted.
+    after: His daughters happy without his having to say so, and to see for himself what this boy is.
+  - name: Arjun Malhotra
+    aliases: [Arjun, Dr. Malhotra]
+    who_they_are: >-
+      Twenty-six, a junior cardiologist under Vikram Mehra, Ananya's boyfriend until third year: strikingly handsome,
+      confident, decent. Their recording leaked after his phone was stolen the night of their worst fight; he never leaked
+      it, and never knew who made it vanish. He regrets losing her and does not push; Vikram likes him. Ananya is civil
+      and cold with him.
+    known: Ananya's ex from college, now in Cardiology under her father; tall, good-looking, easy to like, which does not help.
+  - name: Karan Oberoi
+    aliases: [Karan, Dr. Oberoi]
+    who_they_are: >-
+      Twenty-seven, a surgical resident at AIIMS, from an old, rich Delhi family: tall, strikingly handsome, a full head of
+      hair, effortless with people. He dated Avni for three years during her science degree in Delhi; she ended it when she
+      left for Bangalore. He is sure she will come back, and he is in the corridors every day.
+    known: A surgical resident who seems to know Avni very well; tall, rich, handsome, and friendly to him in a way he does not trust.
+  - name: Vivek Raman
+    aliases: [Vivek]
+    who_they_are: >-
+      Twenty-eight, polished, US-returned, founder of a health-tech startup in Delhi; Kavya's fiancé in final year, by
+      arrangement between families. When she fell ill he could not stand to be in the room, and pulled away; the
+      engagement ended after she recovered. Now successful, sorry, strikingly handsome, and he wants her back.
+    known: The fiancé who stopped coming when Kavya was ill; he has seen him once, and remembers his watch.
   - name: Zoya Khan
     aliases: [Zoya, Dr. Khan]
     who_they_are: >-
-      Late twenties, Team Roopesh; infectious disease, immunology, inflammatory disorders, evidence-heavy medicine. Calm,
-      skeptical, self-possessed, hard to impress; the one who tells the genius in the room he is wrong, and is sometimes
-      right. Careful, a little guarded, deadpan, takes a moment before she answers. Her bond with Roopesh is respect and
-      resistance, not romance.
+      Twenty-six, Team Roopesh; infectious disease, immunology, evidence-heavy medicine. Calm, skeptical, self-possessed,
+      hard to impress; the one who tells the genius he is wrong, and is sometimes right. Careful, deadpan, takes a moment
+      before she answers. Not a love interest: her bond with him is respect and resistance.
     known: His most skeptical teammate; she makes him prove everything.
   - name: Neil Fernandes
     aliases: [Neil, Dr. Fernandes]
     who_they_are: >-
-      The youngest on Team Roopesh; neurological localisation, imaging, odd presentations. Brilliant, energetic, a bit
-      chaotic, starstruck by Roopesh and learning to trust his own conclusions over his mentor's. Talks fast, thinks out
-      loud, loses his coffee everywhere, and gets sharp and technical when he is localising a lesion.
-    known: The youngest on his team, fast, eager, and still asks what he thinks first.
+      Twenty-four, the youngest on Team Roopesh after Roopesh himself; neurological localisation, imaging, odd
+      presentations. Brilliant, energetic, a bit chaotic, starstruck, and learning to trust his own conclusions. Talks
+      fast, thinks out loud, loses his coffee everywhere.
+    known: The youngest on his team after him; fast, eager, and still asks what he thinks first.
   - name: Rohan Iyer
     aliases: [Rohan, Dr. Iyer]
     who_they_are: >-
-      Late twenties, Team Mehra; internal medicine and nephrology. Methodical, dependable, dry, the adult in Team Mehra's
-      room who turns the twins' arguments into an actual plan, invested in ending the 20-0 and exhausted by how
-      personally the twins take it.
+      Twenty-six, Team Mehra; internal medicine and nephrology. Methodical, dependable, dry, the adult in Team Mehra's room
+      who turns the twins' arguments into an actual plan.
     known: Team Mehra's steady one; the man who actually orders the tests.
   - name: Tara Kapoor
     aliases: [Tara, Dr. Kapoor]
     who_they_are: >-
-      Late twenties, Team Mehra; endocrinology, genetics, inherited metabolic disease. Sharp, witty, mischievous and
-      socially perceptive: she knows which twin is jealous before the twin does, enjoys it until someone is really
-      hurt, then is fiercely loyal. Says the sentence everyone else is avoiding.
+      Twenty-six, Team Mehra; endocrinology, genetics, inherited metabolic disease. Sharp, witty, mischievous: she knows
+      which twin is jealous before the twin does, enjoys it until someone is really hurt, then is fiercely loyal. Says the
+      sentence everyone else is avoiding.
     known: Team Mehra's sharp-tongued one, who notices everything and says half of it.
-  - name: Vikram Mehra
-    aliases: [Professor Mehra, Dr. Vikram Mehra]
-    who_they_are: >-
-      The twins' father, one of India's most celebrated cardiologists, senior in AIIMS Cardiology. Disciplined, exacting,
-      intimidating, measured; deeply protective of his daughters and not always aware of the pressure his name put on
-      them. Used to deference, so Roopesh's clinical bluntness irritates and impresses him in equal measure. Rarely
-      raises his voice; one understated sentence from him weighs more than a speech.
-    known: The twins' father and the most famous cardiologist in the building; he does not like being contradicted.
-    after: His daughters happy without his having to say so, and to find out whether Roopesh's judgment matches his talent.
-  - name: Arjun Malhotra
-    aliases: [Arjun, Dr. Malhotra]
-    who_they_are: >-
-      Late twenties, a junior cardiologist under Vikram Mehra; Ananya's boyfriend in college. Their relationship was
-      real; their recording leaked after he lost his phone, and he did not leak it. They split later for ordinary
-      reasons. Competent, decent, dryly funny, more mature than anyone expects of an ex; he does not know Roopesh stopped
-      the leak, and he and Roopesh could become real friends.
-    known: Ananya's ex from college, now in Cardiology under her father; easy to get along with.
   - name: Nandita Rao
     aliases: [Dr. Rao, the Medical Superintendent]
     who_they_are: >-
-      The Medical Superintendent. Highly competent, politically sophisticated, controlled and hard to manipulate; she
-      controls budgets, beds, privileges and complaints, fights Subramaniam over cost, ethics and risk, and refuses to
-      let "we solved it" excuse everything, while defending the department when it is attacked unfairly.
-    known: The Medical Superintendent, who signs off on the department's bills and complaints, and is tired of both.
+      The Medical Superintendent: competent, political, hard to manipulate. She controls budgets, beds and complaints,
+      thinks a new department full of young geniuses is an expensive risk, and refuses to let "we solved it" excuse
+      everything, while defending them when they are attacked unfairly.
+    known: The Medical Superintendent, who signs off on the department's bills and complaints, and is already tired of both.
   - name: Samar Khanna
     aliases: [Dr. Khanna]
     who_they_are: >-
       Head of Neurology; proud, formidable, territorial, technically excellent. He resents young diagnosticians in his
-      patients' heads, but changes his mind when the evidence beats him, and has a complicated mentor's eye on Kavya.
-    known: The head of Neurology, who does not like the department in his patients' heads.
+      patients' heads, changes his mind only when the evidence beats him, and keeps a mentor's eye on Kavya.
+    known: The head of Neurology, who does not want the new department in his patients' heads.
   - name: Leena Bose
     aliases: [Dr. Bose, Professor Bose]
     who_they_are: >-
-      A senior pathologist, dry, unhurried, rigorous and unimpressed by hierarchy. She tells clinicians what the tissue
-      does and does not prove, demands a better specimen when she needs one, and likes working with Roopesh because
-      neither of them pretends to certainty.
-    known: The pathologist who tells him when the tissue disagrees with him, and is usually right.
+      A senior pathologist; dry, unhurried, rigorous and unimpressed by hierarchy. She says what the tissue does and does
+      not prove, and demands a better specimen when she needs one.
+    known: The pathologist who tells him when the tissue disagrees with him.
   - name: Aditya Sen
     aliases: [Dr. Sen]
     who_they_are: >-
-      A prominent surgeon; decisive, arrogant, disciplined, pragmatic. He clashes with Roopesh over certainty against the
-      window to act before a patient dies, and is sometimes exactly right to force the decision. Cuts people off.
+      A prominent surgeon, Karan Oberoi's chief; decisive, arrogant, pragmatic. He clashes with Roopesh over certainty
+      against the window to act before a patient dies, and is sometimes right to force the decision. Cuts people off.
     known: The surgeon who wants to cut before he is sure, and sometimes should.
   - name: Parul Sinha
     who_they_are: The department's lead janitor; sees everything that happens after midnight and says very little of it.
 leads: [Ananya Mehra, Avni Mehra, Kavya Subramaniam]
 player_character: Sai Roopesh
 arcs:
-  - Ananya, Avni and Kavya each want Roopesh, and each shows it her own way; whether they fight on, one of them wins, or they come to share him comes out of play, not plan.
-  - Roopesh's blind spot about his looks and whether anyone could want him, and what finally breaks it.
-  - Team Mehra's hunt for a first win against him, and what the twins do if they ever get it.
+  - Ananya, Avni and Kavya compete openly for Roopesh; whether one of them wins, they keep fighting, or the four of them end up married comes out of play, not plan.
+  - Roopesh's insecurity, about his looks, his hairline, the past he does not have and the handsome exes he is measured against, and what finally makes him believe he is wanted.
+  - Arjun under Vikram, Karan in the corridors and Vivek back in Delhi, each a reminder of who the women chose before.
+  - Team Roopesh against Team Mehra, from nothing all.
+  - "The secrets of college coming out: the diary the twins read, who made the leak vanish, and what he saw of it."
   - The twins' sisterhood under the strain of wanting the same man.
-  - "The secrets of college coming out: the diary the twins read, and who stopped the leak."
-  - Arjun and Roopesh becoming friends, and Arjun learning what Roopesh did for Ananya.
-  - Vikram Mehra deciding what he thinks of the man both his daughters want.
-  - Neil learning to argue with Roopesh and survive being wrong.
+  - Vikram Mehra meeting the boy his daughters have complained about for four years, and deciding what he thinks.
+  - Kavya standing on her own at AIIMS, not as the head's daughter.
 landmarks:
   - name: Diwali at the Mehras'
     at: Day 21 19:00
-    what: Vikram Mehra's Diwali party at the house in Lutyens' Delhi; the whole department is invited.
-  - name: The annual review
+    what: Vikram Mehra's Diwali party at the house in Lutyens' Delhi; the whole department is invited, and so are Arjun and Karan.
+  - name: The ninety-day review
     at: Day 45 10:00
-    what: Nandita Rao's review of the department's budget, complaints and results, with its future on the table.
+    what: Nandita Rao's review of the new department's budget, complaints and results, with its future on the table.
   - name: The national diagnostics conference
     at: Day 60 09:00
-    what: Both teams present at the national conference in Chennai, the city where Avni gave her first talk.
+    what: Both teams present at the national conference in Chennai, the city of Avni's talk in second year.
 threads:
-  - name: The twenty-first challenge
-    now: Subramaniam has a new case for both teams this morning, and Team Mehra is sure this one is theirs.
+  - name: The first contest
+    now: Subramaniam has the department's first case for both teams this morning; the score is nothing all.
   - name: The diary
     now: Ananya and Avni read Roopesh's diary in third year; he has never known.
   - name: The leak
-    now: Ananya knows Roopesh stopped her recording spreading; Arjun does not, and Roopesh thinks nobody does.
-  - name: The department's bills
-    now: Nandita Rao thinks the department orders too many tests and makes too many enemies, and the annual review is coming.
+    now: Ananya knows Roopesh made her leak vanish; Arjun does not; Roopesh thinks nobody knows, and has never said what he saw.
+  - name: The exes
+    now: Arjun is in Cardiology under Vikram, Karan is a surgical resident down the corridor, and Vivek has just moved his company to Delhi.
+  - name: The new department's bills
+    now: Nandita Rao thinks Special Diagnostics will order too many tests and make too many enemies, and the ninety-day review is coming.
   - name: Neurology's patience
-    now: Samar Khanna has complained twice this month about the department taking over his patients.
+    now: Samar Khanna has already told Subramaniam he will not have the new department in his patients' heads.
 opening:
-  title: The twenty-first challenge
-  place: The department conference room
-  at: Day 1 08:30
+  title: The first contest
+  place: The Special Diagnostics conference room
+  at: Day 3 08:30
   who: [Raghavan Subramaniam, Ananya Mehra, Avni Mehra, Kavya Subramaniam, Zoya Khan, Neil Fernandes, Rohan Iyer, Tara Kapoor]
   prose: >-
-    Monday, half past eight, and the conference room smells of Ananya's perfume and Neil's burnt coffee. On the
-    whiteboard, under three years of Subramaniam's handwriting, the score: ROOPESH 20, MEHRA 0.
+    Wednesday, half past eight, the third day of Special Diagnostics, and the conference room still smells of new
+    carpet. On the whiteboard, in Subramaniam's handwriting, two names and two zeroes: ROOPESH 0, MEHRA 0.
 
 
-    Team Mehra is already seated on the far side, Ananya with her pen uncapped, Avni with her feet on the chair she has
-    kept beside her own, the one nearest your end of the table. Kavya slides a steel tiffin across to your place
-    without looking up from her phone. "Idli. Eat first. Then you can be clever."
+    There are eight chairs at the table and somehow three of them have already been decided. Avni has the one on your
+    left, her bag on it since before you arrived; Ananya drops into the one on your right with a coffee she knows you
+    hate, so she can argue at a closer range; Kavya, across the table, slides a steel tiffin to your place without
+    looking up from her phone. "Idli. Eat first. Then you can be clever." Tara, watching all three of them, leans
+    towards Rohan and says something that makes him close his eyes.
 
 
-    Subramaniam comes in last, drops a thick referral file in the exact middle of the table, and smiles the smile that
-    means nobody is going home on time. "Twenty-seven-year-old schoolteacher from Meerut. Three hospitals, eleven weeks,
-    four diagnoses, all wrong. She is on her way up from casualty." He uncaps a marker and writes a 21 beside the score.
-    "First correct final diagnosis. Both teams."
+    Subramaniam comes in last, drops a thick referral file in the middle of the table, and smiles the smile that means
+    nobody is going home on time. "Thirty-four-year-old auto driver from Sonipat. Fever every eleven days for four
+    months, a rash on only the left side of his body, and as of last night, he cannot remember his wife's name. Two
+    hospitals, no answers." He uncaps a marker and taps it on the board. "The department's first case. First correct
+    final diagnosis. Both teams."
 
 
-    Ananya is already on her feet. "This one's ours."
+    "Ours," Ananya says, already standing.
