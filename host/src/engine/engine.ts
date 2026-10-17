@@ -531,6 +531,10 @@ export class Engine {
   private async runSceneEnd(storyId: string, run: SceneEndRun): Promise<void> {
     if (this.stopped.has(storyId)) return;
     let said: SceneEndStep | null | undefined;
+    // The World moves on side by side with the Director (quicker-scene-ends design decision 3) when no new Stretch is
+    // due: the Weaver's call starts with the Director's step, from the record, and its entry is written once the
+    // Director's are. A Stretch the Director plans after all is lived out by the World: the Weaver is asked again.
+    let weaving: { traceId: string; plan: number; result: Promise<{ payload: Payload; answered: boolean }> } | null = null;
     for (;;) {
       const path = this.mac.tree.currentPath(storyId);
       if (!path) return;
@@ -538,15 +542,22 @@ export class Engine {
       const step = owedStep(state);
       run.step = step;
       run.preparing = step !== null && !state.scene?.closed;
+      if (step === "director" && !weaving && state.scene?.closed && !state.scene.ended.includes("weaver") && directionDue(state) === null) {
+        const traceId = `weaver-${randomUUID().slice(0, 8)}`;
+        weaving = { traceId, plan: state.plan?.number ?? 0, result: this.sceneEndStep(storyId, path.headEntryId, state, "weaver", traceId, run) };
+        // A failure is reported when the World's turn to be written comes, if the Director's step gets that far.
+        weaving.result.catch(() => {});
+      }
       // The Act being rethought stays on the line through the Director's step, until the World moves on.
       if (step !== "director") run.rethinking = null;
       // The Director's step may write the Outline and then the Stretch: the line says it once.
       if (step !== said) this.sayStep(storyId, step);
       said = step;
       if (!step) return this.goOnFromLeaving(storyId);
-      const traceId = `${step}-${randomUUID().slice(0, 8)}`;
+      const woven = step === "weaver" && weaving?.plan === (state.plan?.number ?? 0) ? weaving : null;
+      const traceId = woven?.traceId ?? `${step}-${randomUUID().slice(0, 8)}`;
       try {
-        const { payload, answered } = await this.sceneEndStep(storyId, path.headEntryId, state, step, traceId, run);
+        const { payload, answered } = await (woven?.result ?? this.sceneEndStep(storyId, path.headEntryId, state, step, traceId, run));
         const entry = this.mac.tree.append(storyId, path.headEntryId, payload);
         if (!this.mac.tree.moveHead(path.id, path.headEntryId, entry.id)) return;
         // The steering notes the Outline follows are answered by it (openspec the-outline: The player sees and steers the Outline).

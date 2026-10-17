@@ -113,6 +113,7 @@ open class PresenceUiChecks : WorldUiChecks() {
         link.endedDayView = FakeFantasiaLink.dayView().copy(sceneEnd = SceneEnd(step = SceneEndStep.Chronicler))
         openScene()
         compose.onNodeWithText("End scene").performClick()
+        compose.onNodeWithTag("confirm-end-scene").performClick()
         step("Recording the Scene", "Under way")
         step("The Director is reconsidering the Outline", "Still to come")
         sceneEndAt(SceneEnd(step = SceneEndStep.Director, rethinking = "Year One"))

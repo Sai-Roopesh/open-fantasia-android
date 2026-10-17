@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>End scene, asked first</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,400;7..72,500;7..72,600&amp;family=Manrope:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#B9A4FF;text-decoration:none}a:hover{color:#D6C9FF}
+button{font:inherit;cursor:pointer}
+</style>
+</helmet>
+<div style="position:relative;width:390px;height:844px;box-sizing:border-box;background:#141218;color:#EEEAF4;font-family:Manrope,system-ui,sans-serif;overflow:hidden">
+  <div aria-hidden="true" style="display:flex;flex-direction:column;gap:14px;padding:72px 16px 0">
+    <p style="margin:0;font-family:Literata,Georgia,serif;font-size:16px;line-height:1.6;color:#E2DDEA">The fire has burned down to red. Hermione is on the sofa with her knees drawn up, a book open on them that she has not turned a page of in ten minutes.</p>
+    <p style="margin:0;font-family:Literata,Georgia,serif;font-size:16px;line-height:1.6;color:#E2DDEA">She closes the book on her thumb. "Thursday," she says. "Charms. Your inkwell filled itself back up." The fire pops, and she doesn't look away. "Maybe it likes you. That's not a reason, Roopesh. That's a list of circumstances."</p>
+  </div>
+  <div aria-hidden="true" style="position:absolute;inset:0;background:rgba(8,6,12,0.66)"></div>
+
+  <!-- End scene asks first, so a stray tap closes nothing: Keep playing sends nothing to the Mac (openspec scenes: End scene asks first). -->
+  <section role="dialog" aria-labelledby="end-scene-title" style="position:absolute;left:0;right:0;bottom:0;display:flex;flex-direction:column;gap:16px;padding:12px 20px 24px;border-radius:24px 24px 0 0;background:#1E1B24;border-top:1px solid #34303D">
+    <span aria-hidden="true" style="align-self:center;width:36px;height:4px;border-radius:2px;background:#3A3544"></span>
+    <div style="display:flex;flex-direction:column;gap:4px">
+      <h2 id="end-scene-title" style="margin:0;font-family:Literata,Georgia,serif;font-size:21px;font-weight:600">End this Scene?</h2>
+      <span style="font-size:13px;line-height:1.5;color:#B3ACC0">The Scene is recorded as it stands, and the Day View opens.</span>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:4px">
+      <a href="Scene.dc.html" style="display:flex;align-items:center;height:48px;padding:0 20px;border-radius:24px;color:#B3ACC0;font-size:15px">Keep playing</a>
+      <a href="MovingOn.dc.html" style="display:flex;align-items:center;height:48px;padding:0 24px;border-radius:24px;background:#7552DD;color:#FFFFFF;font-weight:600;font-size:15px">End scene</a>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

@@ -63,7 +63,8 @@ describe("the World screen", () => {
     expect(draconia.between?.turns.at(-1)).toMatchObject({ text: "What changed in Scene 1.", scene_number: 1 });
     // Someone he has no history with has no Between you.
     expect(worldView(mac, storyId, "t").people.find(person => person.name === "Hermione Granger")!.between).toBeNull();
-  });
+    // Fifteen Scenes played through, each with its end: seconds of work, so it has its own time limit.
+  }, 30_000);
 
   // GIVEN Quirrell serves Voldemort, and the Player Character does not know it
   // THEN Quirrell's entry on the World screen says nothing of it

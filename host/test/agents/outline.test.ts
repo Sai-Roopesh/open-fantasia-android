@@ -77,9 +77,19 @@ function yearOne(changes: Record<string, unknown> = {}) {
       { id: "U1", what: "The masked wizards who tried to take Draconia on the train.", planted: 0, payoff: "They were hired by a house that wanted the Malfoy match for itself.", turn: "T5", state: "waiting" },
       { id: "U2", what: "A stranger in Hogsmeade asking about the train.", planted: null, payoff: "He is the go-between who hired the masked wizards, and he leads to Selwyn's father.", turn: "T5", state: "waiting" }
     ],
-    promoted: [], turned: null,
+    promoted: [],
     ...changes
   };
+}
+
+/** A focused revision's answer: whether the Scene turned the Story, and otherwise only what it changed. */
+function revision(changes: Record<string, unknown> = {}) {
+  return { turned: null, turns: [], turns_done: [], relationships: [], movers: [], intentions: [], setups: [], promoted: [], ...changes };
+}
+
+/** A deep re-plan's answer: the Acts it rewrites, the ending when it changes, the current Act's intentions whole. */
+function replan(changes: Record<string, unknown> = {}) {
+  return yearOne(changes);
 }
 
 /** The Outline as the Story keeps it, set on the ledger as the Director's step writes it. */
@@ -175,7 +185,7 @@ describe("the-outline › Every Story has an Outline to its end", () => {
         { who: "Uncle Bhalla", pursues: "someone to hear how the trains used to be", feelings: "fond of both, and meddling", heading: "he takes the credit at Kalka" }
       ],
       setups: [{ id: "U1", what: "Meera's month counting birds in the hills above Kalka.", planted: 0, payoff: "Shimla is on the same line.", turn: "T3", state: "waiting" }],
-      promoted: [], turned: null
+      promoted: []
     };
     const runner = new ScriptedRunner([{ answer: JSON.stringify(night) }]);
     const written = await writeOutline(new Models(story.mac.db, { claude: runner }), [SONNET], story.state(), nothingBeside(), due!.ask, at(story), "trace-o", signal());
@@ -287,13 +297,13 @@ describe("the-outline › Nothing enters without a payoff", () => {
     for (let number = 2; number <= 12; number++) played(story, `Scene ${number}`, `Day ${6 + number} 10:00`);
     const dementors = { id: "U3", what: "Nine dementors missing from Azkaban's guard.", planted: 12, payoff: "They were taken to guard the Malfoy vaults, and come for Roopesh at Christmas.", turn: "T5", state: "waiting" };
     const focused: OutlineAsk = { why: "focused", reason: "Scene 12 has ended." };
-    outlined(story, yearOne({ setups: [...yearOne().setups, dementors] }), focused);
+    outlined(story, revision({ setups: [dementors] }), focused);
     played(story, "Scene 13", "Day 19 10:00");
 
     // A revision that leaves them out keeps them, waiting.
-    const forgot = checkOutline(story.state(), nothingBeside(), focused, yearOne());
+    const forgot = checkOutline(story.state(), nothingBeside(), focused, revision());
     expect(forgot.ok && forgot.value.outline.setups.find(setup => setup.id === "U3")).toEqual({ ...dementors, settled: null });
-    expect(forgot.ok && forgot.dropped).toEqual(["setups: U3, Nine dementors missing from Azkaban's guard, was left out; it is kept, still waiting, until it is paid off or dropped"]);
+    expect(forgot.ok && forgot.dropped).toEqual([]);
     // Later Stretches are planned with them waiting.
     const planning = directorPrompt(story.state(), nothingBeside(), "The last Stretch has run its course.").prompt;
     expect(planning).toContain("Setups planted to pay off:\n- [U1] The masked wizards who tried to take Draconia on the train. Planted in Scene 0. It pays off: They were hired by a house that wanted the Malfoy match for itself. (waiting)");
@@ -301,7 +311,7 @@ describe("the-outline › Nothing enters without a payoff", () => {
 
     // Until the Director pays them off, or drops them, and the Outline says which.
     for (const state of ["paid", "dropped"] as const) {
-      const settled = checkOutline(story.state(), nothingBeside(), focused, yearOne({ setups: [...yearOne().setups, { ...dementors, state }] }));
+      const settled = checkOutline(story.state(), nothingBeside(), focused, revision({ setups: [{ ...dementors, state }] }));
       if (!settled.ok) throw new Error(settled.problems.join("; "));
       const setup = settled.value.outline.setups.find(item => item.id === "U3")!;
       expect(setup).toMatchObject({ state, settled: 13 });
@@ -434,7 +444,7 @@ describe("the-outline › The Director plans by working the plan through", () =>
     expect(checked.ok && checked.value.outline.current).toBe(2);
     expect(checked.ok && checked.value.outline.acts.map(act => [act.title, act.detail])).toEqual([["Year Two", "detailed"], ["Year Three", "outlined"], ["Year Four", "sketched"], ["The Year After", "sketched"]]);
     const last = yearOne().acts[0]!;
-    expect(checkOutline(story.state(), nothingBeside(), { why: "act-ended", reason: "Year One has ended." }, yearOne({ acts: [last] }))).toEqual({ ok: false, problems: ["acts: Year One has ended with The Philosopher's Stone; outline the Act after it, and make it the current one"] });
+    expect(checkOutline(story.state(), nothingBeside(), { why: "act-ended", reason: "Year One has ended." }, yearOne({ acts: [last] }))).toEqual({ ok: false, problems: ["acts: Year One has ended with The Philosopher's Stone; write Act 2 in detail, as the current Act"] });
   });
 });
 
@@ -458,7 +468,7 @@ describe("when the Outline is reconsidered (openspec the-outline: The Outline is
     story.close();
     expect(outlineDue(story.state(), nothingBeside())).toEqual({ depth: "focused", ask: { why: "focused", reason: "Scene 1, Freshers' Friday, has ended: reconsider the Outline in the light of how it went." } });
     story.chronicle();
-    outlined(story, yearOne(), { why: "focused", reason: "Scene 1 has ended." });
+    outlined(story, revision(), { why: "focused", reason: "Scene 1 has ended." });
     expect(outlineDue(story.state(), nothingBeside())).toBeNull();
     // The Director's step is done: the Outline ended it, with no Stretch to follow.
     expect(story.state().scene!.ended).toEqual(["chronicler", "director"]);
@@ -478,32 +488,90 @@ describe("when the Outline is reconsidered (openspec the-outline: The Outline is
     expect(flat(system)).toContain("A note wins over your own reading of play: if play has drawn Hermione to the centre of the Act and a note says to keep her a rival this year, she stays a rival.");
     expect(prompt).toContain("Follow every new steering note: Year One builds toward what the player asked from now on.");
     // The Outline it writes answers every note that waited: they stand from now on, and are not asked again.
-    const answered = checkOutline(story.state(), beside, due!.ask, yearOne());
+    const answered = checkOutline(story.state(), beside, due!.ask, replan());
     expect(answered.ok && answered.value.answered).toEqual(["n1"]);
   });
 
-  it("goes deep after a focused pass that says the Scene turned the Story, or moved on to the next Act", () => {
+  it("goes deep after a focused pass that says the Scene turned the Story, which then writes nothing else", () => {
     const story = begun();
     story.close();
     story.chronicle();
     const focused: OutlineAsk = { why: "focused", reason: "Scene 1 has ended." };
-    const turned = checkOutline(story.state(), nothingBeside(), focused, yearOne({ turned: "Roopesh killed Lucius Malfoy; Year One needs him in June." }));
-    expect(turned.ok && turned.value).toMatchObject({ turned: "Roopesh killed Lucius Malfoy; Year One needs him in June.", outline: { deep: false } });
-    const [, ...later] = yearOne().acts;
-    const movedOn = checkOutline(story.state(), nothingBeside(), focused, yearOne({ current: 2, acts: later }));
-    expect(movedOn.ok && movedOn.value.turned).toBe("Year One has ended.");
-    // A deep pass has nothing to say of it: it is already deep.
-    const deep = checkOutline(story.state(), nothingBeside(), { why: "deep", reason: "The Scene turned the Story." }, yearOne({ turned: "Something." }));
+    const before = story.state().outline!;
+    const turned = checkOutline(story.state(), nothingBeside(), focused, revision({ turned: "Roopesh killed Lucius Malfoy; Year One needs him in June.", turns_done: ["T1"], promoted: ["Luna Lovegood"] }));
+    expect(turned.ok && turned.value.turned).toBe("Roopesh killed Lucius Malfoy; Year One needs him in June.");
+    // What it listed with it is not applied: the deep pass that follows re-plans the Act.
+    expect(turned.ok && turned.value.outline.acts).toEqual(before.acts);
+    expect(turned.ok && turned.value.outline.promoted).toEqual([]);
+    // A deep pass has no word to say of it: it is already deep, and its answer has no `turned`.
+    const deep = checkOutline(story.state(), nothingBeside(), { why: "deep", reason: "The Scene turned the Story." }, replan());
     expect(deep.ok && deep.value).toMatchObject({ turned: null, outline: { deep: true } });
+  });
+
+  it("applies a focused revision as changes: what it lists, and nothing else moves", () => {
+    const story = begun();
+    story.close();
+    story.chronicle();
+    const before = story.state().outline!;
+    const checked = checkOutline(story.state(), nothingBeside(), { why: "focused", reason: "Scene 1 has ended." }, revision({
+      turns_done: ["T1"],
+      turns: [
+        { id: "T2", when: "the first week of October", what: "Lucius writes sooner than he meant to: the debt is to be discharged by Halloween.", serves: [DRACONIA, "Lucius Malfoy"], done: false },
+        { id: "T2b", when: "early October", what: "Hermione asks him, in the library, what Draconia thinks he owes her.", serves: [HERMIONE], done: false }
+      ],
+      relationships: [{ people: [HERMIONE, ROOPESH], by_end: "By June she has stopped pretending it is about the library." }],
+      intentions: [{ who: DRACONIA, pursues: "the debt paid on her terms before her father's deadline", feelings: "Hermione is the enemy now", heading: "she has lied to her father for him" }],
+      setups: [{ id: "U3", what: "A letter Draconia burns unread.", planted: 1, payoff: "It was from her mother, warning her about Selwyn.", turn: "T5", state: "waiting" }]
+    }));
+    if (!checked.ok) throw new Error(checked.problems.join("; "));
+    const outline = checked.value.outline;
+    const act = outline.acts[0]!;
+    expect(act.turns.map(turn => [turn.id, turn.state])).toEqual([["T1", "done"], ["T2", "ahead"], ["T3", "ahead"], ["T4", "ahead"], ["T5", "ahead"], ["T6", "ahead"], ["T2b", "ahead"]]);
+    expect(act.turns[1]!.what).toBe("Lucius writes sooner than he meant to: the debt is to be discharged by Halloween.");
+    expect(act.turns.slice(2, 6)).toEqual(before.acts[0]!.turns.slice(2, 6));
+    expect(act.relationships.find(item => item.people.includes(HERMIONE) && item.people.includes(ROOPESH))!.byEnd).toBe("By June she has stopped pretending it is about the library.");
+    expect(act.relationships.filter(item => !(item.people.includes(HERMIONE) && item.people.includes(ROOPESH)))).toEqual(before.acts[0]!.relationships.filter(item => !(item.people.includes(HERMIONE) && item.people.includes(ROOPESH))));
+    expect(act.movers).toEqual(before.acts[0]!.movers);
+    expect(outline.acts.slice(1)).toEqual(before.acts.slice(1));
+    expect(outline.ending).toBe(before.ending);
+    expect(outline.intentions.find(item => item.who === DRACONIA)!.heading).toBe("she has lied to her father for him");
+    expect(outline.intentions.filter(item => item.who !== DRACONIA)).toEqual(before.intentions.filter(item => item.who !== DRACONIA));
+    expect(outline.setups.map(setup => setup.id)).toEqual(["U1", "U2", "U3"]);
+    expect(outline).toMatchObject({ current: 1, deep: false, revisedAfter: 1 });
+    expect(checked.dropped).toEqual([]);
+    // A turn it says happened that the Act does not have is noted, and nothing else is marked.
+    const unknown = checkOutline(story.state(), nothingBeside(), { why: "focused", reason: "Scene 1 has ended." }, revision({ turns_done: ["T99"] }));
+    expect(unknown.ok && unknown.dropped).toEqual(["turns_done: T99 is not a turn of Year One"]);
+  });
+
+  it("re-plans deeply only the Acts it writes: the rest, the ending and the setups it leaves out stay", () => {
+    const story = begun();
+    story.close();
+    story.chronicle();
+    const before = story.state().outline!;
+    const [first] = replan().acts;
+    const checked = checkOutline(story.state(), nothingBeside(), { why: "deep", reason: "Scene 1 turned the Story." }, replan({
+      acts: [{ ...first!, question: "Can she keep him once her father knows?", turns: [{ id: "R1", when: "October", what: "Lucius hears of it.", serves: [DRACONIA], done: false }] }],
+      ending: null, setups: []
+    }));
+    if (!checked.ok) throw new Error(checked.problems.join("; "));
+    const outline = checked.value.outline;
+    expect(outline.acts[0]).toMatchObject({ question: "Can she keep him once her father knows?", detail: "detailed" });
+    expect(outline.acts[0]!.turns.map(turn => turn.id)).toEqual(["R1"]);
+    expect(outline.acts.slice(1).map(act => act.title)).toEqual(before.acts.slice(1).map(act => act.title));
+    expect(outline.acts[1]).toMatchObject({ detail: "outlined", turns: before.acts[1]!.turns });
+    expect(outline.ending).toBe(before.ending);
+    expect(outline.setups.map(setup => setup.id)).toEqual(["U1", "U2"]);
+    expect(outline.deep).toBe(true);
   });
 
   it("keeps the turns and setups as written, sets right what it can, and notes what it left out", () => {
     const story = begun();
     story.close();
     story.chronicle();
-    const answer = yearOne();
+    const answer = replan();
     const [first, ...rest] = answer.acts;
-    const checked = checkOutline(story.state(), nothingBeside(), { why: "focused", reason: "Scene 1 has ended." }, {
+    const checked = checkOutline(story.state(), nothingBeside(), { why: "deep", reason: "Scene 1 turned the Story." }, {
       ...answer,
       acts: [{ ...first!, relationships: first!.relationships.filter(item => !item.people.includes("Harry Potter")), movers: [...first!.movers, { who: "Madam Pince", doing: "Shushing." }] }, ...rest],
       setups: [{ ...answer.setups[0]!, turn: "T99", planted: 40 }],
@@ -518,9 +586,9 @@ describe("when the Outline is reconsidered (openspec the-outline: The Outline is
       "acts: Year One does not say where things should stand with Harry Potter by its end",
       "intentions: none for Luna Lovegood; what they pursue this Act is not in the Outline",
       "setups: U1 pays off in \"T99\", which is not a turn of the Outline; it pays off in a later Act",
-      "setups: U1 cannot have been planted in Scene 40; there is no such Scene yet",
-      "setups: U2, A stranger in Hogsmeade asking about the train, was left out; it is kept, still waiting, until it is paid off or dropped"
+      "setups: U1 cannot have been planted in Scene 40; there is no such Scene yet"
     ]);
+    expect(checked.value.outline.setups.map(setup => setup.id)).toEqual(["U1", "U2"]);
   });
 
   it("runs focused in the Director's few steps, with the Story's tools and not the web", async () => {

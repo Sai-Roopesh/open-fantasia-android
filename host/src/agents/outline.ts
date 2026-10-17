@@ -144,12 +144,16 @@ function taskText(state: State, ask: OutlineAsk): string {
   const next = act ? state.outline?.acts.find(item => item.number > act.number) : undefined;
   const how: Record<OutlineWhy, string> = {
     start: "Give the first Act in detail, the next outlined, and the rest sketched to how the Story ends.",
-    focused: "This is a focused revision, in a few steps at most: change the Outline where this Scene touched it and keep the rest as it was. If the Scene turned the Story, say what turned under `turned`, and the current Act is re-planned deeply after this; otherwise `turned` is null.",
+    focused: "This is a focused revision, in a few steps at most. First decide whether this Scene turned the Story: if it did, say what turned under `turned`, in a sentence, and leave every other field empty, since the current Act is re-planned deeply next. If it did not, `turned` is null, and write only what this Scene changed: the turns it moved or added, the turns that happened, and only the relationships, movers, intentions and setups it changed. Everything you leave out stays exactly as it is.",
     deep: `This Scene turned the Story. Re-plan ${act?.title ?? "the current Act"} in detail, and the Acts after it as far as they need, from where the Story now stands.`,
     "act-ended": `Make ${next?.title ?? "the next Act"} the current Act and plan it in detail; outline the one after it, and sketch the rest to the end.`,
     steered: `Follow every new steering note: ${act?.title ?? "the current Act"} builds toward what the player asked from now on.`
   };
-  return [ask.reason, how[ask.why], isDeep(ask) ? `\`turned\` is null: you are already planning deeply.\n\n${DEEP.trim()}` : ""].filter(Boolean).join("\n\n");
+  const revising = ask.why !== "start" && state.outline !== null;
+  const write = ask.why === "focused" ? "" : revising
+    ? "Write the Acts you re-plan, whole: the current Act in detail, and any Act after it that changes; an Act you leave out stays as it is. `ending` is null unless how the Story ends has changed. `intentions` are the current Act's, whole. Under `setups`, only new setups and those planted, paid off or dropped: the rest stay as they are."
+    : "Write the whole Outline: every Act from the current one to the end, how the Story ends, and every setup.";
+  return [ask.reason, how[ask.why], write, isDeep(ask) ? DEEP.trim() : ""].filter(Boolean).join("\n\n");
 }
 
 /**
@@ -162,8 +166,6 @@ export function outlinePrompt(state: State, beside: Beside, ask: OutlineAsk): { 
 
 // ---------------------------------------------------------------- the answer
 
-const said = (value: string) => value.trim().replace(/[.;]$/, "");
-
 interface RawAct {
   number: number;
   title: string;
@@ -175,42 +177,79 @@ interface RawAct {
   hands_on: string;
 }
 
+type RawIntention = { who: string; pursues: string; feelings: string; heading: string };
+type RawSetup = { id: string; what: string; planted: number | null; payoff: string; turn: string | null; state: Setup["state"] };
+type RawTurn = RawAct["turns"][number];
+
+/** The first Outline whole, or a deep re-plan: the Acts it rewrites, the ending when it changes (null when it stands). */
 interface RawOutline {
   current: number;
   acts: RawAct[];
-  ending: string;
-  intentions: { who: string; pursues: string; feelings: string; heading: string }[];
-  setups: { id: string; what: string; planted: number | null; payoff: string; turn: string | null; state: Setup["state"] }[];
+  ending: string | null;
+  intentions: RawIntention[];
+  setups: RawSetup[];
   promoted: string[];
-  turned: string | null;
 }
 
-export function outlineFormat(state: State) {
+/** A focused revision: whether the Scene turned the Story, and otherwise only what it changed (design decision 1). */
+interface RawRevision {
+  turned: string | null;
+  turns: RawTurn[];
+  turns_done: string[];
+  relationships: RawAct["relationships"];
+  movers: RawAct["movers"];
+  intentions: RawIntention[];
+  setups: RawSetup[];
+  promoted: string[];
+}
+
+/** The Director's answer for [ask]: a focused revision's changes, or the Outline (whole when it starts, else the Acts re-planned). */
+export function outlineFormat(state: State, ask: OutlineAsk) {
   const everyone = peopleEnum(state, true);
   const others = peopleEnum(state);
+  const turn = { type: "object", additionalProperties: false, required: ["id", "when", "what", "serves", "done"], properties: {
+    id: text, when: text, what: text, serves: { type: "array", items: { type: "string" } }, done: { type: "boolean" }
+  } } as const;
+  const relationship = { type: "object", additionalProperties: false, required: ["people", "by_end"], properties: { people: { type: "array", items: everyone, minItems: 2, maxItems: 2 }, by_end: text } } as const;
+  const mover = { type: "object", additionalProperties: false, required: ["who", "doing"], properties: { who: others, doing: text } } as const;
+  const intention = { type: "object", additionalProperties: false, required: ["who", "pursues", "feelings", "heading"], properties: { who: others, pursues: text, feelings: text, heading: text } } as const;
+  const setup = { type: "object", additionalProperties: false, required: ["id", "what", "planted", "payoff", "turn", "state"], properties: {
+    id: text, what: text, planted: { anyOf: [{ type: "integer", minimum: 0 }, { type: "null" }] }, payoff: text, turn: { type: ["string", "null"] },
+    state: { type: "string", enum: ["waiting", "paid", "dropped"] }
+  } } as const;
+  if (ask.why === "focused") {
+    return {
+      type: "object",
+      additionalProperties: false,
+      required: ["turned", "turns", "turns_done", "relationships", "movers", "intentions", "setups", "promoted"],
+      properties: {
+        turned: { type: ["string", "null"], description: "What turned the Story, in a sentence, when this Scene made the current Act's plan wrong; then leave every other field empty. Otherwise null." },
+        turns: { type: "array", items: turn, description: "Only the current Act's turns this Scene moved or added, whole; a known id replaces that turn, a new id adds one." },
+        turns_done: { type: "array", items: { type: "string" }, description: "The ids of the current Act's turns that happened in this Scene." },
+        relationships: { type: "array", items: relationship, description: "Only where this Scene changed where two people should stand by the Act's end." },
+        movers: { type: "array", items: mover, description: "Only the movers whose doings this Scene changed." },
+        intentions: { type: "array", items: intention, description: "Only the people whose own direction this Scene changed." },
+        setups: { type: "array", items: setup, description: "Only new setups, and those this Scene planted, paid off or dropped, whole." },
+        promoted: { type: "array", items: others, description: "Anyone to bring forward from now on." }
+      }
+    } as const;
+  }
+  const revising = ask.why !== "start" && state.outline !== null;
   return {
     type: "object",
     additionalProperties: false,
-    required: ["current", "acts", "ending", "intentions", "setups", "promoted", "turned"],
+    required: ["current", "acts", "ending", "intentions", "setups", "promoted"],
     properties: {
       current: { type: "integer", minimum: 1, description: "The number of the Act being played." },
       acts: { type: "array", minItems: 1, items: { type: "object", additionalProperties: false, required: ["number", "title", "question", "builds_to", "turns", "relationships", "movers", "hands_on"], properties: {
         number: { type: "integer", minimum: 1 }, title: text, question: text, builds_to: text,
-        turns: { type: "array", items: { type: "object", additionalProperties: false, required: ["id", "when", "what", "serves", "done"], properties: {
-          id: text, when: text, what: text, serves: { type: "array", items: { type: "string" } }, done: { type: "boolean" }
-        } } },
-        relationships: { type: "array", items: { type: "object", additionalProperties: false, required: ["people", "by_end"], properties: { people: { type: "array", items: everyone, minItems: 2, maxItems: 2 }, by_end: text } } },
-        movers: { type: "array", items: { type: "object", additionalProperties: false, required: ["who", "doing"], properties: { who: others, doing: text } } },
+        turns: { type: "array", items: turn }, relationships: { type: "array", items: relationship }, movers: { type: "array", items: mover },
         hands_on: { type: "string" }
-      } } },
-      ending: text,
-      intentions: { type: "array", items: { type: "object", additionalProperties: false, required: ["who", "pursues", "feelings", "heading"], properties: { who: others, pursues: text, feelings: text, heading: text } } },
-      setups: { type: "array", items: { type: "object", additionalProperties: false, required: ["id", "what", "planted", "payoff", "turn", "state"], properties: {
-        id: text, what: text, planted: { anyOf: [{ type: "integer", minimum: 0 }, { type: "null" }] }, payoff: text, turn: { type: ["string", "null"] },
-        state: { type: "string", enum: ["waiting", "paid", "dropped"] }
-      } } },
-      promoted: { type: "array", items: others },
-      turned: { type: ["string", "null"] }
+      } }, ...(revising ? { description: "The Acts you re-plan, whole; an Act left out stays as it is." } : {}) },
+      ending: revising ? { type: ["string", "null"], description: "How the Story ends, when it has changed; null when it stands." } : text,
+      intentions: { type: "array", items: intention },
+      setups: { type: "array", items: setup, ...(revising ? { description: "Only new setups, and those planted, paid off or dropped; the rest stay." } : {}) },
+      promoted: { type: "array", items: others }
     }
   } as const;
 }
@@ -227,13 +266,16 @@ function afterScene(state: State): number {
  * Outline with no current Act, or a current Act with no turns, is sent back.
  */
 export function checkOutline(state: State, beside: Beside, ask: OutlineAsk, answer: unknown): Checked<OutlineWritten> {
-  const format = matches<RawOutline>(outlineFormat(state), answer);
+  if (ask.why === "focused" && state.outline) return checkRevision(state, state.outline, answer);
+  const format = matches<RawOutline>(outlineFormat(state, ask), answer);
   if (!format.ok) return format;
   const raw = format.value;
   const dropped: string[] = [];
   const before = state.outline;
   const landmark = (name: string) => state.landmarks.find(item => item.name.toLocaleLowerCase() === name.trim().toLocaleLowerCase())?.name ?? name.trim();
-  const acts = [...new Map([...raw.acts].reverse().map(act => [act.number, act])).values()].sort((left, right) => left.number - right.number);
+  // A deep re-plan writes the Acts it changes: those it leaves out stay as they were (design decision 2).
+  const kept = before && ask.why !== "start" ? before.acts.map(rawAct) : [];
+  const acts = [...new Map([...kept, ...raw.acts.map(act => ({ ...act }))].map(act => [act.number, act])).values()].sort((left, right) => left.number - right.number);
 
   // An Act whose Landmark has passed is over: the current one is the next.
   let current = raw.current;
@@ -243,14 +285,18 @@ export function checkOutline(state: State, beside: Beside, ask: OutlineAsk, answ
     if (!next) return { ok: false, problems: [`acts: ${ended.title} has ended with ${ended.buildsTo}; outline the Act after it, and make it the current one`] };
     current = next.number;
   }
-  const kept = acts.filter(act => act.number >= current);
-  const now = kept.find(act => act.number === current);
+  // When an Act has ended, the re-plan writes the next in detail: it is the current Act now.
+  if (ended && before && ask.why !== "start" && !raw.acts.some(act => act.number === current)) {
+    return { ok: false, problems: [`acts: ${ended.title} has ended with ${ended.buildsTo}; write Act ${current} in detail, as the current Act`] };
+  }
+  const ahead = acts.filter(act => act.number >= current);
+  const now = ahead.find(act => act.number === current);
   if (!now) return { ok: false, problems: [`current: Act ${current} is not among the acts; give the current Act in detail, and every Act after it to the end`] };
   if (now.turns.length === 0) return { ok: false, problems: [`acts: Act ${now.number}, ${now.title}, is the current Act and needs its turns, roughly week by week, to its end`] };
 
   const everyone = namer(state, dropped, "acts.relationships");
   const movers = namer(state, dropped, "acts.movers");
-  const outlineActs: Act[] = kept.map((act, index) => {
+  const outlineActs: Act[] = ahead.map((act, index) => {
     const detail = index === 0 ? "detailed" : index === 1 ? "outlined" : "sketched";
     const sketched = detail === "sketched";
     return {
@@ -269,7 +315,7 @@ export function checkOutline(state: State, beside: Beside, ask: OutlineAsk, answ
     if (!act.relationships.some(item => item.people.includes(lead))) dropped.push(`acts: ${act.title} does not say where things should stand with ${lead} by its end`);
   }
 
-  const promoted = namer(state, dropped, "promoted")(raw.promoted);
+  const promoted = [...new Set([...(ask.why === "start" ? [] : before?.promoted ?? []), ...namer(state, dropped, "promoted")(raw.promoted)])];
   const intended = namer(state, dropped, "intentions");
   const intentions: Intention[] = [...new Map(raw.intentions.flatMap(item => intended([item.who]).map(who => [who, { who, pursues: item.pursues.trim(), feelings: item.feelings.trim(), heading: item.heading.trim() }] as const))).values()];
   const owed = [...new Set([...tiers(state).close, ...promoted, ...act.movers.map(item => item.who)])].filter(name => name !== state.playerCharacter && state.people[name]);
@@ -278,35 +324,110 @@ export function checkOutline(state: State, beside: Beside, ask: OutlineAsk, answ
   const setups = settle(state, raw.setups, outlineActs, dropped);
 
   const answered = isDeep(ask) ? waitingNotes(beside).map(note => note.id) : [];
-
-  // A focused pass that moved the Outline on to the next Act has found the Act over: the next is planned deeply.
-  const previous = currentAct(before);
-  const movedOn = ask.why === "focused" && previous !== null && current > previous.number ? `${previous.title} has ended.` : null;
-  const turned = ask.why === "focused" ? raw.turned?.trim() || movedOn : null;
+  const ending = raw.ending?.trim() || before?.ending || "";
 
   return {
     ok: true, dropped,
     value: {
       outline: {
-        current, acts: outlineActs, ending: raw.ending.trim(), intentions, setups, promoted,
+        current, acts: outlineActs, ending, intentions, setups, promoted,
         revisedAfter: afterScene(state), deep: isDeep(ask), lookedUp: before?.lookedUp ?? []
       },
-      answered, turned
+      answered, turned: null
     }
   };
+}
+
+/** An Act as the Director writes it, from the Act as the Outline keeps it. */
+function rawAct(act: Act): RawAct {
+  return {
+    number: act.number, title: act.title, question: act.question, builds_to: act.buildsTo,
+    turns: act.turns.map(turn => ({ id: turn.id, when: turn.when, what: turn.what, serves: turn.serves, done: turn.state === "done" })),
+    relationships: act.relationships.map(item => ({ people: item.people, by_end: item.byEnd })),
+    movers: act.movers.map(item => ({ who: item.who, doing: item.doing })), hands_on: act.handsOn
+  };
+}
+
+/**
+ * A focused revision, applied to the Outline as it stands (design decision 1): the current Act's turns moved, added or
+ * done, and only the relationships, movers, intentions and setups it lists; everything else as it was. When the pass
+ * says the Scene turned the Story, nothing is applied: the deep re-plan follows.
+ */
+function checkRevision(state: State, before: Outline, answer: unknown): Checked<OutlineWritten> {
+  const format = matches<RawRevision>(outlineFormat(state, { why: "focused", reason: "" }), answer);
+  if (!format.ok) return format;
+  const raw = format.value;
+  const dropped: string[] = [];
+  const standing: Omit<Outline, "version"> = { current: before.current, acts: before.acts, ending: before.ending, intentions: before.intentions, setups: before.setups, promoted: before.promoted, revisedAfter: before.revisedAfter, deep: before.deep, lookedUp: before.lookedUp };
+  const turned = raw.turned?.trim() || null;
+  if (turned) return { ok: true, dropped, value: { outline: { ...standing, revisedAfter: afterScene(state), deep: false }, answered: [], turned } };
+  const act = currentAct(before);
+  if (!act) return { ok: false, problems: ["outline: there is no current Act to revise"] };
+
+  const turns = [...act.turns];
+  for (const item of raw.turns) {
+    const id = item.id.trim();
+    const changed = { id, when: item.when.trim(), what: item.what.trim(), serves: item.serves.map(name => name.trim()).filter(Boolean), state: item.done ? "done" as const : "ahead" as const };
+    const at = turns.findIndex(turn => turn.id.toLocaleLowerCase() === id.toLocaleLowerCase());
+    if (at >= 0) turns[at] = changed;
+    else turns.push(changed);
+  }
+  for (const id of raw.turns_done) {
+    const at = turns.findIndex(turn => turn.id.toLocaleLowerCase() === id.trim().toLocaleLowerCase());
+    const done = turns[at];
+    if (!done) dropped.push(`turns_done: ${id.trim()} is not a turn of ${act.title}`);
+    else turns[at] = { ...done, state: "done" };
+  }
+  const pair = (people: string[]) => [...people].sort().join("|");
+  const everyone = namer(state, dropped, "relationships");
+  const relationships = [...act.relationships];
+  for (const item of raw.relationships) {
+    const people = everyone(item.people, true);
+    if (people.length !== 2) continue;
+    const changed = { people, byEnd: item.by_end.trim() };
+    const at = relationships.findIndex(other => pair(other.people) === pair(people));
+    if (at >= 0) relationships[at] = changed;
+    else relationships.push(changed);
+  }
+  const named = namer(state, dropped, "movers");
+  const movers = [...act.movers];
+  for (const item of raw.movers) {
+    for (const who of named([item.who])) {
+      const at = movers.findIndex(other => other.who === who);
+      if (at >= 0) movers[at] = { who, doing: item.doing.trim() };
+      else movers.push({ who, doing: item.doing.trim() });
+    }
+  }
+  const intended = namer(state, dropped, "intentions");
+  const intentions = [...before.intentions];
+  for (const item of raw.intentions) {
+    for (const who of intended([item.who])) {
+      const changed = { who, pursues: item.pursues.trim(), feelings: item.feelings.trim(), heading: item.heading.trim() };
+      const at = intentions.findIndex(other => other.who === who);
+      if (at >= 0) intentions[at] = changed;
+      else intentions.push(changed);
+    }
+  }
+  const acts = before.acts.map(item => (item.number === act.number ? { ...item, turns, relationships, movers } : item));
+  const setups = settle(state, raw.setups, acts, dropped);
+  const promoted = [...new Set([...before.promoted, ...namer(state, dropped, "promoted")(raw.promoted)])];
+  return { ok: true, dropped, value: { outline: { ...standing, acts, intentions, setups, promoted, revisedAfter: afterScene(state), deep: false }, answered: [], turned: null } };
 }
 
 /**
  * Every setup, as the answer leaves it (openspec the-outline: Nothing enters without a payoff): its payoff's turn
  * found among the Acts, the Scene it was planted in no later than the latest, and the Scene it was settled after once
- * it is paid off or dropped. A setup the answer leaves out is kept as it was: only the Director pays one off or drops it.
+ * it is paid off or dropped. A setup the answer leaves out is kept as it was: a revision lists only what changed, and
+ * only the Director pays one off or drops it.
  */
-function settle(state: State, raw: RawOutline["setups"], acts: Act[], dropped: string[]): Setup[] {
+function settle(state: State, raw: RawSetup[], acts: Act[], dropped: string[]): Setup[] {
   const before = new Map((state.outline?.setups ?? []).map(setup => [setup.id, setup]));
   const turns = new Map(acts.flatMap(act => act.turns).map(turn => [turn.id.toLocaleLowerCase(), turn.id]));
   const latest = state.scene?.number ?? 0;
   const scene = afterScene(state);
   const written = new Map<string, Setup>();
+  // In the Outline's order, each as the answer leaves it; new ones after.
+  for (const [id, old] of before) written.set(id, old);
   for (const item of raw) {
     const id = item.id.trim();
     const old = before.get(id);
@@ -319,11 +440,6 @@ function settle(state: State, raw: RawOutline["setups"], acts: Act[], dropped: s
     }
     const settled = item.state === "waiting" ? null : old && old.state === item.state ? old.settled : scene;
     written.set(id, { id, what: item.what.trim(), planted, payoff: item.payoff.trim(), turn, state: item.state, settled });
-  }
-  for (const [id, old] of before) {
-    if (written.has(id)) continue;
-    if (old.state === "waiting") dropped.push(`setups: ${id}, ${said(old.what)}, was left out; it is kept, still waiting, until it is paid off or dropped`);
-    written.set(id, old);
   }
   return [...written.values()];
 }
@@ -348,7 +464,7 @@ export async function writeOutline(models: Models, choices: ModelChoice[], state
   const { system, prompt } = outlinePrompt(state, beside, ask);
   const deep = isDeep(ask);
   const written = await runAgent(models, choices, {
-    agent: "director", system, prompt, schema: outlineFormat(state), facts: outlineFacts(state, ask),
+    agent: "director", system, prompt, schema: outlineFormat(state, ask), facts: outlineFacts(state, ask),
     tools: { story, web: deep }, traceId, storyId: story.storyId
   }, answer => checkOutline(state, beside, ask, answer), deep ? BUDGETS.directorDeep : BUDGETS.directorFocused, signal);
   const outline = written.value.outline;

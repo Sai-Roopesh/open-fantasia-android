@@ -42,7 +42,7 @@ describe("the Models screen over the link", () => {
     expect(view.jobs.map(job => job.model.choice)).toEqual([
       { provider: "claude", model: "claude-opus-5-5", effort: "medium" },
       { provider: "claude", model: "claude-sonnet-5-5", effort: null },
-      { provider: "claude", model: "claude-opus-5-5", effort: null },
+      { provider: "claude", model: "claude-opus-5-5", effort: "medium" },
       { provider: "claude", model: "claude-fable-5-1", effort: "high" },
       { provider: "claude", model: "claude-opus-5-5", effort: null },
       { provider: "claude", model: "claude-opus-5-5", effort: null }
@@ -139,7 +139,7 @@ describe("the Models screen over the link", () => {
     expect(view.jobs.map(job => [job.title, job.model.label, job.backup.label])).toEqual([
       ["Writer", "Opus 5.5 · medium", "GPT 6.1 Sol"],
       ["Editor", "Sonnet 5.5", "GPT 6.1 Sol"],
-      ["Chronicler", "Opus 5.5", "GPT 6.1 Sol"],
+      ["Chronicler", "Opus 5.5 · medium", "GPT 6.1 Sol"],
       ["Director", "Fable 5.1 · high", "GPT 6.1 Sol"],
       ["Weaver", "Opus 5.5", "GPT 6.1 Sol"],
       ["Folder", "Opus 5.5", "GPT 6.1 Sol"]

@@ -45,6 +45,7 @@ placeholders; the app shows the real images (openspec stories: Portraits are rea
 | `Redo.dc.html` | Redo with a Direction, Remember this, and the model for this Reply | screens-to-design (the model: the Models screen) |
 | `SceneReturn.dc.html` | Back after a night away: the Previously card | the Chronicler |
 | `LongPress.dc.html` | An earlier Reply's menu: Copy, Rewind to here, Try another way from here, Edit | Paths, editing |
+| `EndScene.dc.html` | End scene asks first: "End this Scene?", with Keep playing, which sends nothing, and End scene | quicker-scene-ends |
 | `MovingOn.dc.html` | Between Scenes: a line a step while the Scene is recorded, the Outline reconsidered ("Rethinking Year One…" when an Act is re-planned) and the World moves on | the Chronicler, the Weaver; the-storys-mind |
 | `DayView.dc.html` | The Day View: the day, the place, countdowns, Meanwhile, the Story's pick with its day, Happenings and a weekly Engagement, the other choices and Skip to later, your own Move | screens-to-design (first form); the Weaver; story in stretches; engagements; play-check-fixes |
 | `Gap.dc.html` | What did you do in the Gap? Left blank: where he was within the day, going about his days past a night | the Weaver; blank-gaps-and-headlines |

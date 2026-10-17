@@ -11,6 +11,8 @@ import org.robolectric.annotation.GraphicsMode
 class WriterUiJvmTest : WriterUiChecks() {
     @Scenario("scenes › A Scene ends when a Move leaves it or the player ends it › The player ends a Scene")
     @Test fun endScene() = playerEndsScene()
+    @Scenario("scenes › A Scene ends when a Move leaves it or the player ends it › End scene asks first")
+    @Test fun endSceneConfirmation() = endSceneAsksFirst()
     @Test fun sceneClosedOnTheMac() = closedSceneOpensDayView()
     @Scenario("scenes › A Scene ends when a Move leaves it or the player ends it › The Story never closes a Scene")
     @Test fun landedScene() = landedSceneStaysOpen()

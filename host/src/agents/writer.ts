@@ -185,11 +185,11 @@ export function writerPrompt(ask: WriterAsk, moments: Fact[]): { system: string;
   if (pushing && scene.beatInPlayFor >= BEAT_CAP) tasks.push(`The beat in play has been in play for ${scene.beatInPlayFor} Replies: make it happen now, or skip it.`);
   if (pushing && scene.withoutArc >= STALL_AFTER) tasks.push(`No Arc has moved for ${scene.withoutArc} Replies: move the Scene on toward its turn, or call land.`);
   // A long Scene is closed by the Writer once it has become another (openspec scenes: A long Scene is recorded as it goes).
-  if (scene && !scene.closed && scene.recorded) {
+  if (scene && !scene.closed && scene.recorded && !scene.linger) {
     tasks.push(`This Scene has run ${exchangesIn(ask.scene)} exchanges, and was recorded so far. If it has become another one (they are somewhere else and something else is happening between them, or another day or night has begun), close it: set leaves_scene and frame the Scene it has become, which begins with this Move. A Scene still about the same thing goes on, however long.`);
   }
   if (scene?.focus && !scene.closed) tasks.push(`Focus is on ${scene.focus}.`);
-  if (scene?.linger && !scene.closed) tasks.push("Linger is on: hold the beat in play, force nothing, and call continue.");
+  if (scene?.linger && !scene.closed) tasks.push("Linger is on: hold the beat in play, force nothing, and call continue. Never set leaves_scene: wherever the Move goes and however long it takes, the Scene goes on; set moves_to when they go somewhere.");
   if (state.pendingDirection?.text) tasks.push(`The player redid the last Reply with this Direction: ${state.pendingDirection.text}${state.pendingDirection.remember ? " (they asked for it to be remembered: put it in taste)" : ""}`);
   const plan = state.plan ? section("long_run", [
     `Toward ${state.plan.toward}, a ${state.plan.phase} Stretch.`,
@@ -275,7 +275,10 @@ export function checkWriter(ask: WriterAsk, moments: Fact[], answer: unknown): C
     if (phrase) problems.push(`${where} decides for the player's character ("${phrase}"); make it a circumstance or someone else's choice`);
   }
   const opening = openingOf(state);
-  const opensScene = opening === "day_view" || raw.leaves_scene;
+  // Under Linger nothing leaves the Scene but the player's End scene: a Move that goes elsewhere moves the place.
+  const held = opening !== "day_view" && state.scene?.linger === true && !state.scene.closed;
+  if (held && raw.leaves_scene) dropped.push("leaves_scene: Linger is on, so the Scene goes on here, wherever the Move takes them");
+  const opensScene = opening === "day_view" || (raw.leaves_scene && !held);
   if ((opensScene || opening === "unplanned") && !raw.frame) problems.push(opensScene ? "frame: this Move opens a new Scene; write its frame" : "frame: this Scene has no plan yet; write its frame");
   if (problems.length) return { ok: false, problems };
 
@@ -320,7 +323,7 @@ export function checkWriter(ask: WriterAsk, moments: Fact[], answer: unknown): C
       plans: !opensScene && opening === "unplanned" && frame ? { purpose: frame.purpose, exit: frame.exit } : null,
       here, goes: goes.filter(name => here.includes(name)), beats: raw.beats, note: raw.note.trim(), call,
       intensity: raw.intensity, arcMoved: raw.arc_moved, clock, taste, tasteFor: taste ? raw.taste_for ?? null : null, inPlay,
-      movesTo: !opensScene && raw.moves_to?.trim() ? raw.moves_to.trim() : null,
+      movesTo: opensScene ? null : raw.moves_to?.trim() || (held && raw.leaves_scene ? raw.frame?.place.trim() || null : null),
       gathered
     }
   };

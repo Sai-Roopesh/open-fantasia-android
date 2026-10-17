@@ -42,6 +42,7 @@ open class WorldUiChecks {
         openScene()
         compose.onNodeWithTag("composer").performTextInput("I wait until morning.")
         compose.onNodeWithText("End scene").performClick()
+        compose.onNodeWithTag("confirm-end-scene").performClick()
         compose.onNodeWithText("SCENE 14 · ENDED").assertIsDisplayed()
         compose.onNodeWithText("After curfew").assertIsDisplayed()
         compose.onNodeWithText("Friday 9:40 pm – 11:05 pm · The Gryffindor common room").assertIsDisplayed()

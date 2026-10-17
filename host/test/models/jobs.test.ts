@@ -13,7 +13,7 @@ describe("the Mac's model settings (docs/adr/0008)", () => {
     expect(DEFAULT_JOB_MODELS).toEqual({
       writer: { ...opus, effort: "medium" },
       editor: { provider: "claude", model: "claude-sonnet-5-5" },
-      chronicler: opus,
+      chronicler: { ...opus, effort: "medium" },
       weaver: opus,
       director: { provider: "claude", model: "claude-fable-5-1", effort: "high" },
       folder: opus

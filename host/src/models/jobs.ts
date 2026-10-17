@@ -11,14 +11,15 @@ const OPUS: ModelChoice = { provider: "claude", model: "claude-opus-5-5" };
 
 /**
  * Each job's model until the player sets one (openspec outside-the-scene: One Models screen › The defaults). The
- * player chose quality over speed (docs/goal.md): Opus 5.5 for every job, the Writer at medium effort since it plans
- * before every Reply; Fable 5.1 at high effort for the Director, who shapes the whole Story; and Sonnet 5.5 for the
+ * player chose quality over speed (docs/goal.md): Opus 5.5 for every job, the Writer and the Chronicler at medium
+ * effort since one plans before every Reply and the other holds up every Scene's end; Fable 5.1 at high effort for the Director, who shapes the whole Story; and Sonnet 5.5 for the
  * Editor, who checks every Reply against what is established while the player waits.
  */
 export const DEFAULT_JOB_MODELS: Record<Job, ModelChoice> = {
   writer: { ...OPUS, effort: "medium" },
   editor: { provider: "claude", model: "claude-sonnet-5-5" },
-  chronicler: OPUS,
+  // Recording a Scene is careful reading, not deep thought: at medium effort it takes a minute or two, not five.
+  chronicler: { ...OPUS, effort: "medium" },
   weaver: OPUS,
   director: { provider: "claude", model: "claude-fable-5-1", effort: "high" },
   folder: OPUS

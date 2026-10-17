@@ -173,7 +173,7 @@ describe("a Scene that stalls, and Linger (openspec scenes)", () => {
     expect(story.state().scene).toMatchObject({ beatInPlayFor: 8, withoutArc: 8, linger: true });
     const given = ask(story, "I stay where I am, by the window.");
     const { prompt } = writerPrompt(given, []);
-    expect(prompt).toContain("<task>\nLinger is on: hold the beat in play, force nothing, and call continue.\n</task>");
+    expect(prompt).toContain("<task>\nLinger is on: hold the beat in play, force nothing, and call continue. Never set leaves_scene: wherever the Move goes and however long it takes, the Scene goes on; set moves_to when they go somewhere.\n</task>");
     expect(prompt).not.toMatch(/make it happen now|No Arc has moved|call land/);
     // An answer that would turn the Scene is set right: it goes on as it was, and nothing is asked again.
     expect(check(given, answer({ call: "land", beats: BEATS, arc_moved: false }))).toMatchObject({ ok: true, value: { call: "continue", beats: BEATS }, dropped: ['call: Linger is on, so the Scene goes on rather than "land"'] });

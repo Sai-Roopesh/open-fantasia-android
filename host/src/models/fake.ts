@@ -164,6 +164,8 @@ export function fakeDirectorAnswer(request: ModelRequest): Script {
  */
 export function fakeOutlineAnswer(request: ModelRequest): Script {
   const facts = request.facts as OutlineFacts;
+  // A focused revision after an ordinary Scene changes nothing it does not list: here, nothing.
+  if (facts.why === "focused") return { answer: JSON.stringify({ turned: null, turns: [], turns_done: [], relationships: [], movers: [], intentions: [], setups: [], promoted: [] }) };
   const first = facts.lives[0];
   const current = facts.current + (facts.why === "act-ended" ? 1 : 0);
   return {
@@ -181,7 +183,7 @@ export function fakeOutlineAnswer(request: ModelRequest): Script {
       setups: facts.setups.length
         ? facts.setups.map(({ id, what, planted, payoff, turn, state }) => ({ id, what, planted, payoff, turn, state }))
         : [{ id: "U1", what: "A locked door nobody admits to.", planted: null, payoff: "What is behind it turns the Act.", turn: "T2", state: "waiting" }],
-      promoted: [], turned: null
+      promoted: []
     })
   };
 }

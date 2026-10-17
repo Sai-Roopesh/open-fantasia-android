@@ -53,9 +53,14 @@ function yearOne(changes: Record<string, unknown> = {}, turns: Turn[] = [SEPTEMB
       { who: HERMIONE, pursues: "top of every class, and the third-floor door", feelings: "from hiding what she feels to fighting for him", heading: "she has kissed him first" },
       { who: LUCIUS, pursues: "a match that binds an old house to his", feelings: "contempt for the Muggle-born his daughter owes", heading: "his patience gone" }
     ],
-    setups: [], promoted: [], turned: null,
+    setups: [], promoted: [],
     ...changes
   }) };
+}
+
+/** A focused revision as the Director answers it: that the Scene turned the Story, or only what it changed. */
+function revise(changes: Record<string, unknown> = {}): Script {
+  return { answer: JSON.stringify({ turned: null, turns: [], turns_done: [], relationships: [], movers: [], intentions: [], setups: [], promoted: [], ...changes }) };
 }
 
 /** Models that answer as [inner] does, except that the call the test holds waits until it lets it go. */
@@ -186,7 +191,7 @@ describe("the-outline › The Outline is reconsidered after every Scene", () => 
   it("the-outline › The Outline is reconsidered after every Scene › An ordinary Scene", async () => {
     const { play, end, state, path, models, events, afterClose } = await prepared(yearStory({ title: "Breakfast", place: "The Great Hall", at: "Day 4 08:00", who: [DRACONIA] }));
     const touched = { ...SEPTEMBER, what: "Draconia claims him in front of Slytherin, now that he has eaten at her table." };
-    models.outline.then(yearOne({}, [touched, JUNE]));
+    models.outline.then(revise({ turns: [touched] }));
     await play("I sit down at the Slytherin table and butter my toast.");
     await end();
 
@@ -215,7 +220,7 @@ describe("the-outline › The Outline is reconsidered after every Scene", () => 
     expect(currentAct(state().outline)!.turns.find(turn => turn.when === "June")!.serves).toContain(LUCIUS);
     const dead = "Lucius Malfoy is dead, and Year One's June turns on him";
     const narcissa = { id: "T2", when: "June", what: "Narcissa comes to Hogwarts for the Muggle-born who killed her husband, and Draconia must choose.", serves: [DRACONIA], done: false };
-    models.outline.then(yearOne({ turned: dead }), yearOne({}, [SEPTEMBER, narcissa]));
+    models.outline.then(revise({ turned: dead }), yearOne({}, [SEPTEMBER, narcissa]));
     await play("I stop time, and kill Lucius Malfoy where he stands.");
     gate.hold(request => isOutline(request) && why(request) === "deep");
     const ending = end();
@@ -242,7 +247,7 @@ describe("the-outline › The Outline is reconsidered after every Scene", () => 
 
   it("goes straight to the deep pass on Retry when it failed after the focused pass found the Story turned", async () => {
     const { play, end, models, engine, storyId, afterClose } = await prepared(yearStory({ title: "The gates", place: "The Hogwarts gates", at: "Day 4 18:00", who: [LUCIUS] }));
-    models.outline.then(yearOne({ turned: "Lucius Malfoy is dead" }), { fail: "Fable 5.1 is overloaded" }, { fail: "GPT 6.1 Sol is overloaded" });
+    models.outline.then(revise({ turned: "Lucius Malfoy is dead" }), { fail: "Fable 5.1 is overloaded" }, { fail: "GPT 6.1 Sol is overloaded" });
     await play("I kill Lucius Malfoy.");
     await end();
     expect(engine.sceneEndOf(storyId).failed).toMatchObject({ step: "director" });
@@ -274,12 +279,9 @@ describe("the-outline › The Outline is reconsidered after every Scene", () => 
   // THEN Luna has a full Life and a place in the current Act's turns
   it("the-outline › The Outline is reconsidered after every Scene › Someone grows close", async () => {
     const lunasYear = { id: "T3", when: "October", what: "Luna shows him what she has seen in the Forbidden Forest, and asks him not to tell.", serves: [LUNA], done: false };
-    const withLuna = yearOne({ intentions: [
-      { who: DRACONIA, pursues: "the Seeker's place", feelings: "from owing him to wanting him", heading: "she has chosen him once" },
-      { who: HERMIONE, pursues: "top of every class", feelings: "fighting for him", heading: "she has kissed him first" },
-      { who: LUCIUS, pursues: "a match for Draconia", feelings: "contempt", heading: "his patience gone" },
+    const withLuna = revise({ turns: [lunasYear], intentions: [
       { who: LUNA, pursues: "the creatures in the Forest nobody else believes in", feelings: "from curiosity about him to trusting him with what she sees", heading: "he is the one she tells" }
-    ] }, [SEPTEMBER, lunasYear, JUNE]);
+    ] });
     const { play, end, state, models } = await prepared(yearStory({ title: "The owlery", place: "The owlery", at: "Day 3 21:40", who: [LUNA] }), {
       writer: [opens("kept", "kept", [], 2), opens("The lake", "The Black Lake", [LUNA]), opens("The greenhouses", "Greenhouse Three", [LUNA])]
     });
@@ -342,7 +344,7 @@ describe("the-outline › The player sees and steers the Outline", () => {
       { id: "T1", when: "September", what: "Hermione stays up with him over the third-floor door.", serves: [HERMIONE], done: false },
       { id: "T2", when: "June", what: "Hermione goes through the trapdoor with him, and kisses him first.", serves: [HERMIONE], done: false }
     ];
-    models.outline.then(yearOne({}, hers, [{ people: [HERMIONE, ROOPESH], by_end: "Together by June." }, { people: [DRACONIA, ROOPESH], by_end: "Further off than now." }]));
+    models.outline.then(revise({ turns: hers, relationships: [{ people: [HERMIONE, ROOPESH], by_end: "Together by June." }, { people: [DRACONIA, ROOPESH], by_end: "Further off than now." }] }));
     await play("I stay late in the library with Hermione.");
     await end();
     expect(currentAct(state().outline)!.relationships.find(item => item.people.includes(HERMIONE))!.byEnd).toBe("Together by June.");
@@ -354,7 +356,7 @@ describe("the-outline › The player sees and steers the Outline", () => {
       { id: "T2", when: "June", what: "Hermione goes through the trapdoor to beat him to the Stone.", serves: [HERMIONE], done: false }
     ];
     const rivals = [{ people: [HERMIONE, ROOPESH], by_end: "Still his rival in June, and the better for it." }, { people: [DRACONIA, ROOPESH], by_end: "Further off than now." }];
-    models.outline.then(yearOne({}, rival, rivals), yearOne({}, rival, rivals));
+    models.outline.then(yearOne({}, rival, rivals), revise());
     await play("In the morning I find Hermione at breakfast.");
     await end();
     // The note wins over the Director's own reading of play.
@@ -374,12 +376,41 @@ describe("the-outline › The player sees and steers the Outline", () => {
 });
 
 describe("presence › Between Scenes is quiet, and shows progress", () => {
+  // GIVEN a Scene has ended and been recorded
+  // WHEN the Director reconsiders the Outline
+  // THEN the World moves on at the same time, from the Outline as it stood, and the Day View is ready once both are done
+  it("presence › Between Scenes is quiet, and shows progress › The Outline and the World side by side", async () => {
+    // A long day inside the Stretch: no new Stretch is due at its end, and the World has the night to live out.
+    const longDay = { answer: JSON.stringify({ leaves_scene: false, frame: null, comes_in: [], goes: [], beats, note: "n", call: "continue", intensity: 2, arc_moved: true, minutes: 800, taste: null, in_play: [], moves_to: null }) };
+    const { play, end, models, gate, engine, storyId, head, view, afterClose } = await prepared(yearStory({ at: "Day 3 23:50" }), {
+      writer: [opens("kept", "kept", [], 2), opens("The Great Hall", "The Great Hall", [], 2), longDay]
+    });
+    await play("I say goodnight.");
+    await end();
+    engine.choose(storyId, { after: head(), kind: "story", gap: null }, "pick");
+    await engine.settled(storyId);
+    await play("We talk until long after dark.");
+    const woven = models.weaver.requests.length;
+    gate.hold(request => isOutline(request));
+    const ending = end();
+    await until(() => gate.reached);
+    // While the Director is still reconsidering the Outline, the Weaver has already been asked.
+    await until(() => models.weaver.requests.length > woven);
+    expect(view().day_view).toMatchObject({ scene_end: { step: "director" }, happenings: [] });
+    expect(afterClose()).toEqual(["scene_closed", "chronicle"]);
+    gate.release();
+    await ending;
+    // The Director's revision is written first, then the World; then the Day View is ready.
+    expect(afterClose()).toEqual(["scene_closed", "chronicle", "outline_set", "world_moved"]);
+    expect(engine.sceneEndOf(storyId)).toEqual({ step: null, failed: null, rethinking: null });
+  });
+
   // GIVEN a Scene ended that turned the Story
   // WHEN the Director re-plans the current Act deeply
   // THEN the line says it is rethinking Year One, until the World moves on
   it("presence › Between Scenes is quiet, and shows progress › Rethinking a year", async () => {
     const { play, end, models, gate, engine, storyId, view, events } = await prepared(yearStory({ title: "The gates", place: "The Hogwarts gates", at: "Day 4 18:00", who: [LUCIUS] }));
-    models.outline.then(yearOne({ turned: "Lucius Malfoy is dead" }), yearOne());
+    models.outline.then(revise({ turned: "Lucius Malfoy is dead" }), yearOne());
     await play("I kill Lucius Malfoy.");
     const line = () => view().day_view!.scene_end;
     const seen = events.length;
@@ -398,11 +429,7 @@ describe("presence › Between Scenes is quiet, and shows progress", () => {
     await until(() => gate.reached);
     expect(line()).toEqual({ step: "director", failed: null, rethinking: "Year One" });
 
-    // Until the World moves on.
-    gate.release();
-    gate.hold(request => request.agent === "weaver");
-    await until(() => gate.reached);
-    expect(line()).toEqual({ step: "weaver", failed: null, rethinking: null });
+    // Until the World, moving on alongside the Director, is written: then the line clears.
     gate.release();
     await ending;
     expect(line()).toEqual({ step: null, failed: null, rethinking: null });

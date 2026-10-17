@@ -329,9 +329,10 @@ class SceneScrollState(val list: LazyListState) {
 }
 
 @Composable internal fun SceneControls(scene: SceneView, enabled: Boolean, endScene: () -> Unit, linger: (Boolean) -> Unit) {
+    val active = enabled && !scene.replyComing && scene.turn.kind == TurnStateKind.Idle && scene.dayView == null
+    var confirming by rememberSaveable(scene.storyID) { mutableStateOf(false) }
     CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            val active = enabled && !scene.replyComing && scene.turn.kind == TurnStateKind.Idle && scene.dayView == null
             Box(Modifier.height(36.dp).toggleable(value = scene.linger, enabled = active, role = Role.Checkbox, onValueChange = linger)
                 .semantics { contentDescription = "Linger" }, contentAlignment = Alignment.Center) {
                 Surface(shape = FantasiaShapes.round, color = if (scene.linger) FantasiaAccent else FantasiaBackground,
@@ -343,9 +344,24 @@ class SceneScrollState(val list: LazyListState) {
                     }
                 }
             }
-            OutlinedButton(onClick = endScene, enabled = active, modifier = Modifier.height(36.dp), shape = FantasiaShapes.round,
+            OutlinedButton(onClick = { confirming = true }, enabled = active, modifier = Modifier.height(36.dp), shape = FantasiaShapes.round,
                 border = BorderStroke(1.dp, if (active) FantasiaStrongLine else FantasiaLine), contentPadding = PaddingValues(horizontal = 14.dp)) {
                 Text("End scene", style = FantasiaType.meta, color = if (active) FantasiaSecondary else FantasiaDisabled)
+            }
+        }
+    }
+    // End scene asks first, so a stray tap closes nothing; Keep playing sends nothing to the Mac (EndScene.dc.html).
+    if (confirming) {
+        DaySheet("end-scene-sheet", dismiss = { confirming = false }) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("End this Scene?", style = FantasiaType.sheetTitle)
+                Text("The Scene is recorded as it stands, and the Day View opens.", style = FantasiaType.caption, color = FantasiaSecondary)
+            }
+            Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End)) {
+                TextButton(onClick = { confirming = false }, modifier = Modifier.height(48.dp), shape = FantasiaShapes.round,
+                    contentPadding = PaddingValues(horizontal = 20.dp)) { Text("Keep playing", style = FantasiaType.plain, color = FantasiaSecondary) }
+                Button(onClick = { confirming = false; endScene() }, enabled = active, modifier = Modifier.height(48.dp).testTag("confirm-end-scene"),
+                    shape = FantasiaShapes.round, contentPadding = PaddingValues(horizontal = 24.dp)) { Text("End scene", style = FantasiaType.button) }
             }
         }
     }

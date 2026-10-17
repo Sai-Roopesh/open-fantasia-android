@@ -23,11 +23,13 @@ open class WriterUiChecks {
         compose.onNodeWithText("The Malfoy Problem").performClick()
     }
 
-    // WHEN the player taps End scene after a Reply
+    // WHEN the player taps End scene after a Reply, and confirms
     // THEN the Scene is closed at that Reply and the Day View opens
     fun playerEndsScene() {
         openScene()
         compose.onNodeWithText("End scene").assertIsEnabled().performClick()
+        compose.onNodeWithTag("confirm-end-scene").assertIsEnabled().performClick()
+        compose.onNodeWithText("End this Scene?").assertDoesNotExist()
         compose.onNodeWithText("Sunday").assertIsDisplayed()
         compose.onNodeWithText("7:40 am · you're in Common room").assertIsDisplayed()
         compose.runOnIdle { assertEquals(EndSceneRequest(after = "reply"), link.endScenes.single()) }
@@ -37,6 +39,23 @@ open class WriterUiChecks {
         compose.onNodeWithTag("composer").performTextInput("I go to my room.")
         compose.onNodeWithTag("send-move").performClick()
         compose.runOnIdle { assertEquals(MoveRequest(after = "closed", text = "I go to my room."), link.moves.single()) }
+    }
+
+    // WHEN the player taps End scene by accident
+    // THEN the phone asks "End this Scene?", and Keep playing leaves the Scene open with nothing sent to the Mac
+    fun endSceneAsksFirst() {
+        openScene()
+        compose.onNodeWithText("End scene").assertIsEnabled().performClick()
+        compose.onNodeWithText("End this Scene?").assertIsDisplayed()
+        compose.onNodeWithText("The Scene is recorded as it stands, and the Day View opens.").assertIsDisplayed()
+        compose.onNodeWithTag("end-scene-sheet").assertIsDisplayed()
+        compose.preview("EndScene")
+        compose.onNodeWithText("Keep playing").performClick()
+        compose.onNodeWithText("End this Scene?").assertDoesNotExist()
+        compose.onNodeWithTag("composer").assertIsDisplayed()
+        compose.onNodeWithText("End scene").assertIsEnabled()
+        compose.onNodeWithText("7:40 am · you're in Common room").assertDoesNotExist()
+        compose.runOnIdle { assertTrue(link.endScenes.isEmpty()) }
     }
 
     // A Scene closed on the Mac (End scene, here or on another phone) arrives as an event, and the Day View opens.

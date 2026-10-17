@@ -116,6 +116,7 @@ open class EditingStoryUiChecks : WorldUiChecks() {
     fun movingTheClockOn() {
         openScene()
         compose.onNodeWithText("End scene").performClick()
+        compose.onNodeWithTag("confirm-end-scene").performClick()
         compose.onNodeWithText("Sunday").assertIsDisplayed()
         compose.onNodeWithContentDescription("The Story").performClick()
         row("Move the clock on").performClick()

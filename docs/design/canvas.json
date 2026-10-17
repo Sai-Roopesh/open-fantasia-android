@@ -134,6 +134,13 @@
       "w": 390,
       "x": 3760,
       "y": 3480
+    },
+    "EndScene.dc.html": {
+      "h": 844,
+      "title": "End scene, asked first",
+      "w": 390,
+      "x": 3720,
+      "y": 0
     }
   },
   "createdOnFiles": {
@@ -147,7 +154,7 @@
   "notes": {
     "row1": {
       "kind": "title1",
-      "maxW": 3640,
+      "maxW": 4110,
       "text": "Playing a Scene",
       "w": 240,
       "x": 0,
@@ -178,6 +185,7 @@
     "SceneReturn.dc.html",
     "Redo.dc.html",
     "LongPress.dc.html",
+    "EndScene.dc.html",
     "MovingOn.dc.html",
     "DayView.dc.html",
     "Gap.dc.html",

@@ -204,6 +204,24 @@ describe("a turn with the Writer", () => {
     expect(state().scene!.beats).toEqual(beats(0));
   });
 
+  // GIVEN Linger is on in the common room with Hermione
+  // WHEN the Move is "We walk down to the lake and talk until the sun comes up"
+  // THEN the same Scene goes on at the lake, with no new title card and no Scene's end, until the player taps End scene
+  it("scenes › Linger holds the moment › Lingering never leaves the Scene", async () => {
+    const { play, engine, storyId, head, path, state, models } = playable(hogwartsStoryFile(), {
+      writer: [writer({ frame: PLAN }), writer({ leaves_scene: true, frame: { title: "Sunrise", place: "The lake shore", purpose: "p", exit: "e" }, minutes: 480 })]
+    });
+    await play("I sit down beside Hermione.");
+    engine.setLinger(storyId, head(), true, "trace-linger");
+    await play("We walk down to the lake and talk until the sun comes up.");
+    // The Writer tried to leave: under Linger the Scene goes on, at the lake, and nothing of a Scene's end runs.
+    expect(path().filter(payload => payload.kind === "scene_closed")).toHaveLength(0);
+    expect(path().filter(payload => payload.kind === "scene_opened")).toHaveLength(1);
+    expect(state().scene).toMatchObject({ number: 1, closed: null, linger: true, place: "The lake shore" });
+    expect(models.chronicler.requests).toHaveLength(0);
+    expect(models.writer.requests.at(-1)!.prompt).toContain("Never set leaves_scene");
+  });
+
   it("fails the turn when the Writer fails twice, keeping the Move, and runs the Writer again on Retry", async () => {
     const { engine, storyId, head, mac, models, view, events } = playable(hogwartsStoryFile(), { writer: [{ fail: "Sonnet is overloaded" }, { fail: "Sonnet is overloaded" }, writer({ frame: PLAN })] });
     engine.move(storyId, "I sit down.", head(), "trace-1");

@@ -79,29 +79,41 @@ moves because the Outline's turns move it, not because something new arrives.
 The Outline is reconsidered after every Scene, never in the middle of one. `outline` is the Outline as it stands, each
 turn and setup with its id in brackets, and `this_stretch` the Stretch under way, with what it brought in. `task` says
 how:
-- A focused revision: change the current Act where the Scene touched it (a turn done, a turn moved, a relationship
-  further on or further back, a setup planted or paid) and keep the rest. Say whether the Scene turned the story under
-  `turned`: when it made the current Act's plan wrong (someone the Act needs is dead, a secret is out, the player has
-  taken the story somewhere else), say what turned in a sentence, and the Act is re-planned deeply; otherwise null.
+- A focused revision: first decide whether the Scene turned the story: whether it made the current Act's plan wrong
+  (someone the Act needs is dead, a secret is out, the player has taken the story somewhere else). If it did, say what
+  turned in a sentence under `turned` and leave everything else empty: the Act is re-planned deeply next. If it did not,
+  write only what the Scene changed (a turn done, a turn moved or added, a relationship further on or further back, a
+  setup planted or paid) and nothing else: whatever you leave out stays exactly as it is. Most are a few lines.
 - A deep revision: work the current Act through again in detail, and the Acts after it as they need (see `task`).
+  Write only the Acts you re-plan; the rest stay as they are.
 The Outline follows wherever the player takes the story: never steer it back to where you hoped it would be.
 
 Keep each turn's and setup's `id` while it is the same turn or setup, so the Stretches that serve it stay pointed at
 it. Mark a turn `done` once it has happened. Number the Acts from the first, and keep their numbers.
 
-### The Outline's answer
+### The Outline's answer: the first Outline, and a deep revision
 
 - `current`: the number of the Act being played.
-- `acts`: every Act from the current one to the end, in order, each with `number`, `title`, `question`, `builds_to`,
-  `turns` (each with `id` such as "T1", `when` as people say it, "the week before Christmas", `what` happens, `serves`:
-  the people and Arcs it moves, and `done`), `relationships` (two people each, and where they stand `by_end`),
-  `movers` (`who` and what they are `doing`) and `hands_on`. A sketched Act needs only its number, title, question,
-  what it builds to and how it hands on; leave its lists empty.
-- `ending`: how the story ends, as far as it can be seen.
-- `intentions`: one for each Close person and Mover.
-- `setups`: every setup, waiting, paid or dropped.
+- `acts`: in the first Outline, every Act from the current one to the end, in order; in a deep revision, the Acts you
+  re-plan (always the current one when an Act has ended), and an Act you leave out stays as it is. Each with `number`,
+  `title`, `question`, `builds_to`, `turns` (each with `id` such as "T1", `when` as people say it, "the week before
+  Christmas", `what` happens, `serves`: the people and Arcs it moves, and `done`), `relationships` (two people each,
+  and where they stand `by_end`), `movers` (`who` and what they are `doing`) and `hands_on`. A sketched Act needs only
+  its number, title, question, what it builds to and how it hands on; leave its lists empty.
+- `ending`: how the story ends, as far as it can be seen; in a deep revision, null unless it has changed.
+- `intentions`: one for each Close person and Mover, for the current Act.
+- `setups`: in the first Outline, every setup; in a deep revision, only new setups and those planted, paid off or
+  dropped.
 - `promoted`: who you bring forward.
-- `turned`: as above, for a focused revision; null otherwise.
+
+### The Outline's answer: a focused revision
+
+- `turned`: what turned the story, in a sentence, or null; when it is said, every other field is empty.
+- `turns`: only the current Act's turns the Scene moved or added, whole; a known `id` replaces that turn.
+- `turns_done`: the ids of the turns that happened in the Scene.
+- `relationships`, `movers`, `intentions`: only those the Scene changed.
+- `setups`: only new setups, and those the Scene planted, paid off or dropped.
+- `promoted`: anyone to bring forward from now on.
 
 ## A Stretch
 

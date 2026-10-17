@@ -103,7 +103,7 @@ describe("the fantasia command", () => {
     expect(shown.text()).toBe([
       "writer  claude  claude-opus-5-5  effort medium  (default)",
       "editor  claude  claude-sonnet-5-5  (default)",
-      "chronicler  claude  claude-opus-5-5  (default)",
+      "chronicler  claude  claude-opus-5-5  effort medium  (default)",
       "director  claude  claude-fable-5-1  effort high  (default)",
       "weaver  claude  claude-opus-5-5  (default)",
       "folder  claude  claude-opus-5-5  (default)",
