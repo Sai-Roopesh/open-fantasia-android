@@ -175,7 +175,7 @@ describe("the Actor's prompt for one Reply", () => {
   });
 
   it("says what the call means for this Reply", () => {
-    expect(planned({ call: "land" }).prompt).toMatch(/toward its turn/);
+    expect(planned({ call: "land" }).prompt).toContain("Keep the Scene open; do not wrap it up or skip past the aftermath.");
     expect(planned({ call: "continue" }).prompt).not.toMatch(/closes the Scene|toward its turn/);
   });
 });

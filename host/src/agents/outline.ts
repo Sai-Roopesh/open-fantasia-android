@@ -49,7 +49,7 @@ const LOOKED_UP = 40;
 
 /** The steering notes the Director has not answered yet. */
 export function waitingNotes(beside: Beside): SteeringNote[] {
-  return beside.notes.filter(note => note.answeredBy === null);
+  return beside.notes.filter(note => note.active !== false && note.requiresPlan !== false && note.answeredBy === null);
 }
 
 /** The current Act, when it builds to a Landmark that has passed: it has ended, and the next is planned in detail. */
@@ -98,7 +98,7 @@ export function outlineDue(state: State, beside: Beside): { depth: "focused" | "
  */
 export function directorCall(state: State, beside: Beside, moment: (string | null)[]): { system: string; prompt: string } {
   const tiered = tiers(state);
-  return asCall(layers(state, beside, "director", [...tiered.close, ...tiered.movers], [], [tiersPart(state, tiered), standingNotes(beside), ...moment], PROMPT));
+  return asCall(layers(state, beside, "director", [...tiered.close, ...tiered.movers], [], [tiersPart(state, tiered), ...moment], PROMPT));
 }
 
 /** The Landmarks from today on, soonest first. */
@@ -116,15 +116,6 @@ function runPart(state: State): string | null {
     now ? `Today is ${sayDate(now, state.dayOne, true)}.` : "",
     ahead.length ? `The Landmarks ahead, in order, to where the Story ends:\n${ahead.map(landmark => `- ${landmark.name}, ${say(state, landmark.at)}: ${landmark.what}`).join("\n")}` : "No Landmark is ahead: the Story ends where its Arcs and Lives take it."
   ].filter(Boolean).join("\n"));
-}
-
-/**
- * The steering notes the Director has answered: each still holds, and every Outline after keeps to it (openspec
- * the-outline: The player sees and steers the Outline). The notes waiting for an answer are with the player's wishes.
- */
-function standingNotes(beside: Beside): string | null {
-  const standing = beside.notes.filter(note => note.answeredBy !== null);
-  return section("steering_notes", standing.length ? ["The player's steering notes answered before. Each still holds: every Outline keeps to it, over your own reading of play.", ...standing.map(note => `- ${note.text}`)].join("\n") : "");
 }
 
 /** The Stretch under way, with what it brought in, so the Outline is revised knowing it. */

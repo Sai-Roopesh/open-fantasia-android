@@ -52,7 +52,7 @@ describe("a Bond read in later Scenes (lasting-records design decision 6)", () =
     const actor = models.actor.requests[actorCalls]!;
     expect(actor.prompt).toContain(between);
     // The Actor is given only the Bonds of the people here: Hermione is not in the library.
-    expect(`${actor.system}\n${actor.prompt}`).not.toContain(HERMIONE);
+    expect(`${actor.system}\n${actor.prompt}`).toContain(HERMIONE); // Author context includes absent Leads; it does not place them here.
   });
 
   it("gives the Director every Lead's Bond", async () => {

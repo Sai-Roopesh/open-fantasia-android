@@ -1,0 +1,366 @@
+{
+  "kind": "outline_set",
+  "outline": {
+    "current": 1,
+    "acts": [
+      {
+        "number": 1,
+        "title": "The Life They Were Going Home To",
+        "question": "What happens to an established shared life when Natalie’s love remains real but her betrayal can no longer be argued away?",
+        "buildsTo": "The first two weeks of living with the discovery, including the film’s first-look publicity and the practical consequences of whatever Roopesh chooses.",
+        "detail": "detailed",
+        "turns": [
+          {
+            "id": "T1",
+            "when": "Friday night, October 16; the opening encounter",
+            "what": "The discovery interrupts the encounter almost immediately. Natalie stops participating and urgently tries to reach Roopesh. Julian must respond to being discovered rather than remain an abstract rival. Keep the betrayal unambiguous and non-graphic. Neither man’s appearance nor Natalie’s distress determines Roopesh’s response. Stay in this encounter until the player ends it.",
+            "serves": [
+              "Natalie Whitmore",
+              "Julian Reed",
+              "Live the consequences of a real betrayal inside a five-year relationship whose love, friendship and shared future remain deeply important to Natalie; Roopesh decides what he wants from it.",
+              "Let physical comparison, old familiarity and genuine chemistry with Julian create difficult situations without turning every suspicion into proof or every scene into fresh cheating."
+            ],
+            "state": "ahead"
+          },
+          {
+            "id": "T2",
+            "when": "The remainder of the night and its immediate aftermath",
+            "what": "Natalie tries to preserve contact and the possibility of going home together. Explanation, affection, defensive disagreement and admissions can coexist; do not ration them into an apology sequence. She owns her willing participation without inventing an earlier affair or pretending every past disagreement was unfounded. Julian’s response exposes what he wants to protect first. Departure, sleeping arrangements and further conversation follow actual choices, not a scheduled interruption.",
+            "serves": [
+              "Natalie Whitmore",
+              "Julian Reed",
+              "Give Natalie a varied, active struggle to reach Roopesh while retaining her ambition, pride, affection, flaws and responsibility; no fixed apology sequence or outcome."
+            ],
+            "state": "ahead"
+          },
+          {
+            "id": "T3",
+            "when": "The opening weekend, when the intended Sunday return becomes relevant",
+            "what": "The planned return to the Bay Area requires a real logistical conversation. Natalie wants to remain part of their shared life and makes a concrete proposal about travel and being together. Roopesh may accept, alter or reject it. If he chooses separate arrangements, she changes her approach rather than treating the relationship as easily abandoned. Nobody else learns why plans changed unless someone tells them.",
+            "serves": [
+              "Natalie Whitmore",
+              "Keep a substantial ordinary life around the crisis: shared domestic habits, film work, research, fame, friends, travel and the extraordinary Warriors career, with basketball analysis optional."
+            ],
+            "state": "ahead"
+          },
+          {
+            "id": "T4",
+            "when": "The following week, as first-look publicity is arranged",
+            "what": "The production seeks joint interviews and appearances. Mara pursues a campaign centered on Natalie’s performance rather than reunion speculation, for professional reasons she already holds. Natalie must decide what professional contact with Julian she will accept and what she will tell Mara. Her choices become actions Roopesh can learn about through actual contact, not narrator-delivered proof of reform. No contract requires him to attend or support the campaign.",
+            "serves": [
+              "Natalie Whitmore",
+              "Julian Reed",
+              "Mara Ellis",
+              "Let physical comparison, old familiarity and genuine chemistry with Julian create difficult situations without turning every suspicion into proof or every scene into fresh cheating.",
+              "Give Natalie a varied, active struggle to reach Roopesh while retaining her ambition, pride, affection, flaws and responsibility; no fixed apology sequence or outcome."
+            ],
+            "state": "ahead"
+          },
+          {
+            "id": "T5",
+            "when": "During the first working week, around the arrangements actually made",
+            "what": "Ordinary life gets substantial room without becoming apology padding. Natalie has opinions about her work, wants conversation and initiates familiar affection and humor where contact remains possible. Neither warmth nor desire counts as forgiveness. Anika advances the lab’s existing evaluation work and offers a substantive research exchange through normal scheduling; team preparations remain another available part of Roopesh’s life. After an intense confrontation, offer an ordinary encounter with no hidden sting before renewed pressure.",
+            "serves": [
+              "Natalie Whitmore",
+              "Professor Anika Rao",
+              "Keep a substantial ordinary life around the crisis: shared domestic habits, film work, research, fame, friends, travel and the extraordinary Warriors career, with basketball analysis optional."
+            ],
+            "state": "ahead"
+          },
+          {
+            "id": "T6",
+            "when": "Across the first and second weeks, through actual contact with Julian",
+            "what": "Julian makes a personal bid beyond necessary work: he tries to preserve their old private ease and presents himself as someone who understands Natalie’s working life. His appeal contains genuine history as well as self-interest. Natalie answers from her continuing love for Roopesh and her own professional ambition; attraction need not disappear for her to reject Julian’s claim on her. The exchange creates consequences only for those who witness it or are told. Do not manufacture another sexual betrayal.",
+            "serves": [
+              "Natalie Whitmore",
+              "Julian Reed",
+              "Explore Julian’s wish to win Natalie back and his vanity, genuine history and self-serving assumptions through actual interactions rather than automatic victory or villain speeches.",
+              "Let physical comparison, old familiarity and genuine chemistry with Julian create difficult situations without turning every suspicion into proof or every scene into fresh cheating."
+            ],
+            "state": "ahead"
+          },
+          {
+            "id": "T7",
+            "when": "Around the end of the second week, or later if the opening encounters need room",
+            "what": "The first publicity experience and the arrangements actually lived give Natalie something concrete to discuss beyond promises. She returns to what she wants with Roopesh, including their home and future, while addressing whatever remains unanswered in play. Offer a consequential conversation about continuing contact and the next stretch of their lives, not a verdict on forgiveness. If he refuses that conversation, her conduct and his chosen arrangements still establish the Act’s practical outcome.",
+            "serves": [
+              "Natalie Whitmore",
+              "Live the consequences of a real betrayal inside a five-year relationship whose love, friendship and shared future remain deeply important to Natalie; Roopesh decides what he wants from it.",
+              "Give Natalie a varied, active struggle to reach Roopesh while retaining her ambition, pride, affection, flaws and responsibility; no fixed apology sequence or outcome."
+            ],
+            "state": "ahead"
+          }
+        ],
+        "relationships": [
+          {
+            "people": [
+              "Sai Roopesh",
+              "Natalie Whitmore"
+            ],
+            "byEnd": "Natalie has actively pursued their relationship through more than apologies, with her love, desire and responsibility all visible. Their immediate living and contact arrangements reflect Roopesh’s actual choices. His trust, affection and relationship decision remain unassigned."
+          },
+          {
+            "people": [
+              "Natalie Whitmore",
+              "Julian Reed"
+            ],
+            "byEnd": "Their shared work and real history remain, but Natalie has directly answered his attempt to treat the betrayal as an opening for reunion. She does not offer him Roopesh’s place; Julian has encountered resistance to his assumption that chemistry gives him a special entitlement."
+          },
+          {
+            "people": [
+              "Sai Roopesh",
+              "Julian Reed"
+            ],
+            "byEnd": "The discovery and any subsequent exchanges replace polite ambiguity with whatever terms play establishes. Julian cannot claim knowledge of Roopesh’s private insecurities or control future encounters."
+          },
+          {
+            "people": [
+              "Natalie Whitmore",
+              "Mara Ellis"
+            ],
+            "byEnd": "They have made initial campaign decisions that expose their shared and differing priorities. Mara knows only what Natalie or another actual source has told her."
+          },
+          {
+            "people": [
+              "Sai Roopesh",
+              "Professor Anika Rao"
+            ],
+            "byEnd": "Research remains a substantive relationship available on its own terms, not a compulsory refuge or a vehicle for unsolicited relationship advice."
+          }
+        ],
+        "movers": [
+          {
+            "who": "Natalie Whitmore",
+            "doing": "Pursuing contact and a future with Roopesh while making her first consequential decisions about the release campaign and Julian’s access to her."
+          },
+          {
+            "who": "Julian Reed",
+            "doing": "Trying to retain private significance with Natalie while advancing a performance he hopes will change his professional standing."
+          },
+          {
+            "who": "Mara Ellis",
+            "doing": "Negotiating first-look publicity that serves Natalie’s acting career without selling a romantic reunion. She begins unaware of the discovery."
+          },
+          {
+            "who": "Professor Anika Rao",
+            "doing": "Continuing the lab’s evaluation work and arranging ordinary research contact without inventing a crisis deadline."
+          }
+        ],
+        "handsOn": "Hand on the arrangements and knowledge actually established, not an assumed reconciliation or separation. Weeks are planning windows, never reasons to end an open Scene. Private information reaches supporting people only through a recorded disclosure."
+      },
+      {
+        "number": 2,
+        "title": "Working Beside the Consequences",
+        "question": "Can Natalie pursue the career she earned and the future she wants without repeating the familiar exceptions that helped her betray it?",
+        "buildsTo": "The Other Shore premiere, six weeks after the opening.",
+        "detail": "outlined",
+        "turns": [
+          {
+            "id": "T8",
+            "when": "After the first-look campaign",
+            "what": "Mara and Natalie revise later appearances from what actually happened. Necessary co-star contact and optional personal familiarity become distinguishable in practice. Roopesh chooses whether any of this involves him.",
+            "serves": [
+              "Natalie Whitmore",
+              "Mara Ellis",
+              "Let physical comparison, old familiarity and genuine chemistry with Julian create difficult situations without turning every suspicion into proof or every scene into fresh cheating."
+            ],
+            "state": "ahead"
+          },
+          {
+            "id": "T9",
+            "when": "Through the middle weeks before the premiere",
+            "what": "Work, travel and ordinary interests continue alongside the relationship’s actual state. Natalie initiates connection in varied ways where contact exists, and encounters disagreements that cannot all be solved by another apology. Give shared enjoyment room if the player chooses it; if he chooses separation, develop its practical reality without inventing his loneliness or regret.",
+            "serves": [
+              "Natalie Whitmore",
+              "Keep a substantial ordinary life around the crisis: shared domestic habits, film work, research, fame, friends, travel and the extraordinary Warriors career, with basketball analysis optional.",
+              "Live the consequences of a real betrayal inside a five-year relationship whose love, friendship and shared future remain deeply important to Natalie; Roopesh decides what he wants from it."
+            ],
+            "state": "ahead"
+          },
+          {
+            "id": "T10",
+            "when": "As premiere preparations and Julian’s studio interest develop",
+            "what": "Julian’s wish for serious professional recognition encounters his habit of enjoying romantic ambiguity. His response to Natalie’s actual boundaries reveals whether he can accept a limit without recasting himself as the injured party. The existing studio interest supplies a career concern, not an automatic reward or punishment.",
+            "serves": [
+              "Julian Reed",
+              "Natalie Whitmore",
+              "Explore Julian’s wish to win Natalie back and his vanity, genuine history and self-serving assumptions through actual interactions rather than automatic victory or villain speeches."
+            ],
+            "state": "ahead"
+          },
+          {
+            "id": "T11",
+            "when": "Premiere week, about six weeks after October 16",
+            "what": "The film opens into its public life. Natalie must live the professional and personal choices she has made while still caring about the performance itself. Roopesh may attend, decline or engage on terms he chooses. Neither an appearance nor an absence supplies a public relationship verdict. The premiere proceeds without a mandatory leak, confrontation or romantic payoff.",
+            "serves": [
+              "Natalie Whitmore",
+              "Julian Reed",
+              "Mara Ellis",
+              "Give Natalie a varied, active struggle to reach Roopesh while retaining her ambition, pride, affection, flaws and responsibility; no fixed apology sequence or outcome.",
+              "Keep a substantial ordinary life around the crisis: shared domestic habits, film work, research, fame, friends, travel and the extraordinary Warriors career, with basketball analysis optional."
+            ],
+            "state": "ahead"
+          }
+        ],
+        "relationships": [],
+        "movers": [],
+        "handsOn": "Carry the relationship as actually lived through the campaign into life beyond the film’s immediate demands. Public success, failure and chemistry do not answer Roopesh’s private question for him."
+      },
+      {
+        "number": 3,
+        "title": "The Future in Practice",
+        "question": "What future do their choices make livable once the immediate crisis and release campaign no longer organize every encounter?",
+        "buildsTo": "A player-chosen stopping point in the next chapter of their lives.",
+        "detail": "sketched",
+        "turns": [],
+        "relationships": [],
+        "movers": [],
+        "handsOn": "End on the concrete life play has made possible, together, apart or still unresolved, without declaring the hurt cured or requiring another crisis."
+      }
+    ],
+    "ending": "The ending is earned through Roopesh’s choices, not fixed as reconciliation, marriage or separation. Natalie’s love and responsibility remain true; Julian’s significance is established by his actual conduct rather than physical advantage alone. Close when the player has reached a meaningful next chapter and wants to leave them there, with ordinary life continuing beyond the final Scene.",
+    "intentions": [
+      {
+        "who": "Natalie Whitmore",
+        "pursues": "Keep her life and wanted future with Roopesh while protecting the serious acting work she put into The Other Shore. Make concrete choices about Julian instead of assuming her love makes the attraction harmless.",
+        "feelings": "Her love and desire for Roopesh persist through fear, shame, impatience and defensive anger. Julian’s familiarity still has appeal, but his attempt to claim special access tests her fondness against the consequences of their choices. Mara’s practical questions can feel intrusive even when Natalie needs her help.",
+        "heading": "Still actively choosing Roopesh, with initial professional boundaries made observable and her first attempts at repair tested by his actual responses. Neither acceptance nor restored trust is promised."
+      },
+      {
+        "who": "Julian Reed",
+        "pursues": "Retain a special personal place with Natalie, possibly regain her, and use his performance to advance beyond being treated primarily as a handsome former television lead.",
+        "feelings": "Concern for Natalie competes with vanity, embarrassment and his wish to believe the encounter means more than she allows. Roopesh’s presence challenges his comfortable assumptions without turning every exchange into a contest.",
+        "heading": "Has made a real bid for continued intimacy and encountered Natalie’s answer. His professional hopes continue independently of whether he gets what he wants personally."
+      },
+      {
+        "who": "Mara Ellis",
+        "pursues": "Secure a workable release campaign that foregrounds Natalie’s acting and does not flatten the film into reunion gossip.",
+        "feelings": "Respects Natalie’s ambition and relationship, but can become impatient with unclear instructions or avoidable publicity ambiguity. Concern about her client grows only from information she actually receives.",
+        "heading": "Has negotiated the first campaign arrangements and has a clearer practical understanding of what Natalie will and will not do, without becoming the manager of Roopesh’s private response."
+      },
+      {
+        "who": "Professor Anika Rao",
+        "pursues": "Move the lab’s existing evaluation work toward defensible review and keep research exchanges useful for the people doing the work.",
+        "feelings": "Remains warm and exacting toward Roopesh. Scheduling changes may require practical adjustment, but she neither diagnoses his private life nor assumes entitlement to an explanation.",
+        "heading": "Has kept research moving through whatever participation Roopesh chooses, preserving a professional relationship with substance beyond celebrity or crisis."
+      }
+    ],
+    "setups": [
+      {
+        "id": "P1",
+        "what": "The newly discovered, willing sexual betrayal and the fact that only the three present know.",
+        "planted": null,
+        "payoff": "The opening confrontation and its aftermath establish responsibility, the immediate arrangements and what is actually disclosed. No later revelation converts it into an earlier affair or an innocent event.",
+        "turn": "T2",
+        "state": "waiting",
+        "settled": null
+      },
+      {
+        "id": "P2",
+        "what": "Five years of genuine love, friendship, mutual desire and particular shared history.",
+        "planted": null,
+        "payoff": "Natalie’s ordinary conversation, initiative and affection give the relationship lived substance beyond the betrayal, without memories functioning as claims on forgiveness.",
+        "turn": "T5",
+        "state": "waiting",
+        "settled": null
+      },
+      {
+        "id": "P3",
+        "what": "The intended Sunday return to the Bay Area and the couple’s two shared homes.",
+        "planted": null,
+        "payoff": "Travel and access become concrete choices made in play, showing the immediate effect on their shared life without presuming either person’s destination.",
+        "turn": "T3",
+        "state": "waiting",
+        "settled": null
+      },
+      {
+        "id": "P4",
+        "what": "First-look publicity involving both leads and Mara’s existing opposition to reunion-centered marketing.",
+        "planted": null,
+        "payoff": "Natalie and Mara make workable campaign decisions that distinguish professional collaboration from optional personal access.",
+        "turn": "T4",
+        "state": "waiting",
+        "settled": null
+      },
+      {
+        "id": "P5",
+        "what": "Julian’s genuine history and chemistry with Natalie, together with his belief that they give him a special continuing place.",
+        "planted": null,
+        "payoff": "An actual personal approach lets Natalie answer his assumption and reveals his response to a limit, without requiring fresh cheating or a villain speech.",
+        "turn": "T6",
+        "state": "waiting",
+        "settled": null
+      },
+      {
+        "id": "P6",
+        "what": "Natalie knows the private insecurities Roopesh previously entrusted to her.",
+        "planted": null,
+        "payoff": "If their conversation reaches comparison or earlier dismissals, she must address her own conduct with that knowledge. Her response supplies neither his feelings nor a compulsory reassuring resolution.",
+        "turn": "T7",
+        "state": "waiting",
+        "settled": null
+      },
+      {
+        "id": "P7",
+        "what": "Research, team preparations and Natalie’s film work continue independently of the crisis.",
+        "planted": null,
+        "payoff": "Substantive ordinary encounters and adjustable obligations keep their lives larger than a continuous confrontation, without compulsory basketball exposition.",
+        "turn": "T5",
+        "state": "waiting",
+        "settled": null
+      },
+      {
+        "id": "P8",
+        "what": "The Other Shore premiere is planned six weeks after the opening.",
+        "planted": null,
+        "payoff": "The release proceeds under the arrangements actually established. Natalie’s career matters in its own right, and Roopesh controls his involvement.",
+        "turn": "T11",
+        "state": "waiting",
+        "settled": null
+      },
+      {
+        "id": "P9",
+        "what": "A larger studio project is interested in Julian, contingent on the release.",
+        "planted": null,
+        "payoff": "His pursuit of professional credibility intersects with his enjoyment of romantic ambiguity, exposing priorities without guaranteeing a career outcome.",
+        "turn": "T10",
+        "state": "waiting",
+        "settled": null
+      },
+      {
+        "id": "P10",
+        "what": "Marriage, children and an ordinary shared future were real hopes before the betrayal and remain Natalie’s wanted future.",
+        "planted": null,
+        "payoff": "Later choices give those hopes a concrete place, a changed form or a refusal in the life the player chooses. No proposal, pregnancy or wedding is introduced to force the answer.",
+        "turn": null,
+        "state": "waiting",
+        "settled": null
+      }
+    ],
+    "promoted": [
+      "Mara Ellis",
+      "Professor Anika Rao"
+    ],
+    "revisedAfter": 0,
+    "deep": true,
+    "lookedUp": [
+      "read the Rules",
+      "read Natalie Whitmore's history",
+      "read Julian Reed's history",
+      "read between Natalie Whitmore and Sai Roopesh",
+      "searched the Story for “Bellwether House”: nothing found",
+      "looked up the name “The Other Shore”",
+      "read Mara Ellis's history",
+      "read Professor Anika Rao's history",
+      "looked up the name “Los Angeles home”"
+    ]
+  },
+  "reason": "The Story is starting: write its Outline, from now to its end.",
+  "planFollows": false,
+  "dropped": [],
+  "callId": "4fe2d710-1ff2-4f86-8eca-55594996d600",
+  "model": {
+    "provider": "codex",
+    "model": "gpt-6.1-sol"
+  }
+}

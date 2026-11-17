@@ -1,5 +1,6 @@
+import { dropNote } from "../../src/store/beside.js";
 import { describe, expect, it } from "vitest";
-import { besideOf, learnLesson, lessonScope, TASTE_LINES, tasteOf } from "../../src/store/beside.js";
+import { besideOf, learnLesson, lessonScope, tasteOf } from "../../src/store/beside.js";
 import { importStoryFile } from "../../src/storyfile/import.js";
 import { playable } from "../support/play.js";
 import { hogwartsStoryFile, nightTrainStoryFile, writeStoryFile } from "../support/story-files.js";
@@ -17,18 +18,18 @@ describe("Taste", () => {
     await played.play("I sit down.");
     engine.redo(storyId, head(), "keep Ron in the background", true, "trace-redo");
     await engine.settled(storyId);
-    const lesson = "Remember: keep Ron in the background";
-    expect(besideOf(mac, storyId).taste).toEqual([lesson]);
+    expect(besideOf(mac, storyId).taste).toEqual([]);
+    const note = besideOf(mac, storyId).notes.find(note => note.text === "keep Ron in the background")!;
     // Taste is the Story's, not a Path's: another Path has it too, and loses it with the rest.
     const main = mac.tree.currentPath(storyId)!;
     engine.tryAnotherWay(storyId, head(), head(), "trace-try");
     engine.openPath(storyId, main.id, "trace-main");
 
     expect(() => engine.removeTaste(storyId, "a lesson it never learned", "story", "trace")).toThrow(/not a line of Taste/);
-    engine.removeTaste(storyId, lesson, "story", "trace-remove");
+    dropNote(mac, storyId, note.id);
     expect(besideOf(mac, storyId).taste).toEqual([]);
     await played.play("I ask Ron about the match.");
-    const writer = models.requests.filter(request => request.agent === "writer").at(-1)!;
+    const writer = models.requests.filter(request => request.agent === "actor").at(-1)!;
     expect(JSON.stringify(writer)).not.toContain("keep Ron in the background");
   });
 
@@ -45,8 +46,8 @@ describe("Taste", () => {
     engine.redo(storyId, head(), null, false, "trace-again");
     await engine.settled(storyId);
     expect(path().some(payload => payload.kind === "redo" && payload.direction !== null)).toBe(false);
-    const lesson = "Remember: never write her as a first-timer";
-    expect(besideOf(mac, storyId)).toMatchObject({ taste: [lesson], playerTaste: [] });
+    const lesson = "never write her as a first-timer";
+    expect(besideOf(mac, storyId)).toMatchObject({ taste: [], playerTaste: [], notes: [expect.objectContaining({ text: lesson, active: true })] });
 
     // Played on, into the next Scene: its Writer and Actor read the lesson.
     await played.play("I say goodnight.");
@@ -69,18 +70,19 @@ describe("Taste", () => {
     engine.redo(hogwarts.storyId, head(), "don't decide what my character feels", true, "trace-redo");
     await engine.settled(hogwarts.storyId);
     const lesson = "Remember: don't decide what my character feels";
-    expect(besideOf(mac, hogwarts.storyId)).toMatchObject({ taste: [], playerTaste: [lesson] });
+    expect(besideOf(mac, hogwarts.storyId)).toMatchObject({ taste: [], playerTaste: [] });
+    expect(besideOf(mac, hogwarts.storyId).notes).toMatchObject([{ text: "don't decide what my character feels", active: true }]);
 
     const imported = importStoryFile(writeStoryFile(nightTrainStoryFile()), mac);
     if (!imported.ok) throw new Error(JSON.stringify(imported.problems));
     const train = imported.storyId;
-    expect(besideOf(mac, train)).toMatchObject({ taste: [], playerTaste: [lesson] });
+    expect(besideOf(mac, train)).toMatchObject({ taste: [], playerTaste: [] });
     const writers = hogwarts.models.writer.requests.length;
     engine.move(train, "I follow Meera off the train.", mac.tree.currentPath(train)!.headEntryId, "trace-train");
     await engine.settled(train);
     expect(hogwarts.models.writer.requests.length).toBe(writers + 1);
-    expect(asked(hogwarts.models.writer.requests.at(-1)!)).toContain(lesson);
-    expect(asked(hogwarts.models.actor.requests.at(-1)!)).toContain(lesson);
+    expect(asked(hogwarts.models.writer.requests.at(-1)!)).not.toContain(lesson);
+    expect(asked(hogwarts.models.actor.requests.at(-1)!)).not.toContain(lesson);
   });
 
   it("files a lesson to the player's own Taste only when it is about how they read, and the Story's when in doubt", () => {
@@ -100,10 +102,10 @@ describe("Taste", () => {
 
   it("keeps each Taste to ten lessons, dropping the oldest, and a lesson only once", () => {
     const { mac, storyId } = playable(hogwartsStoryFile());
-    for (let n = 1; n <= TASTE_LINES + 1; n++) learnLesson(mac, storyId, "story", `lesson ${n}`);
+    for (let n = 1; n <= 11; n++) learnLesson(mac, storyId, "story", `lesson ${n}`);
     learnLesson(mac, storyId, "story", "lesson 11");
     learnLesson(mac, storyId, "player", "mine");
-    expect(tasteOf(mac, storyId, "story")).toEqual(Array.from({ length: TASTE_LINES }, (_, index) => `lesson ${index + 2}`));
+    expect(tasteOf(mac, storyId, "story")).toEqual(Array.from({ length: 11 }, (_, index) => `lesson ${index + 1}`));
     expect(tasteOf(mac, storyId, "player")).toEqual(["mine"]);
   });
 });

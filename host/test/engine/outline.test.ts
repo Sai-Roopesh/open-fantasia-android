@@ -370,7 +370,8 @@ describe("the-outline › The player sees and steers the Outline", () => {
     await end();
     const after = models.outline.requests.at(-1)!;
     expect(why(after)).toBe("focused");
-    expect(after.prompt).toContain(`- ${text}`);
+    expect(after.prompt).toContain("<active_directions>");
+    expect(after.prompt).toContain(text);
     expect(currentAct(state().outline)!.relationships.find(item => item.people.includes(HERMIONE))!.byEnd).toBe("Still his rival in June, and the better for it.");
   });
 });

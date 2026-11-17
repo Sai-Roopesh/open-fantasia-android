@@ -1,0 +1,49 @@
+{
+  "storyId": "bac249f2-b12d-4cf7-b52e-46acf7e4c584",
+  "title": "Beyond the Arc — After Hours",
+  "backup": "/Users/sairoopesh/Library/Application Support/Open Fantasia/backups/before-after-hours-20261112-173853",
+  "existingEntriesPreserved": 6159,
+  "existingPathHeadsPreserved": 81,
+  "allBiographiesInActualDirectorRequest": true,
+  "playerMovesGenerated": 0,
+  "initialOutlineReady": true,
+  "openingUnplayed": true,
+  "appCard": {
+    "id": "bac249f2-b12d-4cf7-b52e-46acf7e4c584",
+    "title": "Beyond the Arc — After Hours",
+    "standing": "Scene 1 · Upstairs",
+    "detail": "Friday 11:47 pm · with Natalie and Julian",
+    "updated_at": "2026-11-12T17:39:16.940Z"
+  },
+  "sceneCard": {
+    "number": 1,
+    "title": "Upstairs",
+    "place": "Bellwether House guest suite",
+    "at": "Day 1 23:47",
+    "at_label": "Friday 11:47 pm",
+    "people": [
+      {
+        "name": "Natalie Whitmore",
+        "portrait_url": null
+      },
+      {
+        "name": "Julian Reed",
+        "portrait_url": null
+      }
+    ]
+  },
+  "initialPreparationCalls": [
+    {
+      "agent": "director",
+      "provider": "claude",
+      "finished": "2026-11-12T17:39:20.162Z",
+      "error": "Your organization has disabled Claude subscription access for Claude Code · Use an Anthropic API key instead, or ask your admin to enable access"
+    },
+    {
+      "agent": "director",
+      "provider": "codex",
+      "finished": "2026-11-12T17:42:12.976Z",
+      "error": null
+    }
+  ]
+}

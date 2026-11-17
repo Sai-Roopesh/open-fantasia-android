@@ -85,8 +85,8 @@ _Avoid_: Response, generation, bot message, AI turn
 
 **Scene**:
 One thing happening between its people, played Move by Reply. It may move from place to place while that thing goes
-on, as when Draconia and the Player Character argue all the way up the lane. It ends when a Move turns to something
-else or skips more than a couple of hours, or when the player ends it; the Story never closes one.
+on, as when Draconia and the Player Character argue all the way up the lane. Only the player's End Scene action
+ends it. A change of place, activity or time keeps it open, with the place, people and clock updated.
 _Avoid_: Chapter, session, segment
 
 **Outline**:
@@ -142,8 +142,8 @@ clears when the Scene ends.
 _Avoid_: Active speaker, speaker picker, single mode
 
 **Linger**:
-The player's hold on a Scene: while it is on, the Story stops pushing the Scene along and lets the moment
-breathe. It clears when the Scene ends.
+The player's hold on a particular beat: while it is on, the Story lets the moment breathe. It is optional;
+Scenes stay open without it. It clears when the Scene ends.
 _Avoid_: Stay here, pace, dwell
 
 **Redo**:
@@ -151,8 +151,10 @@ Writing the latest Reply again, optionally with a Direction.
 _Avoid_: Regenerate, reroll, retry
 
 **Direction**:
-A short out-of-character note the player gives with a Redo, saying what the Story got wrong, such as "you're
-leaning too much into Ron, move on". It shapes what comes next and never enters the Story itself.
+An out-of-character instruction, saved exactly when the player gives it with a Redo or in Backstage. Every later
+Reply and planning pass reads all active Directions, across Paths and restarts. A Direction applies within its
+original scope; a correction to one encounter does not restage it everywhere. The player can edit, archive and
+restore Directions in Backstage. They never enter the Story as events or character knowledge.
 _Avoid_: Feedback, guidance, instruction, OOC note
 
 **Brief**:
@@ -168,10 +170,10 @@ The Player Character's ordinary week (classes, meals, practice) that the Directo
 _Avoid_: Schedule, timetable, calendar
 
 **Taste**:
-The short lists of lasting lessons about what this player wants, learned from Directions that recur or that the
-player asks it to remember: a Story's own Taste, which belongs to the Story and not to one Path, so a Redo or another
-Path never loses it; and the player's own, about how they like to read, which every Story starts with. The player can
-read and edit both.
+Lasting preferences explicitly maintained by the player: a Story's own Taste belongs to the Story rather than
+one Path, and the player's Taste is shared across Stories. Exact Directions are kept separately; writing a Reply
+does not turn them into model-inferred global rules. Earlier automatic paraphrases remain archived as history
+when their original Directions are recovered.
 _Avoid_: Preferences, profile, memory
 
 ### Paths
@@ -192,15 +194,19 @@ _Avoid_: Undo, revert, delete
 ### Who writes the Story
 
 **Actor**:
-Plays everyone in a Scene and writes the Replies. Chosen per Story.
+Plays everyone in a Scene and writes the Replies. Chosen per Story, with the same selected model and effort
+handling both the creative choice and the complete prose in one generation. The Editor checks it separately.
 _Avoid_: Roleplay model, bot, character AI
 
 **Writer**:
-Shapes each Scene: what it is for, what happens next in it, and when it is done.
+The responsibility for shaping a Scene: what it is for and what happens next in it. This metadata is produced
+in the same call that writes the Reply, rather than passed through a separate model and short instruction.
+Only the player ends a Scene, and no reply count forces a beat or an Arc to move.
 _Avoid_: Scene planner, screenwriter, director
 
 **Chronicler**:
-Records what happened in a Scene, inventing nothing.
+Records what happened in a Scene, inventing nothing. Long Scenes are recorded repeatedly as they grow: each
+checkpoint extends the cumulative account and extracts new Moments only from passages not already recorded.
 _Avoid_: Continuity engine, memory, summarizer
 
 **Weaver**:

@@ -7,7 +7,7 @@ import { freshHome } from "../support/host.js";
 describe("the Mac's model settings (docs/adr/0008)", () => {
   it("lists every job, the Editor, the Director and the Folder included, each on its default until it is set", () => {
     const { home } = freshHome();
-    expect(JOBS).toEqual(["writer", "editor", "chronicler", "director", "weaver", "folder"]);
+    expect(JOBS).toEqual(["editor", "chronicler", "director", "weaver", "folder"]);
     expect(jobModels(home)).toEqual(DEFAULT_JOB_MODELS);
     const opus = { provider: "claude", model: "claude-opus-5-5" };
     expect(DEFAULT_JOB_MODELS).toEqual({

@@ -50,7 +50,7 @@ describe("Backstage over the link", () => {
     expect(how.jobs.map(item => item.job)).toEqual(["actor", "writer", "editor", "chronicler", "weaver", "director", "folder"]);
     expect(job("weaver")).toMatchObject({ second_model: 1, failed: 0 });
     expect(job("chronicler")).toEqual({ job: "chronicler", calls: 10, second_model: 0, failed: 0 });
-    expect(job("writer")).toMatchObject({ calls: 10, second_model: 0, failed: 0 });
+    expect(job("actor")).toMatchObject({ calls: 10, second_model: 0, failed: 0 });
     expect(how.pace.map(row => row.scene_number)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
     expect(how.pace.every(row => row.intensity === 2)).toBe(true);
     expect(picks).toBe(5);

@@ -99,7 +99,7 @@ CREATE TABLE IF NOT EXISTS pairing_codes (
  * The shape of the State that saved States have. When the State gains or changes a field, this goes up, and the
  * saved States are thrown away the next time the store opens: they are a cache, and the entries are the truth.
  */
-export const STATE_SHAPE = 8;
+export const STATE_SHAPE = 9;
 
 /**
  * What a Path card needs (openspec paths): how the Path began, the entry it branched from, whether the player has
@@ -132,7 +132,7 @@ function addPathColumns(db: Db): void {
  * What a call looked up, a line each, as JSON (docs/adr/0018). A store from before agents could look things up gains
  * it in place.
  */
-const CALL_COLUMNS: [string, string][] = [["lookups", "TEXT"]];
+const CALL_COLUMNS: [string, string][] = [["lookups", "TEXT"], ["usage", "TEXT"]];
 
 function addCallColumns(db: Db): void {
   const has = new Set((db.prepare("PRAGMA table_info(calls)").all() as { name: string }[]).map(column => column.name));

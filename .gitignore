@@ -11,6 +11,11 @@ local.properties
 # Runtime data: the Mac's Story store lives outside the repo
 *.db
 *.db-journal
+*.db-wal
+*.db-shm
+
+# Unrelated local game extraction and APK modification workspace
+/nadia-mod/
 
 # Gradle home for sandboxed builds
 android/.gradle-user/

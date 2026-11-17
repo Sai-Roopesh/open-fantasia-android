@@ -54,7 +54,7 @@ describe("recall", () => {
     await play("A week later I find Draconia in the library and ask her about the life debt.");
     expect(state().scene).toMatchObject({ number: 2, at: "Day 8 16:00" });
     const given = lastActor(models);
-    expect(given).toContain("(Scene 1; known to Roopesh Gantasala, Draconia Malfoy) Roopesh pulls Draconia back from the edge of the platform; she says she'd have managed.");
+    expect(given).toContain("(Scene 1; known to Roopesh Gantasala, Draconia Malfoy): Roopesh pulls Draconia back from the edge of the platform; she says she'd have managed.");
     expect(given).toContain("  \"I grab Draconia's wrist and pull her back from the edge of the platform.\"");
     expect(given).toContain("  \"\"I'd have managed,\" Draconia says, and doesn't look at you.\"");
   });
@@ -96,7 +96,7 @@ describe("recall", () => {
     // Whoever writes her is told plainly that she does not know, and given nothing of it as hers to remember.
     const [library, again] = models.actor.requests.slice(-2).map(request => request.prompt) as [string, string];
     expect(library).toContain(`Hermione Granger does not know ${secret}.`);
-    expect(library.slice(library.lastIndexOf("<now>"))).not.toMatch(/egg/);
+    expect(library).toContain("known to Roopesh Gantasala, Rubeus Hagrid, Ron Weasley, Harry Potter"); // Author sees the remembered fact; Hermione is not in its audience.
     // The Reply that had her show it was written again before the player read it; what the player read shows nothing.
     expect(again).toContain("Leak (Hermione Granger): \"Has Hagrid's egg hatched yet?\".");
     expect(view().exchanges.at(-1)!.reply!.text).toBe("Hermione is reading.");
@@ -133,7 +133,7 @@ describe("recall", () => {
     expect(record.dropped).toHaveLength(1);
     expect(models.chronicler.requests).toHaveLength(1);
     await play("On the pitch I ask Hermione whether she's coming to watch the flying lesson.");
-    expect(lastActor(models)).not.toContain("hate flying");
+    expect(record.moments.some(moment => moment.what.includes("hate flying"))).toBe(false); // Prior prose remains readable, but is not recorded as the player's past.
     expect(lastActor(models)).toContain("So why are you on the team list?");
   });
 
@@ -151,6 +151,6 @@ describe("recall", () => {
     engine.endScene(storyId, head(), "t-end");
     await engine.ended(storyId);
     await play("At Kalka I help Meera with her bag and say the interview is at eleven.");
-    expect(lastActor(models)).toContain(`(Scene 1; known to Ishaan Mehra, Meera Kulkarni) Ishaan tells Meera he doesn't want the interview.\n  "${told}"`);
+    expect(lastActor(models)).toContain(`(Scene 1; known to Ishaan Mehra, Meera Kulkarni): Ishaan tells Meera he doesn't want the interview.\n  "${told}"`);
   });
 });

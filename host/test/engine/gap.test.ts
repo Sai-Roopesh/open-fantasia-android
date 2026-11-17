@@ -76,8 +76,8 @@ describe("the Gap", () => {
     const move = lastMove();
     expect((move.payload as MoveWritten).text).toMatch(/^I spend the time until then quietly in the Gryffindor common room\./);
     // The Gap is woven before the Writer plans the Scene, and McGonagall's summons goes on without him, noticed.
-    const order = models.requests.filter(request => ["weaver", "writer"].includes(request.agent)).map(request => request.agent);
-    expect(order.slice(-2)).toEqual(["weaver", "writer"]);
+    const order = models.requests.filter(request => ["weaver", "actor"].includes(request.agent)).map(request => request.agent);
+    expect(order.slice(-2)).toEqual(["weaver", "actor"]);
     expect(models.weaver.requests.at(-1)!.prompt).toContain("- G1 Saturday 7 September 1991, 9:00 am, McGonagall's office: Your account of the troll. With Minerva McGonagall, Hermione Granger. He was expected.");
     // The World's move over the Gap is on the Path right after the Move, and what was missed keeps its time and place.
     const gap = mac.tree.pathTo(head()).find(entry => entry.parentId === move.id)!;
@@ -164,7 +164,7 @@ describe("the Gap", () => {
     engine.choose(storyId, { after: head(), kind: "go", happening: id("Outside the hospital wing"), gap: null }, "trace-go");
     await engine.settled(storyId);
     const atTheHospital = models.actor.requests.at(-1)!;
-    expect(`${atTheHospital.system}\n${atTheHospital.prompt}`).not.toContain("asked Hermione where he was");
+    expect(`${atTheHospital.system}\n${atTheHospital.prompt}`).toContain("asked Hermione where he was"); // Author knows; characters still use their own knowledge.
 
     models.writer.then(writer({ leaves_scene: true, frame: { title: "The office", place: "McGonagall's office", purpose: "p", exit: "e" }, comes_in: ["Minerva McGonagall"], minutes: 60 }));
     engine.move(storyId, "At noon I knock on McGonagall's door.", head(), "trace-office");

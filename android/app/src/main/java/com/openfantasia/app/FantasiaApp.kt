@@ -80,7 +80,7 @@ import kotlinx.coroutines.launch
                             removeTaste = model::removeTaste, modifier = Modifier.weight(1f), reword = { scope, line -> model.openStoryEditor(StoryEdit.Taste(line, scope)) },
                             brief = scene.brief, editBrief = { model.openStoryEditor(StoryEdit.Brief(scene.brief.more, scene.brief.less)) },
                             besideEnabled = state.canChangeBeside, note = state.noteDraft, writeNote = model::writeNote, sendNote = model::sendNote,
-                            deleteNote = model::deleteNote)
+                            deleteNote = model::deleteNote, editNote = model::editNote)
                     } else if (state.showingStory) {
                         StoryScreen(state.story, state.canChangePath, back = model::closeStoryScreen, edit = model::openStoryEditor,
                             setLength = model::setReplyLength, modifier = Modifier.weight(1f))

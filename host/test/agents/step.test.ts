@@ -224,11 +224,11 @@ describe("an agent's step with lookups (docs/adr/0018; the-storys-mind design de
       const given = new Models(story.mac.db, { antigravity: agy });
       const request = { agent: "writer" as const, system: "You plan each Reply.", prompt: "Plan the Reply.", schema: { type: "object" }, traceId: "t", storyId: story.storyId, tools };
       const result = await runAgent(given, [GEMINI], request, answer => ({ ok: true, value: answer }), BUDGETS.writer, new AbortController().signal);
-      expect(result).toMatchObject({ value: { note: "Meera looks up." }, model: GEMINI, lookups: [] });
+      expect(result).toMatchObject({ value: { note: "Meera looks up." }, model: GEMINI, lookups: [expect.stringContaining("prepared evidence:")] });
       // The call kept is the one made: without tools, which the model was never told of.
       const row = story.mac.db.prepare("SELECT request, lookups FROM calls WHERE id = ?").get(result.callId) as { request: string; lookups: string | null };
       expect(JSON.parse(row.request).tools).toBeUndefined();
-      expect(row.lookups).toBeNull();
+      expect(JSON.parse(row.lookups ?? "[]")).toEqual([expect.stringContaining("prepared evidence:")]);
       const sent = JSON.parse(readFileSync(log, "utf8").trim().split("\n")[0]!) as { message: { message: { content: string } } };
       expect(sent.message.message.content).not.toMatch(/search_story|read_scene/);
     } finally {

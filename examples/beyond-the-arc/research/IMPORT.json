@@ -1,0 +1,25 @@
+{
+  "title": "Beyond the Arc",
+  "storyId": "783cb88c-d8a2-491d-9f0f-3d0799faa24d",
+  "created": true,
+  "home": "/Users/sairoopesh/Library/Application Support/Open Fantasia",
+  "folder": "/Users/sairoopesh/Downloads/open-fantasia/examples/beyond-the-arc",
+  "headEntryId": "f74ae602-622e-4949-92ea-bdbcb807f574",
+  "opening": "The family colours",
+  "clock": "Day 1 16:35",
+  "dayOne": "2026-10-03",
+  "characters": 39,
+  "previousStories": [
+    "The Night Train to Kalka",
+    "The Malfoy Problem (first play)",
+    "The Malfoy Problem",
+    "The Malfoy Problem",
+    "The Malfoy Problem",
+    "Complex Cases"
+  ],
+  "previousPathsUnchanged": true,
+  "playerMoves": 0,
+  "modelCalls": 0,
+  "sourceSha256": "9d90899df1ffa0d8aef9031faefd85c567d4bfe1aa630ae5bc5782055e7b3ba7",
+  "importedAt": "2026-11-06T15:11:54.175Z"
+}

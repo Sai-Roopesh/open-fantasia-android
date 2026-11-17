@@ -1,0 +1,1335 @@
+# Beyond the Arc — agreed with the player, 6 November 2026.
+# NBA sources and expanded background are in research/.
+"format": 1
+"title": |-
+  Beyond the Arc
+"premise": >-
+  The 2026-27 NBA season, lived as Sai Roopesh: nineteen, a Bangalore-born orphan, Stanford AI PhD student,
+  Golden State Warrior and Stephen Curry's protege. Two seasons have brought two championships, two MVPs and two
+  Finals MVPs. He averages over sixty points, shoots seventy-five percent from three and never misses a free
+  throw. The league sees its next greatest player. His girlfriend of three years, Natalie Whitmore, loves him
+  deeply, knows his insecurity and wants a life with him. Her beloved brother Adrian is a Suns star whose title
+  chances Roopesh keeps ending; her beautiful, charismatic ex Julian Reed plays for the Lakers and still belongs
+  to the Whitmore family. Basketball and personal life carry the Story equally. Public greatness does not buy
+  the feeling of belonging to a family, or make an old photograph stop hurting.
+"style": >-
+  Contemporary sports drama and intimate relationship drama, equally weighted, in close third person around the
+  people beside Roopesh. Basketball is vivid, tactically literate and thrilling: decisions, timing, movement,
+  matchups, crowds and the language of players, with numbers that add up. Roopesh's extraordinary established
+  ability is taken seriously and remains extraordinary. Other professionals are skilled, competitive people with
+  their own careers. Away from the court, use specific gestures, unguarded affection, jokes, family habits,
+  arguments and awkward silences. Natalie and Roopesh have three years together: she knows his humour, habits
+  and insecurity, initiates affection and desires his company, and has loved him since before his NBA fame.
+  Their relationship has pleasure and ordinary happiness as well as conflict. She is neither discovering his
+  insecurity for the first time nor a therapist continually explaining it to him. Her love, her loyalty to
+  Adrian, and her complicated history with Julian can all be true in the same scene. Let loyalties cost
+  something. She can defend her brother, make an unfair comparison, withhold a painful detail, become defensive
+  or choose a family obligation without ceasing to love Roopesh. Understanding hurt does not instantly settle
+  disagreement. Julian's beauty, their real old happiness and his easy intimacy with the family have force
+  without every conversation becoming a comparison. People pursue other things, change tactics and remember the
+  consequences of what they said. Avoid repeated apology speeches, therapeutic vocabulary and identical
+  reassurance exchanges. Dialogue sounds spoken; affection is character-specific and can survive an unresolved
+  argument. Secrets have named owners and come out through something someone does, not omniscient revelations.
+  The player alone writes Roopesh's present speech, choices, deliberate actions, thoughts and feelings. His
+  background establishes history, not a compulsory emotional reaction to each new event. Give him room to
+  respond. All present-day romantic characters are adults; school-age backstory is described through nonsexual
+  friendship, courtship and family history.
+"reply_length": |-
+  full
+"actor":
+  "provider": |-
+    codex
+  "model": |-
+    gpt-6.1-sol
+  "effort": |-
+    high
+"clock":
+  "starts": |-
+    Day 1 16:35
+  "day_one": |-
+    2026-10-03
+"world":
+  "summary": >-
+    The real thirty-team NBA of 2026-27, with its real players and coaches, grounded in the roster register
+    below. San Francisco, Stanford and the Whitmore family's Phoenix home anchor a life of games, travel,
+    research, celebrity and family obligations. This is an alternate history: Roopesh, Adrian Whitmore and
+    Julian Reed are added players; Golden State won the 2025 and 2026 championships. Live results belong to
+    play.
+  "history": >-
+    ESTABLISHED LEAGUE REGISTER, 2026-27. These are the real baseline team assignments, frozen for this
+    alternate Story; they are not news about events after the opening. Add Sai Roopesh to GSW, Adrian Whitmore
+    to PHX and Julian Reed to LAL. Bring other roster players forward as their games enter the Story.
+
+    ATL Atlanta Hawks: Luguentz Dort, RayJ Dennis, Keshon Gilbert, Jalen Johnson, Aaron Wiggins, CJ McCollum,
+    Kingston Flemings, Dyson Daniels, Nickeil Alexander-Walker, Dorian Finney-Smith, Henri Veesaar, Asa Newell,
+    Onyeka Okongwu, Mouhamed Gueye, Zuby Ejiofor, Jalen Wilson, Corey Kispert, Jock Landale.
+
+    BOS Boston Celtics: Jayson Tatum, Mitchell Robinson, Ron Harper Jr., Derrick White, Payton Pritchard, Chris
+    Cenac Jr., Paul George, Dillon Mitchell, Jordan Walsh, Hugo González, Sam Hauser, Mike Conley, Luka Garza,
+    Baylor Scheierman, Amari Williams, Neemias Queta, Devin Carter.
+
+    BKN Brooklyn Nets: Josh Minott, Mikel Brown Jr., Keon Ellis, Danny Wolf, Drake Powell, Egor Dëmin, Joshua
+    Jefferson, Nolan Traore, Moritz Wagner, Terance Mann, Grant Nelson, Michael Porter Jr., Day'Ron Sharpe, Noah
+    Clowney, Julius Randle, Chaney Johnson, Tyler Bilodeau, Ben Saraf.
+
+    CHA Charlotte Hornets: Royce O'Neale, Naz Reid, Grant Williams, Coby White, Sion James, Christian Anderson,
+    Kon Knueppel, Grayson Allen, Michael Ajayi, Ryan Kalkbrenner, Moussa Diabaté, PJ Hall, Dennis Schröder,
+    Kylan Boswell, Hannes Steinbach, Brandon Miller, Tidjane Salaün, Liam McNeeley.
+
+    CHI Chicago Bulls: Noa Essengue, Josh Giddey, Dailyn Swain, Buddy Hield, Caleb Wilson, Nic Claxton, Leonard
+    Miller, Zach Collins, Matas Buzelis, Jordan Hawkins, Tobe Awaka, Jaylin Sellers, Norman Powell, Jalen Smith,
+    Tre Jones, Isaac Okoro, Patrick Williams.
+
+    CLE Cleveland Cavaliers: Norchad Omier, James Harden, Thomas Bryant, Evan Mobley, Sam Merrill, Peyton
+    Watson, Craig Porter Jr., Meleek Thomas, Khalifa Diop, Jaylon Tyson, Tristan Enaruna, Tyrese Proctor,
+    Jarrett Allen, Mario Hezonja, Nae'Qwan Tomlin, Donovan Mitchell, Ernest Udeh, Jr..
+
+    DAL Dallas Mavericks: Max Christie, Walter Clayton Jr., Dereck Lively II, Naji Marshall, Marcus Sasser, Jett
+    Howard, Zaccharie Risacher, Kyrie Irving, Tarik Biberović, Morez Johnson Jr., Caleb Martin, Daniel Gafford,
+    P.J. Washington, Moussa Cissé, Cooper Flagg, Tobi Lawal, Santi Aldama, Sergio de Larrea.
+
+    DEN Denver Nuggets: Christian Braun, Cam Whitmore, Julian Strawther, Marvin Bagley III, Tyus Jones, Trevon
+    Brazile, Ryan Nembhard, DeMar DeRozan, Alpha Diallo, Bryce Hopkins, DaRon Holmes II, Nikola Jokić, Spencer
+    Jones, Zeke Nnaji, Cameron Johnson, Jamal Murray, Aaron Gordon.
+
+    DET Detroit Pistons: Jalen Duren, Cade Cunningham, Ronald Holland II, Paul Reed, Chaz Lanier, Ausar
+    Thompson, Taurean Prince, Isaac Jones, Isaiah Joe, John Collins, Ebuka Okorie, Daniss Jenkins, Kevin
+    Huerter, Javonte Green, Ugonna Onyenso, Tolu Smith, Duncan Robinson, Elijah Harkless.
+
+    GSW Golden State Warriors: Gary Payton II, Yaxel Lendeborg, Brandin Podziemski, Will Richard, Moses Moody,
+    Kristaps Porziņģis, De'Anthony Melton, Jimmy Butler III, Brandon Williams, Gui Santos, LJ Cryer, Al Horford,
+    Draymond Green, Charles Bassey, Stephen Curry, Georges Niang, Malevy Leons, Graham Ike.
+
+    HOU Houston Rockets: Amen Thompson, Bruce Thornton, Julian Phillips, Fred VanVleet, Kevin Durant, Jae'Sean
+    Tate, Oscar Tshiebwe, Jabari Smith Jr., Steven Adams, Reed Sheppard, Tari Eason, Quadir Copeland, Isaiah
+    Crawford, Alperen Sengun, Clint Capela, Bogdan Bogdanović, Marcus Smart.
+
+    IND Indiana Pacers: Tyrese Haliburton, Obi Toppin, Andrew Nembhard, Braden Smith, Jarace Walker, T.J.
+    McConnell, Kelly Oubre Jr., Johnny Furphy, Jalen Slawson, Larry Nance Jr., Aaron Nesmith, Kobe Brown, Ben
+    Sheppard, Quenton Jackson, Jay Huff, Ivica Zubac, Pascal Siakam.
+
+    LAC LA Clippers: Keaton Wagler, Bradley Beal, Kobe Sanders, Derrick Jones Jr., Brandon Ingram, Kris Dunn,
+    Gradey Dick, Darius Garland, Brook Lopez, Nick Martinelli, Yanic Konan Niederhäuser, Baba Miller, Blake
+    Wesley, Jalen Pickett, Jordan Miller, Isaiah Jackson, Cam Christie, Rui Hachimura, Max Strus.
+
+    LAL Los Angeles Lakers: Lawson Lovering, Adou Thiero, Jarred Vanderbilt, Matisse Thybulle, Quentin Grimes,
+    Jaden Hardy, Bronny James, Collin Sexton, Ziaire Williams, Jake LaRavia, Walker Kessler, Austin Reaves,
+    Chris Mañon, Cameron Carr, Arthur Kaluma, Sandro Mamukelashvili, Kevon Looney, Luka Dončić.
+
+    MEM Memphis Grizzlies: Jaylen Wells, Scotty Pippen Jr., Ty Jerome, Jerami Grant, Javon Small, Zach Edey,
+    Kris Murray, Olivier-Maxence Prosper, Carson Cooper, Jahmai Mashack, Taylor Hendricks, Cedric Coward, Cam
+    Spencer, Cameron Boozer, Isaiah Stewart, Karim López, Quinten Post, GG Jackson.
+
+    MIA Miami Heat: Simone Fontecchio, Davion Mitchell, Ryan Conwell, Nikola Jović, Giannis Antetokounmpo, Nick
+    Richards, Pelle Larsson, Tim Hardaway Jr., Klay Thompson, Dru Smith, Bam Adebayo, Myron Gardner, Keshad
+    Johnson, Andrew Wiggins, Tre Donaldson, Vladislav Goldin, Bobby Portis Jr..
+
+    MIL Milwaukee Bucks: Jericho Sims, Brayden Burries, Myles Turner, Gary Trent Jr., Kel'el Ware, Tyler Herro,
+    Caris LeVert, Ryan Rollins, Nate Ament, Kyle Kuzma, Kam Jones, AJ Green, Ousmane Dieng, Bogoljub Marković,
+    Jaime Jaquez Jr., Kasparas Jakučionis, Cormac Ryan, Pete Nance.
+
+    MIN Minnesota Timberwolves: Donte DiVincenzo, LaMelo Ball, Jaden McDaniels, Terrence Shannon Jr, Anthony
+    Edwards, Jaylen Clark, Bones Hyland, Cody Williams, Ayo Dosunmu, Zyon Pullin, Joan Beringer, Jonathan
+    Kuminga, Rudy Gobert, Isaiah Evans, Trey Lyles, Rocco Zikarsky.
+
+    NOP New Orleans Pelicans: Jeremiah Fears, Zion Williamson, Herbert Jones, Jordan Poole, Dejounte Murray,
+    DeAndre Jordan, Malik Dia, Trendon Watford, Jaron Pierre Jr., Bryce McGowens, Julian Reese, AJ Johnson,
+    Karlo Matković, Yves Missi, Derik Queen, Bennedict Mathurin, Trey Murphy III, Saddiq Bey.
+
+    NYK New York Knicks: Andre Drummond, Jordan Clarkson, Dalton Knecht, Miles McBride, Josh Hart, Pacôme
+    Dadiet, Jose Alvarado, OG Anunoby, Jalen Brunson, Tyler Kolek, Jaden Akins, Mikal Bridges, Karl-Anthony
+    Towns, James Wiseman, Landry Shamet, Mohamed Diawara, Tyler Nickel.
+
+    OKC Oklahoma City Thunder: Shai Gilgeous-Alexander, Jared McCain, Jaylin Williams, Chet Holmgren, Jalen
+    Williams, Alex Caruso, Thomas Sorber, Bennett Stirtz, Aday Mara, Micah Peavy, Josh Dix, Cason Wallace,
+    Brooks Barnhizer, Ajay Mitchell, Kenrich Williams, Nikola Topić, Isaiah Hartenstein, Dalen Terry.
+
+    ORL Orlando Magic: Anthony Black, Jonathan Isaac, Jevon Carter, Desmond Bane, Jalen Suggs, Paolo Banchero,
+    Jamal Cain, Nikola Vučević, Jase Richardson, Colin Castleton, Franz Wagner, Tristan da Silva, Izaiyah
+    Nelson, Alex Morales, Wendell Carter Jr., Goga Bitadze, Noah Penda.
+
+    PHI Philadelphia 76ers: Tyrese Maxey, Labaron Philon Jr., Kentavious Caldwell-Pope, Anfernee Simons, Jaylen
+    Brown, Caleb Love, Justin Edwards, Rayan Rupert, Joel Embiid, LeBron James, Dominick Barlow, Adem Bona,
+    Jabari Walker, Dean Wade, Ariel Hukporti, VJ Edgecombe, Tacko Fall.
+
+    PHX Phoenix Suns: Ryan Dunn, Drew Timme, Dillon Brooks, Jalen Green, Luke Kennard, Khaman Maluach, Oso
+    Ighodaro, Collin Gillespie, Devin Booker, Jamaree Bouyea, Koa Peat, Rasheer Fleming, Miles Bridges, Jordan
+    Goodwin, Mark Williams, Duop Reath, Pat Spencer.
+
+    POR Portland Trail Blazers: Damian Lillard, Scoot Henderson, Ja Morant, John Tonje, Jrue Holiday, Deni
+    Avdija, Micah Potter, Branden Carlson, Chris Youngblood, Yang Hansen, Shaedon Sharpe, Donovan Clingan, Vít
+    Krejčí, Jayson Kent, Toumani Camara, Robert Williams III, Sidy Cissoko.
+
+    SAC Sacramento Kings: Malik Monk, Sean Pedulla, Darius Acuff Jr., Zach LaVine, Precious Achiuwa, Nique
+    Clifford, Domantas Sabonis, Keegan Murray, De'Andre Hunter, Leaky Black, Jonathan Mogbo, Ben Simmons,
+    Daeqwon Plowden, Dylan Cardwell, Alex Karaban, Emanuel Sharp, Maxime Raynaud.
+
+    SAS San Antonio Spurs: Jordan McLaughlin, Victor Wembanyama, Dylan Harper, Keldon Johnson, De'Aaron Fox,
+    Stephon Castle, Luke Kornet, Tarris Reed Jr., Carter Bryant, Maliq Brown, Ja'Kobi Gillespie, Jayden
+    Quaintance, Tobias Harris, Devin Vassell, David Jones Garcia, Julian Champagnie, Harrison Barnes.
+
+    TOR Toronto Raptors: Jamal Shead, Kawhi Leonard, Scottie Barnes, Immanuel Quickley, Jaden Bradley, RJ
+    Barrett, Kevin McCullar Jr., Nate Bittle, Kyle Anderson, Ja'Kobe Walter, Malachi Smith, Jakob Poeltl, Allen
+    Graves, Collin Murray-Boyles, Trayce Jackson-Davis, Alijah Martin, Jamison Battle.
+
+    UTA Utah Jazz: Harrison Ingram, Kobe Bufkin, Kyle Filipowski, Keyonte George, Josh Green, Isaiah Collier,
+    Svi Mykhailiuk, Jaxson Hayes, Tony Bradley, Trey Alexander, Ace Bailey, Jaren Jackson Jr., Josh Okogie,
+    Darryn Peterson, Lauri Markkanen, Brice Sensabaugh, Jusuf Nurkić, Mo Bamba.
+
+    WAS Washington Wizards: Bilal Coulibaly, Tristan Vukčević, Tre Mann, Trae Young, AJ Dybantsa, Jamir Watkins,
+    Bub Carrington, Deandre Ayton, Justin Champagnie, Tre Johnson, Anthony Gill, Kyshawn George, Alex Sarr,
+    Khris Middleton, Anthony Davis, Reece Beekman, Will Riley, Felix Okpara.
+  "places":
+    - "name": |-
+        Chase Center
+      "description": >-
+        Golden State's arena in San Francisco's Mission Bay; court, bench, tunnels, family seats and separate
+        restricted team areas.
+    - "name": |-
+        The Warriors practice facility
+      "description": >-
+        Courts and film rooms at the Chase Center complex; shooting work, treatment and team practice happen on
+        a schedule.
+    - "name": |-
+        Roopesh's Palo Alto home
+      "description": >-
+        Close to Stanford; Natalie keeps clothes and books here, a photograph booth strip is on the fridge, and
+        an ordinary kitchen surrounds two extraordinary trophies.
+    - "name": |-
+        Natalie's Stanford apartment
+      "description": >-
+        Shared with Leah Park; coursework, plants, old family pictures and a drawer of photographs she has never
+        properly sorted.
+    - "name": |-
+        The Stanford AI laboratory
+      "description": >-
+        Mira Deshpande's fictional research group on the real Stanford campus; whiteboards, meetings,
+        experiments, collaborators and stubborn failed results.
+    - "name": |-
+        The Whitmore house
+      "description": >-
+        The family's Phoenix home, paid off by Adrian; Julian knows the kitchen and the old seating arrangements.
+    - "name": |-
+        The Whitmore Foundation hospitality lounge
+      "description": >-
+        Chase Center's event lounge for today's fictional showcase; donors, players' guests and a family
+        photograph wall, without access to private locker rooms.
+    - "name": |-
+        The Lakers' arena
+      "description": >-
+        Crypto.com Arena in Los Angeles; Julian's home games and Warriors road games are distinct from charity
+        exhibitions.
+    - "name": |-
+        The Suns' arena
+      "description": >-
+        The Suns' Phoenix home, called Mortgage Matchup Center in the verified 2026-27 reference; Adrian's
+        professional territory and the 2027 All-Star host city.
+  "institutions":
+    - "name": |-
+        Golden State Warriors
+      "description": >-
+        Steve Kerr's team, defending back-to-back champions here, pursuing a three-peat with Curry and Roopesh
+        sharing the backcourt.
+    - "name": |-
+        Stanford University
+      "description": >-
+        Roopesh's real university and Natalie's; their fictional personal academic histories do not change its
+        location or turn a PhD into an honorary prize.
+    - "name": |-
+        The Whitmore Foundation
+      "description": >-
+        Adrian's fictional scholarship charity, run operationally by Claire; its work for injured workers'
+        children is real within the Story and matters beyond tonight's romance.
+    - "name": |-
+        The NBA and NBPA
+      "description": >-
+        League and players' union; scheduling, officiating, contracts, discipline, media obligations and
+        eligibility are institutional matters, not a star's unilateral decisions.
+"rules":
+  - >-
+    CANON: Sai Roopesh, born 11 March 2007 in Bangalore, is nineteen, five foot seven, skinny and an orphan. His
+    American school scholarship began at twelve.
+  - >-
+    CANON: Stanford at fourteen; undergraduate mathematics/computer science completed June 2024; AI PhD begun
+    that autumn. A fictional NBA/NBPA exception allowed his June 2024 draft at seventeen. This is his third NBA
+    season.
+  - >-
+    CANON: GSW won the 2025 and 2026 Finals. Roopesh won both MVPs, both Finals MVPs and 2024-25 Rookie of the
+    Year. Latest season: 63.2 points, 10.4 assists, 4.6 rebounds, 75% threes, 100% free throws. Seventy- and
+    seventy-five-point nights fit his ability.
+  - >-
+    Curry and Draymond each have six rings: 2015, 2017, 2018, 2022, 2025, 2026. Others have only personally
+    earned titles. Curry remains the historic greatest shooter, Roopesh his protege and astonishing successor;
+    they are not automatic enemies.
+  - >-
+    Alternate GSW: 68-14 in 2024-25, Boston beaten 4-1 in the Finals, Roopesh 60.8/9.1/4.0. In 2025-26: 74-8,
+    New York beaten 4-2. These replace actual results and MVPs for those seasons, not earlier history or future
+    results.
+  - >-
+    Natalie, born 20 February 2006, is twenty. They began dating 8 October 2023 before NBA fame; their third
+    anniversary is in five days. Julian relationship ended August 2023. No secret physical affair has occurred
+    with him during her present relationship.
+  - >-
+    Natalie knows his insecurity and loves him deeply; family loyalty remains powerful. The Whitmores know him
+    through three years of dinners and celebrations: no first introduction. Future feelings, decisions,
+    betrayals and reconciliations are played.
+  - >-
+    Adrian (Suns), Julian (Lakers) and the Whitmores are invented, as are Leah, Mira, Anika and Marcus Bell.
+    They are not renamed real players. School-age romantic history stays nonsexual. Roopesh controls his present
+    deliberate actions and inner life.
+  - >-
+    GSW, PHX and LAL each have one fictional supplementary standard-contract slot for their added player,
+    preserving real rosters. Real ordinary limits are fifteen standard plus three two-way contracts. Membership
+    does not guarantee eligibility, health or minutes.
+  - >-
+    The full NBA.com 2026-27 roster snapshot, checked 6 November 2026, is the opening baseline. Later real
+    scores, trades and injuries are not future Story knowledge. The Director brings other registered players
+    into the active Cast as their games enter play.
+  - >-
+    COURT: Five players each; four twelve-minute quarters, five-minute overtimes. Free throws score one, other
+    baskets two or three. Legal substitutions change the lineup. Exhibitions do not count in standings,
+    championships or season awards.
+  - >-
+    COURT: Fresh shot clock twenty-four seconds; fourteen after an offensive rebound from a shot hitting the
+    rim. Eight seconds to advance; offensive and defensive three-second rules. After a make opponents get
+    possession.
+  - >-
+    COURT: Normally six personal fouls disqualify. Shooting fouls yield two/three free throws or one after a
+    make. Quarter team penalty normally follows four team fouls, with last-two-minute provisions.
+    Technical/flagrant penalties are separate.
+  - >-
+    COURT: Arc 23 feet 9 inches above the break, 22 feet in corners; touching the line makes a shot worth two.
+    Percentages are makes divided by attempts over the stated sample, not an identical line every game. Perfect
+    free throws are Roopesh-specific canon.
+  - >-
+    GAME: Preserve period, game clock, score, possession, lineups, fouls and individual totals. Give unobtrusive
+    score/time anchors at meaningful changes. Arithmetic must match plays; do not double-count an and-one or
+    credit a passer with the scorer points.
+  - >-
+    AGENCY: Resolve others and consequences around Roopesh Move; never silently choose his shot, pass, words or
+    celebration. Simulate a quarter/longer span only when he delegates it; otherwise leave the next meaningful
+    choice to him. Future wins are not fixed.
+  - >-
+    TACTICS: Kerr uses spacing, screens, cuts, handoffs and reads around both stars. Curry relocates after
+    passing; Draymond organizes defence and short-roll reads. Doubling a star concedes an advantage elsewhere.
+    Other professionals remain skilled.
+  - >-
+    TACTICS: Drop, switch, hedge, trap/blitz and top-lock are distinct coverages. Traps create passing
+    advantages, switches change matchups. Height affects angles and assignments; Roopesh ability does not change
+    his height or make every opponent foolish.
+  - >-
+    SEASON: Thirty teams, two fifteen-team conferences, six divisions; eighty-two regular-season games. Top six
+    per conference qualify directly; seven to ten use the Play-In. Playoff series best-of-seven. Western rivals
+    cannot meet in the NBA Finals.
+  - >-
+    SEASON: 20 October 2026-11 April 2027. GSW opens at Lakers 21 October, home against Memphis 23 October; ring
+    presentation before that home opener. Scene times are local arena wall time, not India or television Eastern
+    time.
+  - >-
+    SEASON: Official All-Star weekend is 19-21 February 2027 in Phoenix, separate from October charity play. NBA
+    Cup, All-Star and Finals are distinct. Cup championship does not add an ordinary standings win.
+  - >-
+    SHOWCASE: 3 October, Chase Center, 17:00 Pacific: GSW vs Foundation Select, a fictional charity game.
+    Ordinary NBA scoring, four twelve-minute quarters, officials and short veteran rotations. Not an official
+    league fixture or All-Star Game.
+  - >-
+    SHOWCASE: GSW starters Roopesh, Curry, Gui Santos, Draymond, Porzingis; Select Booker, Julian, Adrian,
+    Durant, Jokic. Kerr coaches GSW, Marcus Bell Select. Select numbers: Booker 1, Julian 18, Adrian 21, Durant
+    35, Jokic 15. Guest jerseys do not change their real NBA employers.
+  - >-
+    SHOWCASE: Butler and Moody rehabilitate knee injuries and do not play today. Other minutes follow rotations.
+    Roopesh wears 27, Adrian 21, Julian 18. Opening score 0-0; Q1 not begun; every game statistic zero.
+  - >-
+    LIFE: Allow time for travel, treatment, film, practice, sleep, sponsors and media, and San Francisco-Palo
+    Alto traffic. PhD meetings, collaborators and failed experiments matter independently; basketball brilliance
+    does not solve research.
+  - >-
+    KNOWLEDGE: Arena attendance is not access to private conversations. Only Nat and Julian know the June
+    reunion request and refusal. Journalists, family and teammates learn secrets through actual disclosure or
+    discovery.
+  - >-
+    HORIZON: The Story continues through the postseason and June 2027 summer decisions, not just the
+    regular-season finale. Playoff qualification, every series result, a Finals appearance and a third title
+    remain contingent on play; unpublished exact Finals dates are not asserted as verified.
+"routine":
+  - >-
+    Team practice, treatment and film are assigned by Kerr around the real game schedule; no rigid daily full
+    practice during road back-to-backs.
+  - >-
+    Home-game days usually have morning work or shootaround, afternoon rest and arena arrival well before
+    tipoff; the fixture determines the actual times.
+  - >-
+    Road trips mean charter travel, team hotels and limited private time; Natalie has her own studies and does
+    not attend every road game.
+  - >-
+    Mira's research-group meeting is Monday at 10:00 Pacific when Roopesh is home; road participation or absence
+    is arranged, not assumed.
+  - >-
+    Natalie has Stanford coursework and foundation commitments; evenings together are something they make time
+    for, not unlimited availability.
+  - >-
+    Family calls, shared meals, recovery days, ordinary dates and friendly nonsense matter as much as public
+    spectacles.
+"brief":
+  "more":
+    - >-
+      NBA games with coherent scores, possessions, lineups, tactics and consequences, and the full real 2026-27
+      league as the backdrop
+    - >-
+      Curry and Roopesh's affectionate, demanding mentor-and-protege relationship and a living Warriors locker
+      room
+    - >-
+      Natalie initiating affection and showing three years of specific, personal love while family loyalty still
+      causes real conflict
+    - >-
+      Julian's exceptional looks, shared history with Natalie, messy unfinished emotional business and
+      effortless belonging in her family
+    - >-
+      Adrian's independent basketball ambitions, family sacrifices and mixed protectiveness, jealousy, respect
+      and resentment
+    - >-
+      The gap between public greatness and private dissatisfaction, without deciding the player's feelings for
+      him
+    - >-
+      Stanford AI research, colleagues, failed experiments, humour, friendships, sponsorship and the everyday
+      reality around fame
+  "less":
+    - >-
+      Repeated reassurance speeches, permission-check dialogue, instant therapeutic resolutions and the same
+      accusation-and-apology loop
+    - >-
+      Making Natalie cold or secretly loveless to manufacture conflict, or making her family and ex
+      one-dimensional villains
+    - >-
+      Inventing past cheating as an established fact after the opening, or narrating Roopesh's current thoughts
+      and choices
+    - >-
+      Treating the October charity game as the official All-Star Game, putting players on remembered old teams,
+      or importing real future results
+    - >-
+      Basketball being reduced to a paragraph between relationship arguments, or predetermined wins that erase
+      player decisions
+"people":
+  - "name": |-
+      Sai Roopesh
+    "aliases":
+      - |-
+        Roopesh
+      - |-
+        Sai
+    "who_they_are": >-
+      Nineteen, born 11 March 2007 in Bangalore; an orphan brought to America on a school-and-sport scholarship
+      at twelve. Accelerated schooling led to Stanford at fourteen in 2021, mathematics/computer-science
+      graduation in June 2024 and an AI PhD under Mira Deshpande that autumn. His brilliance extends beyond
+      sport. A fictional NBA/NBPA exception allowed Golden State to draft him at seventeen in June 2024. Two
+      seasons brought two championships, MVPs and Finals MVPs. Last season: 63.2 points, 10.4 assists, 4.6
+      rebounds, 75% threes, 100% free throws; seventy- and seventy-five-point games fit his ability. A point
+      guard beside Curry, he wins through handle, anticipation, passing and unprecedented shooting, not a hidden
+      seven-foot body. Achievement has not erased his history as the plain, skinny outsider with nobody waiting
+      at parents' night. Natalie has been his girlfriend since 8 October 2023. Her family can seem less
+      accessible than a defence, especially with Julian already at home in it. The player chooses all present
+      feelings, actions and responses; insecurity is not a command to sulk, accuse or withdraw.
+    "appearance": >-
+      Five foot seven, skinny, narrow shoulders, brown skin, dark eyes, unremarkable dark hair and plain,
+      awkward-looking features; clothes are simple even when expensive. His basketball movement is astonishingly
+      precise.
+    "after": >-
+      The player's to decide; his established commitments are Golden State, an AI PhD, and his relationship with
+      Natalie.
+  - "name": |-
+      Natalie Whitmore
+    "aliases":
+      - |-
+        Natalie
+      - |-
+        Nat
+    "who_they_are": >-
+      Twenty, born 20 February 2006; Stanford undergraduate in economics with design coursework, Adrian's
+      sister, Claire and Daniel's daughter, Roopesh's girlfriend since 8 October 2023. Beautiful, expressive,
+      clever, funny, tactile and proud. Quick teasing draws people close; anger makes her precise. She likes
+      organizing things and dislikes hearing that her plans excluded someone. Adrian became provider after
+      Daniel's injury: rides, advocacy, tuition and the paid-off house are actual debts of love. She wants
+      family approval even while calling herself independent.
+
+
+      Julian was her first serious boyfriend until August 2023. Their teenage courtship was genuinely happy:
+      playlists, holidays, family jokes and an assumption they belonged together. The final months were messy:
+      jealous rows, breakups, reconciliations and relatives smoothing things over. His wonderful apologies did
+      not stop the recurring assumption that her future should follow his career. Expecting her to postpone
+      Stanford finally ended it. Her parents know the softened account about schedules, not every painful
+      argument. She has not returned to him. She can defend his past kindness too sharply when asked to deny
+      that she once chose him happily.
+
+
+      She met sixteen-year-old Roopesh at a Stanford scholarship fundraiser in September 2023; they began dating
+      on 8 October. Library nights, cheap meals, his terrible jokes and finding him a jacket that fitted
+      preceded the cameras. She stayed through his failed coding demonstration; he attended her first design
+      exhibition. She wants his company and their future, initiates affection and understands that height,
+      appearance and Julian's place in her family can make him feel replaceable: he has told her directly. She
+      is not secretly wishing he looked like Julian.
+
+
+      Understanding does not make her flawless. She can love and reassure him, yet defend Adrian publicly or
+      call an old gesture with Julian harmless. She will not disown her brother to prove love. His defeats hurt
+      the Whitmores even when she celebrates Roopesh. Julian evokes a younger, easier life; she sometimes enjoys
+      that familiarity and becomes defensive about it. She wants all parts of her life to coexist and can make
+      that everyone else's problem. She gets jealous of women around Roopesh too.
+
+
+      Secret: after a June 2026 foundation meeting she met Julian for coffee. He asked to reunite; she refused
+      and left. No kiss or affair occurred. She omitted the meeting because she anticipated hurt, letting
+      omission become a lie by implication. Only they know the full conversation. She does not know he kept
+      their arranging messages and a public photograph. Tonight she understands Adrian's jersey beside Julian
+      may hurt, intends to explain before introductions, and still means to honour the family photograph. Her
+      response to Roopesh's next choice happens in play.
+    "known": >-
+      His girlfriend since 8 October 2023; loving, tactile and stubborn. Her brother helped raise her, her ex is
+      still welcome with her family, and she has heard Roopesh explain why that is difficult.
+    "bond": >-
+      Nearly three years together, from Stanford library nights to two championships. She knows his insecurity
+      and loves him openly; defending her brother and keeping Julian in the family circle have caused arguments
+      neither has forgotten.
+    "appearance": >-
+      Five foot seven, beautiful, athletic and softly expressive; long chestnut hair, hazel eyes, warm skin, a
+      quick unguarded smile. Today she wears Adrian's white foundation number-twenty-one jersey, dark jeans and
+      Roopesh's thin silver anniversary bracelet.
+    "after": >-
+      Build her own future, keep Roopesh close, and preserve her family ties without accepting that those wishes
+      may collide.
+    "knows":
+      - >-
+        Roopesh has directly told her that Julian's appearance and comfortable place in her family make him feel
+        replaceable; this is not new information to her.
+      - >-
+        She refused Julian's June 2026 request to reunite and omitted the meeting when talking to Roopesh; only
+        she and Julian know its full content.
+      - >-
+        She has already promised Claire the family foundation photograph in Adrian's jersey and does not intend
+        to withdraw that promise merely because it is awkward.
+    "voice":
+      - |-
+        You know I love you. You also know I'm not going to sit there and let everyone tear my brother apart.
+      - |-
+        That was a good part of my life. It ending doesn't make every nice thing about it a lie.
+      - |-
+        Come here, idiot. I haven't seen you properly all afternoon.
+  - "name": |-
+      Adrian Whitmore
+    "aliases":
+      - |-
+        Adrian
+    "who_they_are": >-
+      Twenty-six, born 17 June 2000; fictional Suns wing, six foot seven, number twenty-one. A 2019 first-round
+      pick, All-Star in 2024 and 2026, All-Defensive in 2025. Last season 25.4 points, 6.8 rebounds, 4.2
+      assists, 38.9% threes; strong mid-post scoring, closeout attacks and serious wing defence. Added alongside
+      the real Suns, never a renamed Booker. Daniel's injury made him family provider; he paid off the house and
+      helped Natalie attend Stanford. His foundation's work for injured workers' children matters independently.
+
+
+      He mentored the younger Julian through their school basketball programme, became his friend and welcomed
+      him into the household. Natalie and Julian seemed an obvious pair. He initially saw her next boyfriend as
+      a brilliant child, then watched that child take over the NBA. GSW eliminated Phoenix in the 2025 second
+      round and 2026 West finals. Adrian played well and lost; Roopesh's seventy-five-point Game 5 became the
+      replay attached to Adrian's best season. He has no championship. Respect, resentment and genuine ambition
+      coexist.
+
+
+      He loves Nat, thinks Julian understood the family better and regards managing Roopesh's sensitivity as an
+      unfair demand on her. Reasonable-sounding requests can force her to choose. Defending Julian is loyalty
+      and resistance to Roopesh dominating off court too. He is also funny, generous and dependable. He knows
+      Nat once met Julian after a foundation meeting, not the reunion request or her omission.
+    "known": >-
+      Natalie's beloved brother, a genuine Suns star, Julian's friend and the man who paid off his parents'
+      house. Roopesh has repeatedly beaten his team and knows Adrian rarely enjoys discussing it at family
+      dinners.
+    "bond": >-
+      Her brother respects Roopesh's game, dislikes his hold on the league and doubts the relationship. Courtesy
+      survives their arguments; family invitations still tend to follow Adrian's preferences.
+    "appearance": >-
+      Six foot seven, powerful wing's build, handsome in a weathered way; close dark hair, steady eyes and a
+      controlled smile. Foundation Select number twenty-one tonight.
+    "after": >-
+      Win a championship for Phoenix, keep authority in his family and make the foundation succeed on its own
+      merits.
+    "voice":
+      - |-
+        It's my foundation game, Nat. I would quite like my sister in the family photograph.
+      - |-
+        Nobody said he can't shoot. Some of us would like a conversation about literally anything else.
+  - "name": |-
+      Julian Reed
+    "aliases":
+      - |-
+        Julian
+    "who_they_are": >-
+      Twenty-two, born 4 January 2004; fictional Lakers wing, six foot six, number eighteen. A 2023 lottery
+      pick; last season 21.6 points, 5.1 rebounds, 3.6 assists, 39.1% threes. Athletic finishing, polished
+      footwork and an All-Star ambition beside Luka. Less accomplished than Roopesh, not incompetent.
+      Exceptionally beautiful, well-groomed, graceful and socially assured; his appeal does not require the
+      narrator repeatedly insulting Roopesh.
+
+
+      Adrian mentored him through their school basketball programme. With his father often away working, the
+      Whitmores became a second household before they became leverage. Natalie and Julian were genuinely happy,
+      then turbulent: jealous arguments, breakups, grand apologies and repeated expectations that she follow his
+      career. She refused to postpone Stanford and ended it in August 2023. He calls it wrong timing; her three
+      subsequent years with Roopesh undermine that explanation. He wants her back, beyond any basketball
+      rivalry.
+
+
+      Adrian and Claire still invite him. He knows old jokes, holidays, illnesses and where to stand in
+      photographs. Some warmth is sincere; some calculated. He can also be hurt, embarrassed or kind. He uses
+      ambiguity rather than announcing a villain's plan. In June 2026 Natalie refused his reunion request over
+      coffee. He knows she did not tell Roopesh and retains arranging messages and a photograph of their public
+      meeting. It proves a meeting, not an affair; nothing has been released. Tonight he brings Claire an album
+      including happy pre-breakup photographs. Its effect is intentional; future disclosures must happen in
+      play. He knows comparisons trouble Roopesh, not every private conversation.
+    "known": >-
+      Natalie's exceptionally handsome Lakers-player ex and Adrian's close friend. He dated her before Roopesh,
+      knows her family intimately, and remains welcome at events. Their breakup was messy; its full details are
+      not public.
+    "bond": >-
+      Polite encounters conceal a rivalry neither invited on court alone. Julian keeps finding a familiar place
+      beside Natalie and her family; Roopesh knows he once made her happy.
+    "appearance": >-
+      Six foot six, lean and powerfully athletic, strikingly handsome; dark curls, clear green eyes, an easy
+      smile and immaculate clothes. Select number eighteen tonight.
+    "after": >-
+      Become an All-Star, regain Natalie's regard and eventually her love, and prove his place in this family
+      cannot simply be inherited by its new celebrity.
+    "voice":
+      - |-
+        Your mum asked me to bring it. There are photographs of all of us, Nat.
+      - |-
+        I was there, Sai. It wasn't all terrible just because it ended.
+  - "name": |-
+      Stephen Curry
+    "aliases":
+      - |-
+        Steph
+      - |-
+        Steph Curry
+      - |-
+        Curry
+    "who_they_are": >-
+      The real Warriors guard, number thirty, thirty-eight: historic shooting, off-ball movement, rapid reads,
+      conditioning and competitive joy. Six titles here, including 2025 and 2026 beside Roopesh. His earlier
+      individual honours remain; Roopesh won the newest Finals MVPs. He recognized the talent early and became
+      mentor through shooting sessions, film, mistakes and shared victories. They share the floor. He can demand
+      a better decision and enjoy an impossible shot in the same possession. Fictional portrayal around public
+      basketball identity: playful, generous, proud and demanding. He has his own family, schedule and
+      ambitions, notices more than he says and may offer an invitation rather than advice. He knows the couple
+      have family tensions, not the June secret. His affection is not conditional on accepting life advice; he
+      cannot fix their relationship with one speech.
+    "known": >-
+      His teammate, shooting mentor and friend through two championship runs; famously competitive, often
+      teasing, generous with his time when he can be, and still demanding in practice.
+    "bond": >-
+      Two titles together and countless practice hours. Steph treats him as a partner and protege, expects
+      intelligent basketball and makes room for him around his own family life.
+    "after": >-
+      A seventh ring, more beautiful basketball, health, family time and a succession that still includes his
+      own ambitions.
+    "voice":
+      - |-
+        You can shoot from there. That doesn't mean you were supposed to ignore the other four people.
+      - |-
+        He's nineteen. We can give him five minutes without asking what the next twenty years look like.
+  - "name": |-
+      Draymond Green
+    "aliases":
+      - |-
+        Draymond
+      - |-
+        Dray
+    "who_they_are": >-
+      The real Warriors defensive organizer and playmaking forward, number twenty-three, thirty-six. Six
+      championships in this history. He reads actions, communicates coverages, screens and passes out of short
+      rolls; his importance is not captured by points per game. Fictional portrayal: loud, sharp, competitive,
+      sometimes too blunt and loyal in his own way. He respects Roopesh's basketball and will demand the correct
+      rotation from a two-time MVP. In private he can call Adrian's performative remarks what they are; in
+      public he is capable of escalating a problem by saying too much. He has a life and family beyond the
+      couple. No automatic technical foul, ejection or fight accompanies his entrance.
+    "known": >-
+      His veteran teammate and defensive organizer, direct to the point of discomfort, with two more shared
+      rings and a habit of noticing when something off court is spilling into film work.
+    "bond": >-
+      Mutual basketball trust and blunt arguments in practice; Draymond expects him to compete and will not let
+      outsiders casually diminish his place on the team.
+    "after": |-
+      Another championship, an accountable defence and teammates he can trust when the game tightens.
+  - "name": |-
+      Claire Whitmore
+    "aliases":
+      - |-
+        Claire
+    "who_they_are": >-
+      Fifty, Natalie and Adrian's mother, a former school administrator now running much of the foundation's
+      practical work. She held the household together after Daniel's injury, and Adrian's success is woven into
+      her account of their survival. She likes Roopesh's manners, intelligence and care for Natalie, yet knows
+      Julian's habits and childhood far better. She remembers Nat and Julian being happy, minimizes the
+      turbulence Nat kept private, and assumes staying friends proves everyone is mature. She can invite Julian
+      to something, ask Natalie to smooth things over and then be wounded when that is experienced as a choice
+      against Roopesh. She is not simply scheming to reunite the old couple. Donor promises, family pride,
+      practical favours and affection make her capable of applying pressure while feeling generous. She knows
+      none of the June coffee conversation. Tonight she has promised donors a Whitmore-family photograph with
+      Adrian, Natalie and Julian as longtime foundation supporters.
+    "known": >-
+      Natalie's mother, warm, organized and deeply proud of Adrian; still fond of Julian and inclined to expect
+      Natalie to keep family events harmonious.
+    "bond": >-
+      She welcomes Roopesh courteously and remembers his achievements, but Julian remains familiar in ways
+      Roopesh cannot buy or accelerate.
+    "appearance": >-
+      Elegant, practical clothes, expressive hands and Natalie's eyes; foundation credential on a lanyard
+      tonight.
+    "after": >-
+      A successful fundraiser, family unity and recognition for Adrian without another evening becoming a
+      referendum on Roopesh.
+  - "name": |-
+      Daniel Whitmore
+    "aliases":
+      - |-
+        Daniel
+    "who_they_are": >-
+      Fifty-three, a former electrician whose serious work injury changed the family's finances and his own
+      sense of usefulness. Adrian's help brings gratitude mixed with embarrassment; he is protective of his
+      son's achievements. Julian visited during his rehabilitation and knows how to help without making a
+      performance of it. Daniel appreciates Roopesh's intelligence and quieter humour but can retreat to old
+      loyalties when he thinks Adrian has been slighted. He sometimes notices Claire's assumptions and says
+      nothing to avoid a fight. His pain is manageable, not a crisis planted whenever the romance needs an
+      interruption. He does not know the June secret and does not secretly hate Roopesh.
+    "known": >-
+      Natalie's father, injured years ago, proud of both children, familiar with Julian and still learning how
+      to talk to a young man whose life seems so extraordinary.
+    "bond": >-
+      Civil, occasionally warm conversations; Daniel's pride in Adrian and long familiarity with Julian can make
+      Roopesh feel like a late arrival.
+    "after": >-
+      Be useful to his family again and protect Adrian's pride without admitting how much he fears being
+      dependent.
+  - "name": |-
+      Leah Park
+    "aliases":
+      - |-
+        Leah
+    "who_they_are": >-
+      Twenty-one, Natalie's Stanford roommate and friend. A fictional design student with her own portfolio,
+      deadlines and sharp sense of humour. She likes Roopesh and has known their relationship since its early
+      Stanford days. She understands why Nat loves Adrian and why 'you know how my family is' is not an adequate
+      answer to every problem. Nat has told her about the turbulence of the Julian breakup, not the June coffee
+      meeting. Leah can challenge Nat without automatically taking Roopesh's side, and refuses to become the
+      couple's messenger. She is working on accessibility design and dislikes being introduced only as the MVP's
+      girlfriend's friend.
+    "known": >-
+      Natalie's roommate, a familiar friend from Stanford who will tease both of them and say when a family
+      excuse is wearing thin.
+    "after": >-
+      Finish a strong design portfolio, keep an honest friendship with Natalie and avoid being drafted into
+      their arguments.
+  - "name": |-
+      Mira Deshpande
+    "aliases":
+      - |-
+        Professor Deshpande
+      - |-
+        Dr. Deshpande
+      - |-
+        Mira
+    "who_they_are": >-
+      Forty-four, a fictional Stanford professor supervising Roopesh's AI PhD. Her group's work concerns
+      representation learning, uncertainty and reliable evaluation under distribution shift. His brilliance
+      earned admission; celebrity does not earn a publishable result. His current project studies whether a
+      model's confidence remains calibrated after the environment changes, with preregistered evaluations and
+      baselines. She expects reading, reproducible experiments and collaboration. One result that looked
+      excellent in September failed on a held-out dataset; she knows, and the lab is investigating. She is warm,
+      exacting and dryly amused by sports headlines, with no access to Natalie's private life.
+    "known": >-
+      His AI PhD adviser, intellectually demanding and uninterested in accepting an MVP trophy as a substitute
+      for a control experiment.
+    "bond": >-
+      Two years of research supervision. She protects the integrity of his work and expects him to honour
+      collaborators' time despite the NBA schedule.
+    "after": >-
+      Get a sound result, train an independent researcher and keep the laboratory from becoming a celebrity
+      demonstration.
+  - "name": |-
+      Anika Rao
+    "aliases":
+      - |-
+        Anika
+    "who_they_are": >-
+      Thirty-four, Roopesh's fictional agent, a Bay Area sports representative who took his early-entry
+      negotiation seriously. Practical, funny and protective of his time. She handles endorsements, scheduling
+      and negotiations with lawyers and team staff; she does not control basketball lineups or academic
+      standards. The rookie contract runs through its established terms; an extension conversation cannot
+      magically rewrite CBA timing. Sponsors want a polished couple story and Curry-protege branding; she wants
+      Roopesh to choose what he actually wants to sell. She knows family events can generate awkward footage,
+      not the hidden coffee meeting. A foundation donor has requested a group photograph tonight.
+    "known": >-
+      His agent, who managed the draft exception and increasingly has to negotiate for an evening nobody can
+      monetize.
+    "bond": >-
+      Professional trust from before the draft. She has protected his interests while warning that fame will
+      make ordinary relationship moments public material.
+    "after": |-
+      A sustainable career and fair contracts, with her client retaining meaningful choices about his image.
+  - "name": |-
+      Steve Kerr
+    "aliases":
+      - |-
+        Kerr
+      - |-
+        Coach Kerr
+    "who_they_are": >-
+      Golden State's real head coach in the verified roster. Fictional portrayal: measured, articulate,
+      competitive, willing to argue about a careless possession. Builds around movement and reads while adapting
+      to the unprecedented Curry-Roopesh combination. His job includes rotations, player health, egos and
+      winning, not delivering verdicts about the Whitmore family. He respects Roopesh's academic commitments
+      when arranged and does not accept an unannounced absence. Tonight's exhibition has short veteran
+      rotations; a personal grudge is not permission to play forty-eight minutes against medical advice.
+    "known": >-
+      His coach through two titles; expects the right read and attention on defence regardless of scoring
+      records.
+    "bond": >-
+      Two championship seasons and frank film sessions. Kerr trusts his ability and keeps insisting that Golden
+      State remains a team.
+    "after": |-
+      A three-peat, healthy veterans and a functioning team rather than an exhausting one-man spectacle.
+  - "name": |-
+      Marcus Bell
+    "aliases":
+      - |-
+        Coach Bell
+    "who_they_are": >-
+      Fifty-seven, fictional retired NBA assistant and foundation supporter coaching Select tonight. He
+      understands that a charity exhibition is entertainment with real professionals, officials and safety
+      responsibilities. He intends competitive stretches, sensible substitutions and no settling family
+      grievances with dangerous fouls. His Select roster does not change anyone's employer.
+    "known": |-
+      An experienced guest coach hired for the charity exhibition, not a new Suns or Lakers head coach.
+    "after": |-
+      A good game, a successful fundraiser and every guest going back to his real team healthy.
+  - "name": |-
+      Gary Payton II
+    "who_they_are": >-
+      Real 2026-27 Golden State Warriors player; number 0, G, 6 foot 2 inches. An explosive cutter and
+      point-of-attack defender who works without demanding the ball; shared title history and practical
+      locker-room familiarity with Roopesh.
+    "known": >-
+      Golden State Warriors, number 0, G. Roopesh knows him through their team; when they joined determines
+      their shared history.
+  - "name": |-
+      Yaxel Lendeborg
+    "who_they_are": >-
+      Real 2026-27 Golden State Warriors player; number 1, F, 6 foot 9 inches. A real 2026 draft rookie, a
+      versatile forward bringing energy, rebounding and developing decision-making. His experience of Roopesh is
+      a new teammate facing a nineteen-year-old already treated as a veteran champion.
+    "known": >-
+      Golden State Warriors, number 1, F. Roopesh knows him through their team; when they joined determines
+      their shared history.
+  - "name": |-
+      Brandin Podziemski
+    "who_they_are": >-
+      Real 2026-27 Golden State Warriors player; number 2, G, 6 foot 4 inches. A young guard who rebounds,
+      connects possessions and competes for minutes; two titles alongside Roopesh have not removed his own
+      ambition.
+    "known": >-
+      Golden State Warriors, number 2, G. Roopesh knows him through their team; when they joined determines
+      their shared history.
+  - "name": |-
+      Will Richard
+    "who_they_are": >-
+      Real 2026-27 Golden State Warriors player; number 3, G, 6 foot 3 inches. A young guard building trust
+      through sound decisions, spacing and defending his assignment; his career is not a prop for the star.
+    "known": >-
+      Golden State Warriors, number 3, G. Roopesh knows him through their team; when they joined determines
+      their shared history.
+  - "name": |-
+      Moses Moody
+    "who_they_are": >-
+      Real 2026-27 Golden State Warriors player; number 4, G, 6 foot 5 inches. A shooting wing with patience and
+      his own ambitions. At this opening he is rehabilitating his knee and attends in a nonplaying role.
+    "known": >-
+      Golden State Warriors, number 4, G. Roopesh knows him through their team; when they joined determines
+      their shared history.
+  - "name": |-
+      Kristaps Porziņģis
+    "aliases":
+      - |-
+        Kristaps Porzingis
+      - |-
+        Porzingis
+    "who_they_are": >-
+      Real 2026-27 Golden State Warriors player; number 7, F-C, 7 foot 2 inches. A tall shooting big who
+      stretches the floor, finishes above smaller defenders and protects the rim. His spacing changes the
+      choices available to Curry and Roopesh.
+    "known": >-
+      Golden State Warriors, number 7, F-C. Roopesh knows him through their team; when they joined determines
+      their shared history.
+  - "name": |-
+      De'Anthony Melton
+    "who_they_are": >-
+      Real 2026-27 Golden State Warriors player; number 8, G, 6 foot 2 inches. A guard valued for defence,
+      activity and useful connective offence; a coach can use him to change a matchup without replacing either
+      star permanently.
+    "known": >-
+      Golden State Warriors, number 8, G. Roopesh knows him through their team; when they joined determines
+      their shared history.
+  - "name": |-
+      Jimmy Butler III
+    "aliases":
+      - |-
+        Jimmy Butler
+    "who_they_are": >-
+      Real 2026-27 Golden State Warriors player; number 10, F, 6 foot 6 inches. An experienced wing, foul-drawer
+      and deliberate half-court creator. At this opening he is rehabilitating his knee and does not play the
+      exhibition; his competitive personality still belongs in team life.
+    "known": >-
+      Golden State Warriors, number 10, F. Roopesh knows him through their team; when they joined determines
+      their shared history.
+  - "name": |-
+      Brandon Williams
+    "who_they_are": >-
+      Real 2026-27 Golden State Warriors player; number 12, G, 6 foot 1 inches. A smaller guard trying to
+      establish a dependable place in the rotation; has professional concerns and friendships of his own.
+    "known": >-
+      Golden State Warriors, number 12, G. Roopesh knows him through their team; when they joined determines
+      their shared history.
+  - "name": |-
+      Gui Santos
+    "who_they_are": >-
+      Real 2026-27 Golden State Warriors player; number 15, F, 6 foot 7 inches. A forward whose movement, work
+      rate and willingness to do unglamorous jobs make the stars easier to play beside. Starts this exhibition.
+    "known": >-
+      Golden State Warriors, number 15, F. Roopesh knows him through their team; when they joined determines
+      their shared history.
+  - "name": |-
+      LJ Cryer
+    "who_they_are": >-
+      Real 2026-27 Golden State Warriors player; number 18, G, 6 foot 0 inches. A young guard whose shooting and
+      decisions must earn minutes; assignment, contract and game availability are distinct.
+    "known": >-
+      Golden State Warriors, number 18, G. Roopesh knows him through their team; when they joined determines
+      their shared history.
+  - "name": |-
+      Al Horford
+    "who_they_are": >-
+      Real 2026-27 Golden State Warriors player; number 20, C, 6 foot 8 inches. An experienced big who
+      communicates, screens and stretches the floor. His veteran judgement and personal championship history are
+      distinct from Curry and Draymond having six.
+    "known": >-
+      Golden State Warriors, number 20, C. Roopesh knows him through their team; when they joined determines
+      their shared history.
+  - "name": |-
+      Charles Bassey
+    "who_they_are": >-
+      Real 2026-27 Golden State Warriors player; number 28, F-C, 6 foot 9 inches. A centre offering size,
+      rebounding and interior finishes; substitution and matchup needs determine his minutes.
+    "known": >-
+      Golden State Warriors, number 28, F-C. Roopesh knows him through their team; when they joined determines
+      their shared history.
+  - "name": |-
+      Georges Niang
+    "who_they_are": >-
+      Real 2026-27 Golden State Warriors player; number 32, F, 6 foot 7 inches. A floor-spacing forward with an
+      experienced professional voice and his own place in the locker room.
+    "known": >-
+      Golden State Warriors, number 32, F. Roopesh knows him through their team; when they joined determines
+      their shared history.
+  - "name": |-
+      Malevy Leons
+    "who_they_are": >-
+      Real 2026-27 Golden State Warriors player; number 33, F, 6 foot 9 inches. A forward working for a place
+      through defence and activity; being in the roster register does not guarantee a nightly rotation role.
+    "known": >-
+      Golden State Warriors, number 33, F. Roopesh knows him through their team; when they joined determines
+      their shared history.
+  - "name": |-
+      Graham Ike
+    "who_they_are": >-
+      Real 2026-27 Golden State Warriors player; number 45, F-C, 6 foot 10 inches. A rookie frontcourt player
+      adjusting to NBA pace, spacing and a very crowded professional rotation.
+    "known": >-
+      Golden State Warriors, number 45, F-C. Roopesh knows him through their team; when they joined determines
+      their shared history.
+  - "name": |-
+      Devin Booker
+    "who_they_are": >-
+      Real 2026-27 Phoenix Suns player; number 15, G, 6 foot 5 inches. Phoenix guard and established perimeter
+      scorer; works alongside fictional Adrian Whitmore on the Suns. A professional rival with his own
+      ambitions, not Natalie’s brother.
+    "known": >-
+      Phoenix Suns, number 15, G. An established NBA player, known professionally; personal intimacy is not
+      assumed.
+  - "name": |-
+      Kevin Durant
+    "who_they_are": >-
+      Real 2026-27 Houston Rockets player; number 7, F, 6 foot 11 inches. Houston scoring forward, extraordinary
+      size and shot-making; a former Warriors champion with history alongside Curry and Draymond. Plays for
+      Foundation Select tonight without becoming a Sun again.
+    "known": >-
+      Houston Rockets, number 7, F. An established NBA player, known professionally; personal intimacy is not
+      assumed.
+  - "name": |-
+      Nikola Jokić
+    "aliases":
+      - |-
+        Nikola Jokic
+      - |-
+        Jokic
+    "who_they_are": >-
+      Real 2026-27 Denver Nuggets player; number 15, C, 6 foot 11 inches. Denver centre, exceptional passer and
+      half-court decision-maker whose screening, post play and reads test a defence in different ways from
+      perimeter shooting. Foundation Select centre tonight.
+    "known": >-
+      Denver Nuggets, number 15, C. An established NBA player, known professionally; personal intimacy is not
+      assumed.
+  - "name": |-
+      Luka Dončić
+    "aliases":
+      - |-
+        Luka Doncic
+      - |-
+        Luka
+    "who_they_are": >-
+      Real 2026-27 Los Angeles Lakers player; number 77, F-G, 6 foot 8 inches. Lakers lead creator, manipulating
+      tempo and matchups through passing, shooting and strength. Fictional Julian Reed is his added teammate.
+      Golden State visits them on 21 October.
+    "known": >-
+      Los Angeles Lakers, number 77, F-G. An established NBA player, known professionally; personal intimacy is
+      not assumed.
+  - "name": |-
+      LeBron James
+    "who_they_are": >-
+      Real 2026-27 Philadelphia 76ers player; number 23, F, 6 foot 9 inches. The real veteran forward in this
+      verified Philadelphia roster, with his independent career and public standing. Do not put him back on the
+      Lakers from memory.
+    "known": >-
+      Philadelphia 76ers, number 23, F. An established NBA player, known professionally; personal intimacy is
+      not assumed.
+  - "name": |-
+      Giannis Antetokounmpo
+    "aliases":
+      - |-
+        Giannis
+    "who_they_are": >-
+      Real 2026-27 Miami Heat player; number 7, F, 6 foot 11 inches. The real powerful attacking forward in this
+      verified Miami roster; transition pressure, rim attacks and defence matter. Do not place him in Milwaukee
+      from an older roster.
+    "known": >-
+      Miami Heat, number 7, F. An established NBA player, known professionally; personal intimacy is not assumed.
+  - "name": |-
+      Shai Gilgeous-Alexander
+    "aliases":
+      - |-
+        SGA
+    "who_they_are": >-
+      Real 2026-27 Oklahoma City Thunder player; number 2, G, 6 foot 6 inches. Oklahoma City lead guard, skilled
+      at pace changes and creating scoring angles. In this alternate history Roopesh, rather than the real-world
+      recipient, won the 2025 and 2026 MVPs.
+    "known": >-
+      Oklahoma City Thunder, number 2, G. An established NBA player, known professionally; personal intimacy is
+      not assumed.
+  - "name": |-
+      Bruce Fraser
+    "who_they_are": >-
+      Real Warriors assistant coach in the verified 2026-27 roster. Works with Kerr and the team; training, film
+      and basketball responsibilities give him a life beyond the central romance.
+    "known": |-
+      A familiar member of Golden State's coaching staff.
+    "after": |-
+      Help the Warriors prepare, develop and win.
+  - "name": |-
+      Ron Adams
+    "who_they_are": >-
+      Real Warriors assistant coach in the verified 2026-27 roster. Works with Kerr and the team; training, film
+      and basketball responsibilities give him a life beyond the central romance.
+    "known": |-
+      A familiar member of Golden State's coaching staff.
+    "after": |-
+      Help the Warriors prepare, develop and win.
+  - "name": |-
+      Frank Vogel
+    "who_they_are": >-
+      Real Warriors associate head coach in the verified 2026-27 roster. Works with Kerr and the team; training,
+      film and basketball responsibilities give him a life beyond the central romance.
+    "known": |-
+      A familiar member of Golden State's coaching staff.
+    "after": |-
+      Help the Warriors prepare, develop and win.
+"leads":
+  - |-
+    Natalie Whitmore
+  - |-
+    Adrian Whitmore
+  - |-
+    Julian Reed
+  - |-
+    Stephen Curry
+  - |-
+    Draymond Green
+"player_character": |-
+  Sai Roopesh
+"arcs":
+  - >-
+    Golden State pursues a third consecutive championship while the league adapts to Curry and Roopesh together;
+    games, team relationships and the player's decisions determine what happens.
+  - >-
+    Natalie and Roopesh try to build a satisfying shared life across love, insecurity, fame and the family
+    obligations that keep asking her to choose.
+  - >-
+    Adrian pursues his own title and protects the family whose life his career changed, while his sister loves
+    the man who keeps ending his seasons.
+  - >-
+    Julian's messy old relationship with Natalie and continuing place among the Whitmores collide with her
+    present commitment; his ambitions and choices create consequences rather than scheduled revelations.
+  - >-
+    Curry mentors an astonishing successor while remaining a competitor and star with his own family, career and
+    desire for another ring.
+  - >-
+    Roopesh's AI PhD demands careful research and collaboration alongside basketball; achievement in one world
+    does not substitute for doing the work in the other.
+  - >-
+    Roopesh's public stature and private sense of belonging can move differently; the player decides what he
+    wants from Natalie, the Whitmores, his teammates and his own life.
+"landmarks":
+  - "name": |-
+      The Whitmore Foundation Showcase
+    "at": |-
+      Day 1 17:00
+    "what": >-
+      The fictional charity exhibition tips off at Chase Center; actual game outcomes are played, not
+      predetermined.
+  - "name": |-
+      The foundation photograph and reception
+    "at": |-
+      Day 1 20:00
+    "what": >-
+      Claire's donor reception and planned family photograph follow the exhibition; Natalie has promised
+      Adrian's jersey, Julian is invited, and attendance does not decide anyone's reaction.
+  - "name": |-
+      Their third anniversary
+    "at": |-
+      Day 6 19:00
+    "what": >-
+      8 October marks three years since Natalie and Roopesh began dating; they have discussed spending the
+      evening together, and what they actually do follows play.
+  - "name": |-
+      The first lab review of the season
+    "at": |-
+      Day 10 10:00
+    "what": >-
+      Mira reviews the failed held-out evaluation and the group's replication plan; a sporting result cannot
+      settle the research question.
+  - "name": |-
+      The NBA regular season begins
+    "at": |-
+      Day 18 12:00
+    "what": |-
+      20 October is league opening day; Golden State's first game is the following evening in Los Angeles.
+  - "name": |-
+      Warriors at Lakers
+    "at": |-
+      Day 19 19:00
+    "what": >-
+      21 October, Los Angeles local time: the real opening fixture supplies a first regular-season meeting with
+      Julian and Luka; the result belongs to this Story.
+  - "name": |-
+      The Warriors' home opener and ring night
+    "at": |-
+      Day 21 18:30
+    "what": >-
+      23 October at Chase Center: the alternate 2026 champions receive their rings before the Memphis home
+      opener, not at the charity exhibition.
+  - "name": |-
+      Warriors at Suns
+    "at": |-
+      Day 22 19:00
+    "what": >-
+      24 October in Phoenix, local time: the opening road back-to-back brings a regular-season game against
+      Adrian and Natalie's family obligations into the same weekend.
+  - "name": |-
+      Thanksgiving with the Whitmores
+    "at": |-
+      Day 55 17:00
+    "what": >-
+      Claire plans a family Thanksgiving on 26 November; invitations, travel and game commitments create choices
+      rather than assuming Roopesh attends.
+  - "name": |-
+      Christmas Day
+    "at": |-
+      Day 84 12:00
+    "what": >-
+      25 December brings the NBA holiday slate, family expectations and travel; use the fixture register before
+      promising anyone an entire free day.
+  - "name": |-
+      Phoenix All-Star weekend begins
+    "at": |-
+      Day 140 12:00
+    "what": >-
+      19 February 2027: the official All-Star weekend begins in Adrian's city. Selection, appearances and
+      results are earned during this Path, not granted by the calendar.
+  - "name": |-
+      The regular season ends
+    "at": |-
+      Day 191 18:00
+    "what": >-
+      11 April 2027 ends the regular season. Standings and qualification must reflect the season actually
+      played; the playoffs and Finals are not pre-awarded.
+  - "name": |-
+      The postseason begins
+    "at": |-
+      Day 197 12:00
+    "what": >-
+      17 April 2027: the first-round playoff window opens after the Play-In. Qualification, seeding, opponents,
+      later rounds and any Finals appearance follow the season actually played.
+  - "name": |-
+      Summer decisions
+    "at": |-
+      Day 271 12:00
+    "what": >-
+      30 June 2027 is this first season's fictional planning horizon: a basketball season has been lived, a
+      research year reviewed, and the people decide what they carry into summer. No championship, romantic
+      outcome or retirement is imposed by this date.
+"threads":
+  - "name": |-
+      The photograph
+    "now": >-
+      Claire wants the old foundation group, including Natalie, Adrian and Julian, photographed in family
+      jerseys. Natalie has promised to be there and intends to explain to Roopesh before introductions.
+  - "name": |-
+      The coffee omission
+    "now": >-
+      Only Natalie and Julian know he asked to reunite at their June coffee meeting and she refused. Julian has
+      the arranging messages and a public photograph; none has been disclosed, and no physical affair occurred.
+  - "name": |-
+      The old album
+    "now": >-
+      Julian has brought Claire a foundation album with happy pre-breakup photographs of him and Natalie. Adrian
+      thinks preserving that history is reasonable; Roopesh has not yet seen the album.
+  - "name": |-
+      A third title
+    "now": >-
+      The Warriors begin the year as alternate back-to-back champions; Curry, Draymond and Kerr want a
+      three-peat while their rivals have professional reasons to stop them.
+  - "name": |-
+      The failed evaluation
+    "now": >-
+      Mira and Roopesh know that September's promising calibration result failed on held-out data. The next
+      replication must distinguish leakage, distribution shift and a genuinely weak method.
+  - "name": |-
+      Selling the perfect couple
+    "now": >-
+      Anika has a sponsor interested in a Curry-protege campaign and a polished personal-life profile. She has
+      promised neither Natalie's participation nor access to private family history.
+"opening":
+  "title": |-
+    The family colours
+  "place": |-
+    Chase Center, beside the Warriors' tunnel
+  "at": |-
+    Day 1 16:35
+  "who":
+    - |-
+      Natalie Whitmore
+    - |-
+      Adrian Whitmore
+    - |-
+      Julian Reed
+    - |-
+      Stephen Curry
+    - |-
+      Draymond Green
+    - |-
+      Steve Kerr
+    - |-
+      Claire Whitmore
+    - |-
+      Daniel Whitmore
+    - |-
+      Anika Rao
+  "prose": >-
+    The main scoreboard still reads **WARRIORS 0 — FOUNDATION SELECT 0**. Beneath it, the ribbon board rolls
+    through scholarship recipients' names. Twenty-five minutes until tipoff; the floor belongs to warm-ups,
+    squeaking shoes and the steady bounce of more than one ball.
+
+
+    On the courtside rail, a boy holds up a handmade sign: **SIX RINGS FOR STEPH. TWO FOR SAI. ONE MORE
+    TOGETHER.**
+
+
+    Curry spots it on his way past the tunnel and laughs.
+
+
+    “Ambitious little accountant.” He flicks a glance towards Draymond. “I'm keeping him away from contract
+    negotiations.”
+
+
+    “Kid's got a plan,” Draymond says. “More than some people.”
+
+
+    Across the court, Booker waits for a return pass while Jokic talks to one of the Select coaches. Durant is
+    taking his time at the elbow. Their temporary white jerseys belong to tonight's charity game; the Suns,
+    Nuggets, Rockets and the rest of the league will have them back tomorrow. Kerr stands near the scorer's
+    table discussing the first substitutions.
+
+
+    Then Natalie appears from the hospitality corridor.
+
+
+    Her hair is loose, her smile already there. She is wearing Adrian's number twenty-one.
+
+
+    The thin silver bracelet at her wrist is familiar: the one from her last anniversary with Roopesh. She
+    touches it as she approaches, holding up her other hand before she is close enough to be heard by the
+    spectators.
+
+
+    “Hi. I've been trying to escape my mother for twenty minutes.”
+
+
+    Behind her, Claire is directing a photographer beside a display of old foundation pictures. Daniel has an
+    album open. Julian stands at his shoulder in Select's number eighteen, effortlessly handsome even with a
+    towel around his neck.
+
+
+    Daniel laughs at something on the page.
+
+
+    “I'd forgotten that kitchen.”
+
+
+    “Nat didn't speak to me until we'd replaced the cake,” Julian says. “Your wife still says it was my fault.”
+
+
+    “It was your fault,” Natalie calls back automatically. Her mouth curves at the memory; then she turns to
+    Roopesh again.
+
+
+    “I wanted to find you before—”
+
+
+    “Nat.” Adrian has come over from the Select bench. He stops beside her, glancing towards the waiting camera.
+    “Two minutes. Mum's finally got everyone.”
+
+
+    Natalie looks back at the photographer, then at her brother.
+
+
+    “I said I'd do it, Ade. Give me a second.”
+
+
+    Adrian's expression tightens a fraction. Julian has closed the album and is carrying it towards Claire. He
+    knows where to stand without being asked.
+
+
+    Natalie steps a little closer to Roopesh. Her voice drops; the family cannot hear it now.
+
+
+    “It's his foundation game. I promised the jersey and the photograph.” She glances down at the white
+    twenty-one, then meets him directly. “I know why this is awkward. I wanted you to hear it from me.”
+
+
+    Her hand opens between them, near enough to take, while the photographer asks the Whitmores to move closer
+    together.

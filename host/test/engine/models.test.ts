@@ -53,7 +53,7 @@ describe("the models each job runs on", () => {
     expect(latest(callsFor(mac.db, "actor"))).toMatchObject(SOL);
     expect((mac.tree.entry(head())!.payload as Reply).model).toEqual(SOL);
     // The Writer is not the Redo's to move.
-    expect(latest(callsFor(mac.db, "writer"))).toMatchObject(OPUS);
+    expect(callsFor(mac.db, "writer")).toEqual([]);
     await play("I ask what she is reading.");
     expect(latest(callsFor(mac.db, "actor"))).toMatchObject(OPUS);
   });
@@ -96,16 +96,16 @@ describe("the models each job runs on", () => {
   it("runs a Writer that failed on the model chosen for it, for that one try", async () => {
     const { mac, engine, storyId, view, play } = playable(hogwartsStoryFile(), { writer: [{ fail: "Opus 5.5 is overloaded right now." }, { fail: "GPT 6.1 Sol is at capacity." }] });
     await play("I kiss her, quickly.");
-    expect(view().turn).toMatchObject({ kind: "failed", job: "writer" });
+    expect(view().turn).toMatchObject({ kind: "failed", job: "actor" });
     engine.retry(storyId, "trace-retry", FLASH);
     await engine.settled(storyId);
     expect(view().turn.kind).toBe("idle");
     // Asked on its model and its second model before it gives up, then once on the model chosen.
-    expect(callsFor(mac.db, "writer").map(call => [call.provider, call.model, call.effort])).toEqual([
-      ["claude", "claude-opus-5-5", "medium"], ["codex", "gpt-6.1-sol", null], ["antigravity", "gemini-3.8-flash", "high"]
+    expect(callsFor(mac.db, "actor").map(call => [call.provider, call.model, call.effort])).toEqual([
+      ["claude", "claude-opus-5-5", "high"], ["codex", "gpt-6.1-sol", null], ["antigravity", "gemini-3.8-flash", "high"]
     ]);
-    // The Actor was not the one that failed, so it stays the Story's.
-    expect(latest(callsFor(mac.db, "actor"))).toMatchObject(OPUS);
+    // The chosen model owns the combined writing generation for this retry.
+    expect(latest(callsFor(mac.db, "actor"))).toMatchObject(FLASH);
   });
 
   // GIVEN the Weaver's model failed and the World could not move on

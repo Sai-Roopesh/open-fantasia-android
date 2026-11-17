@@ -22,7 +22,6 @@ import com.openfantasia.protocol.ProviderModels
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable internal fun RedoSheet(storyID: String, models: ModelsView?, onDismiss: () -> Unit, onRedo: (String?, Boolean, ModelChoice?) -> Unit) {
     var direction by rememberSaveable { mutableStateOf("") }
-    var remember by rememberSaveable { mutableStateOf(false) }
     // Null is the Story's own Actor; anything else is a model for just this Reply (openspec scenes: Redo on another model).
     var writtenBy by remember { mutableStateOf<ModelChoice?>(null) }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -37,29 +36,18 @@ import com.openfantasia.protocol.ProviderModels
             }
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Direction (optional)", style = FantasiaType.fieldLabel, color = FantasiaSecondary)
-                BasicTextField(value = direction, onValueChange = { direction = it; if (it.isBlank()) remember = false },
+                BasicTextField(value = direction, onValueChange = { direction = it },
                     minLines = 3, maxLines = 4, textStyle = FantasiaType.direction.copy(color = FantasiaText), cursorBrush = SolidColor(FantasiaLabel),
                     modifier = Modifier.fillMaxWidth().testTag("redo-direction").semantics { contentDescription = "Direction (optional)" }
                         .background(FantasiaBackground, FantasiaShapes.field).border(1.dp, FantasiaAccent, FantasiaShapes.field)
                         .padding(horizontal = 15.dp, vertical = 13.dp))
             }
-            val canRemember = direction.isNotBlank()
-            Row(Modifier.fillMaxWidth().heightIn(min = 44.dp).toggleable(value = remember && canRemember, enabled = canRemember,
-                role = Role.Checkbox, onValueChange = { remember = it }), verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
-                    Checkbox(checked = remember && canRemember, onCheckedChange = null, enabled = canRemember, modifier = Modifier.size(20.dp))
-                }
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("Remember this", style = FantasiaType.plain)
-                    Text("Keep it as a line of Taste for every Scene after.", style = FantasiaType.small, color = FantasiaCaption)
-                }
-            }
+            Text("Directions are saved for future replies. Edit or archive them in Backstage.", style = FantasiaType.small, color = FantasiaCaption)
             WrittenBy(models?.stories?.firstOrNull { it.storyID == storyID }?.actor, models?.providers.orEmpty(), writtenBy) { writtenBy = it }
             Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End)) {
                 TextButton(onClick = onDismiss, modifier = Modifier.height(48.dp), shape = FantasiaShapes.round,
                     contentPadding = PaddingValues(horizontal = 20.dp)) { Text("Cancel", style = FantasiaType.plain, color = FantasiaSecondary) }
-                Button(onClick = { onRedo(direction.takeIf { it.isNotBlank() }, remember && canRemember, writtenBy) },
+                Button(onClick = { onRedo(direction.takeIf { it.isNotBlank() }, false, writtenBy) },
                     modifier = Modifier.height(48.dp).testTag("confirm-redo"), shape = FantasiaShapes.round,
                     contentPadding = PaddingValues(horizontal = 24.dp)) { Text("Redo", style = FantasiaType.button) }
             }

@@ -10,9 +10,6 @@ import { besideOf } from "../../src/store/beside.js";
 import { playable } from "../support/play.js";
 import { hogwartsStoryFile, malfoyProblemStoryFile } from "../support/story-files.js";
 
-/** Who an Actor's prompt says is here, in the order it tells who each person here is now. */
-const peopleHere = (prompt: string) => [...(/<people_now>\n[^\n]*\n([\s\S]*?)\n<\/people_now>/.exec(prompt)?.[1] ?? "").matchAll(/^(\S[^\n]*)$/gm)].map(match => match[1]!);
-
 const beats = (inPlay: number): Beat[] => [0, 1, 2].map(index => ({ text: `beat ${index + 1}`, status: index < inPlay ? "done" : index === inPlay ? "in_play" : "pending" }));
 const PLAN = { title: "After curfew", place: "The Gryffindor common room", purpose: "Hermione decides whether to ask what he is.", exit: "She asks, or goes up to bed." };
 
@@ -34,7 +31,7 @@ describe("a turn with the Writer", () => {
     expect(state().clock).toBe("Day 2 17:05");
     // The time moves in this moment's layer, with the Move.
     const moment = models.actor.requests[0]!.prompt.slice(models.actor.requests[0]!.prompt.lastIndexOf("<now>"));
-    expect(moment).toMatch(/^<now>\nIt is Thursday 5 September 1991, 5:05 pm \(1991-09-05 17:05\)\.\n<\/now>[\s\S]*holding on/);
+    expect(moment).toMatch(/^<now>\nIt is Thursday 5 September 1991, 4:00 pm \(1991-09-05 16:00\)\.\n<\/now>[\s\S]*holding on/);
   });
 
   it("sends a Writer's answer it cannot use back once, and takes the repair", async () => {
@@ -47,44 +44,39 @@ describe("a turn with the Writer", () => {
 
   // GIVEN a Scene in the Gryffindor common room
   // WHEN the Move is "I go to my room; Harry, Ron and Neville are playing a board game"
-  // THEN a new Scene opens in the dormitory with its title card, and the Reply plays it
+  // THEN the Scene continues in the dormitory, and the Reply plays it
   // AND no Day View appears
-  it("scenes › A Scene ends when a Move leaves it or the player ends it › Walking out of a Scene", async () => {
+  it("scenes › Only End Scene ends a Scene › Walking out keeps the Scene open", async () => {
     const move = "I go to my room; Harry, Ron and Neville are playing a board game";
     const { play, path, view, events, models } = playable(hogwartsStoryFile(), {
-      writer: [writer({ leaves_scene: true, frame: { title: "Lights out", place: "The boys' dormitory", purpose: "Ron finds out where Roopesh goes at night.", exit: "Ron asks, or lets it go." }, comes_in: ["Harry Potter", "Ron Weasley", "Neville Longbottom"], minutes: 5 })],
+      writer: [writer({ leaves_scene: true, frame: { title: "Lights out", place: "The boys' dormitory", purpose: "Ron finds out where Roopesh goes at night.", exit: "Ron asks, or lets it go." }, comes_in: ["Harry Potter", "Ron Weasley", "Neville Longbottom"], goes: ["Hermione Granger"], minutes: 5 })],
       actor: [{ answer: "Ron looks up from the board. \"Your go, Roo.\"" }]
     });
     await play(move);
 
-    // The Scene he left is closed by the Move and recorded like any other before the next opens (living-world: Every
-    // Scene SHALL be recorded); no time passes before the next.
+    // A change of place updates the Scene without running its end or opening another.
     const kinds = path().map(payload => payload.kind);
     const left = kinds.lastIndexOf("move");
-    expect(kinds.slice(left)).toEqual(["move", "scene_closed", "chronicle", "outline_set", "director_plan", "world_moved", "scene_opened", "beat_note", "reply"]);
-    expect(path()[left + 1]).toEqual({ kind: "scene_closed", by: "move" });
-    expect(path()[left + 2]).toMatchObject({ kind: "chronicle", truth: emptyUpdate(), scene: 1 });
-    expect(path()[left + 5]).toMatchObject({ kind: "world_moved", truth: emptyUpdate(), gap: false, from: "Day 3 21:40", until: "Day 3 21:40" });
+    expect(kinds.slice(left)).toEqual(["move", "beat_note", "reply"]);
+    expect(models.chronicler.requests).toHaveLength(0);
+    expect(models.weaver.requests).toHaveLength(0);
     expect(models.writer.requests).toHaveLength(1);
-    expect(path().at(-3)).toMatchObject({ kind: "scene_opened", number: 2, title: "Lights out", place: "The boys' dormitory", at: "Day 3 21:45", who: ["Harry Potter", "Ron Weasley", "Neville Longbottom"], prose: null });
     const shown = view();
-    expect(shown.scene).toMatchObject({ number: 2, title: "Lights out", place: "The boys' dormitory", at_label: "Friday 9:45 pm" });
+    expect(shown.scene).toMatchObject({ number: 1, title: "After curfew", place: "The boys' dormitory" });
     expect(shown.scene.people.map(person => person.name)).toEqual(["Harry Potter", "Ron Weasley", "Neville Longbottom"]);
-    expect(shown.exchanges).toEqual([{ move: { entry_id: expect.any(String), text: move }, reply: { entry_id: expect.any(String), text: "Ron looks up from the board. \"Your go, Roo.\"" } }]);
-    expect(shown.earlier_scenes.map(scene => scene.title)).toEqual(["After curfew"]);
+    expect(shown.exchanges.at(-1)).toEqual({ move: { entry_id: expect.any(String), text: move }, reply: { entry_id: expect.any(String), text: "Ron looks up from the board. \"Your go, Roo.\"" } });
+    expect(shown.earlier_scenes).toEqual([]);
     expect(shown.day_view).toBeNull();
-    expect(models.actor.requests[0]!.prompt).toContain("<scene>\nLights out. The boys' dormitory");
-    // The phone is told each step of the end of the Scene he left, then the new Scene opens with no Day View between,
-    // and the Reply is written, checked, and sent whole.
-    expect(events.map(event => event.event.kind).filter(kind => kind !== "turn_step" && kind !== "scene_end_step")).toEqual(["move", "scene_closed", "world_moved", "scene_opened", "reply"]);
+    expect(models.actor.requests[0]!.prompt).toContain(move); // Location is computed in the same writing generation.
+    expect(events.map(event => event.event.kind).filter(kind => kind !== "turn_step" && kind !== "scene_end_step")).toEqual(["move", "reply"]);
     expect(events.flatMap(event => (event.event.kind === "turn_step" ? [event.event.turn_step] : []))).toEqual(["writing", "checking"]);
-    expect(events.flatMap(event => (event.event.kind === "scene_end_step" ? [event.event.step] : []))).toEqual(["chronicler", "director", "weaver", null]);
+    expect(events.some(event => event.event.kind === "scene_end_step")).toBe(false);
   });
 
   // GIVEN a Scene in the Great Hall in which Hermione wants to know where he went on Wednesday
   // WHEN the Move is "I go to the library with Hermione"
   // THEN the same Scene goes on in the library, the place shown changes, and no new title card opens
-  it("scenes › A Scene ends when a Move leaves it or the player ends it › Walking somewhere together keeps the Scene", async () => {
+  it("scenes › Only End Scene ends a Scene › Walking somewhere together keeps the Scene", async () => {
     const hall = { title: "Wednesday", place: "The Great Hall", purpose: "Hermione decides whether to believe where he says he went on Wednesday.", exit: "She lets it go, or says she knows he is lying." };
     const { play, path, view, events, models } = playable(hogwartsStoryFile({ title: "Wednesday", place: "The Great Hall", at: "Day 3 12:30", who: ["Hermione Granger"] }), {
       writer: [writer({ frame: hall }), writer({ moves_to: "The library", minutes: 8 })]
@@ -94,15 +86,14 @@ describe("a turn with the Writer", () => {
     expect(path().filter(payload => payload.kind === "scene_opened")).toHaveLength(1);
     expect(view().scene).toMatchObject({ number: 1, title: "Wednesday", place: "The library" });
     expect(events.filter(event => event.event.kind === "scene_opened")).toHaveLength(0);
-    // The Writer was told the Scene goes on when they walk somewhere together.
-    expect(models.writer.requests[1]!.system.replace(/\s+/g, " ")).toContain("A Move that walks somewhere with them while it goes on keeps the Scene: set moves_to to the new place");
+    expect(models.writer.requests[1]!.system.replace(/\s+/g, " ")).toContain("Only the player's End Scene button closes the Scene");
   });
 
   // GIVEN a Scene whose purpose has turned: Draconia has said what she came to say
   // WHEN the Reply lands it
   // THEN the Scene stays open with the composer ready, and no Day View opens until the player ends the Scene or a Move
   //   leaves it
-  it("scenes › A Scene ends when a Move leaves it or the player ends it › The Story never closes a Scene", async () => {
+  it("scenes › Only End Scene ends a Scene › The Story never closes a Scene", async () => {
     const { play, path, view, events, models } = playable(hogwartsStoryFile(), { writer: [writer({ frame: PLAN, call: "land", note: "Hermione says what she came to say, and goes quiet." })] });
     await play("I say goodnight.");
     // The Reply lands the Scene, and the Scene stays open: no close, no Scene's end, no Day View.
@@ -119,7 +110,7 @@ describe("a turn with the Writer", () => {
 
   // WHEN the player taps End scene after a Reply
   // THEN the Scene is closed at that Reply and the Day View opens
-  it("scenes › A Scene ends when a Move leaves it or the player ends it › The player ends a Scene", async () => {
+  it("scenes › Only End Scene ends a Scene › The player ends a Scene", async () => {
     const { play, engine, storyId, head, path, view, events } = playable();
     await play("I say goodnight.");
     const reply = head();
@@ -159,8 +150,8 @@ describe("a turn with the Writer", () => {
   });
 
   // GIVEN three exchanges in a row in which no Arc moved, and Linger is off
-  // THEN the next Reply moves the Scene to its next beat or brings it to a close
-  it("scenes › Only what matters earns time › A stalled Scene moves on", async () => {
+  // THEN a beat can develop without a forced Arc deadline
+  it("scenes › Pacing follows play › A beat can develop without a deadline", async () => {
     const stalled = { arc_moved: false, beats: beats(0) };
     const { play, models, state } = playable(hogwartsStoryFile(), {
       writer: [writer({ ...stalled, frame: PLAN }), writer(stalled), writer(stalled),
@@ -169,19 +160,18 @@ describe("a turn with the Writer", () => {
     for (const move of ["I sit down.", "I look at the fire.", "I yawn."]) await play(move);
     expect(models.writer.requests[2]!.prompt).not.toMatch(/No Arc has moved/);
     await play("I look at the fire again.");
-    // The Writer is told the Scene has stalled, and moves it to its next beat; the Reply plays that beat.
-    expect(models.writer.requests[3]!.prompt).toMatch(/No Arc has moved for 3 Replies: move the Scene on toward its turn, or call land\./);
+    expect(models.writer.requests[3]!.prompt).not.toMatch(/No Arc has moved/);
     expect(models.writer.requests).toHaveLength(4);
     expect(state().scene!.beats.findIndex(beat => beat.status === "in_play")).toBe(1);
     expect(models.actor.requests[3]!.prompt).toContain("Hermione puts the book down: she asks where he goes at night.");
   });
 
-  it("tells the Writer to make a beat happen once it has been in play for four exchanges", async () => {
+  it("does not force a beat to happen after four exchanges", async () => {
     const { play, models } = playable(hogwartsStoryFile(), { writer: [writer({ frame: PLAN })] });
     for (const move of ["I sit down.", "I look at the fire.", "I yawn.", "I stretch."]) await play(move);
     expect(models.writer.requests[3]!.prompt).not.toMatch(/in play for/);
     await play("I look at Hermione.");
-    expect(models.writer.requests[4]!.prompt).toMatch(/The beat in play has been in play for 4 Replies: make it happen now, or skip it\./);
+    expect(models.writer.requests[4]!.prompt).not.toMatch(/make it happen now|in play for 4 Replies/);
   });
 
   // GIVEN Linger is on in the common room with Hermione
@@ -228,7 +218,7 @@ describe("a turn with the Writer", () => {
     await engine.settled(storyId);
     expect(mac.tree.entry(head())!.payload).toEqual({ kind: "move", text: "I sit down." });
     // The Writer's model and its second model both failed.
-    expect(view().turn).toEqual({ kind: "failed", reason: expect.stringMatching(/could not be planned.*Sonnet is overloaded/), trace_id: "trace-1", job: "writer" });
+    expect(view().turn).toEqual({ kind: "failed", reason: expect.stringMatching(/could not be written.*Sonnet is overloaded/), trace_id: "trace-1", job: "actor" });
     expect(events.at(-1)!.event.kind).toBe("reply_failed");
     expect(models.actor.requests).toHaveLength(0);
 
@@ -242,13 +232,13 @@ describe("a turn with the Writer", () => {
     const { engine, storyId, head, mac, models, view } = playable(hogwartsStoryFile(), { writer: [writer({ frame: PLAN })], actor: [{ fail: "Opus is overloaded" }, { fail: "Opus is overloaded" }] });
     engine.move(storyId, "I sit down.", head(), "trace-1");
     await engine.settled(storyId);
-    expect(mac.tree.entry(head())!.payload.kind).toBe("beat_note");
+    expect(mac.tree.entry(head())!.payload.kind).toBe("move");
     expect(view().turn).toMatchObject({ kind: "failed", reason: expect.stringMatching(/Opus is overloaded/) });
     expect(() => engine.move(storyId, "I wave.", head(), "trace-x")).toThrow(LinkError);
 
     engine.retry(storyId, "trace-2");
     await engine.settled(storyId);
-    expect(models.writer.requests).toHaveLength(1);
+    expect(models.writer.requests).toHaveLength(3);
     expect(mac.tree.entry(head())!.payload.kind).toBe("reply");
   });
 });
@@ -274,6 +264,8 @@ describe("Focus, Linger and Redo", () => {
     await play("At supper I sit with Harry and Ron.");
     expect(view().scene.title).toBe("Supper");
     expect(view().focus).toBeNull();
+    engine.endScene(storyId, head(), "trace-end-supper");
+    await engine.ended(storyId);
     await play("After supper I go to the library.");
     expect(view().scene.title).toBe("The library");
     expect(view().focus).toBe("Hermione Granger");
@@ -292,8 +284,8 @@ describe("Focus, Linger and Redo", () => {
     expect(models.writer.requests.every(request => request.prompt.includes("Focus is on Hermione Granger."))).toBe(true);
     expect(state().scene!.here).toEqual(["Hermione Granger", "Harry Potter"]);
     for (const request of models.actor.requests) {
-      expect(request.prompt).toMatch(/Stay close beside Hermione Granger/);
-      expect(peopleHere(request.prompt)).toEqual(["Hermione Granger", "Harry Potter"]);
+      expect(request.prompt).toContain("Focus is on Hermione Granger.");
+      expect(state().scene!.here).toEqual(["Hermione Granger", "Harry Potter"]);
     }
   });
 
@@ -301,13 +293,13 @@ describe("Focus, Linger and Redo", () => {
   // WHEN the Move is "Ron stumbles down the stairs in his pyjamas"
   // THEN Ron is in the Scene and the Reply plays him
   it("scenes › Focus keeps a Scene close to one person › A Move brings someone in", async () => {
-    const { play, models, view } = playable(hogwartsStoryFile(), {
+    const { play, view } = playable(hogwartsStoryFile(), {
       writer: [writer({ frame: PLAN, comes_in: ["Hermione Granger", "Ron Weasley"], note: "Ron, half asleep, wants to know why they are both still up." })]
     });
     expect(view().focus).toBe("Hermione Granger");
     await play("Ron stumbles down the stairs in his pyjamas");
     expect(view().scene.people.map(person => person.name)).toEqual(["Hermione Granger", "Ron Weasley"]);
-    expect(peopleHere(models.actor.requests[0]!.prompt)).toEqual(["Hermione Granger", "Ron Weasley"]);
+    expect(view().scene.people.map(person => person.name)).toEqual(["Hermione Granger", "Ron Weasley"]);
   });
 
   it("refuses Focus on someone who is not in the Scene, and Linger after the Scene has closed", async () => {
@@ -346,7 +338,8 @@ describe("Focus, Linger and Redo", () => {
 
     await play("I ask her what she's reading.");
     expect(JSON.stringify(view())).not.toContain(direction);
-    for (const request of models.actor.requests) expect(request.system + request.prompt).not.toContain(direction);
+    expect(models.actor.requests.at(-1)!.prompt).toContain(direction);
+    expect(besideOf(mac, storyId).notes.some(note => note.text === direction && note.active)).toBe(true);
     expect(besideOf(mac, storyId).taste).toEqual([]);
   });
 
@@ -360,22 +353,28 @@ describe("Focus, Linger and Redo", () => {
     await play("I ask about the prefects' rota.");
     engine.redo(storyId, head(), "don't dwell on school procedure", true, "trace-redo");
     await engine.settled(storyId);
-    expect(models.writer.requests[1]!.prompt).toMatch(/they asked for it to be remembered: put it in taste/);
-    expect(besideOf(mac, storyId).taste).toEqual([lesson]);
+    expect(models.writer.requests[1]!.prompt).toContain("<active_directions>");
+    expect(models.writer.requests[1]!.prompt).toContain("don't dwell on school procedure");
+    expect(besideOf(mac, storyId).taste).toEqual([]);
+    expect(besideOf(mac, storyId).notes.some(note => note.text === "don't dwell on school procedure")).toBe(true);
 
     await play("I say goodnight.");
+    engine.endScene(storyId, head(), "trace-end");
+    await engine.ended(storyId);
     await play("In the morning I find Draconia at breakfast.");
     expect(state().scene!.title).toBe("Breakfast");
-    expect(models.writer.requests.at(-1)!.prompt).toContain(lesson);
-    expect(models.actor.requests.at(-1)!.prompt).toContain(lesson);
+    expect(models.writer.requests.at(-1)!.prompt).toContain("don't dwell on school procedure");
+    expect(models.actor.requests.at(-1)!.prompt).toContain("don't dwell on school procedure");
   });
 
-  it("redoes the first Reply of a Scene a Move walked into, keeping the end of the Scene it left", async () => {
+  it("redoes the first Reply after End Scene, keeping the previous Scene's end", async () => {
     const dorm = { title: "Lights out", place: "The boys' dormitory", purpose: "p", exit: "e" };
     const { play, engine, storyId, head, path, models, view } = playable(hogwartsStoryFile(), {
       writer: [writer({ frame: PLAN }), writer({ leaves_scene: true, frame: dorm, comes_in: ["Harry Potter"], minutes: 5 }), writer({ frame: dorm, comes_in: ["Harry Potter"] }), writer({ frame: dorm, comes_in: ["Harry Potter"] })]
     });
     await play("I sit down by the fire.");
+    engine.endScene(storyId, head(), "trace-end");
+    await engine.ended(storyId);
     await play("I go up to the dormitory.");
     const recorded = models.chronicler.requests.length;
     const woven = models.weaver.requests.length;
@@ -399,7 +398,7 @@ describe("Focus, Linger and Redo", () => {
     engine.redo(storyId, head(), null, false, "trace-again");
     await engine.settled(storyId);
     expect(models.chronicler.requests).toHaveLength(recorded);
-    expect(path().filter(payload => payload.kind === "redo")).toEqual([{ kind: "redo", direction: null, remember: false }]);
+    expect(path().filter(payload => payload.kind === "redo")).toMatchObject([{ kind: "redo", direction: null, remember: false, rejected: { text: expect.any(String) } }]);
     expect(path().at(-1)).toMatchObject({ kind: "reply" });
   });
 
@@ -433,7 +432,7 @@ describe("Focus, Linger and Redo", () => {
     expect(path().slice(-6).map(payload => payload.kind)).toEqual(["move", "focus_set", "linger_set", "redo", "beat_note", "reply"]);
     expect(state().scene).toMatchObject({ focus: "Hermione Granger", linger: true });
     expect(models.writer.requests[1]!.prompt).toMatch(/Focus is on Hermione Granger/);
-    expect(models.actor.requests[1]!.prompt).toMatch(/Stay close beside Hermione Granger/);
+    expect(models.actor.requests[1]!.prompt).toContain("Focus is on Hermione Granger.");
   });
 
   it("asks for a Direction to remember, and refuses a Redo while a Reply is being written", async () => {
@@ -649,7 +648,7 @@ describe("a long Scene (the-storys-mind design decision 8)", () => {
     const left = story.path().map(payload => payload.kind);
     expect(left.slice(left.lastIndexOf("move"))).toEqual(["move", "scene_recorded", "beat_note", "reply"]);
     const calls = story.mac.db.prepare("SELECT agent FROM calls WHERE trace_id = 'trace-1' ORDER BY rowid").all() as { agent: string }[];
-    expect(calls.map(call => call.agent)).toEqual(["chronicler", "writer", "actor", "editor", "actor", "editor"]);
+    expect(calls.map(call => call.agent)).toEqual(["chronicler", "actor", "editor", "actor", "editor"]);
     expect(story.events.flatMap(event => (event.event.kind === "turn_step" ? [event.event.turn_step] : []))).toEqual(["looking_back", "writing", "checking", "writing", "checking"]);
     expect(story.state().scene).toMatchObject({ number: 1, closed: null });
     expect(Object.values(story.state().truth.truths)).toEqual([expect.objectContaining({ what: "Nobody but the three of them ever comes into the secret suite.", opened: 1, closed: null })]);
@@ -676,7 +675,7 @@ describe("a long Scene (the-storys-mind design decision 8)", () => {
 
   // GIVEN a long Scene in the dorm in which they have left for the Astronomy Tower and a different night has begun
   // WHEN the next Move is answered
-  // THEN the dorm Scene closes and a new Scene opens with its own title card
+  // THEN the Scene stays open at the new place, with its earlier exchanges preserved
   it("scenes › A long Scene is recorded as it goes › A Scene that has become another", async () => {
     const dorm = hogwartsStoryFile({ title: "Lights out", place: "The boys' dormitory", who: ["Harry Potter", "Ron Weasley"], prose: "Ron has the board out on his bed." });
     const tower = { title: "The Astronomy Tower", place: "The Astronomy Tower", purpose: "Draconia decides whether to say why she came.", exit: "She says it, or goes back down." };
@@ -694,22 +693,21 @@ describe("a long Scene (the-storys-mind design decision 8)", () => {
     ]);
     await story.play("I ask Draconia why she came.");
 
-    // The Writer was told the Scene has run long, and to close it if it has become another.
-    expect(story.models.writer.requests[0]!.prompt).toMatch(/This Scene has run 31 exchanges[^\n]*If it has become another one/);
-    // The dorm Scene closes where the Move is, and is recorded and ended like any other; the new one opens with the Move.
+    expect(story.models.writer.requests[0]!.prompt).toContain("This Scene has run 31 exchanges and was recorded so far.");
     const kinds = story.path().map(payload => payload.kind);
     const from = kinds.lastIndexOf("move");
-    expect(kinds.slice(from, from + 3)).toEqual(["move", "scene_recorded", "scene_closed"]);
-    expect(kinds.slice(-3)).toEqual(["scene_opened", "beat_note", "reply"]);
-    expect(story.path()[from + 2]).toEqual({ kind: "scene_closed", by: "move" });
+    expect(kinds.slice(from)).toEqual(["move", "scene_recorded", "beat_note", "reply"]);
     const shown = story.view();
-    expect(shown.scene).toMatchObject({ number: 2, title: "The Astronomy Tower", place: "The Astronomy Tower" });
-    expect(shown.earlier_scenes.map(scene => scene.title)).toEqual(["Lights out"]);
-    expect(shown.exchanges).toEqual([{ move: { entry_id: expect.any(String), text: "I ask Draconia why she came." }, reply: { entry_id: expect.any(String), text: "Draconia does not turn round. “You took your time.”" } }]);
-    expect(story.events.find(event => event.event.kind === "scene_opened")!.event.scene).toMatchObject({ title: "The Astronomy Tower" });
+    expect(shown.scene).toMatchObject({ number: 1, title: "Lights out", place: "The Astronomy Tower" });
+    expect(shown.earlier_scenes).toEqual([]);
+    expect(shown.exchanges.at(-1)).toEqual({ move: { entry_id: expect.any(String), text: "I ask Draconia why she came." }, reply: { entry_id: expect.any(String), text: "Draconia does not turn round. “You took your time.”" } });
+    expect(story.events.some(event => event.event.kind === "scene_opened")).toBe(false);
+    expect(story.models.chronicler.requests).toHaveLength(1);
+    story.engine.endScene(story.storyId, story.head(), "manual-end");
+    await story.engine.ended(story.storyId);
     // Its end records only what came after the record kept while it was played, and tells the whole Scene.
     const ending = story.models.chronicler.requests[1]!;
-    expect((ending.facts as { passages: { text: string }[] }).passages.map(item => item.text)).toEqual(["I ask Draconia why she came."]);
+    expect((ending.facts as { passages: { text: string }[] }).passages.map(item => item.text)).toEqual(["I ask Draconia why she came.", "Draconia does not turn round. “You took your time.”"]);
     expect(ending.prompt).toContain("The Scene was played to its end, and something between them turned.");
   });
 });

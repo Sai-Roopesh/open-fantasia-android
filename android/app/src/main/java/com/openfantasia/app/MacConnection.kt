@@ -141,6 +141,7 @@ class MacConnection(
     override suspend fun rewordTaste(storyID: String, request: RewordTasteRequest) = command { it.rewordTaste(storyID, request) }
     override suspend fun writeNote(storyID: String, request: SteeringNoteRequest) = command { it.writeNote(storyID, request) }
     override suspend fun deleteNote(storyID: String, noteID: String) = command { it.deleteNote(storyID, noteID) }
+    override suspend fun editNote(storyID: String, noteID: String, request: SteeringNoteEditRequest) = command { it.editNote(storyID, noteID, request) }
     override suspend fun setBrief(storyID: String, request: BriefRequest): Accepted = command { it.setBrief(storyID, request) }
     override suspend fun react(storyID: String, request: ReactionRequest): Accepted = command { it.react(storyID, request) }
     override fun watch(initial: SceneView): Flow<SceneView> = StoryStream(

@@ -1,6 +1,7 @@
 import type { ModelRequest, ModelRunner, Tools } from "./model-call.js";
 import { nothingTrue } from "../agents/truth-record.js";
 import { ScriptedRunner, type Script } from "./scripted.js";
+import { addMinutes } from "../agents/format.js";
 
 interface WriterFacts {
   opening: "day_view" | "unplanned" | null;
@@ -232,8 +233,19 @@ export class FakeModels implements ModelRunner {
   /** Scripted models can use every tool, so a job's lookups can be scripted (docs/adr/0018). */
   readonly canLookUp = { story: true, web: true };
 
-  run(request: ModelRequest, onText: (delta: string) => void, signal: AbortSignal, tools?: Tools): Promise<string> {
+  async run(request: ModelRequest, onText: (delta: string) => void, signal: AbortSignal, tools?: Tools): Promise<string> {
     this.requests.push(request);
+    if ((request.facts as { composing?: boolean } | undefined)?.composing) {
+      // Scenario fixtures describe metadata and prose independently, but assemble ONE provider answer.
+      // `requests` above is the actual call ledger; writer/actor.requests below are fixture evaluations.
+      const raw = JSON.parse(await this.writer.run({ ...request, agent: "writer" }, () => {}, signal, tools)) as Record<string, unknown>;
+      const clock = addMinutes((request.facts as WriterFacts).clock, Number(raw.minutes ?? 0));
+      const proseRequest = { ...request, prompt: request.prompt + `\n\n<this_reply>\nWhat happens next: ${String(raw.note ?? "")}\nReply clock: ${clock}\n</this_reply>` };
+      const reply = await this.actor.run(proseRequest, () => {}, signal, tools);
+      const answer = JSON.stringify({ ...raw, reply });
+      onText(answer);
+      return answer;
+    }
     const director = isOutline(request) ? this.outline : this.director;
     const runner = request.agent === "writer" ? this.writer : request.agent === "chronicler" ? this.chronicler : request.agent === "weaver" ? this.weaver
       : request.agent === "director" ? director : request.agent === "folder" ? this.folder : request.agent === "editor" ? this.editor : this.actor;

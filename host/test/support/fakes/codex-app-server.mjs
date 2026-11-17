@@ -9,12 +9,23 @@ const log = process.env.FAKE_CODEX_LOG;
 const send = message => process.stdout.write(`${JSON.stringify(message)}\n`);
 let threads = 0;
 const waiting = new Map(); // threadId -> turnId, for a slow turn that waits to be interrupted
+const toolCalls = new Map();
 
 createInterface({ input: process.stdin }).on("line", line => {
   const message = JSON.parse(line);
   if (log) appendFileSync(log, `${line}\n`);
   const { id, method, params } = message;
+  if (!method && toolCalls.has(id)) {
+    const { threadId, turnId } = toolCalls.get(id);
+    toolCalls.delete(id);
+    const text = JSON.stringify(message.result);
+    send({ method: "item/completed", params: { threadId, turnId, item: { type: "agentMessage", text } } });
+    send({ method: "thread/tokenUsage/updated", params: { threadId, turnId, tokenUsage: { total: { inputTokens: 100, cachedInputTokens: 30, outputTokens: 20, reasoningOutputTokens: 5, totalTokens: 120 } } } });
+    send({ method: "turn/completed", params: { threadId, turn: { id: turnId, status: "completed" } } });
+    return;
+  }
   if (method === "initialize") return send({ id, result: { userAgent: "codex_cli_rs/0.160.0" } });
+  if (method === "config/read") return send({ id, result: { config: { mcp_servers: { unrelated: {} } } } });
   if (method === "thread/start") return send({ id, result: { thread: { id: `thread-${++threads}` }, model: params.model } });
   if (method === "turn/interrupt") {
     send({ id, result: {} });
@@ -28,6 +39,12 @@ createInterface({ input: process.stdin }).on("line", line => {
     send({ id, result: { turn: { id: turnId, items: [], status: "inProgress" } } });
     send({ method: "turn/started", params: { threadId, turn: { id: turnId, items: [], status: "inProgress" } } });
     const done = (status, error = null) => send({ method: "turn/completed", params: { threadId, turn: { id: turnId, items: [], status, error } } });
+    if (prompt.includes("dynamic lookup")) {
+      const requestId = `tool-${threadId}`;
+      toolCalls.set(requestId, { threadId, turnId });
+      send({ id: requestId, method: "item/tool/call", params: { threadId, turnId, callId: requestId, namespace: null, tool: "search_story", arguments: { words: "window seat" } } });
+      return;
+    }
     if (prompt.includes("die")) return process.exit(3);
     // As the API does (6 October 2026): every object in an output schema must list every key it has as required.
     const loose = params.outputSchema && unrequired(params.outputSchema, "schema");

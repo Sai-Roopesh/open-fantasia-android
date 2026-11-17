@@ -125,7 +125,7 @@ describe("Backstage's view", () => {
     expect(view.lives_by_tier.movers.map(life => life.who)).toEqual(["Student 1"]);
     expect(view.lives_by_tier.others).toContain("Crabbe and Goyle");
     expect(view.lives_by_tier.others).not.toContain("Roopesh Gantasala");
-    expect(view.notes).toEqual([{ id: expect.any(String), text: "Keep Hermione a rival this year", written_at: expect.any(String), answered: false }]);
+    expect(view.notes).toEqual([{ id: expect.any(String), text: "Keep Hermione a rival this year", written_at: expect.any(String), answered: false, active: true }]);
     expect(view).toMatchObject({ taste: ["Never write her as a first-timer."], player_taste: ["Don't decide what my character feels."] });
   });
 });

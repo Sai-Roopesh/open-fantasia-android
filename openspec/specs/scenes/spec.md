@@ -119,18 +119,17 @@ or not the plan named them. Someone the Reply only mentions SHALL not be.
 
 The Story SHALL give time to a moment when an **Arc** is moving or the **Premise** is happening, and SHALL let such
 moments breathe. It SHALL say logistics and procedure in a line, tell routine stretches as a short montage, and
-leave business that touches no Arc off the page. When three exchanges pass with no Arc moving and **Linger** is
-off, the Story SHALL move the Scene on or bring it to a close. A beat that has been in play for four exchanges SHALL
-be made to happen.
+leave business that touches no Arc off the page. Pacing SHALL follow the player's Moves and the people's wants,
+without a fixed exchange limit for a beat or an Arc. Quiet interaction SHALL be allowed without forcing a payoff.
 
 #### Scenario: Procedure does not take over
 - **GIVEN** Draconia's argument with Snape about her bed touches no Arc
 - **WHEN** the Player Character finds them in the hospital wing
 - **THEN** the Reply gives the argument a line and stays with what is moving between her and the Player Character
 
-#### Scenario: A stalled Scene moves on
+#### Scenario: A quiet Scene can continue
 - **GIVEN** three exchanges in a row in which no Arc moved, and Linger is off
-- **THEN** the next Reply moves the Scene to its next beat or brings it to a close
+- **THEN** the next Reply answers the Move without a deadline that forces the next beat or an ending
 
 ### Requirement: Linger holds the moment
 
@@ -169,17 +168,21 @@ On a **Move**, Rewind to here and Try another way from here SHALL act on the mom
 
 **Redo** SHALL write the latest **Reply** again, optionally with a **Direction** and optionally on a different model
 for that one **Reply**, chosen from the models the Models screen offers. A **Direction** SHALL shape what comes next
-and SHALL never appear in the **Story**. A **Direction** that recurs, or that the player asks to remember, SHALL become
-a line of **Taste**.
+and SHALL never appear as an event or character knowledge in the **Story**. Every nonempty Direction SHALL be
+saved exactly, independently of the Path. Subsequent writing, checking and planning SHALL receive every active
+Direction in a protected instruction section, retaining its intended scope. The player SHALL be able to edit,
+archive and restore Directions in Backstage. No automatic paraphrase SHALL replace the original instruction.
 
-#### Scenario: A Direction that is not remembered
+#### Scenario: A Direction persists automatically
 - **WHEN** the player Redoes with the Direction "you're leaning too much into Ron, move on"
 - **THEN** the new Reply moves away from Ron
-- **AND** the Direction's words appear nowhere in the Story
+- **AND** the Direction remains available to subsequent Replies and after restarting or changing Paths
+- **AND** it is not treated as an event or knowledge held by a character
 
-#### Scenario: Remember this
-- **WHEN** the player Redoes with the Direction "don't dwell on school procedure" and ticks "remember this"
-- **THEN** Taste gains a line saying so, and later Scenes honour it
+#### Scenario: Archive a Direction
+- **WHEN** the player archives "don't dwell on school procedure" in Backstage
+- **THEN** future generations omit that Direction while its original and edits remain available
+- **AND** restoring it makes it available again
 
 #### Scenario: Redo on another model
 - **GIVEN** the Story's Actor is Opus 5.5
@@ -235,9 +238,10 @@ Reply with a note saying what is wrong.
 ### Requirement: A long Scene is recorded as it goes
 
 A **Scene** SHALL be carried word for word while it is under a size limit of about thirty exchanges. Past it, the
-Scene so far SHALL be recorded as a finished Scene is, once, and from then on carried as that record with its latest
-exchanges word for word; any earlier passage SHALL stay readable to the **Writer**. The Writer SHALL close a Scene that
-has become another one, unless Linger is on.
+Scene so far SHALL be recorded as a finished Scene is and carried as that record with its latest exchanges word for
+word. Further checkpoints SHALL extend the cumulative record using only new passages for new facts and Moments;
+any earlier passage SHALL stay readable through Story lookups. Recording SHALL keep the Scene
+open, regardless of Linger, changes of activity or elapsed time.
 
 #### Scenario: Thirty exchanges in
 - **GIVEN** a Scene in the secret suite has run past thirty exchanges
@@ -247,20 +251,19 @@ has become another one, unless Linger is on.
 #### Scenario: A Scene that has become another
 - **GIVEN** a long Scene in the dorm in which they have left for the Astronomy Tower and a different night has begun
 - **WHEN** the next Move is answered
-- **THEN** the dorm Scene closes and a new Scene opens with its own title card
+- **THEN** the same Scene stays open, with the place and clock updated and its earlier exchanges preserved
 
-### Requirement: A Scene ends when a Move leaves it or the player ends it
+### Requirement: Only End Scene ends a Scene
 
-A Scene SHALL be one thing happening between its people, with a purpose. It SHALL end only when a Move skips ahead or
-turns to something else, or when the player ends it; the Story SHALL never close a Scene on its own, even once its
-purpose has turned. A Move that goes somewhere while the same thing goes on between the same people SHALL keep the
-Scene, with the place changing. A Move that turns to something else SHALL lead straight into the next Scene, with no Day
-View between. End scene SHALL ask the player to confirm, and a Scene the player ends SHALL open the **Day View**.
+A Scene SHALL stay open until the player uses End Scene. A Move that changes place, passes time or turns to
+another activity SHALL update the place, clock and people within that Scene. The Story SHALL never close it or
+force a payoff because a fixed number of Replies have passed, regardless of Linger. End scene SHALL ask the player
+to confirm, and a Scene the player ends SHALL open the **Day View**.
 
 #### Scenario: Walking out of a Scene
 - **GIVEN** a Scene in the Gryffindor common room
 - **WHEN** the Move is "I go to my room; Harry, Ron and Neville are playing a board game"
-- **THEN** a new Scene opens in the dormitory with its title card, and the Reply plays it
+- **THEN** the same Scene continues in the dormitory, and the Reply plays the Move there
 - **AND** no Day View appears
 
 #### Scenario: Walking somewhere together keeps the Scene
@@ -271,8 +274,7 @@ View between. End scene SHALL ask the player to confirm, and a Scene the player 
 #### Scenario: The Story never closes a Scene
 - **GIVEN** a Scene whose purpose has turned: Draconia has said what she came to say
 - **WHEN** the Reply lands it
-- **THEN** the Scene stays open with the composer ready, and no Day View opens until the player ends the Scene or a
-  Move leaves it
+- **THEN** the Scene stays open with the composer ready, and no Day View opens until the player uses End Scene
 
 #### Scenario: The player ends a Scene
 - **WHEN** the player taps End scene after a Reply, and confirms
@@ -281,3 +283,19 @@ View between. End scene SHALL ask the player to confirm, and a Scene the player 
 #### Scenario: End scene asks first
 - **WHEN** the player taps End scene by accident
 - **THEN** the phone asks "End this Scene?", and Keep playing leaves the Scene open with nothing sent to the Mac
+
+
+### Requirement: One writing pass and durable checking
+
+The Story's selected writing model and effort SHALL produce the complete Reply and Scene metadata together.
+The independent Editor SHALL check that draft. A completed draft and its instruction snapshot SHALL be saved
+before checking so a failed check or worker restart does not regenerate it. An Editor-requested rewrite SHALL
+remain limited to one, including across retries. Redo SHALL include the rejected draft as noncanonical revision
+context alongside the original Move and the normal Story context.
+
+### Requirement: Honest Story retrieval
+
+A provider advertised as supporting Story lookups SHALL be able to search and read only passages accessible from
+the selected Path head. Codex SHALL receive native read-only Story tools, with unrelated coding and personal
+tools disabled for these generations. Providers without tool callbacks SHALL receive deterministic local Story
+evidence and SHALL not be told that interactive lookups are available.

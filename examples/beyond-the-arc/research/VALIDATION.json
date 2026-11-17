@@ -1,0 +1,53 @@
+{
+  "checkedAt": "2026-11-06T15:11:46.166Z",
+  "title": "Beyond the Arc",
+  "activeCast": 39,
+  "registeredRealPlayers": 524,
+  "rosterTeams": 30,
+  "opening": "The family colours",
+  "clock": "Day 1 16:35",
+  "prompts": {
+    "writer": {
+      "systemChars": 63335,
+      "promptChars": 10947,
+      "missingRoster": [],
+      "missingRules": [],
+      "missingCast": []
+    },
+    "actor": {
+      "systemChars": 44743,
+      "promptChars": 7809,
+      "missingRoster": [],
+      "missingRules": [],
+      "missingCast": []
+    }
+  },
+  "formats": {
+    "writer": {
+      "enumValues": 85,
+      "jsonChars": 3941
+    },
+    "editor": {
+      "enumValues": 42,
+      "jsonChars": 1668
+    },
+    "director": {
+      "enumValues": 128,
+      "jsonChars": 6887
+    },
+    "outline": {
+      "enumValues": 156,
+      "jsonChars": 4745
+    },
+    "chronicler": {
+      "enumValues": 489,
+      "jsonChars": 15127
+    },
+    "weaver": {
+      "enumValues": 524,
+      "jsonChars": 13878
+    }
+  },
+  "issues": [],
+  "liveModelCalls": 0
+}

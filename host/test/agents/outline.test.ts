@@ -483,8 +483,10 @@ describe("when the Outline is reconsidered (openspec the-outline: The Outline is
     expect(due).toEqual({ depth: "deep", ask: { why: "steered", reason: "The player steered the Story: “Year One ends with Draconia breaking from her father”. Re-plan Year One deeply so it follows the note, over your own reading of play." } });
     const { system, prompt } = outlinePrompt(story.state(), beside, due!.ask);
     // The new note is under the player's wishes, where things stand; the one answered before still holds.
-    expect(prompt).toContain("The player's steering notes, not yet answered. They are orders, and win over your own reading of play:\n- Year One ends with Draconia breaking from her father");
-    expect(prompt).toContain("<steering_notes>\nThe player's steering notes answered before. Each still holds: every Outline keeps to it, over your own reading of play.\n- keep Hermione a rival this year\n</steering_notes>");
+    expect(prompt).toContain("<active_directions>");
+    expect(prompt).toContain("Year One ends with Draconia breaking from her father");
+    expect(prompt).toContain("keep Hermione a rival this year");
+    expect(prompt).not.toContain("<steering_notes>");
     expect(flat(system)).toContain("A note wins over your own reading of play: if play has drawn Hermione to the centre of the Act and a note says to keep her a rival this year, she stays a rival.");
     expect(prompt).toContain("Follow every new steering note: Year One builds toward what the player asked from now on.");
     // The Outline it writes answers every note that waited: they stand from now on, and are not asked again.

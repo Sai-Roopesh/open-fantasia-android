@@ -1253,6 +1253,10 @@ export interface SteeringNote {
   text: string;
   written_at: string;
   answered: boolean;
+  /**
+   * Whether this Direction guides subsequent Replies. Missing means active.
+   */
+  active?: boolean;
 }
 /**
  * What the Story keeps (openspec the-truth), each item with where it came from.
@@ -2095,11 +2099,21 @@ export interface ReactionRequest {
   note?: string | null;
 }
 /**
- * Writes a note that steers the Outline; the Director answers it at the next Scene's end.
+ * Adds a standing Direction used by subsequent Replies and planning.
  *
  * This interface was referenced by `Link`'s JSON-Schema
  * via the `definition` "SteeringNoteRequest".
  */
 export interface SteeringNoteRequest {
   text: string;
+}
+/**
+ * Edits a standing Direction or changes whether it is active, preserving its history.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "SteeringNoteEditRequest".
+ */
+export interface SteeringNoteEditRequest {
+  text: string;
+  active: boolean;
 }

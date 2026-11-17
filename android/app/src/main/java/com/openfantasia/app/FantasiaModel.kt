@@ -436,6 +436,7 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
         }
     }
     fun deleteNote(id: String) = besideChange { link.deleteNote(it, id) }
+    fun editNote(id: String, text: String, active: Boolean) = besideChange { link.editNote(it, id, SteeringNoteEditRequest(text = text, active = active)) }
 
     /**
      * Changes what lives beside the Story rather than on a Path (docs/adr/0020): Taste and the steering notes, taken

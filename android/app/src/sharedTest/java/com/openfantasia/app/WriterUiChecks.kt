@@ -175,12 +175,12 @@ open class WriterUiChecks {
         compose.onNodeWithText("Redo").assertIsEnabled().performClick()
         compose.onNodeWithText("Redo this Reply").assertIsDisplayed()
         compose.onNodeWithText("A Direction steers the new Reply. It never appears in the Story.").assertIsDisplayed()
-        compose.onNodeWithText("Keep it as a line of Taste for every Scene after.").assertIsDisplayed()
+        compose.onNodeWithText("Directions are saved for future replies. Edit or archive them in Backstage.").assertIsDisplayed()
         compose.onNodeWithTag("redo-sheet").assertIsDisplayed()
         compose.preview("Redo")
         val direction = "you're leaning too much into Ron, move on"
         compose.onNodeWithTag("redo-direction").performTextInput(direction)
-        compose.onNodeWithText("Remember this").assertIsOff()
+        compose.onNodeWithText("Remember this").assertDoesNotExist()
         compose.onNodeWithTag("confirm-redo").performClick()
         compose.runOnIdle {
             assertEquals(RedoRequest(after = "reply", direction = direction, remember = false), link.redos.single())
@@ -206,9 +206,9 @@ open class WriterUiChecks {
         openScene()
         compose.onNodeWithText("Redo").performClick()
         compose.onNodeWithTag("redo-direction").performTextInput("don't dwell on school procedure")
-        compose.onNodeWithText("Remember this").performClick().assertIsOn()
+        compose.onNodeWithText("Remember this").assertDoesNotExist()
         compose.onNodeWithTag("confirm-redo").performClick()
-        compose.runOnIdle { assertEquals(RedoRequest(after = "reply", direction = "don't dwell on school procedure", remember = true), link.redos.single()) }
+        compose.runOnIdle { assertEquals(RedoRequest(after = "reply", direction = "don't dwell on school procedure", remember = false), link.redos.single()) }
     }
 
     // Reading back is the player's choice: the keyboard opening, or the line saying a Reply is under way, must not pull
@@ -327,11 +327,12 @@ open class WriterUiChecks {
     fun rememberThisWaitsForADirection() {
         openScene()
         compose.onNodeWithText("Redo").performClick()
-        compose.onNodeWithText("Remember this").assertIsNotEnabled()
+        compose.onNodeWithText("Remember this").assertDoesNotExist()
+        compose.onNodeWithText("Directions are saved for future replies. Edit or archive them in Backstage.").assertIsDisplayed()
         compose.onNodeWithTag("redo-direction").performTextInput("less Ron")
-        compose.onNodeWithText("Remember this").assertIsEnabled().performClick().assertIsOn()
+        compose.onNodeWithTag("confirm-redo").assertIsEnabled()
         compose.onNodeWithTag("redo-direction").performTextClearance()
-        compose.onNodeWithText("Remember this").assertIsNotEnabled().assertIsOff()
+        compose.onNodeWithTag("confirm-redo").assertIsEnabled()
     }
 
     fun redoWithoutDirectionAndCancelling() {

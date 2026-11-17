@@ -240,6 +240,11 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
         backstageView = backstageView.copy(notes = backstageView.notes + SteeringNote(id = "note-${notes.size}", text = request.text,
             writtenAt = "2026-10-15T09:00:00Z", answered = false))
     }
+    val noteEdits = mutableListOf<Pair<String, SteeringNoteEditRequest>>()
+    override suspend fun editNote(storyID: String, noteID: String, request: SteeringNoteEditRequest) {
+        noteEdits += noteID to request
+        backstageView = backstageView.copy(notes = backstageView.notes.map { if (it.id == noteID) it.copy(text = request.text, active = request.active) else it })
+    }
     override suspend fun deleteNote(storyID: String, noteID: String) {
         deletedNotes += noteID
         backstageView = backstageView.copy(notes = backstageView.notes.filter { it.id != noteID })

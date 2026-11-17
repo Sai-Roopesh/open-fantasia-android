@@ -3,10 +3,11 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import type { OfferedModel } from "./catalog.js";
-import { NO_TOOLS, webLookup, type ModelRequest, type ModelRunner, type Tools } from "./model-call.js";
+import { NO_TOOLS, webLookup, type ModelRequest, type ModelRunner, type ModelUsage, type Tools } from "./model-call.js";
 
-type Message = { id?: number; method?: string; params?: Record<string, unknown>; result?: unknown; error?: { message?: string } };
+type Message = { id?: number | string; method?: string; params?: Record<string, unknown>; result?: unknown; error?: { message?: string } };
 type Listener = (method: string, params: Record<string, unknown>) => void;
+type ServerRequest = (method: string, params: Record<string, unknown>) => unknown;
 
 /**
  * One `codex app-server` (codex-cli 0.160.0): JSON-RPC over stdio, many conversations in one process. Requests are
@@ -17,10 +18,12 @@ class AppServer {
   private readonly child: ChildProcessWithoutNullStreams;
   private readonly pending = new Map<number, { resolve: (value: unknown) => void; reject: (error: Error) => void }>();
   private readonly listeners = new Map<string, Listener>();
+  private readonly handlers = new Map<string, ServerRequest>();
   private nextId = 1;
   /** Why the process is gone, once it is. */
   exited: string | null = null;
   readonly ready: Promise<void>;
+  readonly isolatedConfig: Promise<Record<string, unknown>>;
 
   constructor(command: readonly string[], cwd: string, env: Record<string, string>, private readonly onExit: () => void) {
     const [program = "codex", ...rest] = command;
@@ -30,8 +33,18 @@ class AppServer {
     this.child.on("error", error => this.end(`Codex could not start: ${error.message}`));
     this.child.on("exit", code => this.end(`Codex stopped (exit ${code ?? "signal"})${stderr.trim() ? `: ${lastLine(stderr)}` : ""}`));
     createInterface({ input: this.child.stdout }).on("line", line => this.receive(line));
-    this.ready = this.request("initialize", { clientInfo: { name: "open-fantasia", title: "Open Fantasia", version: "0.1.0" } })
+    this.ready = this.request("initialize", { clientInfo: { name: "open-fantasia", title: "Open Fantasia", version: "0.1.0" }, capabilities: { experimentalApi: true, requestAttestation: false } })
       .then(() => this.notify("initialized"));
+    this.isolatedConfig = this.ready.then(async () => {
+      const { config } = await this.request<{ config: Record<string, unknown> }>("config/read", { includeLayers: false });
+      const servers = config.mcp_servers && typeof config.mcp_servers === "object" ? Object.keys(config.mcp_servers) : [];
+      return {
+        ...Object.fromEntries(["apps", "browser_use", "computer_use", "shell_tool", "unified_exec", "view_image", "image_generation", "multi_agent", "code_mode_host", "goals", "sleep_tool", "skill_search", "hooks"].map(name => [`features.${name}`, false])),
+        "features.skip_host_skill_discovery": true,
+        ...Object.fromEntries(servers.map(name => [`mcp_servers.${name}.enabled`, false]))
+      };
+    });
+    void this.isolatedConfig.catch(() => {}); // run() observes errors; model-list-only clients do not await this.
   }
 
   request<T>(method: string, params: Record<string, unknown>): Promise<T> {
@@ -43,9 +56,10 @@ class AppServer {
     });
   }
 
-  listen(threadId: string, listener: Listener): () => void {
+  listen(threadId: string, listener: Listener, handler?: ServerRequest): () => void {
     this.listeners.set(threadId, listener);
-    return () => this.listeners.delete(threadId);
+    if (handler) this.handlers.set(threadId, handler);
+    return () => { this.listeners.delete(threadId); this.handlers.delete(threadId); };
   }
 
   close(): void {
@@ -64,12 +78,19 @@ class AppServer {
     let message: Message;
     try { message = JSON.parse(line) as Message; } catch { return; }
     if (message.id !== undefined && message.method) {
+      const params = message.params ?? {};
+      const handler = typeof params.threadId === "string" ? this.handlers.get(params.threadId) : undefined;
+      if (message.method === "item/tool/call" && handler) {
+        try { this.write({ id: message.id, result: handler(message.method, params) }); }
+        catch (error) { this.write({ id: message.id, result: { success: false, contentItems: [{ type: "inputText", text: error instanceof Error ? error.message : String(error) }] } }); }
+        return;
+      }
       this.write({ id: message.id, error: { message: "Open Fantasia's agents run no commands and change no files." } } as Message);
       return;
     }
     if (message.id !== undefined) {
-      const waiting = this.pending.get(message.id);
-      this.pending.delete(message.id);
+      const waiting = typeof message.id === "number" ? this.pending.get(message.id) : undefined;
+      if (typeof message.id === "number") this.pending.delete(message.id);
       if (message.error) waiting?.reject(new Error(message.error.message ?? "Codex refused the request"));
       else waiting?.resolve(message.result);
       return;
@@ -94,10 +115,10 @@ class AppServer {
  * folder, with approvals never given: the call is exactly what the engine sent. Words stream from the agent's message
  * deltas; the answer is its finished message. A call that may use the web gets Codex's own live web search, and each
  * search or page it opens is kept with the call; it cannot be refused mid-turn, so its budget is the call's time
- * (docs/adr/0018). The Story's tools run only on Claude.
+ * (docs/adr/0018). Read-only Story tools use app-server's client-executed dynamic tools on the call's own Path.
  */
 export class CodexRunner implements ModelRunner {
-  readonly canLookUp = { story: false, web: true };
+  readonly canLookUp = { story: true, web: true };
   private server: AppServer | null = null;
   private readonly workdir: string;
 
@@ -106,19 +127,30 @@ export class CodexRunner implements ModelRunner {
     mkdirSync(this.workdir, { recursive: true });
   }
 
-  async run(request: ModelRequest, onText: (delta: string) => void, signal: AbortSignal, tools: Tools = NO_TOOLS): Promise<string> {
+  async run(request: ModelRequest, onText: (delta: string) => void, signal: AbortSignal, tools: Tools = NO_TOOLS, onUsage?: (usage: ModelUsage) => void): Promise<string> {
     if (signal.aborted) throw new Error(`Codex ${request.model.model}: stopped`);
     const server = this.started();
     await server.ready;
     const { thread } = await server.request<{ thread: { id: string } }>("thread/start", {
       model: request.model.model,
       baseInstructions: request.system,
+      developerInstructions: "This thread belongs to Open Fantasia. Write or check fiction using only the supplied Story context and the available read-only Story tools. Do not load coding workflows, skills or unrelated personal tools.",
       ephemeral: true,
       sandbox: "read-only",
       approvalPolicy: "never",
       cwd: this.workdir,
+      ...(tools.story.length ? { dynamicTools: tools.story.map(spec => ({
+        type: "function", name: spec.name, description: spec.description,
+        inputSchema: {
+          type: "object", additionalProperties: false,
+          properties: Object.fromEntries(Object.entries(spec.params).map(([name, field]) => [name, { type: field.type, description: field.description }])),
+          required: Object.entries(spec.params).filter(([, field]) => !field.optional).map(([name]) => name)
+        }
+      })) } : {}),
       // Codex searches the web on its own when it may; a call that may not is kept from it.
-      config: { web_search: tools.web ? "live" : "disabled" }
+      selectedCapabilityRoots: [],
+      environments: [],
+      config: { ...await server.isolatedConfig, notify: [], web_search: tools.web ? "live" : "disabled" }
     });
     return await new Promise<string>((resolve, reject) => {
       let streamed = "";
@@ -126,8 +158,11 @@ export class CodexRunner implements ModelRunner {
       let turnId: string | null = null;
       let failure: string | null = null;
       let abandoned = false;
+      let finished = false;
       const interrupt = () => { if (turnId) void server.request("turn/interrupt", { threadId: thread.id, turnId }).catch(() => {}); };
       const finish = (error: Error | null) => {
+        if (finished) return;
+        finished = true;
         stop();
         signal.removeEventListener("abort", abandon);
         if (error) reject(error);
@@ -151,7 +186,16 @@ export class CodexRunner implements ModelRunner {
           else finish(new Error(`Codex ${request.model.model}: ${turn.error?.message ?? failure ?? `the turn ${turn.status ?? "stopped"}`}`));
         } else if (method === "process/exited") {
           finish(new Error(String(params.reason)));
+        } else if (method === "thread/tokenUsage/updated" && params.tokenUsage && typeof params.tokenUsage === "object") {
+          onUsage?.(params.tokenUsage as ModelUsage);
         }
+      }, (_method, params) => {
+        if (signal.aborted || finished) throw new Error("This call has ended.");
+        const name = params.tool;
+        if (typeof name !== "string" || (params.namespace !== null && params.namespace !== undefined) || !tools.story.some(spec => spec.name === name)) throw new Error("That Story tool is not available to this call.");
+        const args: unknown = typeof params.arguments === "string" ? JSON.parse(params.arguments) : params.arguments;
+        if (!args || typeof args !== "object" || Array.isArray(args)) throw new Error("Story tool arguments must be an object.");
+        return { success: true, contentItems: [{ type: "inputText", text: tools.use(name, args as Record<string, unknown>) }] };
       });
       // Abandoned before Codex said which turn it started, the turn is interrupted as soon as it says.
       const abandon = () => {

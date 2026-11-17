@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { createSdkMcpServer, query, startup, tool, type HookCallback, type ModelInfo, type Options, type SDKMessage, type WarmQuery } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import type { OfferedModel } from "./catalog.js";
-import { NO_LOOKUPS_LEFT, NO_TOOLS, webLookup, type ModelRequest, type ModelRunner, type ToolSpec, type Tools } from "./model-call.js";
+import { NO_LOOKUPS_LEFT, NO_TOOLS, webLookup, type ModelRequest, type ModelRunner, type ModelUsage, type ToolSpec, type Tools } from "./model-call.js";
 
 /** How many warm processes may wait at once; more than this and the least recently wanted is closed. */
 const MAX_WARM = 4;
@@ -44,30 +44,31 @@ export class ClaudeRunner implements ModelRunner {
     mkdirSync(this.workdir, { recursive: true });
   }
 
-  async run(request: ModelRequest, onText: (delta: string) => void, signal: AbortSignal, tools: Tools = NO_TOOLS): Promise<string> {
+  async run(request: ModelRequest, onText: (delta: string) => void, signal: AbortSignal, tools: Tools = NO_TOOLS, onUsage?: (usage: ModelUsage) => void): Promise<string> {
     // A warm process is started with its system prompt, schema, turns and tools, so all are part of what it is for.
     const key = JSON.stringify([request.model, request.system, request.schema ?? null, request.turns ?? 1, tools.story.map(spec => spec.name), tools.web]);
     const warm = this.take(key) ?? this.start(request, tools);
     warm.calling.tools = tools;
-    this.prewarm(key, request, tools);
     const handle = await warm.handle;
-    signal.addEventListener("abort", () => handle.close(), { once: true });
+    const abort = () => handle.close();
+    signal.addEventListener("abort", abort, { once: true });
 
     let streamed = "";
     let result: string | null = null;
-    for await (const message of handle.query(request.prompt)) {
+    try { for await (const message of handle.query(request.prompt)) {
       const delta = textDelta(message);
       if (delta) {
         streamed += delta;
         onText(delta);
       }
       if (message.type === "result") {
+        onUsage?.({ modelUsage: message.modelUsage, usage: message.usage, totalCostUSD: message.total_cost_usd });
         if (message.subtype !== "success" || message.is_error) throw new Error(failureOf(message));
         // Asked for a schema, Claude answers through a tool the SDK checks against it; that answer is the result.
         result = request.schema ? JSON.stringify(message.structured_output ?? null) : message.result;
       }
-    }
-    handle.close();
+    } } finally { signal.removeEventListener("abort", abort); handle.close(); }
+    this.prewarm(key, request, tools);
     return result ?? streamed;
   }
 

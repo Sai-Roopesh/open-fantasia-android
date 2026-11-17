@@ -27,7 +27,7 @@ describe("the reducer", () => {
     const { state } = nightTrain();
     expect(state.scene).toMatchObject({ here: ["Meera Kulkarni", "Uncle Bhalla"], purpose: null, exit: null, beats: [], focus: null, linger: false, closed: null, beatInPlayFor: 0, withoutArc: 0 });
     expect(state.scene!.startsAt).toBe(state.scene!.openedBy);
-    expect(state).toMatchObject({ directions: [], pendingDirection: null });
+    expect(state).toMatchObject({ pendingDirection: null });
   });
 
   it("starts a Scene with one other person focused on them", () => {
@@ -76,9 +76,9 @@ describe("the reducer", () => {
     const { state } = nightTrain();
     const redone = play(state, { kind: "redo", direction: "less Bhalla", remember: false });
     expect(redone.pendingDirection).toEqual({ text: "less Bhalla", remember: false });
-    expect(redone.directions).toEqual(["less Bhalla"]);
+    expect(redone.pendingDirection?.text).toBe("less Bhalla");
     expect(play(redone, note()).pendingDirection).toBeNull();
-    expect(play(state, { kind: "redo", direction: null, remember: false }).directions).toEqual([]);
+    expect(play(state, { kind: "redo", direction: null, remember: false }).pendingDirection?.text).toBeNull();
   });
 
   it("opens a Scene a Move began, from that Move, with the Writer's frame", () => {
@@ -111,12 +111,12 @@ describe("what code counts, not the Writer", () => {
     expect(next.scene).toMatchObject({ beatInPlayFor: 0, withoutArc: 0 });
   });
 
-  it("gives the Writer the counts once they reach their limits", () => {
+  it("keeps pacing counts without turning them into Writer deadlines", () => {
     const { state } = nightTrain();
     const stalled = play(state, ...Array.from({ length: 5 }, () => note({ plan: { purpose: "p", exit: "e" }, arcMoved: false })));
     const task = writerPrompt({ state: stalled, scene: [], move: "I say nothing.", choice: null, beside: nothingBeside() }, []).prompt;
-    expect(task).toMatch(/in play for 5 Replies/);
-    expect(task).toMatch(/No Arc has moved for 5 Replies/);
+    expect(stalled.scene).toMatchObject({ beatInPlayFor: 5, withoutArc: 5 });
+    expect(task).not.toMatch(/in play for 5 Replies|No Arc has moved/);
   });
 });
 

@@ -98,7 +98,7 @@ describe("Editing", () => {
     expect(mac.tree.pathTo(head()).some(entry => SCENE_END_KINDS.has(entry.payload.kind))).toBe(false);
     expect(state()).toMatchObject({ recorded: [], plan: null, facts: [], storySoFar: { scenes: [] }, curve: [], scene: { number: 1, closed: null } });
     // Only the edited Move's turn ran: the Writer, the Actor and the Editor, and nothing of a Scene's end.
-    expect(models.requests.slice(asked).map(request => request.agent)).toEqual(["writer", "actor", "editor"]);
+    expect(models.requests.slice(asked).map(request => request.agent)).toEqual(["actor", "editor"]);
     expect(mac.states.at(mac.tree.path(main.id)!.headEntryId)).toMatchObject({ recorded: [expect.objectContaining({ number: 1 })], plan: expect.objectContaining({ number: 1 }) });
   });
 });

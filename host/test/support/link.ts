@@ -77,7 +77,14 @@ export function withWriter(actor: ModelRunner, writer: ModelRunner = new Scripte
   const director = new ScriptedRunner([], fakeDirectorAnswer);
   const folder = new ScriptedRunner([], fakeFoldAnswer);
   const runners: Record<string, ModelRunner> = { writer, editor, chronicler, weaver, director, folder };
-  return { run: (request, onText, signal) => (runners[request.agent] ?? actor).run(request, onText, signal) };
+  return { canLookUp: { story: true, web: true }, run: async (request, onText, signal, tools) => {
+    if ((request.facts as { composing?: boolean } | undefined)?.composing) {
+      const plan = JSON.parse(await writer.run({ ...request, agent: "writer" }, () => {}, signal, tools)) as object;
+      const reply = await actor.run(request, onText, signal, tools);
+      return JSON.stringify({ ...plan, reply });
+    }
+    return (runners[request.agent] ?? actor).run(request, onText, signal, tools);
+  } };
 }
 
 /** A Mac with the Harry Potter Story imported, listening on a free port, and a paired phone's token. */

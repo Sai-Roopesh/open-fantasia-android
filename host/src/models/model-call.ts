@@ -47,6 +47,9 @@ export interface ModelAnswer {
   lookups: string[];
 }
 
+/** Provider-reported usage, retained without estimating subscription charges from prompt size. */
+export type ModelUsage = Record<string, unknown>;
+
 /** One of the Story's tools, as a model is told of it: its name, what it is for, and what it takes. */
 export interface ToolSpec {
   name: string;
@@ -92,7 +95,7 @@ export interface CanLookUp {
 export interface ModelRunner {
   /** The tools its models can use. A runner that does not say can use none, and its calls run without them. */
   readonly canLookUp?: CanLookUp;
-  run(request: ModelRequest, onText: (delta: string) => void, signal: AbortSignal, tools?: Tools): Promise<string>;
+  run(request: ModelRequest, onText: (delta: string) => void, signal: AbortSignal, tools?: Tools, onUsage?: (usage: ModelUsage) => void): Promise<string>;
 }
 
 /** Why a model call failed, in words the player can read; the cause stays in the call's record. */
@@ -115,6 +118,7 @@ export class NotJson extends ModelCallFailed {
  * trace` shows.
  */
 export class Models {
+  private readonly unavailable = new Map<string, { reason: string; until: number }>();
   constructor(
     private readonly db: Db,
     private readonly runners: Partial<Record<ModelChoice["provider"], ModelRunner>>
@@ -132,18 +136,39 @@ export class Models {
   ): Promise<ModelAnswer> {
     const callId = randomUUID();
     const runner = this.runners[request.model.provider];
+    const unavailable = this.unavailable.get(request.model.provider);
+    if (unavailable && unavailable.until > Date.now()) throw new ModelCallFailed(unavailable.reason, "provider-unavailable");
     // A model that can use no tools is called without them: its job runs on what its prompt gives it (docs/adr/0018).
     const kit = usable(request.tools, runner?.canLookUp);
     const sent: ModelRequest = { ...request };
     delete sent.tools;
     if (kit) sent.tools = kit;
+    const prepared: string[] = [];
+    if (request.tools?.story && !kit?.story) {
+      // A provider without client-executed tools still gets deterministic, Path-scoped evidence, not a false
+      // promise of interactive retrieval. This adds no model call and does not affect native-tool providers.
+      const move = [...request.prompt.matchAll(/<move by="[^"]*">\n([\s\S]*?)\n<\/move>/g)].at(-1)?.[1] ?? request.prompt.slice(-1200);
+      const words = [...new Set(move.match(/[\p{L}\p{N}]{4,}/gu) ?? [])].filter(word => !/^(?:this|that|with|from|have|what|when|then|them|they|your|about|would|there|just|into|been|only)$/i.test(word)).slice(0, 12).join(" ");
+      try {
+        const search = storyTools(this.db, request.tools.story.storyId, request.tools.story.head).find(tool => tool.name === "search_story");
+        if (search && words) {
+          const found = search.run({ words });
+          sent.prompt += `\n\n<retrieved_story_evidence>\nThe host retrieved these saved passages for this call:\n${found.answer}\n</retrieved_story_evidence>`;
+          prepared.push(`prepared evidence: ${found.line}`);
+        }
+      } catch { /* Missing evidence stays missing; it is never invented. */ }
+      sent.system += "\nInteractive Story tools are unavailable on this provider. Use the supplied Story and host-retrieved evidence; do not claim to have looked up anything else or invent a missing memory.";
+    }
+    if (request.tools?.web && !kit?.web) sent.system += "\nLive web tools are unavailable on this provider. Do not claim live research or invent citations.";
     this.db
       .prepare("INSERT INTO calls (id, trace_id, story_id, agent, provider, model, request, started_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
       .run(callId, request.traceId, request.storyId, request.agent, request.model.provider, request.model.model, JSON.stringify(sent), new Date().toISOString());
-    const lookups: string[] = [];
+    const lookups: string[] = [...prepared];
     try {
       if (!runner) throw new Error(`No way to reach ${request.model.provider} models is set up on this Mac`);
-      const text = await runner.run(sent, onText, signal, kit ? this.tools(kit, request.turns ?? 1, lookups, onLookup) : NO_TOOLS);
+      const text = await runner.run(sent, onText, signal, kit ? this.tools(kit, request.turns ?? 1, lookups, onLookup) : NO_TOOLS,
+        usage => this.db.prepare("UPDATE calls SET usage = ? WHERE id = ?").run(JSON.stringify(usage), callId));
+      this.unavailable.delete(request.model.provider);
       if (!text.trim()) throw new Error(`${request.model.model} returned nothing`);
       if (!request.schema) {
         this.finish(callId, text, null, lookups);
@@ -159,6 +184,10 @@ export class Models {
     } catch (error) {
       if (error instanceof ModelCallFailed) throw error;
       const message = error instanceof Error ? error.message : String(error);
+      // Persistent authentication failures do not become a new failed generation before every fallback.
+      if (/disabled.*subscription|no Claude token|invalid.*(?:token|api.key)|authentication.*(?:failed|required)|not authenticated/i.test(message)) {
+        this.unavailable.set(request.model.provider, { reason: message, until: Date.now() + 15 * 60_000 });
+      }
       this.finish(callId, null, message, lookups);
       throw new ModelCallFailed(message, callId);
     }

@@ -32,7 +32,8 @@ export const LIMITS = {
   parts: {
     story: 3_000, world: 2_500, people: 6_500, rules: 2_000, names: 2_000,
     storySoFar: 20_000, outline: 4_000, threads: 1_000, calendar: 1_500, wishes: 1_500,
-    lives: 4_500, between: 3_500, knows: 2_000, truths: 3_000, lately: 1_000, moments: 2_000
+    lives: 4_500, between: 3_500, knows: 2_000, truths: 3_000, lately: 1_000, moments: 2_000,
+    voices: 4_000, directions: 24_000
   }
 } as const;
 
@@ -204,7 +205,7 @@ export function recallFacts(state: State, present: string[]): Fact[] {
   const people = new Set([pc, ...present]);
   const score = (fact: Fact) => fact.knownTo.filter(name => name !== pc && people.has(name)).length * 3 + fact.weight + fact.scene / 1000;
   return state.facts
-    .filter(fact => fact.source === "page" && fact.scene !== state.scene?.number && fact.knownTo.some(name => name !== pc && people.has(name)))
+    .filter(fact => fact.source === "page" && (state.scene?.closed || fact.scene !== state.scene?.number) && fact.knownTo.some(name => name !== pc && people.has(name)))
     .sort((left, right) => score(right) - score(left))
     .slice(0, BUDGET.moments);
 }
@@ -301,10 +302,29 @@ export function layers(state: State, beside: Beside, reader: Reader, present: st
   const here = [...new Set(present)].filter(name => name !== state.playerCharacter);
   return {
     story: join([instructions.trim() || null, storyLayer(state, reader)]),
-    standing: standingLayer(state, beside, reader, here),
+    standing: join([standingLayer(state, beside, reader, here), reader === "chronicler" ? null : directionsPart(beside),
+      reader === "actor" || reader === "writer" ? voicesPart(state, here) : null]),
     scene: sceneLayer(state, reader, scene),
     moment: momentLayer(state, moment)
   };
+}
+
+/** Author instructions have their own protected section, outside the lossy Taste/standing budgets. */
+export function directionsPart(beside: Beside): string | null {
+  const active = beside.notes.filter(note => note.active !== false);
+  if (!active.length) return null;
+  const text = active.map((note, index) => `${index + 1}. [${note.id}] ${note.text}`).join("\n\n");
+  const out = section("active_directions", "The player's author instructions, verbatim, available for this and every subsequent Reply. Keep lasting preferences in force. A correction about a particular draft or situation does not require restaging that action in unrelated scenes. These instructions take precedence over earlier plans and inferred preferences; when they conflict, the later one supersedes the earlier one. They are not dialogue or events, and do not give characters new knowledge or rewrite the recorded past.\n\n" + text);
+  if (out && tokens(out) > LIMITS.parts.directions) throw new Error("Active Directions exceed the prompt allowance. Archive or shorten some Directions; none have been silently left out.");
+  return out;
+}
+
+function voicesPart(state: State, present: string[]): string | null {
+  const examples = [...new Set([...present, ...state.leads])].flatMap(name => {
+      const who = state.people[name];
+      return who?.voice.length ? [`${name}:\n${who.voice.map(line => `- ${line}`).join("\n")}`] : [];
+    });
+  return part("voice_examples", "Cadence examples for the people here and the Leads. These illustrate how they speak; they are not events, memories, or lines to repeat.", examples, LIMITS.parts.voices, "first", false);
 }
 
 /** The four layers as a call: layer 1 as the system prompt, which the provider caches longest, and the rest after it. */
@@ -474,10 +494,8 @@ function wishesPart(beside: Beside, reader: Reader): string | null {
   if (reader === "chronicler") return null;
   const steers = STEERS.has(reader);
   const taste = tasteLines(beside);
-  const waiting = beside.notes.filter(note => note.answeredBy === null);
   return part("the_players_wishes", "What the player wants.", [
     ...(taste.length ? ["Taste, the lessons the player has taught:", ...taste.map(line => `- ${line}`)] : []),
-    ...(reader === "director" && waiting.length ? ["The player's steering notes, not yet answered. They are orders, and win over your own reading of play:", ...waiting.map(note => `- ${note.text}`)] : []),
     ...(steers && beside.brief.more.length ? ["More of:", ...beside.brief.more.map(line => `- ${line}`)] : []),
     ...(steers && beside.brief.less.length ? ["Less of:", ...beside.brief.less.map(line => `- ${line}`)] : []),
     ...(steers && beside.reactions.length ? ["Reactions to recent Scenes:", ...beside.reactions.slice(-6).map(item => `- Scene ${item.scene}, ${item.title}: ${item.reaction === "more" ? "more like this" : "less like this"}${item.note ? ` (${item.note})` : ""}`)] : [])
@@ -720,7 +738,9 @@ function momentLayer(state: State, parts: (string | null)[]): string {
   const room = LIMITS.layers.moment - tokens(now) - 10;
   const total = given.reduce((sum, item) => sum + tokens(item), 0);
   if (total <= room) return join([now, ...given]);
-  const longest = given.reduce((at, item, index) => (item.length > (given[at]?.length ?? 0) ? index : at), 0);
+  const candidates = given.flatMap((item, index) => /^<(?:move\b|sent_back\b|revision\b)/.test(item) ? [] : [index]);
+  if (!candidates.length) return join([now, ...given]);
+  const longest = candidates.reduce((at, index) => ((given[index]?.length ?? 0) > (given[at]?.length ?? 0) ? index : at), candidates[0] ?? 0);
   const kept = Math.max(0, (room - (total - tokens(given[longest] ?? ""))) * 4 - 40);
   return join([now, ...given.map((item, index) => (index === longest ? `${item.slice(0, kept)}\n(The rest is cut for length.)` : item))]);
 }

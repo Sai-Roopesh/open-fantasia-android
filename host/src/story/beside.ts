@@ -7,6 +7,9 @@ export interface SteeringNote {
   writtenAt: string;
   /** The Outline version that answered it; null while it waits for the next Scene's end. */
   answeredBy: number | null;
+  active?: boolean;
+  /** A Backstage planning request, rather than a local Redo correction. Both guide future Replies. */
+  requiresPlan?: boolean;
 }
 
 /**

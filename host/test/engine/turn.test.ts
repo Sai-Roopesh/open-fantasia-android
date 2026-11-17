@@ -134,8 +134,8 @@ describe("a Reply arrives checked and whole (docs/adr/0019)", () => {
     expect(events.filter(event => JSON.stringify(event.event).includes("does not look at you"))).toHaveLength(1);
     // The Editor read it before the player could: under the turn's trace, after the Actor and before the Reply was kept.
     const calls = mac.db.prepare("SELECT agent, request FROM calls WHERE trace_id = 'trace-w' ORDER BY rowid").all() as { agent: string; request: string }[];
-    expect(calls.map(call => call.agent)).toEqual(["writer", "actor", "editor"]);
-    expect((JSON.parse(calls[2]!.request) as { prompt: string }).prompt).toContain(`<reply>\n${reply}\n</reply>`);
+    expect(calls.map(call => call.agent)).toEqual(["actor", "editor"]);
+    expect((JSON.parse(calls[1]!.request) as { prompt: string }).prompt).toContain(`<reply>\n${reply}\n</reply>`);
     expect(sceneView(mac, engine, storyId, "trace-read").turn).toEqual({ kind: "idle" });
   });
 
@@ -152,11 +152,11 @@ describe("a Reply arrives checked and whole (docs/adr/0019)", () => {
     engine.move(storyId, "I ask Hermione how long she has known.", head(), "trace-l");
     await engine.settled(storyId);
 
-    expect(told(events)).toEqual(["move", "turn_step:looking_back", "turn_step:writing", "turn_step:checking", "reply"]);
-    expect(read).toEqual(["looking_back", "writing", "checking"]);
+    expect(told(events)).toEqual(["move", "turn_step:writing", "turn_step:looking_back", "turn_step:checking", "reply"]);
+    expect(read).toEqual(["writing", "looking_back", "checking"]);
     // The lookup was the Writer's, made with the Story's own tools, and kept with its call.
     expect(models.writer.looked.map(lookup => lookup.tool)).toEqual(["search_story"]);
-    const writer = mac.db.prepare("SELECT lookups FROM calls WHERE trace_id = 'trace-l' AND agent = 'writer'").get() as { lookups: string };
+    const writer = mac.db.prepare("SELECT lookups FROM calls WHERE trace_id = 'trace-l' AND agent = 'actor'").get() as { lookups: string };
     expect(JSON.parse(writer.lookups)).toEqual([expect.stringContaining("searched the Story for “Hermione secret”")]);
     // A Reply that looks nothing up says nothing of looking back.
     engine.move(storyId, "I wait for her answer.", head(), "trace-m");
@@ -181,7 +181,7 @@ describe("a Reply the Editor could not read", () => {
 
     engine.retry(storyId, "trace-r");
     await engine.settled(storyId);
-    expect(mac.tree.entry(head())!.payload).toMatchObject({ kind: "reply", text: "Draconia laughs, louder." });
+    expect(mac.tree.entry(head())!.payload).toMatchObject({ kind: "reply", text: "Draconia laughs." });
     expect(models.editor.requests).toHaveLength(3);
     expect(view().turn).toEqual({ kind: "idle" });
   });

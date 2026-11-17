@@ -67,6 +67,8 @@ export interface Redo {
   direction: string | null;
   remember: boolean;
   model?: ModelChoice;
+  /** The draft under correction, for the next generation only; never part of played prose. */
+  rejected?: { id: string; text: string };
 }
 
 /** The Writer's step for one Move: the Scene's beats, who is here, the note the Reply plays, the call and the clock. */

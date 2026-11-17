@@ -27,7 +27,7 @@ export class Traces {
     const trace = this.db.prepare("SELECT * FROM traces WHERE id = ?").get(id) as
       { method: string; path: string; request: string | null; status: number | null; outcome: string | null; started_at: string; finished_at: string | null } | undefined;
     const calls = this.db.prepare("SELECT * FROM calls WHERE trace_id = ? ORDER BY started_at").all(id) as
-      { id: string; agent: string; provider: string; model: string; request: string; answer: string | null; error: string | null; started_at: string; finished_at: string | null }[];
+      { id: string; agent: string; provider: string; model: string; request: string; answer: string | null; error: string | null; started_at: string; finished_at: string | null; usage: string | null }[];
     if (!trace && calls.length === 0) return null;
     const lines: string[] = [`Trace ${id}`];
     if (trace) {
@@ -41,6 +41,7 @@ export class Traces {
         "",
         `  ${call.agent} call ${call.id} on ${call.provider} ${call.model}, ${call.started_at} to ${call.finished_at ?? "still running"}`,
         call.error ? `  Failed: ${call.error}` : `  Answered: ${call.answer ?? ""}`,
+        `  Native usage: ${call.usage ?? "unavailable"}`,
         "  System prompt:",
         indent(request.system),
         "  Prompt:",

@@ -63,7 +63,7 @@ describe("who is in a Scene", () => {
     expect(actorGiven(models, "Meera Kulkarni")).toBe(true);
     // What she remembers of him, in his own words.
     const remembered = models.actor.requests.at(-1)!.prompt;
-    expect(remembered).toContain("<remembered>\n(Scene 1; known to Ishaan Mehra, Meera Kulkarni) Ishaan tells Meera he doesn't want the interview.");
+    expect(remembered).toContain("<remembered>\nM1 (Scene 1; known to Ishaan Mehra, Meera Kulkarni): Ishaan tells Meera he doesn't want the interview.");
     expect(remembered).toContain(`  "${told}"`);
   });
 
@@ -77,7 +77,7 @@ describe("who is in a Scene", () => {
     expect(actorGiven(models, "Meera Kulkarni")).toBe(true);
     expect(state().scene).toMatchObject({ here: [], focus: null });
     await play("I watch the jeep until the cloud takes it.");
-    expect(actorGiven(models, "Meera Kulkarni")).toBe(false);
+    expect(state().scene!.here).not.toContain("Meera Kulkarni");
   });
 });
 

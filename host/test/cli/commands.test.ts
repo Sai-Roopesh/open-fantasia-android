@@ -52,17 +52,17 @@ describe("the fantasia command", () => {
     expect(JSON.parse(entry.text()).payload.title).toBe("The night train");
   });
 
-  it("prints what the next Reply's Writer and Actor would be given, calling no model", async () => {
+  it("prints the combined writing request and saved-draft Editor request without calling a model", async () => {
     const story = playable();
     await story.play("I sit down beside Hermione.");
     const writes = story.models.writer.requests.length;
     const printed = capture();
     expect(prompts(story.mac, story.storyId, "I ask her what she is reading.", printed.out)).toBe(true);
     const text = printed.text();
-    expect(text).toContain("== The Writer, for the Move: I ask her what she is reading.");
+    expect(text).toContain("== Writing, for the Move: I ask her what she is reading.");
     expect(text).toContain("I ask her what she is reading.");
-    expect(text).toContain("== The Actor, for the latest Move: I sit down beside Hermione.");
-    expect(text.indexOf("== The Writer")).toBeLessThan(text.indexOf("== The Actor"));
+    expect(text).toContain("== The Editor, for the latest saved draft: I sit down beside Hermione.");
+    expect(text.indexOf("== Writing")).toBeLessThan(text.indexOf("== The Editor"));
     expect(story.models.writer.requests).toHaveLength(writes);
     expect(prompts(story.mac, "no-such-story", "Hello.", capture().out)).toBe(false);
   });
@@ -101,7 +101,6 @@ describe("the fantasia command", () => {
     const shown = capture();
     expect(models(mac, [], shown.out)).toBe(true);
     expect(shown.text()).toBe([
-      "writer  claude  claude-opus-5-5  effort medium  (default)",
       "editor  claude  claude-sonnet-5-5  (default)",
       "chronicler  claude  claude-opus-5-5  effort medium  (default)",
       "director  claude  claude-fable-5-1  effort high  (default)",
@@ -114,13 +113,13 @@ describe("the fantasia command", () => {
     ].join("\n"));
 
     const set = capture();
-    expect(models(mac, ["writer", "claude", "claude-opus-5-5", "high"], set.out)).toBe(true);
-    expect(set.text()).toBe("The Writer now uses claude claude-opus-5-5 (effort high), from its next call.");
+    expect(models(mac, ["editor", "claude", "claude-opus-5-5", "high"], set.out)).toBe(true);
+    expect(set.text()).toBe("The Editor now uses claude claude-opus-5-5 (effort high), from its next call.");
     await play("I sit down.");
-    expect(scripted.writer.requests[0]!.model).toEqual({ provider: "claude", model: "claude-opus-5-5", effort: "high" });
+    expect(scripted.editor.requests[0]!.model).toEqual({ provider: "claude", model: "claude-opus-5-5", effort: "high" });
     const after = capture();
     models(mac, [], after.out);
-    expect(after.text().split("\n")[0]).toBe("writer  claude  claude-opus-5-5  effort high");
+    expect(after.text().split("\n")[0]).toBe("editor  claude  claude-opus-5-5  effort high");
   });
 
   it("sets the Director, and any job on any provider the Mac knows", () => {
@@ -151,15 +150,15 @@ describe("the fantasia command", () => {
     await offeredCatalog(mac.home);
     const job = capture();
     expect(models(mac, ["narrator", "claude", "claude-opus-5-5"], job.out)).toBe(false);
-    expect(job.text()).toMatch(/No job "narrator"\. The jobs are: writer, editor, chronicler, director, weaver, folder, or actor "<Story>"/);
+    expect(job.text()).toMatch(/No job "narrator"\. The jobs are: editor, chronicler, director, weaver, folder, or actor "<Story>"/);
     const provider = capture();
-    expect(models(mac, ["writer", "openai", "gpt-6.1-sol"], provider.out)).toBe(false);
+    expect(models(mac, ["editor", "openai", "gpt-6.1-sol"], provider.out)).toBe(false);
     expect(provider.text()).toMatch(/No provider "openai"\. The providers are: claude, codex, antigravity/);
     const model = capture();
-    expect(models(mac, ["writer", "codex", "gpt-9"], model.out)).toBe(false);
+    expect(models(mac, ["editor", "codex", "gpt-9"], model.out)).toBe(false);
     expect(model.text()).toBe("Codex does not offer gpt-9.");
     const effort = capture();
-    expect(models(mac, ["writer", "claude", "claude-haiku-4-5-20251001", "max"], effort.out)).toBe(false);
+    expect(models(mac, ["editor", "claude", "claude-haiku-4-5-20251001", "max"], effort.out)).toBe(false);
     expect(effort.text()).toBe("Haiku 4.5 has no effort max.");
     const story = capture();
     expect(models(mac, ["actor", "Nowhere", "claude", "claude-opus-5-5"], story.out)).toBe(false);

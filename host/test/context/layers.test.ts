@@ -71,6 +71,7 @@ function parts(layer: string): Map<string, string> {
 }
 
 const PART_LIMITS: Record<string, number> = {
+  active_directions: 24_000, voice_examples: 4_000,
   story: LIMITS.parts.story, world: LIMITS.parts.world, people: LIMITS.parts.people, rules: LIMITS.parts.rules, named: LIMITS.parts.names,
   story_so_far: LIMITS.parts.storySoFar, outline: LIMITS.parts.outline, threads: LIMITS.parts.threads, calendar: LIMITS.parts.calendar,
   the_players_wishes: LIMITS.parts.wishes, people_now: LIMITS.parts.lives, between: LIMITS.parts.between, what_each_knows: LIMITS.parts.knows,
@@ -196,7 +197,8 @@ describe("what each reader is given (the-storys-mind design decision 7)", () => 
     }
     expect(standing.director).toContain("- [t1.1] Ahead, week 1:");
     expect(standing.director).toContain("Let Hermione win Christmas.");
-    expect(standing.writer).not.toContain("Let Hermione win Christmas.");
+    for (const reader of ["writer", "actor", "editor", "weaver"]) expect(standing[reader]).toContain("Let Hermione win Christmas.");
+    expect(standing.chronicler).not.toContain("Let Hermione win Christmas.");
     // Where each person present is heading, for the Writer; everyone's for the Director.
     expect(standing.writer).toContain(`- ${DRACONIA} pursues Roopesh, openly; feels jealous of Hermione; heading for saying it back by Christmas.`);
     expect(standing.writer).not.toContain("- Harry Potter pursues the Stone");

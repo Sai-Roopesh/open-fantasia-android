@@ -261,7 +261,7 @@ open class OutsideUiChecks : WorldUiChecks() {
         val note = "Year One ends with Draconia breaking from her father"
         openScene()
         compose.onNodeWithContentDescription("Backstage").performClick()
-        backstage("YOUR NOTES TO THE DIRECTOR").assertIsDisplayed()
+        backstage("YOUR DIRECTIONS").assertIsDisplayed()
         compose.onNodeWithTag("add-note").assertIsNotEnabled()
         compose.onNodeWithTag("note-field").performTextInput(note)
         compose.preview("Backstage · a note")
@@ -272,7 +272,7 @@ open class OutsideUiChecks : WorldUiChecks() {
         }
         compose.onNodeWithTag("note-field").assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("")))
         backstage(note)
-        compose.onNode(hasText(note) and hasText("Waiting for the next Scene's end")).assertIsDisplayed()
+        compose.onNode(hasText(note) and hasText("Active · guides future replies")).assertIsDisplayed()
         // The next Scene's end answers it: Year One now builds toward the break.
         link.backstageView = link.backstageView.let { view ->
             val outline = view.outline!!
@@ -283,7 +283,7 @@ open class OutsideUiChecks : WorldUiChecks() {
         compose.onNodeWithContentDescription("Back to the Scene").performClick()
         compose.onNodeWithContentDescription("Backstage").performClick()
         backstage(note)
-        compose.onNode(hasText(note) and hasText("✓ Answered")).assertIsDisplayed()
+        compose.onNode(hasText(note) and hasText("Active · guides future replies")).assertIsDisplayed()
         backstage("Builds to Draconia breaking from her father, in June.").assertIsDisplayed()
         backstage("Draconia breaks from her father in front of the school").assertIsDisplayed()
         backstage("Revised after Scene 14, deeply").assertIsDisplayed()
@@ -295,9 +295,11 @@ open class OutsideUiChecks : WorldUiChecks() {
         openScene()
         compose.onNodeWithContentDescription("Backstage").performClick()
         backstage("Keep Hermione a rival this year.")
-        compose.onNodeWithContentDescription("Delete this note").performClick()
-        compose.runOnIdle { assertEquals(listOf("rival"), link.deletedNotes) }
-        compose.onNodeWithText("Keep Hermione a rival this year.").assertDoesNotExist()
+        compose.onNodeWithText("Archive").performClick()
+        compose.runOnIdle { assertEquals("rival", link.noteEdits.single().first); assertEquals(false, link.noteEdits.single().second.active) }
+        compose.onNodeWithText("Keep Hermione a rival this year.").assertIsDisplayed()
+        compose.onNodeWithText("Restore").performClick()
+        compose.runOnIdle { assertEquals(true, link.noteEdits.last().second.active) }
     }
 
     // WHEN the player opens what the Story keeps of the contract in Backstage

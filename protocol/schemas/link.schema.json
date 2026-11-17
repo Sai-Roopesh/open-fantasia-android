@@ -167,14 +167,14 @@
           "type": "string"
         },
         "standing": {
-          "description": "Where the Story stands on its current Path, as one line: \"Scene 14 · After curfew\" mid-Scene, \"Sunday 7:40 am · choosing where to go\" at the Day View.",
+          "description": "Where the Story stands on its current Path, as one line: \"Scene 14 \u00b7 After curfew\" mid-Scene, \"Sunday 7:40 am \u00b7 choosing where to go\" at the Day View.",
           "type": "string"
         },
         "updated_at": {
           "type": "string"
         },
         "detail": {
-          "description": "The line under the standing: \"Friday 9:52 pm · with Hermione\" mid-Scene, \"3 Scenes played\" at the Day View.",
+          "description": "The line under the standing: \"Friday 9:52 pm \u00b7 with Hermione\" mid-Scene, \"3 Scenes played\" at the Day View.",
           "type": "string"
         }
       }
@@ -671,7 +671,7 @@
           }
         },
         "scene_span": {
-          "description": "When the Scene that ended ran, as people say it: \"Friday 9:40 pm – 11:05 pm\".",
+          "description": "When the Scene that ended ran, as people say it: \"Friday 9:40 pm \u2013 11:05 pm\".",
           "type": "string"
         },
         "meanwhile": {
@@ -816,7 +816,7 @@
           ]
         },
         "every": {
-          "description": "For a weekly Engagement, the day it repeats (\"Wednesday\"), and time is then the hour alone: shown \"Every Wednesday · 7:30 pm\". Null otherwise.",
+          "description": "For a weekly Engagement, the day it repeats (\"Wednesday\"), and time is then the hour alone: shown \"Every Wednesday \u00b7 7:30 pm\". Null otherwise.",
           "type": [
             "string",
             "null"
@@ -1004,7 +1004,7 @@
           "type": "integer"
         },
         "label": {
-          "description": "scenes: \"Scenes 1 – 12 · Friday 6:10 pm\"; fork: \"Scene 13 · Friday 8:05 pm\"; path: its card's label.",
+          "description": "scenes: \"Scenes 1 \u2013 12 \u00b7 Friday 6:10 pm\"; fork: \"Scene 13 \u00b7 Friday 8:05 pm\"; path: its card's label.",
           "type": "string"
         },
         "title": {
@@ -1045,15 +1045,15 @@
           "type": "string"
         },
         "label": {
-          "description": "\"MAIN · YOU ARE HERE\", \"FROM SCENE 13 · TRIED ANOTHER WAY\", \"SET ASIDE AT SCENE 14\", \"FROM THE BEGINNING\".",
+          "description": "\"MAIN \u00b7 YOU ARE HERE\", \"FROM SCENE 13 \u00b7 TRIED ANOTHER WAY\", \"SET ASIDE AT SCENE 14\", \"FROM THE BEGINNING\".",
           "type": "string"
         },
         "title": {
-          "description": "The player's name for it, or its newest Scene: \"Scene 14 · After curfew\".",
+          "description": "The player's name for it, or its newest Scene: \"Scene 14 \u00b7 After curfew\".",
           "type": "string"
         },
         "detail": {
-          "description": "\"3 Scenes · Saturday 1:15 am\".",
+          "description": "\"3 Scenes \u00b7 Saturday 1:15 am\".",
           "type": "string"
         },
         "current": {
@@ -1245,7 +1245,7 @@
           "type": "integer"
         },
         "label": {
-          "description": "\"Scene 12 · 6:10 pm · The Three Broomsticks\", or with \"now\" for the Scene the player is in.",
+          "description": "\"Scene 12 \u00b7 6:10 pm \u00b7 The Three Broomsticks\", or with \"now\" for the Scene the player is in.",
           "type": "string"
         },
         "title": {
@@ -1760,7 +1760,7 @@
       }
     },
     "ChosenModel": {
-      "description": "A model as the Models screen shows it: the choice, and its name with the effort (\"GPT 6.1 Sol · high\").",
+      "description": "A model as the Models screen shows it: the choice, and its name with the effort (\"GPT 6.1 Sol \u00b7 high\").",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -2585,7 +2585,7 @@
         },
         "at_label": {
           "type": "string",
-          "description": "Its time as the player reads it: \"Wednesday 10:00 am · Day 66\"."
+          "description": "Its time as the player reads it: \"Wednesday 10:00 am \u00b7 Day 66\"."
         },
         "when": {
           "type": [
@@ -3104,7 +3104,7 @@
           "type": "boolean"
         },
         "label": {
-          "description": "Where and when: \"On screen · Charms, Monday\", \"Off-screen, Sunday · he heard it from Neville Longbottom\", \"Off-screen · still to come\".",
+          "description": "Where and when: \"On screen \u00b7 Charms, Monday\", \"Off-screen, Sunday \u00b7 he heard it from Neville Longbottom\", \"Off-screen \u00b7 still to come\".",
           "type": "string"
         }
       }
@@ -3741,6 +3741,10 @@
         },
         "answered": {
           "type": "boolean"
+        },
+        "active": {
+          "type": "boolean",
+          "description": "Whether this Direction guides subsequent Replies. Missing means active."
         }
       }
     },
@@ -3950,7 +3954,7 @@
       }
     },
     "SteeringNoteRequest": {
-      "description": "Writes a note that steers the Outline; the Director answers it at the next Scene's end.",
+      "description": "Adds a standing Direction used by subsequent Replies and planning.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -3959,6 +3963,24 @@
       "properties": {
         "text": {
           "type": "string"
+        }
+      }
+    },
+    "SteeringNoteEditRequest": {
+      "description": "Edits a standing Direction or changes whether it is active, preserving its history.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text",
+        "active"
+      ],
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "active": {
+          "type": "boolean"
         }
       }
     }

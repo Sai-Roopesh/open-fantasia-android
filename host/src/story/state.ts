@@ -344,6 +344,5 @@ export interface State {
   outline: Outline | null;
   scene: CurrentScene | null;
   scenesPlayed: number;
-  directions: string[];
   pendingDirection: PendingDirection | null;
 }

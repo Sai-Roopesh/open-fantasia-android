@@ -30,6 +30,19 @@ describe("Codex through one warm app server (docs/adr/0005)", () => {
   };
   afterEach(() => { for (const made of runners.splice(0)) made.close(); });
 
+  it("executes read-only Story tools by thread and retains native usage", async () => {
+    const { runner: codex, received } = runner();
+    const used: string[] = [];
+    const usage: unknown[] = [];
+    const tools = { ...NO_TOOLS, story: [{ name: "search_story", description: "Find a passage", params: { words: { type: "string" as const, description: "Words" } } }],
+      use: (name: string, args: Record<string, unknown>) => { used.push(`${name}:${String(args.words)}`); return "Meera gave him the window seat."; } };
+    const answer = await codex.run(request("dynamic lookup"), () => {}, new AbortController().signal, tools, value => usage.push(value));
+    expect(used).toEqual(["search_story:window seat"]);
+    expect(JSON.parse(answer)).toMatchObject({ success: true, contentItems: [{ type: "inputText", text: "Meera gave him the window seat." }] });
+    expect(usage).toEqual([{ total: { inputTokens: 100, cachedInputTokens: 30, outputTokens: 20, reasoningOutputTokens: 5, totalTokens: 120 } }]);
+    expect(received().find(row => row.method === "thread/start")!.params!.dynamicTools).toMatchObject([{ type: "function", name: "search_story", inputSchema: { required: ["words"] } }]);
+  });
+
   it("streams the agent's words and answers with its message, on a fresh thread with the system prompt as its only instructions", async () => {
     const { runner: codex, received, home } = runner();
     const words: string[] = [];
@@ -52,7 +65,7 @@ describe("Codex through one warm app server (docs/adr/0005)", () => {
     await codex.run(request("The Scene ended at 11:05 pm."), () => {}, new AbortController().signal);
     await codex.run(request("Plan Year Two.", { tools: { story: null, web: true } }), () => {}, new AbortController().signal, { ...NO_TOOLS, web: true });
     const threads = received().filter(message => message.method === "thread/start").map(message => message.params!.config);
-    expect(threads).toEqual([{ web_search: "disabled" }, { web_search: "live" }]);
+    expect(threads).toEqual([expect.objectContaining({ web_search: "disabled", "features.shell_tool": false, "mcp_servers.unrelated.enabled": false }), expect.objectContaining({ web_search: "live" })]);
   });
 
   it("says each web search and page Codex opened in a line, as every provider's lookups are", () => {

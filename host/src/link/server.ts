@@ -10,7 +10,8 @@ import type { Mac } from "../mac.js";
 import type { ModelChoice } from "../story/state.js";
 import { CONTRACT_VERSION } from "../protocol/generated/contract.js";
 import type { ArcsRequest, ChooseRequest, ClockRequest, DropLandmarkRequest, LandmarkRequest, PlaceRequest, PremiseRequest, ReplyLengthRequest, RewordTasteRequest, StyleRequest, WorldRequest, EditRequest, GroupRequest, LeadRequest, PersonEdit, RetryRequest, SetActorRequest, BriefRequest, ReactionRequest, SetJobModelRequest, EndSceneRequest, ErrorBody, FocusRequest, LingerRequest, MoveRequest, PairRequest, RedoRequest, RemoveTasteRequest, RenamePathRequest, RewindRequest, SteeringNoteRequest, TryAnotherWayRequest } from "../protocol/generated/link.js";
-import { dropNote, writeNote } from "../store/beside.js";
+import { dropNote, editNote, writeNote } from "../store/beside.js";
+import type { SteeringNoteEditRequest } from "../protocol/generated/link.js";
 import { newTraceId, Traces } from "../trace.js";
 import { backstageView } from "../views/backstage.js";
 import { journalView } from "../views/journal.js";
@@ -41,6 +42,7 @@ const validEndScene = ajv.compile<EndSceneRequest>({ $ref: "link#/$defs/EndScene
 const validFocus = ajv.compile<FocusRequest>({ $ref: "link#/$defs/FocusRequest" });
 const validLinger = ajv.compile<LingerRequest>({ $ref: "link#/$defs/LingerRequest" });
 const validRedo = ajv.compile<RedoRequest>({ $ref: "link#/$defs/RedoRequest" });
+const validNoteEdit = ajv.compile<SteeringNoteEditRequest>({ $ref: "link#/$defs/SteeringNoteEditRequest" });
 const validChoose = ajv.compile<ChooseRequest>({ $ref: "link#/$defs/ChooseRequest" });
 const validTry = ajv.compile<TryAnotherWayRequest>({ $ref: "link#/$defs/TryAnotherWayRequest" });
 const validRewind = ajv.compile<RewindRequest>({ $ref: "link#/$defs/RewindRequest" });
@@ -215,6 +217,11 @@ export function buildLink(options: LinkOptions): FastifyInstance {
     if (!mac.tree.currentPath(storyId)) throw new LinkError("not_found", "That Story is not on this Mac.");
     if (!dropNote(mac, storyId, request.params.note)) throw new LinkError("not_found", "That note is not in this Story.");
     return backstageView(mac, storyId, request.traceId);
+  });
+  app.post<{ Params: { id: string; note: string } }>("/stories/:id/notes/:note/edit", async request => {
+    if (!validNoteEdit(request.body) || !request.body.text.trim()) throw new LinkError("invalid", "A Direction needs its words and active status.");
+    if (!editNote(mac, request.params.id, request.params.note, request.body.text, request.body.active)) throw new LinkError("not_found", "That Direction is not in this Story.");
+    return backstageView(mac, request.params.id, request.traceId);
   });
 
   // Editing (openspec scenes: Editing): the latest Move or Reply in place, anything earlier on a new Path.

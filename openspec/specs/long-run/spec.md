@@ -123,8 +123,8 @@ read the same Style. Reply length (Short, Medium, Full) SHALL be set separately.
 
 ### Requirement: Taste is short, readable and the player's
 
-**Taste** SHALL hold at most ten lines of lasting lessons for each Story, and at most ten for the player, about how
-they like to read, which every Story starts with. A lesson SHALL go to the player's own only when it is about how they
+**Taste** SHALL hold explicit lasting preferences for each Story and for the player, without silently evicting
+earlier instructions at a fixed line count. Shared preferences apply to every Story. A lesson SHALL go to the player's own only when it is about how they
 like to read and not about one **World**. A Story's Taste SHALL belong to the Story, not to a **Path**: a **Redo** or
 another Path SHALL never lose it. The player SHALL be able to read, edit and delete every line. Everything that writes
 for the Story SHALL read both.
@@ -140,9 +140,10 @@ for the Story SHALL read both.
 - **THEN** later Scenes read the new words, and the old ones are gone from Taste
 
 #### Scenario: A lesson outlives its Redo
-- **GIVEN** the player redid a Reply with the Direction "never write her as a first-timer", to be remembered
+- **GIVEN** the player redid a Reply with the Direction "never write her as a first-timer"
 - **WHEN** the player plays on along the Reply that was written again
-- **THEN** Taste has the lesson, and later Scenes keep to it
+- **THEN** the original Direction remains active beside the Story and later Scenes receive it within its intended scope
+- **AND** it is not replaced by an inferred Taste paraphrase
 
 #### Scenario: The player's own Taste in a new Story
 - **GIVEN** the player's own Taste says "don't decide what my character feels"

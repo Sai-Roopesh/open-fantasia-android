@@ -4,8 +4,9 @@ import type { Mac } from "../mac.js";
 import type { ModelChoice } from "../story/state.js";
 
 /** The jobs whose model is the Mac's to choose for every Story. The Actor is each Story's own (docs/adr/0008). */
-export const JOBS = ["writer", "editor", "chronicler", "director", "weaver", "folder"] as const;
-export type Job = (typeof JOBS)[number];
+export const JOBS = ["editor", "chronicler", "director", "weaver", "folder"] as const;
+/** Writer remains readable in historical settings and failed turns; new writing uses the Story's Actor. */
+export type Job = (typeof JOBS)[number] | "writer";
 
 const OPUS: ModelChoice = { provider: "claude", model: "claude-opus-5-5" };
 
@@ -54,13 +55,13 @@ function save(home: string, settings: Saved): void {
  */
 export function jobModels(home: string): Record<Job, ModelChoice> {
   const settings = saved(home);
-  return Object.fromEntries(JOBS.map(job => [job, settings[job] ?? DEFAULT_JOB_MODELS[job]])) as Record<Job, ModelChoice>;
+  return { writer: settings.writer ?? DEFAULT_JOB_MODELS.writer, ...Object.fromEntries(JOBS.map(job => [job, settings[job] ?? DEFAULT_JOB_MODELS[job]])) } as Record<Job, ModelChoice>;
 }
 
 /** Each job's second model, from models.json or GPT 6.1 Sol. */
 export function backupModels(home: string): Record<Job | "actor", ModelChoice> {
   const settings = saved(home);
-  return { ...Object.fromEntries(JOBS.map(job => [job, settings.backups?.[job] ?? SOL])), actor: settings.backups?.actor ?? SOL } as Record<Job | "actor", ModelChoice>;
+  return { writer: settings.backups?.writer ?? SOL, ...Object.fromEntries(JOBS.map(job => [job, settings.backups?.[job] ?? SOL])), actor: settings.backups?.actor ?? SOL } as Record<Job | "actor", ModelChoice>;
 }
 
 const same = (a: ModelChoice, b: ModelChoice) => a.provider === b.provider && a.model === b.model;

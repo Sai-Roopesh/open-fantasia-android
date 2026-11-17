@@ -29,7 +29,7 @@ export interface ChronicleAsk {
   /** The Scene's entries, opening to close, or as far as it has been played. */
   scene: Entry[];
   /**
-   * The Scene is still being played and has run past what is carried word for word: it is recorded so far, once, as a
+   * The Scene is still being played and has run past what is carried word for word: it is recorded incrementally as a
    * finished Scene is (the-storys-mind design decision 8).
    */
   soFar?: boolean;
@@ -37,7 +37,7 @@ export interface ChronicleAsk {
 
 /** The passages still to record: those after the record kept while the Scene was played, when it ran long. */
 function toRecord(ask: ChronicleAsk): Entry[] {
-  const through = ask.soFar ? undefined : ask.state.scene?.recorded?.through;
+  const through = ask.state.scene?.recorded?.through;
   const at = through ? ask.scene.findIndex(entry => entry.id === through) : -1;
   return at >= 0 ? ask.scene.slice(at + 1) : ask.scene;
 }
@@ -148,7 +148,7 @@ export function chroniclerPrompt(ask: ChronicleAsk, moments: Fact[]): { system: 
     ].join("\n");
   };
   const elsewhere = tiered.close.filter(name => !met.some(here => livedAs(state, here) === name));
-  const recorded = ask.soFar ? undefined : scene?.recorded;
+  const recorded = scene?.recorded;
   // The people in the Scene, and the Group each is lived as: a Group's Life is kept once, for all its members.
   const present = [...new Set([...met, ...met.map(name => livedAs(state, name))])];
   const layered = layers(state, nothingBeside(), "chronicler", present, [], [
@@ -158,7 +158,7 @@ export function chroniclerPrompt(ask: ChronicleAsk, moments: Fact[]): { system: 
     section("engagements_on", engagementsAhead(state).map(({ engagement, next }, index) => `E${index + 1}: ${engagement.what} ${say(state, next)}${engagement.every ? ", every week" : ""}, ${engagement.place}`).join("\n")),
     recorded ? section("recorded_so_far", `The Scene ran long, and was recorded while it was played, as far as the passage before P1: ${recorded.paragraph} What that record kept is kept already.`) : null,
     section("task", ask.soFar
-      ? "The Scene is still being played, and has run past what can be carried word for word. Record it so far, as you would a finished Scene: its line and paragraph tell it so far."
+      ? "The Scene is still being played. Extend its cumulative record through the new passages below: the paragraph must retain the earlier record and incorporate what happened since. Record only NEW Moments, Bond turns, Engagements and truth changes from these new passages; earlier facts are already kept. Do not close the Scene."
       : recorded ? "The Scene has ended. Record what came after its record so far; your line and paragraph tell the whole Scene." : "The Scene has ended. Record it.")
   ], PROMPT);
   // The Scene whole, never cut for length: every passage it quotes is labelled.

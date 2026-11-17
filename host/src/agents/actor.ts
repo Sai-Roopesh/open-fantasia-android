@@ -31,7 +31,7 @@ export interface ActorAsk {
 }
 
 /** The Actor's own instructions, at the top of layer 1: the same for every Reply until the Story is edited. */
-function instructions(state: State): string {
+export function actorInstructions(state: State): string {
   const pc = state.playerCharacter;
   return [
     `You are writing a story together with a player. The player writes ${pc}; you write everyone and everything else, Reply by Reply, as a novelist does: you are shown everything about the people here, their history and what they hide, and you write each of them knowing only what they know.`,
@@ -52,7 +52,7 @@ function instructions(state: State): string {
 
 const CALL = {
   continue: null,
-  land: "Bring the Scene toward its turn."
+  land: "Let this beat have its effect, leaving room for the player's response. Keep the Scene open; do not wrap it up or skip past the aftermath."
 } as const;
 
 /** A Moment as the Actor is given it: what happened and who knows it, then its own words. */
@@ -94,7 +94,7 @@ export function actorPrompt(ask: ActorAsk): { system: string; prompt: string } {
       again.draft
     ].join("\n")) : null,
     `Write what happens next${again ? ", again: mend what it was sent back for, and keep what was right" : ""}. What ${pc} says, chooses, thinks and feels belongs to the player, now and in anything the story has not shown; what he did before is only what the story has shown, as it shows it. Leave the rest out.`
-  ], instructions(state)));
+  ], actorInstructions(state)));
 }
 
 /**

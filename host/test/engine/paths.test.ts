@@ -82,7 +82,7 @@ describe("Paths", () => {
     engine.openPath(storyId, saturday.id, "trace-saturday");
     expect(state().clock).toBe("Day 11 21:30");
     expect(view().day_view).toMatchObject({ at: "Day 11 21:30", day: "Saturday 14 September", time: "9:30 pm" });
-    expect(view().scene).toMatchObject({ title: "Saturday night" });
+    expect(view().scene).toMatchObject({ title: "Tuesday afternoon", place: "The Three Broomsticks" });
   });
 
   // GIVEN five exchanges after a Reply

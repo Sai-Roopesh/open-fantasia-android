@@ -114,6 +114,7 @@ class LinkClient(val address: HttpUrl, fingerprint: String, private val deviceTo
     suspend fun writeNote(storyID: String, request: SteeringNoteRequest) =
         sent(listOf("stories", storyID, "notes"), commandJson.encodeToString(request))
     suspend fun deleteNote(storyID: String, noteID: String) = sent(listOf("stories", storyID, "notes", noteID), delete = true)
+    suspend fun editNote(storyID: String, noteID: String, request: SteeringNoteEditRequest) = sent(listOf("stories", storyID, "notes", noteID, "edit"), commandJson.encodeToString(request))
     suspend fun setBrief(storyID: String, request: BriefRequest): Accepted =
         command(listOf("stories", storyID, "brief"), commandJson.encodeToString(request))
     suspend fun react(storyID: String, request: ReactionRequest): Accepted =

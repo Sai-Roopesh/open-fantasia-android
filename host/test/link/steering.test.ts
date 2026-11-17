@@ -80,17 +80,17 @@ describe("the player steers over the link", () => {
     const note = "Year One ends with Draconia breaking from her father";
     const written = await post<BackstageView>("notes", { text: ` ${note} ` });
     expect(written.status).toBe(200);
-    expect(written.body.notes).toEqual([{ id: expect.any(String), text: note, written_at: expect.any(String), answered: false }]);
+    expect(written.body.notes).toEqual([{ id: expect.any(String), text: note, written_at: expect.any(String), answered: false, active: true }]);
     expect((await post<Refusal>("notes", { text: "  " })).body.error.message).toBe("Write what you want the Story to do.");
     expect((await post("notes", { words: note })).status).toBe(400);
     // The Director answers it with the next Outline; it stays, marked answered.
     answerNotes(mac, storyId, 2);
     const id = written.body.notes[0]!.id;
-    expect(besideOf(mac, storyId).notes).toEqual([{ id, text: note, writtenAt: expect.any(String), answeredBy: 2 }]);
+    expect(besideOf(mac, storyId).notes).toEqual([{ id, text: note, writtenAt: expect.any(String), answeredBy: 2, active: true, requiresPlan: true }]);
     const dropped = await call(`/stories/${storyId}/notes/${id}`, { method: "DELETE", body: "{}" });
     expect(dropped.status).toBe(200);
-    expect((await dropped.json() as BackstageView).notes).toEqual([]);
-    expect((await call(`/stories/${storyId}/notes/${id}`, { method: "DELETE", body: "{}" })).status).toBe(404);
+    expect((await dropped.json() as BackstageView).notes).toMatchObject([{ id, active: false }]);
+    expect((await call(`/stories/${storyId}/notes/${id}`, { method: "DELETE", body: "{}" })).status).toBe(200);
     expect((await call("/stories/nowhere/notes", { method: "POST", body: JSON.stringify({ text: note }) })).status).toBe(404);
   });
 

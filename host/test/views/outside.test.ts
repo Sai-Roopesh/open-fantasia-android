@@ -78,7 +78,7 @@ describe("Outside the Scene", () => {
     expect(backstage.threads).toContainEqual({ name: "Quirrell and the third-floor door", now: "Quirrell has tried the wards twice and scorched the door" });
     expect(backstage.lives).toContainEqual({ who: "Hermione Granger", where: "the girls' dormitory", doing: "Reading under the covers." });
     expect(backstage.writer).toMatchObject({ call: expect.any(String), beats: expect.arrayContaining([expect.objectContaining({ status: expect.stringMatching(/done|in_play|pending|skipped/) })]) });
-    expect(backstage.taste).toEqual(["Remember: Keep Ron in the background."]);
+    expect(backstage.notes).toContainEqual(expect.objectContaining({ text: "Keep Ron in the background.", active: true }));
   });
 
   // GIVEN a Scene's record was kept with a Moment left out, because its words were not on the page

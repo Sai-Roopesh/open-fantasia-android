@@ -120,7 +120,7 @@ private val FantasiaRumourGround = Color(0xFF30261A)
 @Composable fun BackstageScreen(backstage: BackstageView?, playerCharacter: String, enabled: Boolean, back: () -> Unit,
     removeTaste: (Scope, String) -> Unit, modifier: Modifier = Modifier, reword: (Scope, String) -> Unit = { _, _ -> },
     brief: Brief = Brief(more = emptyList(), less = emptyList()), editBrief: () -> Unit = {}, besideEnabled: Boolean = enabled,
-    note: String = "", writeNote: (String) -> Unit = {}, sendNote: () -> Unit = {}, deleteNote: (String) -> Unit = {}) {
+    note: String = "", writeNote: (String) -> Unit = {}, sendNote: () -> Unit = {}, deleteNote: (String) -> Unit = {}, editNote: (String, String, Boolean) -> Unit = { _, _, _ -> }) {
     Column(modifier.background(BackstageGround)) {
         OutsideHeader("Backstage", back, BackstageLine)
         if (backstage == null) { Loading(Modifier.weight(1f)); return@Column }
@@ -137,7 +137,7 @@ private val FantasiaRumourGround = Color(0xFF30261A)
             }
             item(key = "brief") { YourBrief(brief, enabled, editBrief) }
             backstage.outline?.let { outline -> item(key = "outline") { OutlineCard(outline) } }
-            item(key = "notes") { SteeringNotes(backstage.notes, note, besideEnabled, writeNote, sendNote, deleteNote) }
+            item(key = "notes") { SteeringNotes(backstage.notes, note, besideEnabled, writeNote, sendNote, editNote) }
             item(key = "how-its-going") { HowItsGoingSection(backstage.howItsGoing) }
             if (backstage.record.isNotEmpty()) item(key = "record") { TheRecord(backstage.record) }
             if (backstage.offscreen.isNotEmpty()) item(key = "offscreen") {
@@ -323,33 +323,35 @@ private val PurpleGround = Color(0xFF2B2342)
  * The player's notes to the Director (Backstage.dc.html: YOUR NOTES TO THE DIRECTOR; openspec the-outline: The player
  * sees and steers the Outline): a field to write one, and each note with whether the Director has answered it yet.
  */
-@Composable private fun SteeringNotes(notes: List<SteeringNote>, draft: String, enabled: Boolean, write: (String) -> Unit, send: () -> Unit, delete: (String) -> Unit) {
+@Composable private fun SteeringNotes(notes: List<SteeringNote>, draft: String, enabled: Boolean, write: (String) -> Unit, send: () -> Unit, edit: (String, String, Boolean) -> Unit) {
     Column(Modifier.fillMaxWidth().background(BackstageCard, RoundedCornerShape(16.dp)).padding(horizontal = 16.dp, vertical = 14.dp)
         .testTag("notes"), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        SectionLabel("YOUR NOTES TO THE DIRECTOR")
-        Text("A note is an order: the Director re-plans at the next Scene's end and follows it over his own reading of play.",
-            style = FantasiaType.caption, color = FantasiaSecondary)
-        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            BasicTextField(value = draft, onValueChange = write, minLines = 2, maxLines = 5, textStyle = FantasiaType.composer.copy(color = FantasiaText),
-                cursorBrush = SolidColor(FantasiaLabel), modifier = Modifier.weight(1f).testTag("note-field").semantics { contentDescription = "Write a note" }
-                    .background(FantasiaBackground, FantasiaShapes.field).border(1.dp, FantasiaStrongLine, FantasiaShapes.field),
-                decorationBox = { field ->
-                    Box(Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
-                        if (draft.isEmpty()) Text("Write a note", style = FantasiaType.composer, color = FantasiaCaption)
-                        field()
-                    }
-                })
-            Button(onClick = send, enabled = enabled && draft.isNotBlank(), modifier = Modifier.height(44.dp).testTag("add-note"), shape = FantasiaShapes.round,
-                contentPadding = PaddingValues(horizontal = 18.dp)) { Text("Add", style = FantasiaType.button) }
-        }
+        SectionLabel("YOUR DIRECTIONS")
+        Text("Active directions guide every subsequent reply. Redo notes are saved here automatically.", style = FantasiaType.caption, color = FantasiaSecondary)
+        BasicTextField(value = draft, onValueChange = write, minLines = 2, maxLines = 5, textStyle = FantasiaType.composer.copy(color = FantasiaText),
+            cursorBrush = SolidColor(FantasiaLabel), modifier = Modifier.fillMaxWidth().testTag("note-field").semantics { contentDescription = "Write a note" }
+                .background(FantasiaBackground, FantasiaShapes.field).padding(12.dp))
+        Button(onClick = send, enabled = enabled && draft.isNotBlank(), modifier = Modifier.testTag("add-note")) { Text("Add direction") }
         notes.forEach { note ->
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Column(Modifier.weight(1f).semantics(mergeDescendants = true) { }, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(note.text, style = FantasiaType.metadata.copy(lineHeight = 20.sp), color = FantasiaText)
-                    if (note.answered) Text("✓ Answered", style = FantasiaType.small, color = FantasiaSeen)
-                    else Text("Waiting for the next Scene's end", style = FantasiaType.small, color = FantasiaRumour)
+            var editing by remember(note.id) { mutableStateOf(false) }
+            var words by remember(note.id, note.text) { mutableStateOf(note.text) }
+            val active = note.active != false
+            Column(Modifier.fillMaxWidth().semantics(mergeDescendants = !editing) { }, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (editing) {
+                    BasicTextField(value = words, onValueChange = { words = it }, minLines = 2, maxLines = 8,
+                        textStyle = FantasiaType.metadata.copy(color = FantasiaText), modifier = Modifier.fillMaxWidth().background(FantasiaBackground).padding(10.dp))
+                    Row {
+                        TextButton(onClick = { edit(note.id, words, active); editing = false }, enabled = enabled && words.isNotBlank()) { Text("Save") }
+                        TextButton(onClick = { words = note.text; editing = false }) { Text("Cancel") }
+                    }
+                } else {
+                    Text(note.text, style = FantasiaType.metadata.copy(lineHeight = 20.sp), color = if (active) FantasiaText else FantasiaSecondary)
+                    Text(if (active) "Active · guides future replies" else "Archived", style = FantasiaType.small, color = FantasiaSecondary)
+                    Row {
+                        TextButton(onClick = { editing = true }, enabled = enabled) { Text("Edit") }
+                        TextButton(onClick = { edit(note.id, note.text, !active) }, enabled = enabled) { Text(if (active) "Archive" else "Restore") }
+                    }
                 }
-                Dismiss("Delete this note", enabled) { delete(note.id) }
             }
         }
     }

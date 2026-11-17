@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { recallFacts } from "../../src/context/lens.js";
-import { BEAT_CAP, checkWriter, LONG_SCENE, recordDue, STALL_AFTER, writeBeat, writerPrompt, type WriterAsk } from "../../src/agents/writer.js";
+import { checkWriter, LONG_SCENE, recordDue, writeBeat, writerPrompt, type WriterAsk } from "../../src/agents/writer.js";
 import { Models } from "../../src/models/model-call.js";
 import { ScriptedRunner } from "../../src/models/scripted.js";
 import type { Choice } from "../../src/story/entries.js";
@@ -82,12 +82,12 @@ describe("the Writer's answer", () => {
     expect(check(ask(story, "I follow her down."), answer({ frame }))).toMatchObject({ ok: true, value: { opens: null, plans: { purpose: frame.purpose, exit: frame.exit } } });
   });
 
-  it("frames the next Scene when a Move leaves this one, and whoever comes in is everyone there", () => {
+  it("keeps the Scene open when a model tries to leave it, updating its place instead", () => {
     const story = planned();
     const leaving = answer({ leaves_scene: true, comes_in: ["Uncle Bhalla"], minutes: 5 });
-    expect(check(ask(story, "I go to the vestibule for some air."), leaving)).toEqual({ ok: false, problems: ["frame: this Move opens a new Scene; write its frame"] });
+    expect(check(ask(story, "I go to the vestibule for some air."), leaving)).toMatchObject({ ok: true, value: { opens: null } });
     const frame = { title: "Air", place: "The vestibule", purpose: "Ishaan's evening goes from crowded to his own, or not.", exit: "Someone follows him out, or nobody does." };
-    expect(check(ask(story, "I go to the vestibule for some air."), { ...leaving, frame })).toMatchObject({ ok: true, value: { opens: frame, here: ["Uncle Bhalla"], clock: "Day 1 22:45" } });
+    expect(check(ask(story, "I go to the vestibule for some air."), { ...leaving, frame })).toMatchObject({ ok: true, value: { opens: null, here: ["Meera Kulkarni", "Uncle Bhalla"], movesTo: "The vestibule", clock: "Day 1 22:45" } });
   });
 
   it("opens the Scene a choice at the Day View begins, at the choice's time", () => {
@@ -133,11 +133,11 @@ describe("the Writer's answer", () => {
     expect(check(ask(planned(), "We walk to the vestibule, still arguing."), answer({ moves_to: "The vestibule" }))).toMatchObject({ ok: true, value: { movesTo: "The vestibule", opens: null } });
   });
 
-  it("writes Taste when the player asks to remember a Direction", () => {
+  it("accepts historical Taste metadata without requesting a paraphrase", () => {
     const story = planned();
     story.add({ kind: "redo", direction: "less Bhalla", remember: true });
     const given = ask(story, "I offer her the window seat.");
-    expect(writerPrompt(given, []).prompt).toContain("The player redid the last Reply with this Direction: less Bhalla (they asked for it to be remembered: put it in taste)");
+    expect(writerPrompt(given, []).prompt).toContain("The player redid the last Reply with this Direction: less Bhalla");
     expect(check(given, answer({ taste: " Keep Uncle Bhalla to the edges. " }))).toMatchObject({ ok: true, value: { taste: "Keep Uncle Bhalla to the edges." } });
   });
 });
@@ -155,14 +155,12 @@ describe("a Scene that stalls, and Linger (openspec scenes)", () => {
     return story;
   }
 
-  it("tells the Writer to make a beat happen, and to move a stalled Scene on, while Linger is off", () => {
+  it("does not force a beat or an Arc to move after any fixed number of replies", () => {
     const story = still(8, false);
     expect(story.state().scene).toMatchObject({ beatInPlayFor: 8, withoutArc: 8 });
     const { prompt } = writerPrompt(ask(story, "I look out of the window."), []);
-    expect(prompt).toContain(`The beat in play has been in play for 8 Replies: make it happen now, or skip it.`);
-    expect(prompt).toContain(`No Arc has moved for 8 Replies: move the Scene on toward its turn, or call land.`);
-    expect(BEAT_CAP).toBe(4);
-    expect(STALL_AFTER).toBe(3);
+    expect(prompt).not.toMatch(/make it happen now|No Arc has moved/);
+    expect(prompt).toContain("There is no turn limit or deadline for a beat.");
   });
 
   // GIVEN Linger is on in the common room with Hermione
@@ -173,7 +171,7 @@ describe("a Scene that stalls, and Linger (openspec scenes)", () => {
     expect(story.state().scene).toMatchObject({ beatInPlayFor: 8, withoutArc: 8, linger: true });
     const given = ask(story, "I stay where I am, by the window.");
     const { prompt } = writerPrompt(given, []);
-    expect(prompt).toContain("<task>\nLinger is on: hold the beat in play, force nothing, and call continue. Never set leaves_scene: wherever the Move goes and however long it takes, the Scene goes on; set moves_to when they go somewhere.\n</task>");
+    expect(prompt).toContain("Linger is on: hold the beat in play, force nothing, and call continue.");
     expect(prompt).not.toMatch(/make it happen now|No Arc has moved|call land/);
     // An answer that would turn the Scene is set right: it goes on as it was, and nothing is asked again.
     expect(check(given, answer({ call: "land", beats: BEATS, arc_moved: false }))).toMatchObject({ ok: true, value: { call: "continue", beats: BEATS }, dropped: ['call: Linger is on, so the Scene goes on rather than "land"'] });
@@ -233,7 +231,7 @@ describe("the Writer's call", () => {
     expect(check(given, answer({ taste: "Keep Uncle Bhalla to the edges." }))).toMatchObject({ ok: true, value: { tasteFor: null } });
   });
 
-  it("is told when a long Scene was recorded so far, and to close it if it has become another", () => {
+  it("is told when a long Scene was recorded so far, without being told to close it", () => {
     const story = planned();
     for (let exchange = 1; exchange <= LONG_SCENE.exchanges; exchange++) {
       story.move(`I look out of the window (${exchange}).`);
@@ -247,7 +245,8 @@ describe("the Writer's call", () => {
     story.add({ kind: "scene_recorded", scene: 1, through: story.head(), paragraph: "They watched the hills.", moments: [], told: [], known: [], bonds: [], engagements: [], changed: [], truth: emptyUpdate(), dropped: [], callId: "c", model: SONNET });
     expect(recordDue(story.state(), scene)).toBe(false);
     const { prompt } = writerPrompt(ask(story, "I ask Meera where she is going."), []);
-    expect(prompt).toContain("This Scene has run 31 exchanges, and was recorded so far. If it has become another one");
+    expect(prompt).toContain("This Scene has run 31 exchanges and was recorded so far.");
+    expect(prompt).toContain("recording does not end it");
     expect(prompt).toContain("<recorded_so_far>\nThe Scene so far, as it was recorded while it was played: They watched the hills.\n</recorded_so_far>");
   });
 

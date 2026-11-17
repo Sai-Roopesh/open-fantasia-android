@@ -166,27 +166,27 @@ describe("a Scene's end, step by step (docs/adr/0016)", () => {
     expect(view().day_view!.happenings.length).toBeGreaterThan(0);
   });
 
-  it("stops the turn of a Move that left the Scene at a failed step, and Retry goes on into the next Scene", async () => {
-    const leaves = writer(5, { leaves_scene: true, frame: { title: "Lights out", place: "The boys' dormitory", purpose: "Ron asks.", exit: "He asks, or not." } });
+  it("stops a manual Scene end at a failed step, and Retry lets the player open the next Scene", async () => {
+    const next = writer(5, { frame: { title: "Lights out", place: "The boys' dormitory", purpose: "Ron asks.", exit: "He asks, or not." } });
     const { engine, storyId, head, play, path, view, models } = playable(hogwartsStoryFile(), {
-      writer: [leaves],
+      writer: [writer(0), next],
       chronicler: [{ fail: "Opus 5.5 is overloaded" }, { fail: "GPT 6.1 Sol is at capacity" }]
     });
-    await play("I go to my room.");
-    await engine.settled(storyId);
-    // The Scene he left is closed, its record stopped, and the turn says so where he is looking: no Day View.
-    expect(path().slice(-2).map(payload => payload.kind)).toEqual(["move", "scene_closed"]);
-    expect(view().day_view).toBeNull();
-    expect(view().turn).toMatchObject({ kind: "failed", job: "chronicler", reason: expect.stringMatching(/^The Scene you left could not be recorded: .*overloaded/) });
+    await play("I sit by the fire.");
+    engine.endScene(storyId, head(), "manual-end");
+    await engine.ended(storyId);
+    expect(path().slice(-2).map(payload => payload.kind)).toEqual(["reply", "scene_closed"]);
+    expect(view().day_view!.scene_end.failed).toMatchObject({ reason: expect.stringMatching(/overloaded/) });
     expect(() => engine.move(storyId, "I wait.", head(), "t-wait")).toThrow(expect.objectContaining({ code: "busy" }));
 
     engine.retry(storyId, "trace-retry");
-    await engine.settled(storyId);
+    await engine.ended(storyId);
+    await play("I go to my room.");
     const kinds = path().map(payload => payload.kind);
-    expect(kinds.slice(kinds.lastIndexOf("move"))).toEqual(["move", "scene_closed", "chronicle", "outline_set", "director_plan", "world_moved", "scene_opened", "beat_note", "reply"]);
+    expect(kinds.slice(kinds.lastIndexOf("move"))).toEqual(["move", "scene_opened", "beat_note", "reply"]);
     expect(view().scene).toMatchObject({ number: 2 });
     expect(view().turn).toEqual({ kind: "idle" });
-    // The Writer is asked again only for the Scene the Move opens, now that the plan it opened from is gone.
+    // The Writer is asked once per Move, with the manual Scene end completed between them.
     expect(models.writer.requests).toHaveLength(2);
   });
 
@@ -408,7 +408,7 @@ describe("what the World may write (openspec living-world)", () => {
     const writerPrompt = played.models.writer.requests.at(-1)!.prompt;
     expect(writerPrompt).toContain("Quirrell tested the wards on the third-floor door again and scorched it. Known to Quirinus Quirrell.");
     const actor = played.models.actor.requests.at(-1)!;
-    expect(`${actor.system}\n${actor.prompt}`).not.toContain("Quirrell tested the wards");
+    expect(`${actor.system}\n${actor.prompt}`).toContain("Quirrell tested the wards"); // The author receives the fact with who knows it.
     expect(actor.prompt).toContain("The third-floor door is scorched black around the lock, still warm.");
   });
 });
@@ -482,10 +482,10 @@ describe("the Director at a Scene's end (openspec long-run)", () => {
     engine.endScene(storyId, head(), "end-2");
     await engine.ended(storyId);
     const given = (agent: string, words: string) => models.requests.filter(request => request.agent === agent).some(request => `${request.system}\n${request.prompt}`.includes(words));
-    expect(given("writer", "the flying test on Wednesday")).toBe(true);
-    expect(given("writer", "A step toward the test.")).toBe(true);
+    expect(given("actor", "the flying test on Wednesday")).toBe(true);
+    expect(given("actor", "A step toward the test.")).toBe(true);
     expect(given("weaver", "A step toward the test.")).toBe(true);
-    for (const agent of ["actor", "chronicler"]) {
+    for (const agent of ["chronicler"]) {
       expect(given(agent, "the flying test on Wednesday"), agent).toBe(false);
       expect(given(agent, "A step toward the test."), agent).toBe(false);
     }
@@ -647,7 +647,7 @@ describe("someone new in the Story (openspec stories: The Director can bring som
     const actor = models.actor.requests.at(-1)!;
     expect(`${actor.system}\n${actor.prompt}`).toContain(`Elspeth Vane (new to the Story: ${elspeth.who_they_are.replace(/\.$/, "")})`);
     expect(actor.prompt).toContain("Elspeth Vane and Roopesh Gantasala, as he has seen it: She has put him at the top of her list, and expects him Thursday.");
-    expect(actor.prompt).toContain(`(Scene 2; known to Roopesh Gantasala, Elspeth Vane) Elspeth Vane puts him at the top of her list.\n  "${list}"`);
+    expect(actor.prompt).toContain(`(Scene 2; known to Roopesh Gantasala, Elspeth Vane): Elspeth Vane puts him at the top of her list.\n  "${list}"`);
   });
 
   // GIVEN Elspeth Vane was brought in by the plan after Scene 12
@@ -714,7 +714,7 @@ describe("The Story So Far follows the Path (openspec living-world: Every agent 
     const asked = models.requests.slice(before);
     // Every agent that worked on this Path was given the Story as it stood: the Director too, reconsidering the Outline
     // and, since the Scene peaked, planning the next Stretch.
-    expect(asked.map(request => request.agent)).toEqual(["writer", "actor", "editor", "chronicler", "director", "director", "weaver"]);
+    expect(asked.map(request => request.agent)).toEqual(["actor", "editor", "chronicler", "director", "director", "weaver"]);
     for (const request of asked) {
       const given = `${request.system}\n${request.prompt}`;
       expect(given, request.agent).toContain(told.one);

@@ -5,7 +5,6 @@ import { nextFreeAfter } from "../time.js";
 import type { BeatNote, Chronicle, DirectorPlan, Entry, SceneOpened, SceneRecorded, StoryFolded, StorySetUp, WorldMoved } from "./entries.js";
 import type { Beat, CurrentScene, Fact, ModelChoice, Person, SceneEndStep, State, Told } from "./state.js";
 
-const DIRECTIONS_KEPT = 10;
 /** How many earlier plans' Scenes the Director is shown, so it does not repeat a shape (one-truth design decision 6). */
 export const RECENT_PLANS = 3;
 
@@ -30,7 +29,7 @@ export function apply(state: State | null, entry: Entry): State {
     case "beat_note":
       return { ...state, clock: payload.clock, scene: followScene(inScene(state), payload), pendingDirection: null };
     case "redo":
-      return { ...state, pendingDirection: { text: payload.direction, remember: payload.remember }, directions: payload.direction ? [...state.directions, payload.direction].slice(-DIRECTIONS_KEPT) : state.directions };
+      return { ...state, pendingDirection: { text: payload.direction, remember: payload.remember } };
     case "scene_closed": {
       const scene = inScene(state);
       return {
@@ -326,7 +325,7 @@ function setUp({ storyFile, portraits }: StorySetUp): State {
     lives: {}, facts: [], meanwhile: [], bonds, known, calendar: [], on: [], plan: null, recentPlans: [],
     truth: { ...emptyTruth(), rules: startingRules(file), beliefs: startingBeliefs(file) }, outline: null,
     storySoFar: { acts: [], weeks: [], scenes: [] }, curve: [], recorded: [], kept: [], played: [], introduced: [],
-    scene: null, scenesPlayed: 0, directions: [], pendingDirection: null
+    scene: null, scenesPlayed: 0, pendingDirection: null
   };
 }
 

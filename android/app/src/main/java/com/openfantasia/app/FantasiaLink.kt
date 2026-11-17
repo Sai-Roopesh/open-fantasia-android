@@ -51,6 +51,7 @@ interface FantasiaLink {
     // Steering notes (openspec the-outline: The player sees and steers the Outline).
     suspend fun writeNote(storyID: String, request: SteeringNoteRequest): Unit = throw LinkFailure("Notes are not on this link")
     suspend fun deleteNote(storyID: String, noteID: String): Unit = throw LinkFailure("Notes are not on this link")
+    suspend fun editNote(storyID: String, noteID: String, request: SteeringNoteEditRequest): Unit = throw LinkFailure("Notes are not on this link")
     // The player's brief and reactions (openspec long-run: The player steers with a brief and reactions).
     suspend fun setBrief(storyID: String, request: BriefRequest): Accepted = throw LinkFailure("The brief is not on this link")
     suspend fun react(storyID: String, request: ReactionRequest): Accepted = throw LinkFailure("Reactions are not on this link")

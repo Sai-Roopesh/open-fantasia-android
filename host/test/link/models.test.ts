@@ -32,7 +32,6 @@ describe("the Models screen over the link", () => {
     expect(view.stories).toEqual([{ story_id: storyId, title: "The Malfoy Problem", own: false,
       actor: { choice: { provider: "claude", model: "claude-opus-5-5", effort: null }, label: "Opus 5.5" } }]);
     expect(view.jobs.map(job => [job.job, job.title, job.does])).toEqual([
-      ["writer", "Writer", "Plans each Reply before it starts"],
       ["editor", "Editor", "Checks each Reply before you read it"],
       ["chronicler", "Chronicler", "Records what happened"],
       ["director", "Director", "Keeps the Outline and plans the days ahead"],
@@ -40,7 +39,6 @@ describe("the Models screen over the link", () => {
       ["folder", "Folder", "Keeps The Story So Far short"]
     ]);
     expect(view.jobs.map(job => job.model.choice)).toEqual([
-      { provider: "claude", model: "claude-opus-5-5", effort: "medium" },
       { provider: "claude", model: "claude-sonnet-5-5", effort: null },
       { provider: "claude", model: "claude-opus-5-5", effort: "medium" },
       { provider: "claude", model: "claude-fable-5-1", effort: "high" },
@@ -72,10 +70,10 @@ describe("the Models screen over the link", () => {
 
   it("refuses a model, an effort, a job or a Story it does not know, saying which", async () => {
     const { put, message, storyId } = await mac();
-    const model = await put("/models/jobs/writer", { model: { provider: "codex", model: "gpt-9" } });
+    const model = await put("/models/jobs/editor", { model: { provider: "codex", model: "gpt-9" } });
     expect(model.status).toBe(400);
     expect(await message(model)).toBe("Codex does not offer gpt-9.");
-    const effort = await put("/models/jobs/writer", { model: { provider: "claude", model: "claude-haiku-4-5-20251001", effort: "max" } });
+    const effort = await put("/models/jobs/editor", { model: { provider: "claude", model: "claude-haiku-4-5-20251001", effort: "max" } });
     expect(await message(effort)).toBe("Haiku 4.5 has no effort max.");
     const job = await put("/models/jobs/actor", { model: { provider: "claude", model: "claude-opus-5-5" } });
     expect(await message(job)).toBe("There is no job \"actor\" for every Story; the Actor is set per Story.");
@@ -98,18 +96,18 @@ describe("the Models screen over the link", () => {
     expect((await view()).day_view?.scene_end).toEqual({ step: null, failed: null, rethinking: null });
   });
 
-  // GIVEN the player set the Writer to Gemini 3.8 Flash at high effort
+  // GIVEN the player set the Editor to Gemini 3.8 Flash at high effort
   // WHEN the Mac's host is restarted
-  // THEN the Models screen still shows the Writer on Gemini 3.8 Flash, high, and the next Writer work runs on it
+  // THEN the Models screen still shows the Editor on Gemini 3.8 Flash, high, and the next Editor work runs on it
   it("outside-the-scene › One Models screen › A setting outlasts the Mac restarting", async () => {
     const first = await mac();
-    await first.put("/models/jobs/writer", { model: { provider: "antigravity", model: "gemini-3.8-flash", effort: "high" } });
+    await first.put("/models/jobs/editor", { model: { provider: "antigravity", model: "gemini-3.8-flash", effort: "high" } });
     await first.close();
     const again = await mac(first.mac.home);
-    expect((await again.models()).jobs.find(job => job.job === "writer")!.model.label).toBe("Gemini 3.8 Flash · high");
+    expect((await again.models()).jobs.find(job => job.job === "editor")!.model.label).toBe("Gemini 3.8 Flash · high");
     await again.post("moves", { text: "I wave.", after: (await again.view()).head_entry_id });
     await again.engine.settled(again.storyId);
-    expect(callsFor(again.mac.db, "writer").at(-1)).toEqual({ provider: "antigravity", model: "gemini-3.8-flash", effort: "high" });
+    expect(callsFor(again.mac.db, "editor").at(-1)).toEqual({ provider: "antigravity", model: "gemini-3.8-flash", effort: "high" });
   });
 
   it("carries a model for one Reply on Redo and Retry, and checks it is offered", async () => {
@@ -137,7 +135,6 @@ describe("the Models screen over the link", () => {
     closers.push(story.close);
     const view = await (await story.call("/models")).json() as ModelsView;
     expect(view.jobs.map(job => [job.title, job.model.label, job.backup.label])).toEqual([
-      ["Writer", "Opus 5.5 · medium", "GPT 6.1 Sol"],
       ["Editor", "Sonnet 5.5", "GPT 6.1 Sol"],
       ["Chronicler", "Opus 5.5 · medium", "GPT 6.1 Sol"],
       ["Director", "Fable 5.1 · high", "GPT 6.1 Sol"],
@@ -191,7 +188,7 @@ describe("the Models screen over the link", () => {
     expect((await put("/models/jobs/actor", { model: { provider: "codex", model: "gpt-6-luna", effort: null }, backup: true })).status).toBe(200);
     expect(backupModels(home.home).actor).toEqual({ provider: "codex", model: "gpt-6-luna", effort: "medium" });
     expect((await models()).actor_backup.label).toBe("GPT 6 Luna · medium");
-    expect((await models()).jobs.find(job => job.job === "writer")!.backup.label).toBe("GPT 6.1 Sol");
+    expect((await models()).jobs.find(job => job.job === "editor")!.backup.label).toBe("GPT 6.1 Sol");
     expect(await message(await put("/models/jobs/weaver", { model: { provider: "codex", model: "gpt-9" }, backup: true }))).toBe("Codex does not offer gpt-9.");
   });
 

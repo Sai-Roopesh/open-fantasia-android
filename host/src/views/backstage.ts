@@ -46,7 +46,7 @@ export function backstageView(mac: Mac, storyId: string, traceId: string): Backs
     story_id: storyId,
     outline: outlineView(state),
     lives_by_tier: livesByTier(state),
-    notes: beside.notes.map(note => ({ id: note.id, text: note.text, written_at: note.writtenAt, answered: note.answeredBy !== null })),
+    notes: beside.notes.map(note => ({ id: note.id, text: note.text, written_at: note.writtenAt, answered: note.answeredBy !== null, active: note.active !== false })),
     truth: truthView(state, path),
     player_taste: beside.playerTaste,
     offscreen: days,

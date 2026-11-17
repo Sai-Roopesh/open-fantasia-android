@@ -13,17 +13,13 @@ import { BUDGETS, runAgent, type Checked, type ToolKit } from "./step.js";
 
 /**
  * The Writer: each Scene's author (docs/adr/0004). It reads every Move before the Actor answers it, and says what the
- * Scene is for, what happens next in it, and whether it is done. It reads the four layers as the author, with who
- * knows each thing (the-storys-mind design decision 7), and plans in steps: it may look things up in the Story and on
+ * Scene is for and what happens next in it. Only the player ends a Scene. It reads the four layers as the author,
+ * with who knows each thing (the-storys-mind design decision 7), and plans in steps: it may look things up in the Story and on
  * the web first (docs/adr/0018), and hands the Actor its plan and the passages it gathered, in their own words
  * (the-storys-mind design decision 6).
  */
 const PROMPT = readFileSync(new URL("./WRITER.md", import.meta.url), "utf8");
 
-/** A beat in play for this many Beat Notes is made to happen by the next one. */
-export const BEAT_CAP = 4;
-/** After this many Beat Notes in a row with no Arc moving, the next one moves the Scene on. */
-export const STALL_AFTER = 3;
 /** The most passages the Writer hands the Actor for one Reply. */
 const GATHERED = 4;
 
@@ -107,8 +103,8 @@ function openingOf(state: State): Opening {
  * Leads, whom it brings in where the Story allows.
  */
 function presentFor(ask: WriterAsk): string[] {
-  const here = openingOf(ask.state) === "day_view" ? ask.choice?.who ?? [] : ask.state.scene?.here ?? [];
-  return [...new Set([...here, ...ask.state.leads])];
+  const here = openingOf(ask.state) === "day_view" ? ask.choice?.who ?? ask.state.scene?.here ?? [] : ask.state.scene?.here ?? [];
+  return [...new Set([...here, ...namedIn(ask.move, nameIndex(Object.values(ask.state.people))), ...ask.state.leads])];
 }
 
 /** The Writer's answer for this Story: its people and remembered Moments as fixed lists. */
@@ -118,7 +114,7 @@ export function writerFormat(state: State, moments: Fact[]) {
     additionalProperties: false,
     required: ["leaves_scene", "frame", "comes_in", "goes", "beats", "note", "call", "intensity", "arc_moved", "minutes", "taste", "taste_for", "in_play", "moves_to", "gathered"],
     properties: {
-      leaves_scene: { type: "boolean", description: "The Move leaves this Scene or skips well ahead, or the Scene has become another one, so the next Scene begins with this Move." },
+      leaves_scene: { type: "boolean", description: "Always false. Only the player's End Scene action closes a Scene; moving, passing time and reaching a payoff keep it open." },
       frame: { description: "The Scene's frame, when one opens or has no plan yet; otherwise null.", ...nullable({ type: "object", additionalProperties: false, required: ["title", "place", "purpose", "exit"], properties: { title: text, place: text, purpose: text, exit: text } }) },
       comes_in: { type: "array", items: peopleEnum(state), description: "Who comes into the Scene in the next Reply; when a Scene opens, everyone there besides the player's character." },
       goes: { type: "array", items: peopleEnum(state), description: "Who leaves the Scene in the next Reply." },
@@ -131,7 +127,7 @@ export function writerFormat(state: State, moments: Fact[]) {
       taste: { type: ["string", "null"] },
       taste_for: { type: ["string", "null"], enum: ["story", "player", null], description: "Whose lesson taste is: player when it is about how the player likes to read in any story, story when it is about this one; null when taste is." },
       in_play: { type: "array", items: oneOf(moments.map((_, index) => `M${index + 1}`)), description: "Up to two remembered Moments the Reply draws on; usually none." },
-      moves_to: { type: ["string", "null"], description: "When the Move walks somewhere with the people here while the same thing goes on, the new place; otherwise null." },
+      moves_to: { type: ["string", "null"], description: "The new place whenever the Move changes location, even after a time skip or a change of activity; otherwise null. The Scene stays open." },
       gathered: {
         type: "array",
         description: `Up to ${GATHERED} passages your lookups found that the Reply needs, each copied exactly as the Story has it; usually none.`,
@@ -151,12 +147,15 @@ function exchangesIn(scene: Entry[]): number {
  * (the-storys-mind design decision 8): the Chronicler then records it once, before the Writer plans the next Reply.
  */
 export function recordDue(state: State, scene: Entry[]): boolean {
-  if (!state.scene || state.scene.closed || state.scene.recorded) return false;
-  const words = scene.flatMap(entry => {
+  if (!state.scene || state.scene.closed) return false;
+  const recorded = state.scene.recorded;
+  const through = recorded ? scene.findIndex(entry => entry.id === recorded.through) : -1;
+  const delta = through >= 0 ? scene.slice(through + 1) : scene;
+  const words = delta.flatMap(entry => {
     const payload = entry.payload;
     return payload.kind === "move" || payload.kind === "reply" ? [payload.text] : payload.kind === "scene_opened" && payload.prose ? [payload.prose] : [];
   });
-  return exchangesIn(scene) > LONG_SCENE.exchanges || tokens(words.join("\n\n")) > LONG_SCENE.tokens;
+  return exchangesIn(delta) > LONG_SCENE.exchanges || tokens(words.join("\n\n")) > LONG_SCENE.tokens;
 }
 
 /** People of the Story the last Reply named who are not here: it may have shown them come in. */
@@ -172,7 +171,7 @@ function shownNotHere(ask: WriterAsk): string[] {
  * things stand for the people the Reply is with; the Scene so far; and this moment: the Stretch's plan and the Scene
  * that matters, the Moments the people here remember, who the last Reply named, the Move, and its task.
  */
-export function writerPrompt(ask: WriterAsk, moments: Fact[]): { system: string; prompt: string } {
+export function writerPrompt(ask: WriterAsk, moments: Fact[], instructions = PROMPT): { system: string; prompt: string } {
   const { state } = ask;
   const pc = state.playerCharacter;
   const scene = state.scene;
@@ -180,17 +179,11 @@ export function writerPrompt(ask: WriterAsk, moments: Fact[]): { system: string;
   const tasks: string[] = [];
   if (opening === "day_view") tasks.push(ask.choice ? `The player chose at the Day View: ${describeChoice(state, ask.choice)}. Open the Scene it begins.` : "The last Scene has closed: the Move opens a new one. Frame it.");
   if (opening === "unplanned") tasks.push("This Scene opened without a plan: frame it as it stands, keeping its title and place.");
-  // While the player Lingers, nothing pushes the Scene along (openspec scenes: Linger holds the moment).
-  const pushing = scene && !scene.closed && !scene.linger;
-  if (pushing && scene.beatInPlayFor >= BEAT_CAP) tasks.push(`The beat in play has been in play for ${scene.beatInPlayFor} Replies: make it happen now, or skip it.`);
-  if (pushing && scene.withoutArc >= STALL_AFTER) tasks.push(`No Arc has moved for ${scene.withoutArc} Replies: move the Scene on toward its turn, or call land.`);
-  // A long Scene is closed by the Writer once it has become another (openspec scenes: A long Scene is recorded as it goes).
-  if (scene && !scene.closed && scene.recorded && !scene.linger) {
-    tasks.push(`This Scene has run ${exchangesIn(ask.scene)} exchanges, and was recorded so far. If it has become another one (they are somewhere else and something else is happening between them, or another day or night has begun), close it: set leaves_scene and frame the Scene it has become, which begins with this Move. A Scene still about the same thing goes on, however long.`);
-  }
+  if (scene && !scene.closed) tasks.push("Only the player's End Scene action closes this Scene. Keep leaves_scene false. A change of place, time or activity continues it: update moves_to and minutes as needed. There is no turn limit or deadline for a beat.");
+  if (scene && !scene.closed && scene.recorded) tasks.push(`This Scene has run ${exchangesIn(ask.scene)} exchanges and was recorded so far. Continue from that record and the latest exchanges; recording does not end it.`);
   if (scene?.focus && !scene.closed) tasks.push(`Focus is on ${scene.focus}.`);
   if (scene?.linger && !scene.closed) tasks.push("Linger is on: hold the beat in play, force nothing, and call continue. Never set leaves_scene: wherever the Move goes and however long it takes, the Scene goes on; set moves_to when they go somewhere.");
-  if (state.pendingDirection?.text) tasks.push(`The player redid the last Reply with this Direction: ${state.pendingDirection.text}${state.pendingDirection.remember ? " (they asked for it to be remembered: put it in taste)" : ""}`);
+  if (state.pendingDirection?.text) tasks.push(`The player redid the last Reply with this Direction: ${state.pendingDirection.text}`);
   const plan = state.plan ? section("long_run", [
     `Toward ${state.plan.toward}, a ${state.plan.phase} Stretch.`,
     ...state.plan.arcs.map(arc => `- ${arc.arc}: now ${arc.now}; may move to ${arc.next}; not yet ${arc.notYet}`),
@@ -204,7 +197,7 @@ export function writerPrompt(ask: WriterAsk, moments: Fact[]): { system: string;
     section("shown_not_here", shownNotHere(ask).join(", ")),
     section(`move by="${pc}"`, ask.move),
     section("task", tasks.join("\n"))
-  ], PROMPT));
+  ], instructions));
 }
 
 function describeChoice(state: State, choice: Choice): string {
@@ -275,10 +268,10 @@ export function checkWriter(ask: WriterAsk, moments: Fact[], answer: unknown): C
     if (phrase) problems.push(`${where} decides for the player's character ("${phrase}"); make it a circumstance or someone else's choice`);
   }
   const opening = openingOf(state);
-  // Under Linger nothing leaves the Scene but the player's End scene: a Move that goes elsewhere moves the place.
-  const held = opening !== "day_view" && state.scene?.linger === true && !state.scene.closed;
-  if (held && raw.leaves_scene) dropped.push("leaves_scene: Linger is on, so the Scene goes on here, wherever the Move takes them");
-  const opensScene = opening === "day_view" || (raw.leaves_scene && !held);
+  // Closure belongs to the explicit End Scene action, regardless of Linger or the model's answer.
+  const held = opening !== "day_view";
+  if (held && raw.leaves_scene) dropped.push("leaves_scene: only the player's End Scene action closes a Scene");
+  const opensScene = opening === "day_view";
   if ((opensScene || opening === "unplanned") && !raw.frame) problems.push(opensScene ? "frame: this Move opens a new Scene; write its frame" : "frame: this Scene has no plan yet; write its frame");
   if (problems.length) return { ok: false, problems };
 
@@ -320,7 +313,7 @@ export function checkWriter(ask: WriterAsk, moments: Fact[], answer: unknown): C
     dropped,
     value: {
       opens: opensScene && frame ? { ...frame, place: chosen?.place?.trim() || frame.place } : null,
-      plans: !opensScene && opening === "unplanned" && frame ? { purpose: frame.purpose, exit: frame.exit } : null,
+      plans: !opensScene && frame ? { purpose: frame.purpose, exit: frame.exit } : null,
       here, goes: goes.filter(name => here.includes(name)), beats: raw.beats, note: raw.note.trim(), call,
       intensity: raw.intensity, arcMoved: raw.arc_moved, clock, taste, tasteFor: taste ? raw.taste_for ?? null : null, inPlay,
       movesTo: opensScene ? null : raw.moves_to?.trim() || (held && raw.leaves_scene ? raw.frame?.place.trim() || null : null),
@@ -330,9 +323,13 @@ export function checkWriter(ask: WriterAsk, moments: Fact[], answer: unknown): C
 }
 
 /** The Writer's prompt for [ask], with the Moments it recalls for the people present. */
-export function writerCall(ask: WriterAsk): { system: string; prompt: string; moments: Fact[] } {
+export function writerCall(ask: WriterAsk, instructions?: string): { system: string; prompt: string; moments: Fact[] } {
   const moments = recallFacts(ask.state, presentFor(ask));
-  return { ...writerPrompt(ask, moments), moments };
+  return { ...writerPrompt(ask, moments, instructions), moments };
+}
+
+export function writerFacts(ask: WriterAsk) {
+  return { opening: openingOf(ask.state), clock: ask.state.clock, title: ask.state.scene?.title ?? null, place: ask.state.scene?.place ?? null, here: ask.state.scene?.here ?? [], beats: ask.state.scene && !ask.state.scene.closed ? ask.state.scene.beats : [], direction: ask.state.pendingDirection, choice: ask.choice };
 }
 
 /**

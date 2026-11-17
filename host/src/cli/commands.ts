@@ -20,8 +20,9 @@ import type { Payload } from "../story/entries.js";
 import { parseStoryTime, sayStoryTime } from "../time.js";
 import { importStoryFile } from "../storyfile/import.js";
 import { besideOf, tasteOf } from "../store/beside.js";
-import { actorPrompt } from "../agents/actor.js";
-import { writerCall } from "../agents/writer.js";
+import { composerCall } from "../agents/composer.js";
+import { editorPrompt } from "../agents/editor.js";
+import { Drafts } from "../store/drafts.js";
 import { Traces } from "../trace.js";
 import { say, sceneEntries } from "../views/scene.js";
 import { listStories } from "../views/stories.js";
@@ -172,7 +173,7 @@ export function models(mac: Mac, args: string[], out: Out): boolean {
     out(`The Actor of "${found.title}" now uses ${sayChoice(choice)}, from its next Reply.`);
     return true;
   }
-  if (!JOBS.includes(job as Job)) return (out(`No job "${job}". The jobs are: ${JOBS.join(", ")}, or actor "<Story>".`), false);
+  if (!JOBS.some(name => name === job)) return (out(`No job "${job}". The jobs are: ${JOBS.join(", ")}, or actor "<Story>".`), false);
   const choice = chosen(catalog, rest, out);
   if (!choice) return false;
   setJobModel(mac.home, job as Job, choice);
@@ -227,8 +228,8 @@ export function record(mac: Mac, storyId: string, out: Out): boolean {
 }
 
 /**
- * `fantasia prompts`: what the next Reply's Writer would be given for [move], and what the Actor was given for the latest
- * Move as the Scene stands, in full, calling no model: for checking what the agents know.
+ * `fantasia prompts`: the actual combined writing request for [move] and the independent Editor request for the latest
+ * saved draft, calling no model: for checking what each stage knows.
  */
 export function prompts(mac: Mac, storyId: string, move: string, out: Out): boolean {
   const path = mac.tree.currentPath(storyId);
@@ -236,14 +237,16 @@ export function prompts(mac: Mac, storyId: string, move: string, out: Out): bool
   const head = path.headEntryId;
   const beside = besideOf(mac, storyId);
   const { state, entries } = sceneEntries(mac, head);
-  const writer = writerCall({ state, scene: entries, move, choice: null, beside, path: mac.tree.pathTo(head) });
-  for (const line of [`== The Writer, for the Move: ${move}`, `-- system\n${writer.system}`, `-- prompt\n${writer.prompt}`]) out(line);
+  const writing = composerCall({ state, scene: entries, move, choice: null, beside, path: mac.tree.pathTo(head) });
+  for (const line of [`== Writing, for the Move: ${move}`, `-- system\n${writing.system}`, `-- prompt\n${writing.prompt}`]) out(line);
   const note = entries.findLast(entry => entry.payload.kind === "beat_note");
-  if (!note || note.payload.kind !== "beat_note" || state.scene?.closed) return (out("== No Reply is being written in an open Scene, so there is no Actor's prompt."), true);
+  if (!note || note.payload.kind !== "beat_note" || state.scene?.closed) return (out("== The Editor runs after a draft is written."), true);
+  const draft = new Drafts(mac.db).get(note.id);
+  if (!draft) return (out("== No saved draft is available for an Editor preview."), true);
   const answered = sceneEntries(mac, note.id);
   const latest = answered.entries.findLast(entry => entry.payload.kind === "move");
-  const actor = actorPrompt({ state: answered.state, beside, scene: answered.entries, gathered: note.payload.gathered ?? [] });
-  for (const line of [`== The Actor, for the latest Move: ${latest?.payload.kind === "move" ? latest.payload.text : ""}`, `-- system\n${actor.system}`, `-- prompt\n${actor.prompt}`]) out(line);
+  const editor = editorPrompt({ state: answered.state, beside: draft.beside, scene: answered.entries, reply: draft.text, present: answered.state.scene?.here ?? [] });
+  for (const line of [`== The Editor, for the latest saved draft: ${latest?.payload.kind === "move" ? latest.payload.text : ""}`, `-- system\n${editor.system}`, `-- prompt\n${editor.prompt}`]) out(line);
   return true;
 }
 
