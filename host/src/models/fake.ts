@@ -33,9 +33,9 @@ export function fakeWriterAnswer(request: ModelRequest): Script {
       : null;
   return {
     answer: JSON.stringify({
-      leaves_scene: false, frame, comes_in: facts.choice?.who ?? [], goes: [], beats,
-      note: "Someone answers the Move, and wants something back.", call: "continue", intensity: 2, arc_moved: true, minutes: 2,
-      taste: facts.direction?.remember && facts.direction.text ? `Remember: ${facts.direction.text}` : null, in_play: [], moves_to: null
+      frame, comes_in: facts.choice?.who ?? [], goes: [], beats,
+      note: "Someone answers the Move, and wants something back.", call: "continue", intensity: 2, minutes: 2,
+      in_play: [], moves_to: null
     })
   };
 }

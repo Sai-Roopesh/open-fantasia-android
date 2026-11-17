@@ -331,8 +331,8 @@ describe("long-run › Taste is short, readable and the player's", () => {
 describe("long-run › The player steers with a brief and reactions", () => {
   const beats = [{ text: "a", status: "in_play" }, { text: "b", status: "pending" }, { text: "c", status: "pending" }];
   /** A Writer's answer opening a Scene in [frame], with [comesIn]. */
-  const opening = (frame: { title: string; place: string }, comesIn: string[]) => ({ answer: JSON.stringify({ leaves_scene: false, frame: { ...frame, purpose: "p", exit: "e" }, comes_in: comesIn, goes: [], beats,
-    note: "n", call: "continue", intensity: 2, arc_moved: true, minutes: 2, taste: null, in_play: [], moves_to: null }) });
+  const opening = (frame: { title: string; place: string }, comesIn: string[]) => ({ answer: JSON.stringify({ frame: { ...frame, purpose: "p", exit: "e" }, comes_in: comesIn, goes: [], beats,
+    note: "n", call: "continue", intensity: 2, minutes: 2, in_play: [], moves_to: null }) });
 
   // GIVEN the player reacted "less like this" to two library Scenes
   // WHEN the Director plans the next Stretch

@@ -72,8 +72,6 @@ export interface CurrentScene {
   peak: number;
   inPlay: string[];
   goes: string[];
-  beatInPlayFor: number;
-  withoutArc: number;
   focus: string | null;
   linger: boolean;
   closed: "player" | "move" | null;
@@ -343,6 +341,5 @@ export interface State {
   /** Where the whole Story is going (openspec the-outline); null until the Director has written it. */
   outline: Outline | null;
   scene: CurrentScene | null;
-  scenesPlayed: number;
   pendingDirection: PendingDirection | null;
 }

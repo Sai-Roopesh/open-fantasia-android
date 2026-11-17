@@ -249,7 +249,7 @@ function playTwoScenes(story: Live): void {
     const moved = story.append({ kind: "move", text: move });
     if (opens) story.append({ kind: "scene_opened", number: story.state().scene!.number + 1, ...opens, prose: null, startsAt: moved, purpose: null, exit: null });
     const now = story.state();
-    story.append({ kind: "beat_note", plan: null, here: now.scene!.here, goes: [], beats: [], note: "", call: "continue", intensity: 3, arcMoved: true, clock: now.clock, inPlay: [], callId: "written-by-the-test", model: WRITTEN });
+    story.append({ kind: "beat_note", plan: null, here: now.scene!.here, goes: [], beats: [], note: "", call: "continue", intensity: 3, clock: now.clock, inPlay: [], callId: "written-by-the-test", model: WRITTEN });
     return story.append({ kind: "reply", text: reply, callId: "written-by-the-test", model: WRITTEN });
   };
   /** The Scene's end by hand: the Chronicler's record, the Outline kept, and an empty span of the World. */

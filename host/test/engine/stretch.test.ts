@@ -257,7 +257,7 @@ describe("Leads act every Stretch, on screen or off (story-in-stretches design d
 describe("spans: only what reaches him (story-in-stretches design decision 4)", () => {
   const beats = [{ text: "a", status: "in_play" }, { text: "b", status: "pending" }, { text: "c", status: "pending" }];
   /** A Writer's answer, the Reply [minutes] on; [frame] opens a Scene when one opens. */
-  const writer = (minutes: number, frame: { title: string; place: string } = { title: "kept", place: "kept" }) => ({ answer: JSON.stringify({ leaves_scene: false, frame: { ...frame, purpose: "p", exit: "e" }, comes_in: [], goes: [], beats, note: "n", call: "continue", intensity: 2, arc_moved: true, minutes, taste: null, in_play: [], moves_to: null }) });
+  const writer = (minutes: number, frame: { title: string; place: string } = { title: "kept", place: "kept" }) => ({ answer: JSON.stringify({ frame: { ...frame, purpose: "p", exit: "e" }, comes_in: [], goes: [], beats, note: "n", call: "continue", intensity: 2, minutes, in_play: [], moves_to: null }) });
 
   // GIVEN a Scene ends at 8:00 am, and the next is chosen for 8:20 am with nothing on before it
   // THEN the World is not moved for those twenty minutes

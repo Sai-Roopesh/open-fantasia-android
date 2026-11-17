@@ -60,11 +60,11 @@ describe("Paths", () => {
   // THEN the clock, the Day View and the World screen all show Saturday night
   it("paths › Everything belongs to the Path › Two clocks", async () => {
     const beats = [{ text: "a", status: "in_play" }, { text: "b", status: "pending" }, { text: "c", status: "pending" }];
-    const writer = (changes: Record<string, unknown>) => ({ answer: JSON.stringify({ leaves_scene: false, frame: { title: "kept", place: "kept", purpose: "p", exit: "e" },
-      comes_in: [], goes: [], beats, note: "n", call: "continue", intensity: 2, arc_moved: true, minutes: 0, taste: null, in_play: [], moves_to: null, ...changes }) });
+    const writer = (changes: Record<string, unknown>) => ({ answer: JSON.stringify({ frame: { title: "kept", place: "kept", purpose: "p", exit: "e" },
+      comes_in: [], goes: [], beats, note: "n", call: "continue", intensity: 2, minutes: 0, in_play: [], moves_to: null, ...changes }) });
     // Saturday 9:30 pm is four days and six and a half hours after Tuesday 3:00 pm.
     const played = playable(hogwartsStoryFile({ title: "Tuesday afternoon", place: "The library", at: "Day 7 15:00", who: ["Hermione Granger"] }), {
-      writer: [writer({}), writer({ leaves_scene: true, frame: { title: "Saturday night", place: "The Three Broomsticks", purpose: "p", exit: "e" }, minutes: (4 * 24 + 6.5) * 60 })]
+      writer: [writer({}), writer({ moves_to: "The Three Broomsticks", frame: { title: "Saturday night", place: "The Three Broomsticks", purpose: "p", exit: "e" }, minutes: (4 * 24 + 6.5) * 60 })]
     });
     const { engine, storyId, head, state, view, mac } = played;
     await played.play("I read beside Hermione.");

@@ -18,7 +18,7 @@ const beats = [{ text: "a", status: "in_play" }, { text: "b", status: "pending" 
 
 /** A Writer's answer, the Reply [minutes] on, changed as a scenario needs; its frame opens a Scene when one opens. */
 function writer(minutes: number, changes: Record<string, unknown> = {}): Script {
-  return { answer: JSON.stringify({ leaves_scene: false, frame: { title: "kept", place: "kept", purpose: "p", exit: "e" }, comes_in: [], goes: [], beats, note: "n", call: "continue", intensity: 2, arc_moved: true, minutes, taste: null, in_play: [], moves_to: null, ...changes }) };
+  return { answer: JSON.stringify({ frame: { title: "kept", place: "kept", purpose: "p", exit: "e" }, comes_in: [], goes: [], beats, note: "n", call: "continue", intensity: 2, minutes, in_play: [], moves_to: null, ...changes }) };
 }
 
 /** A Writer's answer as the fakes give it, but rating the Scene 5: it peaked. */

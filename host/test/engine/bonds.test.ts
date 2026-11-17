@@ -28,9 +28,9 @@ function classroom(scripts: Parameters<typeof playable>[1] = {}) {
 }
 
 const beats = [{ text: "a", status: "in_play" }, { text: "b", status: "pending" }, { text: "c", status: "pending" }];
-const staying = { answer: JSON.stringify({ leaves_scene: false, frame: { title: "Twenty-nine minutes", place: "An empty classroom", purpose: "p", exit: "e" }, comes_in: ["Draconia Malfoy"], goes: [], beats, note: "n", call: "continue", intensity: 3, arc_moved: true, minutes: 2, taste: null, in_play: [], moves_to: null }) };
+const staying = { answer: JSON.stringify({ frame: { title: "Twenty-nine minutes", place: "An empty classroom", purpose: "p", exit: "e" }, comes_in: ["Draconia Malfoy"], goes: [], beats, note: "n", call: "continue", intensity: 3, minutes: 2, in_play: [], moves_to: null }) };
 /** A week on, from the Day View at 9:42 pm on Friday to Friday week at three. */
-const library = { answer: JSON.stringify({ leaves_scene: false, frame: { title: "A week on", place: "The library", purpose: "p", exit: "e" }, comes_in: ["Draconia Malfoy"], goes: [], beats, note: "Draconia is at the end table.", call: "continue", intensity: 2, arc_moved: true, minutes: 9678, taste: null, in_play: [], moves_to: null }) };
+const library = { answer: JSON.stringify({ frame: { title: "A week on", place: "The library", purpose: "p", exit: "e" }, comes_in: ["Draconia Malfoy"], goes: [], beats, note: "Draconia is at the end table.", call: "continue", intensity: 2, minutes: 9678, in_play: [], moves_to: null }) };
 
 describe("a Bond read in later Scenes (lasting-records design decision 6)", () => {
   // GIVEN Draconia's Bond with that turn

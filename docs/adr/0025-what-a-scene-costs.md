@@ -85,3 +85,8 @@ from a sharper one.
 - The cache numbers are GPT 5.6 Sol's on one account on one day. Claude is unmeasured: it was not signed in.
 - `<scene_now>` moves where an agent reads who is here. No reading of the Replies written since found a
   difference, and none was measured.
+- The writing call no longer asks for `leaves_scene`, `arc_moved`, `taste` or `taste_for` on every Reply. Since
+  only End Scene closes a Scene, `leaves_scene` was always overridden to false; Taste is the player's to keep, so
+  the model's `taste` was dropped unread; `arc_moved` fed only `withoutArc`, a counter nothing read once the
+  turn limits went. `beatInPlayFor`, `withoutArc` and `scenesPlayed` are gone from State (`STATE_SHAPE` 10
+  rebuilds the cache). Old Beat Notes keep `arcMoved` and still load.

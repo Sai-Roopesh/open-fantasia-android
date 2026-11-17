@@ -3,7 +3,7 @@ import { currentAct } from "./outline.js";
 import { applyTruth, emptyTruth, emptyUpdate, type TruthState } from "./truth.js";
 import { nextFreeAfter } from "../time.js";
 import type { BeatNote, Chronicle, DirectorPlan, Entry, SceneOpened, SceneRecorded, StoryFolded, StorySetUp, WorldMoved } from "./entries.js";
-import type { Beat, CurrentScene, Fact, ModelChoice, Person, SceneEndStep, State, Told } from "./state.js";
+import type { CurrentScene, Fact, ModelChoice, Person, SceneEndStep, State, Told } from "./state.js";
 
 /** How many earlier plans' Scenes the Director is shown, so it does not repeat a shape (one-truth design decision 6). */
 export const RECENT_PLANS = 3;
@@ -267,11 +267,8 @@ function inScene(state: State): CurrentScene {
   return state.scene;
 }
 
-const inPlayIndex = (beats: Beat[]) => beats.findIndex(beat => beat.status === "in_play");
 
 function followScene(scene: CurrentScene, note: BeatNote): CurrentScene {
-  const inPlay = inPlayIndex(note.beats);
-  const sameBeat = inPlay >= 0 && scene.beats.length > 0 && inPlay === inPlayIndex(scene.beats);
   return {
     ...scene,
     place: note.place ?? scene.place,
@@ -285,9 +282,7 @@ function followScene(scene: CurrentScene, note: BeatNote): CurrentScene {
     goes: note.goes,
     call: note.call,
     intensity: note.intensity,
-    peak: Math.max(scene.peak, note.intensity),
-    beatInPlayFor: inPlay < 0 ? 0 : sameBeat ? scene.beatInPlayFor + 1 : 1,
-    withoutArc: note.arcMoved ? 0 : scene.withoutArc + 1
+    peak: Math.max(scene.peak, note.intensity)
   };
 }
 
@@ -325,7 +320,7 @@ function setUp({ storyFile, portraits }: StorySetUp): State {
     lives: {}, facts: [], meanwhile: [], bonds, known, calendar: [], on: [], plan: null, recentPlans: [],
     truth: { ...emptyTruth(), rules: startingRules(file), beliefs: startingBeliefs(file) }, outline: null,
     storySoFar: { acts: [], weeks: [], scenes: [] }, curve: [], recorded: [], kept: [], played: [], introduced: [],
-    scene: null, scenesPlayed: 0, pendingDirection: null
+    scene: null, pendingDirection: null
   };
 }
 
@@ -355,10 +350,9 @@ function openScene(state: State, scene: SceneOpened, entryId: string): State {
     scene: {
       number: scene.number, title: scene.title, place: scene.place, at: scene.at, here: scene.who, met: scene.who, openedBy: entryId,
       startsAt: scene.startsAt ?? entryId, purpose: scene.purpose, exit: scene.exit, beats: [], note: null, inPlay: [],
-      goes: [], endedAt: null, call: null, intensity: null, peak: 0, beatInPlayFor: 0, withoutArc: 0,
+      goes: [], endedAt: null, call: null, intensity: null, peak: 0,
       focus: scene.who.length === 1 ? scene.who[0] ?? null : null, linger: false, closed: null, ended: []
-    },
-    scenesPlayed: state.scenesPlayed + (state.scene ? 1 : 0)
+    }
   };
 }
 

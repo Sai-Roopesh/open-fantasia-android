@@ -1,7 +1,6 @@
 import type { Choice, Entry, Gathered } from "../story/entries.js";
 import type { Beat, Fact, SceneCall, State } from "../story/state.js";
 import type { Beside } from "../story/beside.js";
-import type { TasteScope } from "../store/beside.js";
 import { minutesOf, parseStoryTime, sayDate, sayTime } from "../time.js";
 import { asCall, layers, LIMITS, momentsPart, recallFacts, section, tokens } from "../context/lens.js";
 import { decidesForPlayer, playerNames } from "./deciding.js";
@@ -54,11 +53,7 @@ export interface WriterPlan {
   note: string;
   call: SceneCall;
   intensity: number;
-  arcMoved: boolean;
   clock: string;
-  taste: string | null;
-  /** Whose Taste the lesson is, as the Writer reads it: the Story's, or the player's own (docs/adr/0020). */
-  tasteFor: TasteScope | null;
   inPlay: string[];
   movesTo: string | null;
   /** What it found in its lookups that the Reply needs, in the Story's own words. */
@@ -66,7 +61,6 @@ export interface WriterPlan {
 }
 
 interface Raw {
-  leaves_scene: boolean;
   frame: Frame | null;
   comes_in: string[];
   goes: string[];
@@ -74,11 +68,7 @@ interface Raw {
   note: string;
   call: SceneCall;
   intensity: number;
-  arc_moved: boolean;
   minutes: number;
-  taste: string | null;
-  /** Asked of every model; an answer without it is still a plan, whose lesson is placed by its words. */
-  taste_for?: TasteScope | null;
   in_play: string[];
   moves_to: string | null;
   /** Asked of every model; an answer without it gathered nothing. */
@@ -106,9 +96,8 @@ export function writerFormat(state: State, moments: Fact[]) {
   return {
     type: "object",
     additionalProperties: false,
-    required: ["leaves_scene", "frame", "comes_in", "goes", "beats", "note", "call", "intensity", "arc_moved", "minutes", "taste", "taste_for", "in_play", "moves_to", "gathered"],
+    required: ["frame", "comes_in", "goes", "beats", "note", "call", "intensity", "minutes", "in_play", "moves_to", "gathered"],
     properties: {
-      leaves_scene: { type: "boolean", description: "Always false. Only the player's End Scene action closes a Scene; moving, passing time and reaching a payoff keep it open." },
       frame: { description: "The Scene's frame, when one opens or has no plan yet; otherwise null.", ...nullable({ type: "object", additionalProperties: false, required: ["title", "place", "purpose", "exit"], properties: { title: text, place: text, purpose: text, exit: text } }) },
       comes_in: { type: "array", items: peopleEnum(state), description: "Who comes into the Scene in the next Reply; when a Scene opens, everyone there besides the player's character." },
       goes: { type: "array", items: peopleEnum(state), description: "Who leaves the Scene in the next Reply." },
@@ -116,10 +105,7 @@ export function writerFormat(state: State, moments: Fact[]) {
       note: { ...text, description: "The Beat Note for the Reply, about forty words." },
       call: { type: "string", enum: ["continue", "land"] },
       intensity: { type: "integer", minimum: 1, maximum: 5 },
-      arc_moved: { type: "boolean" },
       minutes: { type: "integer", minimum: 0, description: "How many minutes after now the Reply begins: a few in an ordinary exchange, more when the Move passes time." },
-      taste: { type: ["string", "null"] },
-      taste_for: { type: ["string", "null"], enum: ["story", "player", null], description: "Whose lesson taste is: player when it is about how the player likes to read in any story, story when it is about this one; null when taste is." },
       in_play: { type: "array", items: oneOf(moments.map((_, index) => `M${index + 1}`)), description: "Up to two remembered Moments the Reply draws on; usually none." },
       moves_to: { type: ["string", "null"], description: "The new place whenever the Move changes location, even after a time skip or a change of activity; otherwise null. The Scene stays open." },
       gathered: {
@@ -173,10 +159,10 @@ export function writerPrompt(ask: WriterAsk, moments: Fact[], instructions: stri
   const tasks: string[] = [];
   if (opening === "day_view") tasks.push(ask.choice ? `The player chose at the Day View: ${describeChoice(state, ask.choice)}. Open the Scene it begins.` : "The last Scene has closed: the Move opens a new one. Frame it.");
   if (opening === "unplanned") tasks.push("This Scene opened without a plan: frame it as it stands, keeping its title and place.");
-  if (scene && !scene.closed) tasks.push("Only the player's End Scene action closes this Scene. Keep leaves_scene false. A change of place, time or activity continues it: update moves_to and minutes as needed. There is no turn limit or deadline for a beat.");
+  if (scene && !scene.closed) tasks.push("Only the player's End Scene action closes this Scene. A change of place, time or activity continues it: update moves_to and minutes as needed. There is no turn limit or deadline for a beat.");
   if (scene && !scene.closed && scene.recorded) tasks.push(`This Scene has run ${exchangesIn(ask.scene)} exchanges and was recorded so far. Continue from that record and the latest exchanges; recording does not end it.`);
   if (scene?.focus && !scene.closed) tasks.push(`Focus is on ${scene.focus}.`);
-  if (scene?.linger && !scene.closed) tasks.push("Linger is on: hold the beat in play, force nothing, and call continue. Never set leaves_scene: wherever the Move goes and however long it takes, the Scene goes on; set moves_to when they go somewhere.");
+  if (scene?.linger && !scene.closed) tasks.push("Linger is on: hold the beat in play, force nothing, and call continue. Wherever the Move goes and however long it takes, the Scene goes on; set moves_to when they go somewhere.");
   if (state.pendingDirection?.text) tasks.push(`The player redid the last Reply with this Direction: ${state.pendingDirection.text}`);
   const plan = state.plan ? section("long_run", [
     `Toward ${state.plan.toward}, a ${state.plan.phase} Stretch.`,
@@ -249,8 +235,8 @@ function passagesOn(path: Entry[]): { scene: number | null; text: string }[] {
 export function checkWriter(ask: WriterAsk, moments: Fact[], answer: unknown): Checked<WriterPlan> {
   const { state } = ask;
   const asked = writerFormat(state, moments);
-  // A plan that says nothing of whose lesson it is, or gathers nothing, is still a plan.
-  const format = matches<Raw>({ ...asked, required: asked.required.filter(key => key !== "taste_for" && key !== "gathered") }, answer);
+  // A plan that gathers nothing is still a plan.
+  const format = matches<Raw>({ ...asked, required: asked.required.filter(key => key !== "gathered") }, answer);
   if (!format.ok) return format;
   const raw = format.value;
   const dropped: string[] = [];
@@ -262,9 +248,6 @@ export function checkWriter(ask: WriterAsk, moments: Fact[], answer: unknown): C
     if (phrase) problems.push(`${where} decides for the player's character ("${phrase}"); make it a circumstance or someone else's choice`);
   }
   const opening = openingOf(state);
-  // Closure belongs to the explicit End Scene action, regardless of Linger or the model's answer.
-  const held = opening !== "day_view";
-  if (held && raw.leaves_scene) dropped.push("leaves_scene: only the player's End Scene action closes a Scene");
   const opensScene = opening === "day_view";
   if ((opensScene || opening === "unplanned") && !raw.frame) problems.push(opensScene ? "frame: this Move opens a new Scene; write its frame" : "frame: this Scene has no plan yet; write its frame");
   if (problems.length) return { ok: false, problems };
@@ -301,7 +284,6 @@ export function checkWriter(ask: WriterAsk, moments: Fact[], answer: unknown): C
   const lingering = !opensScene && state.scene?.linger === true && !state.scene.closed;
   if (lingering && raw.call !== "continue") dropped.push(`call: Linger is on, so the Scene goes on rather than "${raw.call}"`);
   const call: SceneCall = lingering ? "continue" : raw.call;
-  const taste = raw.taste?.trim() || null;
   return {
     ok: true,
     dropped,
@@ -309,8 +291,8 @@ export function checkWriter(ask: WriterAsk, moments: Fact[], answer: unknown): C
       opens: opensScene && frame ? { ...frame, place: chosen?.place?.trim() || frame.place } : null,
       plans: !opensScene && frame ? { purpose: frame.purpose, exit: frame.exit } : null,
       here, goes: goes.filter(name => here.includes(name)), beats: raw.beats, note: raw.note.trim(), call,
-      intensity: raw.intensity, arcMoved: raw.arc_moved, clock, taste, tasteFor: taste ? raw.taste_for ?? null : null, inPlay,
-      movesTo: opensScene ? null : raw.moves_to?.trim() || (held && raw.leaves_scene ? raw.frame?.place.trim() || null : null),
+      intensity: raw.intensity, clock, inPlay,
+      movesTo: opensScene ? null : raw.moves_to?.trim() || null,
       gathered
     }
   };

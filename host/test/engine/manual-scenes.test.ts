@@ -4,15 +4,14 @@ import { playable } from "../support/play.js";
 
 const frame = { title: "Another morning", place: "The lake shore", purpose: "Hermione wants company.", exit: "She finishes her tea." };
 const writer = (changes: Record<string, unknown> = {}): Script => ({ answer: JSON.stringify({
-  leaves_scene: false, frame, comes_in: [], goes: [],
+  frame, comes_in: [], goes: [],
   beats: [{ text: "Hermione drinks her tea.", status: "in_play" }],
-  note: "Hermione takes another sip.", call: "continue", intensity: 1, arc_moved: false,
-  minutes: 1, taste: null, in_play: [], moves_to: null, ...changes
+  note: "Hermione takes another sip.", call: "continue", intensity: 1, minutes: 1, in_play: [], moves_to: null, ...changes
 }) });
 
 describe("only End Scene closes a scene", () => {
   it("keeps an open scene through a model-requested transition and time skip without Linger", async () => {
-    const story = playable(undefined, { writer: [writer(), writer({ leaves_scene: true, minutes: 600, call: "land" })] });
+    const story = playable(undefined, { writer: [writer(), writer({ moves_to: "The lake shore", minutes: 600, call: "land" })] });
     await story.play("I sit beside Hermione.");
     await story.play("The next morning I go down to the lake.");
     expect(story.state().scene).toMatchObject({ number: 1, closed: null, linger: false, place: "The lake shore" });
@@ -35,7 +34,7 @@ describe("only End Scene closes a scene", () => {
   it("does not impose a beat deadline after three or four replies with Linger off", async () => {
     const story = playable(undefined, { writer: Array.from({ length: 9 }, () => writer()) });
     for (let turn = 0; turn < 9; turn++) await story.play(`I sit with her and drink my tea (${turn}).`);
-    expect(story.state().scene).toMatchObject({ closed: null, linger: false, withoutArc: 9, beatInPlayFor: 9 });
+    expect(story.state().scene).toMatchObject({ closed: null, linger: false });
     for (const request of story.models.writer.requests) {
       expect(request.prompt).not.toMatch(/make it happen now|No Arc has moved|close it: set leaves_scene/);
       expect(request.system).not.toContain("head for the exit");
@@ -44,7 +43,7 @@ describe("only End Scene closes a scene", () => {
   });
 
   it("records a long scene without allowing the Writer to close it", async () => {
-    const story = playable(undefined, { writer: [writer({ leaves_scene: true, minutes: 600 })] });
+    const story = playable(undefined, { writer: [writer({ moves_to: "The lake shore", minutes: 600 })] });
     for (let turn = 0; turn < 31; turn++) {
       story.write({ kind: "move", text: `I drink my tea (${turn}).` });
       story.write({ kind: "reply", text: "Hermione reads beside the fire.", callId: "fixture", model: { provider: "codex", model: "gpt-6.1-sol" } });

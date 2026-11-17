@@ -38,7 +38,7 @@ export function ledger(file: StoryFile = hogwartsWorldStoryFile()) {
     move: (text: string, choice?: Extract<Payload, { kind: "move" }>["choice"]) => add(choice ? { kind: "move", text, choice } : { kind: "move", text }),
     note: (changes: Partial<BeatNote> = {}) => add({
       kind: "beat_note", plan: null, here: state().scene?.here ?? [], goes: [], beats: [], note: "Someone answers.", call: "continue",
-      intensity: 2, arcMoved: true, clock: state().clock, inPlay: [], callId: "c", model: SONNET, ...changes
+      intensity: 2, clock: state().clock, inPlay: [], callId: "c", model: SONNET, ...changes
     }),
     reply: (text: string) => add({ kind: "reply", text, callId: "c", model: SONNET }),
     close: () => add({ kind: "scene_closed", by: "player" }),

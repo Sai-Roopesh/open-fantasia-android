@@ -1146,7 +1146,7 @@ export class Engine {
         : null;
       const note = this.mac.tree.append(turn.storyId, parent.id, {
         kind: "beat_note", plan: plan.plans, here: plan.here, goes: plan.goes, beats: plan.beats, note: plan.note, call: plan.call, intensity: plan.intensity,
-        arcMoved: plan.arcMoved, clock: plan.clock, inPlay: plan.inPlay, ...(plan.movesTo ? { place: plan.movesTo } : {}), ...(plan.gathered.length ? { gathered: plan.gathered } : {}), callId, model
+        clock: plan.clock, inPlay: plan.inPlay, ...(plan.movesTo ? { place: plan.movesTo } : {}), ...(plan.gathered.length ? { gathered: plan.gathered } : {}), callId, model
       });
       if (!this.mac.tree.moveHead(turn.pathId, head.id, note.id)) throw new Error("The Path moved while the Writer planned its Reply");
       this.drafts.save(note.id, { text: reply, callId, model, beside, rewrites: 0 });

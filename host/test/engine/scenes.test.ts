@@ -15,7 +15,7 @@ const PLAN = { title: "After curfew", place: "The Gryffindor common room", purpo
 
 /** A Writer's answer for the common room with Hermione, changed as a scenario needs: the Reply two minutes on. */
 function writer(changes: Record<string, unknown> = {}): Script {
-  return { answer: JSON.stringify({ leaves_scene: false, frame: null, comes_in: [], goes: [], beats: beats(0), note: "Hermione closes her book.", call: "continue", intensity: 2, arc_moved: true, minutes: 2, taste: null, in_play: [], moves_to: null, ...changes }) };
+  return { answer: JSON.stringify({ frame: null, comes_in: [], goes: [], beats: beats(0), note: "Hermione closes her book.", call: "continue", intensity: 2, minutes: 2, in_play: [], moves_to: null, ...changes }) };
 }
 
 describe("a turn with the Writer", () => {
@@ -49,7 +49,7 @@ describe("a turn with the Writer", () => {
   it("scenes › Only End Scene ends a Scene › Walking out keeps the Scene open", async () => {
     const move = "I go to my room; Harry, Ron and Neville are playing a board game";
     const { play, path, view, events, models } = playable(hogwartsStoryFile(), {
-      writer: [writer({ leaves_scene: true, frame: { title: "Lights out", place: "The boys' dormitory", purpose: "Ron finds out where Roopesh goes at night.", exit: "Ron asks, or lets it go." }, comes_in: ["Harry Potter", "Ron Weasley", "Neville Longbottom"], goes: ["Hermione Granger"], minutes: 5 })],
+      writer: [writer({ moves_to: "The boys' dormitory", frame: { title: "Lights out", place: "The boys' dormitory", purpose: "Ron finds out where Roopesh goes at night.", exit: "Ron asks, or lets it go." }, comes_in: ["Harry Potter", "Ron Weasley", "Neville Longbottom"], goes: ["Hermione Granger"], minutes: 5 })],
       actor: [{ answer: "Ron looks up from the board. \"Your go, Roo.\"" }]
     });
     await play(move);
@@ -86,7 +86,7 @@ describe("a turn with the Writer", () => {
     expect(path().filter(payload => payload.kind === "scene_opened")).toHaveLength(1);
     expect(view().scene).toMatchObject({ number: 1, title: "Wednesday", place: "The library" });
     expect(events.filter(event => event.event.kind === "scene_opened")).toHaveLength(0);
-    expect(models.writer.requests[1]!.system.replace(/\s+/g, " ")).toContain("Only the player's End Scene button closes the Scene");
+    expect(models.writer.requests[1]!.prompt).toContain("Only the player's End Scene action closes this Scene.");
   });
 
   // GIVEN a Scene whose purpose has turned: Draconia has said what she came to say
@@ -152,10 +152,10 @@ describe("a turn with the Writer", () => {
   // GIVEN three exchanges in a row in which no Arc moved, and Linger is off
   // THEN a beat can develop without a forced Arc deadline
   it("scenes › Pacing follows play › A beat can develop without a deadline", async () => {
-    const stalled = { arc_moved: false, beats: beats(0) };
+    const stalled = { beats: beats(0) };
     const { play, models, state } = playable(hogwartsStoryFile(), {
       writer: [writer({ ...stalled, frame: PLAN }), writer(stalled), writer(stalled),
-        writer({ arc_moved: true, beats: beats(1), note: "Hermione puts the book down: she asks where he goes at night." })]
+        writer({ beats: beats(1), note: "Hermione puts the book down: she asks where he goes at night." })]
     });
     for (const move of ["I sit down.", "I look at the fire.", "I yawn."]) await play(move);
     expect(models.writer.requests[2]!.prompt).not.toMatch(/No Arc has moved/);
@@ -178,7 +178,7 @@ describe("a turn with the Writer", () => {
   // WHEN eight exchanges pass with no beat happening
   // THEN no beat is forced and the Scene stays open
   it("scenes › Linger holds the moment › Lingering with Hermione", async () => {
-    const still = { arc_moved: false, beats: beats(0) };
+    const still = { beats: beats(0) };
     // The fifth answer lands the Scene: with Linger on, it goes on as it was.
     const { play, engine, storyId, head, models, state, path } = playable(hogwartsStoryFile(), {
       writer: [writer({ ...still, frame: PLAN }), writer(still), writer(still), writer(still), writer({ ...still, call: "land" }), writer(still), writer(still), writer(still)]
@@ -199,7 +199,7 @@ describe("a turn with the Writer", () => {
   // THEN the same Scene goes on at the lake, with no new title card and no Scene's end, until the player taps End scene
   it("scenes › Linger holds the moment › Lingering never leaves the Scene", async () => {
     const { play, engine, storyId, head, path, state, models } = playable(hogwartsStoryFile(), {
-      writer: [writer({ frame: PLAN }), writer({ leaves_scene: true, frame: { title: "Sunrise", place: "The lake shore", purpose: "p", exit: "e" }, minutes: 480 })]
+      writer: [writer({ frame: PLAN }), writer({ moves_to: "The lake shore", frame: { title: "Sunrise", place: "The lake shore", purpose: "p", exit: "e" }, minutes: 480 })]
     });
     await play("I sit down beside Hermione.");
     engine.setLinger(storyId, head(), true, "trace-linger");
@@ -209,7 +209,7 @@ describe("a turn with the Writer", () => {
     expect(path().filter(payload => payload.kind === "scene_opened")).toHaveLength(1);
     expect(state().scene).toMatchObject({ number: 1, closed: null, linger: true, place: "The lake shore" });
     expect(models.chronicler.requests).toHaveLength(0);
-    expect(models.writer.requests.at(-1)!.prompt).toContain("Never set leaves_scene");
+    expect(models.writer.requests.at(-1)!.prompt).toContain("Wherever the Move goes and however long it takes, the Scene goes on");
   });
 
   it("fails the turn when the Writer fails twice, keeping the Move, and runs the Writer again on Retry", async () => {
@@ -253,7 +253,7 @@ describe("Focus, Linger and Redo", () => {
       writer: [
         writer({ frame: { ...PLAN, title: "Flying lesson", place: "The Quidditch pitch" }, comes_in: ["Draconia Malfoy"], minutes: 5 }),
         writer({ frame: { title: "Supper", place: "The Great Hall", purpose: "p", exit: "e" }, comes_in: ["Harry Potter", "Ron Weasley"], minutes: 175 }),
-        writer({ leaves_scene: true, frame: { title: "The library", place: "The library", purpose: "p", exit: "e" }, comes_in: ["Hermione Granger"], minutes: 60 })
+        writer({ moves_to: "The library", frame: { title: "The library", place: "The library", purpose: "p", exit: "e" }, comes_in: ["Hermione Granger"], minutes: 60 })
       ]
     });
     expect(view().focus).toBe("Draconia Malfoy");
@@ -344,11 +344,10 @@ describe("Focus, Linger and Redo", () => {
   });
 
   // WHEN the player Redoes with the Direction "don't dwell on school procedure" and ticks "remember this"
-  // THEN Taste gains a line saying so, and later Scenes honour it
+  // THEN it is kept as a Note (not Taste), and later Scenes honour it
   it("scenes › Redo, with a Direction and another model if wanted › Remember this", async () => {
-    const lesson = "Keep school procedure to a line.";
     const { play, engine, storyId, head, models, state, mac } = playable(hogwartsStoryFile(), {
-      writer: [writer({ frame: PLAN }), writer({ frame: PLAN, taste: lesson }), writer({}), writer({ leaves_scene: true, frame: { title: "Breakfast", place: "The Great Hall", purpose: "p", exit: "e" }, comes_in: ["Draconia Malfoy"], minutes: 616 })]
+      writer: [writer({ frame: PLAN }), writer({ frame: PLAN }), writer({}), writer({ moves_to: "The Great Hall", frame: { title: "Breakfast", place: "The Great Hall", purpose: "p", exit: "e" }, comes_in: ["Draconia Malfoy"], minutes: 616 })]
     });
     await play("I ask about the prefects' rota.");
     engine.redo(storyId, head(), "don't dwell on school procedure", true, "trace-redo");
@@ -370,7 +369,7 @@ describe("Focus, Linger and Redo", () => {
   it("redoes the first Reply after End Scene, keeping the previous Scene's end", async () => {
     const dorm = { title: "Lights out", place: "The boys' dormitory", purpose: "p", exit: "e" };
     const { play, engine, storyId, head, path, models, view } = playable(hogwartsStoryFile(), {
-      writer: [writer({ frame: PLAN }), writer({ leaves_scene: true, frame: dorm, comes_in: ["Harry Potter"], minutes: 5 }), writer({ frame: dorm, comes_in: ["Harry Potter"] }), writer({ frame: dorm, comes_in: ["Harry Potter"] })]
+      writer: [writer({ frame: PLAN }), writer({ moves_to: dorm.place, frame: dorm, comes_in: ["Harry Potter"], minutes: 5 }), writer({ frame: dorm, comes_in: ["Harry Potter"] }), writer({ frame: dorm, comes_in: ["Harry Potter"] })]
     });
     await play("I sit down by the fire.");
     engine.endScene(storyId, head(), "trace-end");
@@ -680,7 +679,7 @@ describe("a long Scene (the-storys-mind design decision 8)", () => {
     const dorm = hogwartsStoryFile({ title: "Lights out", place: "The boys' dormitory", who: ["Harry Potter", "Ron Weasley"], prose: "Ron has the board out on his bed." });
     const tower = { title: "The Astronomy Tower", place: "The Astronomy Tower", purpose: "Draconia decides whether to say why she came.", exit: "She says it, or goes back down." };
     const story = playable(dorm, {
-      writer: [writer({ leaves_scene: true, frame: tower, comes_in: [DRACONIA], minutes: 5 })],
+      writer: [writer({ moves_to: tower.place, frame: tower, comes_in: [DRACONIA], minutes: 5 })],
       actor: [{ answer: "Draconia does not turn round. “You took your time.”" }]
     });
     exchanges(story, [

@@ -33,10 +33,10 @@ function ask(story: Ledger, move: string, choice: Choice | null = null, beside: 
 /** An answer in the Writer's format, for the open, planned Scene. */
 function answer(changes: Record<string, unknown> = {}) {
   return {
-    leaves_scene: false, frame: null, comes_in: [], goes: [],
+    frame: null, comes_in: [], goes: [],
     beats: [{ ...BEATS[0] }, { ...BEATS[1], status: "done" }, { ...BEATS[2], status: "in_play" }],
     note: "Bhalla rules for Meera: the window is a lady's seat on his line. Meera sits anyway, opposite, and asks what takes anyone to Shimla in the rain.",
-    call: "continue", intensity: 2, arc_moved: true, minutes: 3, taste: null, in_play: [], moves_to: null,
+    call: "continue", intensity: 2, minutes: 3, in_play: [], moves_to: null,
     ...changes
   };
 }
@@ -46,7 +46,7 @@ const check = (given: WriterAsk, raw: unknown) => checkWriter(given, recallFacts
 describe("the Writer's answer", () => {
   it("is taken when it keeps to its format, with names as the Story keeps them and the clock the code's", () => {
     const checked = check(ask(planned({ here: [] }), "I offer her the window seat."), answer({ comes_in: ["Meera", "uncle bhalla"] }));
-    expect(checked).toMatchObject({ ok: true, dropped: [], value: { opens: null, plans: null, here: ["Meera Kulkarni", "Uncle Bhalla"], call: "continue", arcMoved: true, intensity: 2, clock: "Day 1 22:43" } });
+    expect(checked).toMatchObject({ ok: true, dropped: [], value: { opens: null, plans: null, here: ["Meera Kulkarni", "Uncle Bhalla"], call: "continue", intensity: 2, clock: "Day 1 22:43" } });
   });
 
   it("names only who comes in and who goes, so nobody leaves by being left out, and leaves out anyone not in the Story", () => {
@@ -81,14 +81,6 @@ describe("the Writer's answer", () => {
     expect(check(ask(story, "I follow her down."), answer())).toEqual({ ok: false, problems: ["frame: this Scene has no plan yet; write its frame"] });
     const frame = { title: "Water at Barog", place: "Barog station platform", purpose: "Meera decides whether he is worth talking to.", exit: "She turns away, or sits." };
     expect(check(ask(story, "I follow her down."), answer({ frame }))).toMatchObject({ ok: true, value: { opens: null, plans: { purpose: frame.purpose, exit: frame.exit } } });
-  });
-
-  it("keeps the Scene open when a model tries to leave it, updating its place instead", () => {
-    const story = planned();
-    const leaving = answer({ leaves_scene: true, comes_in: ["Uncle Bhalla"], minutes: 5 });
-    expect(check(ask(story, "I go to the vestibule for some air."), leaving)).toMatchObject({ ok: true, value: { opens: null } });
-    const frame = { title: "Air", place: "The vestibule", purpose: "Ishaan's evening goes from crowded to his own, or not.", exit: "Someone follows him out, or nobody does." };
-    expect(check(ask(story, "I go to the vestibule for some air."), { ...leaving, frame })).toMatchObject({ ok: true, value: { opens: null, here: ["Meera Kulkarni", "Uncle Bhalla"], movesTo: "The vestibule", clock: "Day 1 22:45" } });
   });
 
   it("opens the Scene a choice at the Day View begins, at the choice's time", () => {
@@ -134,13 +126,6 @@ describe("the Writer's answer", () => {
     expect(check(ask(planned(), "We walk to the vestibule, still arguing."), answer({ moves_to: "The vestibule" }))).toMatchObject({ ok: true, value: { movesTo: "The vestibule", opens: null } });
   });
 
-  it("accepts historical Taste metadata without requesting a paraphrase", () => {
-    const story = planned();
-    story.add({ kind: "redo", direction: "less Bhalla", remember: true });
-    const given = ask(story, "I offer her the window seat.");
-    expect(writerPrompt(given, [], "").prompt).toContain("The player redid the last Reply with this Direction: less Bhalla");
-    expect(check(given, answer({ taste: " Keep Uncle Bhalla to the edges. " }))).toMatchObject({ ok: true, value: { taste: "Keep Uncle Bhalla to the edges." } });
-  });
 });
 
 describe("a Scene that stalls, and Linger (openspec scenes)", () => {
@@ -158,7 +143,6 @@ describe("a Scene that stalls, and Linger (openspec scenes)", () => {
 
   it("does not force a beat or an Arc to move after any fixed number of replies", () => {
     const story = still(8, false);
-    expect(story.state().scene).toMatchObject({ beatInPlayFor: 8, withoutArc: 8 });
     const { prompt } = writerPrompt(ask(story, "I look out of the window."), [], "");
     expect(prompt).not.toMatch(/make it happen now|No Arc has moved/);
     expect(prompt).toContain("There is no turn limit or deadline for a beat.");
@@ -169,14 +153,14 @@ describe("a Scene that stalls, and Linger (openspec scenes)", () => {
   // THEN no beat is forced and the Scene stays open
   it("scenes › Linger holds the moment › Lingering with Hermione", async () => {
     const story = still(8, true);
-    expect(story.state().scene).toMatchObject({ beatInPlayFor: 8, withoutArc: 8, linger: true });
+    expect(story.state().scene).toMatchObject({ linger: true });
     const given = ask(story, "I stay where I am, by the window.");
     const { prompt } = writerPrompt(given, [], "");
     expect(prompt).toContain("Linger is on: hold the beat in play, force nothing, and call continue.");
     expect(prompt).not.toMatch(/make it happen now|No Arc has moved|call land/);
     // An answer that would turn the Scene is set right: it goes on as it was, and nothing is asked again.
-    expect(check(given, answer({ call: "land", beats: BEATS, arc_moved: false }))).toMatchObject({ ok: true, value: { call: "continue", beats: BEATS }, dropped: ['call: Linger is on, so the Scene goes on rather than "land"'] });
-    const runner = new ScriptedRunner([{ answer: JSON.stringify({ ...answer({ call: "land", beats: BEATS, arc_moved: false }), reply: "Meera stays where she is." }) }]);
+    expect(check(given, answer({ call: "land", beats: BEATS }))).toMatchObject({ ok: true, value: { call: "continue", beats: BEATS }, dropped: ['call: Linger is on, so the Scene goes on rather than "land"'] });
+    const runner = new ScriptedRunner([{ answer: JSON.stringify({ ...answer({ call: "land", beats: BEATS }), reply: "Meera stays where she is." }) }]);
     const { value: { plan } } = await composeReply(new Models(story.mac.db, { claude: runner }), [SONNET], given, story.storyId, "trace-w", new AbortController().signal);
     expect(plan.call).toBe("continue");
     expect(runner.requests).toHaveLength(1);
@@ -223,13 +207,6 @@ describe("the writing call's plan", () => {
     expect(lookups).toEqual([expect.stringContaining("searched the Story for “seat”"), "searched the web for “Kalka Shimla toy train”"]);
     // Kept in the Story's own words, from the Scene it was played in; words the Story never had are left out.
     expect(plan.gathered).toEqual([{ scene: 1, words: "\"You're in my seat,\" she says." }]);
-  });
-
-  it("says whose lesson its Taste is: the player's own, or the Story's", () => {
-    const given = ask(planned(), "I offer her the window seat.");
-    expect(check(given, answer({ taste: "Never end a Reply on a question to me.", taste_for: "player" }))).toMatchObject({ ok: true, value: { taste: "Never end a Reply on a question to me.", tasteFor: "player" } });
-    expect(check(given, answer({ taste: null, taste_for: "player" }))).toMatchObject({ ok: true, value: { taste: null, tasteFor: null } });
-    expect(check(given, answer({ taste: "Keep Uncle Bhalla to the edges." }))).toMatchObject({ ok: true, value: { tasteFor: null } });
   });
 
   it("is told when a long Scene was recorded so far, without being told to close it", () => {

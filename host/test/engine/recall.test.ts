@@ -19,7 +19,7 @@ const beats = [{ text: "a", status: "in_play" }, { text: "b", status: "pending" 
  */
 function writer(comesIn: string[], minutes: number, opens?: { title: string; place: string }): Script {
   const frame = opens ? { ...opens, purpose: "p", exit: "e" } : { title: "kept", place: "kept", purpose: "p", exit: "e" };
-  return { answer: JSON.stringify({ leaves_scene: false, frame, comes_in: comesIn, goes: [], beats, note: "n", call: "continue", intensity: 2, arc_moved: true, minutes, taste: null, in_play: [], moves_to: null }) };
+  return { answer: JSON.stringify({ frame, comes_in: comesIn, goes: [], beats, note: "n", call: "continue", intensity: 2, minutes, in_play: [], moves_to: null }) };
 }
 
 /** A Chronicler's record: a line (its paragraph too), the Moments, who was told of a Moment already known, and the truth. */

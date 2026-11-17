@@ -104,8 +104,8 @@ async function until(done: () => boolean): Promise<void> {
 const beats = [{ text: "a", status: "in_play" }, { text: "b", status: "pending" }, { text: "c", status: "pending" }];
 /** A Writer's answer from the Day View that opens a Scene at [place] with [who], [minutes] on. */
 const opens = (title: string, place: string, who: string[], minutes = 600): Script => ({ answer: JSON.stringify({
-  leaves_scene: false, frame: { title, place, purpose: "p", exit: "e" }, comes_in: who, goes: [], beats, note: "n", call: "continue",
-  intensity: 2, arc_moved: true, minutes, taste: null, in_play: [], moves_to: null
+  frame: { title, place, purpose: "p", exit: "e" }, comes_in: who, goes: [], beats, note: "n", call: "continue",
+  intensity: 2, minutes, in_play: [], moves_to: null
 }) });
 
 const outlines = (path: Payload[]) => path.filter((payload): payload is OutlineSet => payload.kind === "outline_set");
@@ -382,7 +382,7 @@ describe("presence › Between Scenes is quiet, and shows progress", () => {
   // THEN the World moves on at the same time, from the Outline as it stood, and the Day View is ready once both are done
   it("presence › Between Scenes is quiet, and shows progress › The Outline and the World side by side", async () => {
     // A long day inside the Stretch: no new Stretch is due at its end, and the World has the night to live out.
-    const longDay = { answer: JSON.stringify({ leaves_scene: false, frame: null, comes_in: [], goes: [], beats, note: "n", call: "continue", intensity: 2, arc_moved: true, minutes: 800, taste: null, in_play: [], moves_to: null }) };
+    const longDay = { answer: JSON.stringify({ frame: null, comes_in: [], goes: [], beats, note: "n", call: "continue", intensity: 2, minutes: 800, in_play: [], moves_to: null }) };
     const { play, end, models, gate, engine, storyId, head, view, afterClose } = await prepared(yearStory({ at: "Day 3 23:50" }), {
       writer: [opens("kept", "kept", [], 2), opens("The Great Hall", "The Great Hall", [], 2), longDay]
     });

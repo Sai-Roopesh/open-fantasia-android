@@ -8,7 +8,7 @@ import { hogwartsWorldStoryFile } from "../support/story-files.js";
 
 const beats = [{ text: "a", status: "in_play" }, { text: "b", status: "pending" }, { text: "c", status: "pending" }];
 /** A Writer's answer, with [changes]. */
-const writer = (changes: Record<string, unknown>) => ({ answer: JSON.stringify({ leaves_scene: false, frame: null, comes_in: [], goes: [], beats, note: "n", call: "continue", intensity: 2, arc_moved: true, minutes: 2, taste: null, in_play: [], moves_to: null, ...changes }) });
+const writer = (changes: Record<string, unknown>) => ({ answer: JSON.stringify({ frame: null, comes_in: [], goes: [], beats, note: "n", call: "continue", intensity: 2, minutes: 2, in_play: [], moves_to: null, ...changes }) });
 
 /**
  * The Director's plan: Saturday's Scene that matters is the hospital wing at 11:00, about Draconia, serving the first
@@ -166,7 +166,7 @@ describe("the Gap", () => {
     const atTheHospital = models.actor.requests.at(-1)!;
     expect(`${atTheHospital.system}\n${atTheHospital.prompt}`).toContain("asked Hermione where he was"); // Author knows; characters still use their own knowledge.
 
-    models.writer.then(writer({ leaves_scene: true, frame: { title: "The office", place: "McGonagall's office", purpose: "p", exit: "e" }, comes_in: ["Minerva McGonagall"], minutes: 60 }));
+    models.writer.then(writer({ moves_to: "McGonagall's office", frame: { title: "The office", place: "McGonagall's office", purpose: "p", exit: "e" }, comes_in: ["Minerva McGonagall"], minutes: 60 }));
     engine.move(storyId, "At noon I knock on McGonagall's door.", head(), "trace-office");
     await engine.settled(storyId);
     const withMcGonagall = models.actor.requests.at(-1)!;

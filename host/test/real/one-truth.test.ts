@@ -114,7 +114,7 @@ function playScene(story: Live, scene: Written): void {
       story.append({ kind: "scene_opened", number: before.scene.number + 1, title: scene.title, place: scene.place, at: scene.at, who: scene.who, prose: null, startsAt: moved.id, purpose: null, exit: null });
     }
     const now = story.state();
-    story.append({ kind: "beat_note", plan: null, here: now.scene!.here, goes: [], beats: [], note: "", call: "continue", intensity: scene.intensity, arcMoved: true, clock: addMinutes(now.clock, 10), inPlay: [], callId: "written-by-the-test", model: WRITTEN });
+    story.append({ kind: "beat_note", plan: null, here: now.scene!.here, goes: [], beats: [], note: "", call: "continue", intensity: scene.intensity, clock: addMinutes(now.clock, 10), inPlay: [], callId: "written-by-the-test", model: WRITTEN });
     story.append({ kind: "reply", text: reply, callId: "written-by-the-test", model: WRITTEN });
   });
 }

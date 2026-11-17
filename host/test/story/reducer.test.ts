@@ -25,7 +25,7 @@ const play = (state: State, ...payloads: Payload[]) => payloads.reduce((current,
 describe("the reducer", () => {
   it("opens a Story File's first Scene with its people, unplanned, unfocused when more than one other person is there", () => {
     const { state } = nightTrain();
-    expect(state.scene).toMatchObject({ here: ["Meera Kulkarni", "Uncle Bhalla"], purpose: null, exit: null, beats: [], focus: null, linger: false, closed: null, beatInPlayFor: 0, withoutArc: 0 });
+    expect(state.scene).toMatchObject({ here: ["Meera Kulkarni", "Uncle Bhalla"], purpose: null, exit: null, beats: [], focus: null, linger: false, closed: null });
     expect(state.scene!.startsAt).toBe(state.scene!.openedBy);
     expect(state).toMatchObject({ pendingDirection: null });
   });
@@ -87,36 +87,16 @@ describe("the reducer", () => {
     const opened = apply(apply(state, move), entry({ kind: "scene_opened", number: 2, title: "Air", place: "The vestibule", at: "Day 1 22:50", who: ["Uncle Bhalla"], prose: null, startsAt: move.id, purpose: "Bhalla gets his say.", exit: "He goes back, or Ishaan does." }));
     expect(opened.scene).toMatchObject({ number: 2, here: ["Uncle Bhalla"], startsAt: move.id, purpose: "Bhalla gets his say.", focus: "Uncle Bhalla", beats: [], closed: null });
     expect(opened.clock).toBe("Day 1 22:50");
-    expect(opened.scenesPlayed).toBe(1);
   });
 });
 
-describe("what code counts, not the Writer", () => {
-  it("counts the Beat Notes in a row that have had the same beat in play, and restarts when it changes", () => {
+describe("pacing", () => {
+  it("sets no reply deadline on a beat, however long it has been in play", () => {
     const { state } = nightTrain();
-    expect(play(state, note({ beats: beats(0) }), note({ beats: beats(0) }), note({ beats: beats(0) })).scene!.beatInPlayFor).toBe(3);
-    expect(play(state, note({ beats: beats(0) }), note({ beats: beats(0) }), note({ beats: beats(1) })).scene!.beatInPlayFor).toBe(1);
-  });
-
-  it("counts the Beat Notes in a row with no Arc moving, and restarts when one moves", () => {
-    const { state } = nightTrain();
-    expect(play(state, note({ arcMoved: false }), note({ arcMoved: false }), note({ arcMoved: false })).scene!.withoutArc).toBe(3);
-    expect(play(state, note({ arcMoved: false }), note({ arcMoved: true })).scene!.withoutArc).toBe(0);
-  });
-
-  it("restarts both counts in a new Scene", () => {
-    const { state } = nightTrain();
-    const stalled = play(state, note({ arcMoved: false }), note({ arcMoved: false }), note({ arcMoved: false }));
-    const next = play(stalled, { kind: "scene_closed", by: "player" }, { kind: "scene_opened", number: 2, title: "Ambala", place: "The platform", at: "Day 2 05:00", who: [], prose: null, startsAt: "m", purpose: "p", exit: "e" });
-    expect(next.scene).toMatchObject({ beatInPlayFor: 0, withoutArc: 0 });
-  });
-
-  it("keeps pacing counts without turning them into Writer deadlines", () => {
-    const { state } = nightTrain();
-    const stalled = play(state, ...Array.from({ length: 5 }, () => note({ plan: { purpose: "p", exit: "e" }, arcMoved: false })));
+    const stalled = play(state, ...Array.from({ length: 5 }, () => note({ plan: { purpose: "p", exit: "e" }, beats: beats(0) })));
     const task = writerPrompt({ state: stalled, scene: [], move: "I say nothing.", choice: null, beside: nothingBeside() }, [], "").prompt;
-    expect(stalled.scene).toMatchObject({ beatInPlayFor: 5, withoutArc: 5 });
-    expect(task).not.toMatch(/in play for 5 Replies|No Arc has moved/);
+    expect(task).toContain("There is no turn limit or deadline for a beat.");
+    expect(task).not.toMatch(/in play for \d+ Replies|No Arc has moved/);
   });
 });
 

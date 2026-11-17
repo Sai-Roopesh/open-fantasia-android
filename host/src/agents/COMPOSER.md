@@ -37,9 +37,7 @@ Metadata keeps the engine coherent:
 - `note`: a short description of what this Reply does, for Backstage. It does not limit the prose or replace any
   Direction. `call: land` only means an earned beat has an effect; leave room for a response and the aftermath.
 - `minutes`: time actually passed in the Move and Reply; `moves_to`: a new location when it changes.
-- `intensity`: 1 routine to 5 a major lasting change. `arc_moved`: whether something actually changed.
-- `leaves_scene`: always false. Only the player's End Scene button closes the Scene, regardless of elapsed time.
-- `taste`: normally null. Exact Directions are already saved; do not replace them with inferred global rules.
+- `intensity`: 1 routine to 5 a major lasting change.
 - `in_play`: relevant remembered Moment labels; `gathered`: exact Story passages needed, usually empty.
 
 Write prose consistent with your metadata, including who acts and how much time passes. The note is a description
