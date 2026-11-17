@@ -1,4 +1,5 @@
 import { Catalog } from "../../src/models/catalog.js";
+import { setEditsEveryReply } from "../../src/models/jobs.js";
 import { SCRIPTED_OFFERS, scriptedRunners } from "../../src/models/runners.js";
 import type { AddressInfo } from "node:net";
 import { Engine } from "../../src/engine/engine.js";
@@ -91,6 +92,8 @@ export function withWriter(actor: ModelRunner, writer: ModelRunner = new Scripte
 export async function runningMac(actor: ModelRunner = new ScriptedRunner(), writer?: ModelRunner, options: { home?: string | undefined } = {}) {
   const mac = options.home ? openHome(options.home) : freshHome();
   const storyId = options.home ? (mac.db.prepare("SELECT id FROM stories").get() as { id: string }).id : imported(mac);
+  // These scenarios were written for every Reply being edited; a Mac's default no longer does that (docs/adr/0024).
+  if (!options.home) setEditsEveryReply(mac.home, true);
   // The same scripted models stand in for every provider; the Mac's record of each call says which it went to.
   const engine = new Engine(mac, new Models(mac.db, scriptedRunners(withWriter(actor, writer))));
   const pairing = new Pairing(mac.db);

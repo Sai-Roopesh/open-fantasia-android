@@ -14,8 +14,9 @@ sometimes a grand one (years at Hogwarts). Every design decision is checked agai
    every Scene the story reconsiders that direction in the light of how the Scene went, and follows where the player
    takes it; within a Scene, the moment is improvised inside it.
 5. **It is never boring.** Original plots, danger, mystery, everyday life, and something always moving.
-6. **The player is their character, and only they are.** Nothing decides what the Player Character says, does,
-   thinks or feels.
+6. **The player is their character, and only they are.** Only the player decides what the Player Character says and
+   chooses to do, and what they think and feel. Everything else can happen to them: other people can take hold of
+   them, move them, strike them, and it lands.
 7. **A better story is worth waiting for, nothing else is.** The player will wait, before a Reply or at a Scene's end,
    for work that makes the story better: looking something up, thinking the plan through. Never for nothing, and
    always told what is happening.

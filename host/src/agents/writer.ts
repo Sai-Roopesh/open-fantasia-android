@@ -1,7 +1,5 @@
-import { readFileSync } from "node:fs";
-import type { Models } from "../models/model-call.js";
 import type { Choice, Entry, Gathered } from "../story/entries.js";
-import type { Beat, Fact, ModelChoice, SceneCall, State } from "../story/state.js";
+import type { Beat, Fact, SceneCall, State } from "../story/state.js";
 import type { Beside } from "../story/beside.js";
 import type { TasteScope } from "../store/beside.js";
 import { minutesOf, parseStoryTime, sayDate, sayTime } from "../time.js";
@@ -9,16 +7,12 @@ import { asCall, layers, LIMITS, momentsPart, recallFacts, section, tokens } fro
 import { decidesForPlayer, playerNames } from "./deciding.js";
 import { addMinutes, matches, namer, nullable, oneOf, peopleEnum, text } from "./format.js";
 import { nameIndex, namedIn } from "./names.js";
-import { BUDGETS, runAgent, type Checked, type ToolKit } from "./step.js";
+import type { Checked } from "./step.js";
 
 /**
- * The Writer: each Scene's author (docs/adr/0004). It reads every Move before the Actor answers it, and says what the
- * Scene is for and what happens next in it. Only the player ends a Scene. It reads the four layers as the author,
- * with who knows each thing (the-storys-mind design decision 7), and plans in steps: it may look things up in the Story and on
- * the web first (docs/adr/0018), and hands the Actor its plan and the passages it gathered, in their own words
- * (the-storys-mind design decision 6).
+ * What a Scene is for and what happens next in it, as the writing call plans it beside the Reply it writes
+ * (docs/adr/0022): the plan's format, its prompt in four layers, and the check that holds it to the Story.
  */
-const PROMPT = readFileSync(new URL("./WRITER.md", import.meta.url), "utf8");
 
 /** The most passages the Writer hands the Actor for one Reply. */
 const GATHERED = 4;
@@ -171,7 +165,7 @@ function shownNotHere(ask: WriterAsk): string[] {
  * things stand for the people the Reply is with; the Scene so far; and this moment: the Stretch's plan and the Scene
  * that matters, the Moments the people here remember, who the last Reply named, the Move, and its task.
  */
-export function writerPrompt(ask: WriterAsk, moments: Fact[], instructions = PROMPT): { system: string; prompt: string } {
+export function writerPrompt(ask: WriterAsk, moments: Fact[], instructions: string): { system: string; prompt: string } {
   const { state } = ask;
   const pc = state.playerCharacter;
   const scene = state.scene;
@@ -323,27 +317,13 @@ export function checkWriter(ask: WriterAsk, moments: Fact[], answer: unknown): C
 }
 
 /** The Writer's prompt for [ask], with the Moments it recalls for the people present. */
-export function writerCall(ask: WriterAsk, instructions?: string): { system: string; prompt: string; moments: Fact[] } {
+export function writerCall(ask: WriterAsk, instructions: string): { system: string; prompt: string; moments: Fact[] } {
   const moments = recallFacts(ask.state, presentFor(ask));
   return { ...writerPrompt(ask, moments, instructions), moments };
 }
 
 export function writerFacts(ask: WriterAsk) {
   return { opening: openingOf(ask.state), clock: ask.state.clock, title: ask.state.scene?.title ?? null, place: ask.state.scene?.place ?? null, here: ask.state.scene?.here ?? [], beats: ask.state.scene && !ask.state.scene.closed ? ask.state.scene.beats : [], direction: ask.state.pendingDirection, choice: ask.choice };
-}
-
-/**
- * Asks the Writer for the next Beat Note, in steps: it may look things up in the Story on its Path and on the web
- * first, within its budget, and [onLookup] hears each lookup as it is made. Its second model steps in when its own
- * fails.
- */
-export async function writeBeat(models: Models, choices: ModelChoice[], ask: WriterAsk, storyId: string, traceId: string, signal: AbortSignal, onLookup: (line: string) => void = () => {}): Promise<{ plan: WriterPlan; callId: string; model: ModelChoice; lookups: string[] }> {
-  const { system, prompt, moments } = writerCall(ask);
-  const head = ask.path?.at(-1)?.id;
-  const tools: ToolKit = { story: head ? { storyId, head } : null, web: true };
-  const facts = { opening: openingOf(ask.state), clock: ask.state.clock, title: ask.state.scene?.title ?? null, place: ask.state.scene?.place ?? null, here: ask.state.scene?.here ?? [], beats: ask.state.scene && !ask.state.scene.closed ? ask.state.scene.beats : [], direction: ask.state.pendingDirection, choice: ask.choice };
-  const { value, callId, model, lookups } = await runAgent(models, choices, { agent: "writer", system, prompt, schema: writerFormat(ask.state, moments), tools, facts, traceId, storyId }, answer => checkWriter(ask, moments, answer), BUDGETS.writer, signal, onLookup);
-  return { plan: value, callId, model, lookups };
 }
 
 /** The Moments a Beat Note put in play, for the Actor. */

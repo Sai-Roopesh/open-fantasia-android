@@ -13,8 +13,9 @@ import type { Mac } from "../mac.js";
 import { pathsView } from "../views/paths.js";
 import { randomUUID } from "node:crypto";
 import { Catalog } from "../models/catalog.js";
-import { actorOf, DEFAULT_JOB_MODELS, JOBS, jobModels, setJobModel, setStoryActor, storyActor, type Job } from "../models/jobs.js";
+import { actorOf, DEFAULT_JOB_MODELS, editsEveryReply, JOBS, jobModels, setEditsEveryReply, setJobModel, setStoryActor, storyActor, type Job } from "../models/jobs.js";
 import { CLAUDE_TOKEN, readSecret, storeSecret } from "../secrets.js";
+import { antigravityToken, codexCredentials } from "../models/direct.js";
 import type { ModelChoice } from "../story/state.js";
 import type { Payload } from "../story/entries.js";
 import { parseStoryTime, sayStoryTime } from "../time.js";
@@ -328,6 +329,15 @@ export function doctor(mac: Mac, out: Out): boolean {
   checks.push(["Story store", true, `${join(mac.home, "fantasia.db")}, ${stories} ${stories === 1 ? "Story" : "Stories"}`]);
   const token = readSecret(CLAUDE_TOKEN);
   checks.push(["Claude token", token !== null, token ? "stored" : "missing: run `fantasia claude-token`"]);
+  // Not failures: a sign-in the direct path cannot use sends its calls through the provider's own tool (docs/adr/0023).
+  for (const [name, read, tool] of [["Codex", () => codexCredentials(), "codex app-server"], ["Antigravity", () => antigravityToken(), "agy"]] as const) {
+    try {
+      read();
+      checks.push([`${name} direct`, true, "signed in: calls go straight to the model"]);
+    } catch (error) {
+      checks.push([`${name} direct`, true, `${error instanceof Error ? error.message : String(error)}; calls go through ${tool}, which renews it`]);
+    }
+  }
   const plist = join(homedir(), "Library", "LaunchAgents", `${LAUNCH_AGENT}.plist`);
   let running = false;
   try {
@@ -467,6 +477,15 @@ export function lead(mac: Mac, engine: Engine, storyId: string, name: string, on
     out(onOff === "on" ? `${full} is a Lead now.` : `${full} is not a Lead now.`);
   }
   return ok;
+}
+
+/** `fantasia editor`: whether a model Editor reads every Reply before the player does (docs/adr/0024); off unless on. */
+export function editor(mac: Mac, onOff: string | undefined, out: Out): boolean {
+  if (onOff === undefined) return (out(editsEveryReply(mac.home) ? "Every Reply is edited before you read it." : "Replies come straight to you; Redo is yours."), true);
+  if (onOff !== "on" && onOff !== "off") return (out("Say on or off."), false);
+  setEditsEveryReply(mac.home, onOff === "on");
+  out(onOff === "on" ? "Every Reply is edited before you read it." : "Replies come straight to you; Redo is yours.");
+  return true;
 }
 
 /** `fantasia group`: creates a Group, or changes its description. */

@@ -55,11 +55,7 @@ breaks, copied exactly) and `why` (one line: what breaks and what the story esta
   Scene undone, as when someone who left is still talking or a cup that was smashed is drunk from. A Taste line that
   states something about the story's people or history ("never write Hermione as a first-timer with him") is
   established like the rest; how a Taste line asks the story to be written is the Actor's, not yours.
-- `decides_for_player`: the Reply decides for the player's character. Only the player says what he says, chooses,
-  does on purpose, thinks and feels. A Reply that gives him words or a choice, has him act on purpose, tells what he
-  feels, thinks, notices or wants, or has someone remember something he said or did that the story never showed,
-  breaks this, however small. Others may see him and say how he looks to them; they may ask him, accuse him, guess at
-  him. What others say aloud is theirs.
+- `decides_for_player`: {{players_part}}
 
 ## The clock
 

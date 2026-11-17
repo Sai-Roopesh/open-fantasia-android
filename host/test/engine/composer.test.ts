@@ -8,6 +8,23 @@ import { openHome } from "../support/host.js";
 import { learnLesson } from "../../src/store/beside.js";
 import { scriptedRunners } from "../../src/models/runners.js";
 
+describe("a Scene's prompts share their beginning, so the provider's cache is read (docs/adr/0025)", () => {
+  it("sends each Reply's request with everything the last one had up to the end of the Scene's words, unchanged", async () => {
+    const s = playable();
+    await s.play("I sit beside Hermione.");
+    await s.play("I ask what she is reading.");
+    await s.play("I wait for her answer.");
+    const [, second, third] = s.models.requests.filter(request => request.agent === "actor");
+    expect(third!.system).toBe(second!.system);
+    const shared = second!.prompt.slice(0, second!.prompt.indexOf("\n</scene_so_far>"));
+    expect(shared).toContain("<scene_so_far>");
+    expect(third!.prompt.startsWith(shared)).toBe(true);
+    // What changes with every Reply comes after the Scene's words.
+    expect(third!.prompt.indexOf("<scene_now>")).toBeGreaterThan(third!.prompt.indexOf("</scene_so_far>"));
+    expect(third!.prompt.slice(0, third!.prompt.indexOf("<scene_so_far>"))).not.toMatch(/Beats:|Here besides/);
+  });
+});
+
 describe("one writing generation with shared Directions", () => {
   it("plans and writes in one provider call, then independently checks the Reply", async () => {
     const s = playable();

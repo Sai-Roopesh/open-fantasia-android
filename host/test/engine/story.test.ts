@@ -153,11 +153,11 @@ describe("long-run › Style is the player's own words", () => {
     const { mac, engine, storyId, head, play, models } = playable({ ...storyFile(), reply_length: "full" });
     await play("I sit at the other end of the sofa.");
     const before = head();
-    expect(models.actor.requests.at(-1)!.system).toContain("Let each Reply run as long as the moment needs");
+    expect(models.actor.requests.at(-1)!.system).toContain("Write about six hundred words.");
     engine.setReplyLength(storyId, "short", head(), "length");
     await play("I ask what she is reading.");
-    expect(models.actor.requests.at(-1)!.system).toContain("Keep each Reply short: one or two brief paragraphs.");
-    expect(models.actor.requests.at(-1)!.system).not.toContain("Let each Reply run as long as the moment needs");
+    expect(models.actor.requests.at(-1)!.system).toContain("Write about two hundred words.");
+    expect(models.actor.requests.at(-1)!.system).not.toContain("Write about six hundred words.");
     expect(mac.states.at(before).replyLength).toBe("full");
   });
 });

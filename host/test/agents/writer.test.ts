@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { recallFacts } from "../../src/context/lens.js";
-import { checkWriter, LONG_SCENE, recordDue, writeBeat, writerPrompt, type WriterAsk } from "../../src/agents/writer.js";
+import { composerCall, composeReply } from "../../src/agents/composer.js";
+import { checkWriter, LONG_SCENE, recordDue, writerPrompt, type WriterAsk } from "../../src/agents/writer.js";
 import { Models } from "../../src/models/model-call.js";
 import { ScriptedRunner } from "../../src/models/scripted.js";
 import type { Choice } from "../../src/story/entries.js";
@@ -124,7 +125,7 @@ describe("the Writer's answer", () => {
     story.open("Ambala", "The platform at Ambala", "Day 2 06:10", ["Meera Kulkarni"]);
     const given = ask(story, "I ask about the seat.");
     const moments = recallFacts(given.state, ["Meera Kulkarni"]);
-    expect(writerPrompt(given, moments).prompt).toContain("<remembered>\nM1 (Scene 1; known to Ishaan Mehra, Meera Kulkarni): Ishaan gives up the window seat.\n  \"I offer her the window seat.\"\nM2 (Scene 1; known to Ishaan Mehra, Meera Kulkarni): Meera offers biscuits.");
+    expect(writerPrompt(given, moments, "").prompt).toContain("<remembered>\nM1 (Scene 1; known to Ishaan Mehra, Meera Kulkarni): Ishaan gives up the window seat.\n  \"I offer her the window seat.\"\nM2 (Scene 1; known to Ishaan Mehra, Meera Kulkarni): Meera offers biscuits.");
     const frame = { title: "Ambala", place: "The platform at Ambala", purpose: "p", exit: "e" };
     expect(checkWriter(given, moments, answer({ frame, in_play: ["M2", "M7"] }))).toMatchObject({ ok: true, value: { inPlay: ["m1.2"] } });
   });
@@ -137,7 +138,7 @@ describe("the Writer's answer", () => {
     const story = planned();
     story.add({ kind: "redo", direction: "less Bhalla", remember: true });
     const given = ask(story, "I offer her the window seat.");
-    expect(writerPrompt(given, []).prompt).toContain("The player redid the last Reply with this Direction: less Bhalla");
+    expect(writerPrompt(given, [], "").prompt).toContain("The player redid the last Reply with this Direction: less Bhalla");
     expect(check(given, answer({ taste: " Keep Uncle Bhalla to the edges. " }))).toMatchObject({ ok: true, value: { taste: "Keep Uncle Bhalla to the edges." } });
   });
 });
@@ -158,7 +159,7 @@ describe("a Scene that stalls, and Linger (openspec scenes)", () => {
   it("does not force a beat or an Arc to move after any fixed number of replies", () => {
     const story = still(8, false);
     expect(story.state().scene).toMatchObject({ beatInPlayFor: 8, withoutArc: 8 });
-    const { prompt } = writerPrompt(ask(story, "I look out of the window."), []);
+    const { prompt } = writerPrompt(ask(story, "I look out of the window."), [], "");
     expect(prompt).not.toMatch(/make it happen now|No Arc has moved/);
     expect(prompt).toContain("There is no turn limit or deadline for a beat.");
   });
@@ -170,19 +171,19 @@ describe("a Scene that stalls, and Linger (openspec scenes)", () => {
     const story = still(8, true);
     expect(story.state().scene).toMatchObject({ beatInPlayFor: 8, withoutArc: 8, linger: true });
     const given = ask(story, "I stay where I am, by the window.");
-    const { prompt } = writerPrompt(given, []);
+    const { prompt } = writerPrompt(given, [], "");
     expect(prompt).toContain("Linger is on: hold the beat in play, force nothing, and call continue.");
     expect(prompt).not.toMatch(/make it happen now|No Arc has moved|call land/);
     // An answer that would turn the Scene is set right: it goes on as it was, and nothing is asked again.
     expect(check(given, answer({ call: "land", beats: BEATS, arc_moved: false }))).toMatchObject({ ok: true, value: { call: "continue", beats: BEATS }, dropped: ['call: Linger is on, so the Scene goes on rather than "land"'] });
-    const runner = new ScriptedRunner([{ answer: JSON.stringify(answer({ call: "land", beats: BEATS, arc_moved: false })) }]);
-    const { plan } = await writeBeat(new Models(story.mac.db, { claude: runner }), [SONNET], given, story.storyId, "trace-w", new AbortController().signal);
+    const runner = new ScriptedRunner([{ answer: JSON.stringify({ ...answer({ call: "land", beats: BEATS, arc_moved: false }), reply: "Meera stays where she is." }) }]);
+    const { value: { plan } } = await composeReply(new Models(story.mac.db, { claude: runner }), [SONNET], given, story.storyId, "trace-w", new AbortController().signal);
     expect(plan.call).toBe("continue");
     expect(runner.requests).toHaveLength(1);
   });
 });
 
-describe("the Writer's call", () => {
+describe("the writing call's plan", () => {
   it("is four layers: the Story and its instructions, cached; where things stand; the Scene; then the plan, the Move and its task", () => {
     const story = planned();
     story.close();
@@ -191,8 +192,8 @@ describe("the Writer's call", () => {
     story.plan({ toward: "the night she finds out what he is", phase: "rest", premise: "Two of these Scenes are with Meera.", arcs: [{ arc: "Meera trusts Ishaan", now: "she lets him carry her bag", next: "she tells him why she is going", notYet: "anything about her mother" }],
       scenes: [{ id: "s1.1", at: "Day 2 07:30", place: "The platform at Kalka", who: ["Meera Kulkarni"], for: "She decides whether to give him her number.", offer: "Meera is waiting for the toy train.", headline: "Kalka: Meera waits", lead: "Meera Kulkarni", engagement: null, quiet: true, serves: { turn: null, lives: [] } }] });
     const choice: Choice = { kind: "story", place: "The platform at Kalka", at: "Day 2 07:30", who: ["Meera Kulkarni"], scene: "s1.1", engagement: null };
-    const { system, prompt } = writerPrompt(ask(story, "I look for her on the platform.", choice, { ...nothingBeside(), brief: { more: ["more danger"], less: [] } }), []);
-    expect(system).toMatch(/^# The Writer/);
+    const { system, prompt } = composerCall(ask(story, "I look for her on the platform.", choice, { ...nothingBeside(), brief: { more: ["more danger"], less: [] } }));
+    expect(system).toMatch(/^# Write the scene/);
     expect(system).toContain(story.state().premise);
     expect(system).toContain(story.state().arcs[0]);
     expect(system).not.toMatch(/7:30 am/);
@@ -213,10 +214,10 @@ describe("the Writer's call", () => {
     const given = { ...ask(story, "I ask Meera what she said about the window seat."), path: story.mac.tree.pathTo(story.head()) };
     const runner = new ScriptedRunner([{
       lookUp: [{ tool: "search_story", args: { words: "seat" } }, { tool: "web_search", args: { query: "Kalka Shimla toy train" } }],
-      then: { answer: JSON.stringify(answer({ gathered: [{ words: "\"You're in my seat,\" she says." }, { words: "She says she has always hated trains." }] })) }
+      then: { answer: JSON.stringify({ ...answer({ gathered: [{ words: "\"You're in my seat,\" she says." }, { words: "She says she has always hated trains." }] }), reply: "Meera repeats it, word for word." }) }
     }]);
     const heard: string[] = [];
-    const { plan, lookups } = await writeBeat(new Models(story.mac.db, { claude: runner }), [SONNET], given, story.storyId, "trace-w", new AbortController().signal, line => heard.push(line));
+    const { value: { plan }, lookups } = await composeReply(new Models(story.mac.db, { claude: runner }), [SONNET], given, story.storyId, "trace-w", new AbortController().signal, line => heard.push(line));
     expect(runner.requests[0]!.tools).toEqual({ story: { storyId: story.storyId, head: story.head() }, web: true });
     expect(heard).toEqual(lookups);
     expect(lookups).toEqual([expect.stringContaining("searched the Story for “seat”"), "searched the web for “Kalka Shimla toy train”"]);
@@ -241,10 +242,10 @@ describe("the Writer's call", () => {
     const scene = story.scene();
     expect(recordDue(story.state(), scene)).toBe(true);
     expect(recordDue(story.state(), scene.slice(0, -3))).toBe(false);
-    expect(writerPrompt(ask(story, "I ask Meera where she is going."), []).prompt).not.toMatch(/has run \d+ exchanges/);
+    expect(writerPrompt(ask(story, "I ask Meera where she is going."), [], "").prompt).not.toMatch(/has run \d+ exchanges/);
     story.add({ kind: "scene_recorded", scene: 1, through: story.head(), paragraph: "They watched the hills.", moments: [], told: [], known: [], bonds: [], engagements: [], changed: [], truth: emptyUpdate(), dropped: [], callId: "c", model: SONNET });
     expect(recordDue(story.state(), scene)).toBe(false);
-    const { prompt } = writerPrompt(ask(story, "I ask Meera where she is going."), []);
+    const { prompt } = writerPrompt(ask(story, "I ask Meera where she is going."), [], "");
     expect(prompt).toContain("This Scene has run 31 exchanges and was recorded so far.");
     expect(prompt).toContain("recording does not end it");
     expect(prompt).toContain("<recorded_so_far>\nThe Scene so far, as it was recorded while it was played: They watched the hills.\n</recorded_so_far>");
@@ -252,11 +253,11 @@ describe("the Writer's call", () => {
 
   it("is one step: an answer that decides for him is sent back once, with what was wrong", async () => {
     const story = planned();
-    const runner = new ScriptedRunner([{ answer: JSON.stringify(answer({ note: "Ishaan tells her everything." })) }, { answer: JSON.stringify(answer()) }]);
-    const result = await writeBeat(new Models(story.mac.db, { claude: runner }), [SONNET], ask(story, "I offer her the window seat."), story.storyId, "trace-w", new AbortController().signal);
-    expect(result.plan.clock).toBe("Day 1 22:43");
+    const runner = new ScriptedRunner([{ answer: JSON.stringify({ ...answer({ note: "Ishaan tells her everything." }), reply: "Meera waits." }) }, { answer: JSON.stringify({ ...answer(), reply: "Meera waits." }) }]);
+    const result = await composeReply(new Models(story.mac.db, { claude: runner }), [SONNET], ask(story, "I offer her the window seat."), story.storyId, "trace-w", new AbortController().signal);
+    expect(result.value.plan.clock).toBe("Day 1 22:43");
     expect(runner.requests).toHaveLength(2);
     expect(runner.requests[1]!.prompt).toContain("- note decides for the player's character (\"Ishaan tells her everything\")");
-    expect(runner.requests.every(request => request.agent === "writer" && request.schema !== undefined)).toBe(true);
+    expect(runner.requests.every(request => request.agent === "actor" && request.schema !== undefined)).toBe(true);
   });
 });

@@ -343,7 +343,7 @@ describe("the Chronicler's call", () => {
     expect(prompt).toContain("<story_so_far>\nScenes:\nScene 1, The wrong berth");
     expect(prompt).toContain("Ishaan boarded late, in the rain.");
     // Layer 3 is the Scene word for word, every passage labelled for quoting; layer 4 the time and the task.
-    expect(prompt).toContain(`<scene>\nThe wrong berth. The sleeper bay, from Thursday 16 July 2026, 10:40 pm until Thursday 16 July 2026, 10:40 pm, when it ended.\nHere besides Ishaan Mehra: Meera Kulkarni and Uncle Bhalla.\n</scene>\n\n<scene_so_far>\n[P1 move by Ishaan Mehra]\n${TOLD}\n\n[P2]\nMeera takes out`);
+    expect(prompt).toContain(`<scene>\nThe wrong berth. The sleeper bay, from Thursday 16 July 2026, 10:40 pm until Thursday 16 July 2026, 10:40 pm, when it ended.\n</scene>\n\n<scene_now>\nHere besides Ishaan Mehra: Meera Kulkarni and Uncle Bhalla.\n</scene_now>\n\n<scene_so_far>\n[P1 move by Ishaan Mehra]\n${TOLD}\n\n[P2]\nMeera takes out`);
     expect(prompt.indexOf("<story_so_far>")).toBe(0);
     expect(prompt.indexOf("<now>")).toBeGreaterThan(prompt.indexOf("</scene_so_far>"));
     expect(prompt).toMatch(/\n\n<task>\nThe Scene has ended\. Record it\.\n<\/task>$/);

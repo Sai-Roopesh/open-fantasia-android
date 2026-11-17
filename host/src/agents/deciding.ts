@@ -1,38 +1,61 @@
 // The line every agent that writes for a Story must keep (openspec scenes: The Reply never writes the Player
-// Character): nothing an agent plans or notes may decide what the Player Character says, chooses, does on purpose,
-// thinks or feels. Carried over from the first Open Fantasia's host, where it was tested against real answers.
+// Character; docs/adr/0024): nothing an agent writes may decide what the Player Character says, chooses, thinks or
+// feels. What other people do to him is theirs, and lands. This module is the one place the line is stated: the words
+// every prompt gives it, and the check that holds a Reply to it. Carried over from the first Open Fantasia's host.
 
-/** A reaction someone goes or stays: "goes quiet", "stays silent". */
-const REACTION = "(?:quiet|silent|still|cold|pale|red|white|numb|calm)";
+/**
+ * The Player Character's part, as every prompt that writes or checks the story gives it. Stated once, here, so the
+ * writer and the Editor cannot drift apart on where the line is.
+ */
+export function playersPart(pc: string): string {
+  return `${pc} is the player's: only the player writes what ${pc} says, what he chooses to do, and what he thinks and feels. ` +
+    `Everything else can happen to him, as to anyone here. Someone can take his hand, pull him close, push him, slap him or walk him somewhere, and it lands: ` +
+    `write where it leaves him, the stumble, the sting, the wall at his back, then stop where his next word or choice is his.`;
+}
+
+/** The same line, as the Editor checks a Reply against it. */
+export function playersPartBreak(pc: string): string {
+  return `The Reply writes ${pc}'s part: words he says, a choice he makes, or what he thinks or feels, however small. ` +
+    `Something done to him and where it leaves him (he is pushed into the wall, pulled along, his cheek stings) is not a break, ` +
+    `and nor is how he looks to others, or what they ask, accuse or guess of him.`;
+}
+
+/** A reaction someone chooses to go or stay in: "goes quiet", "stays silent". */
+const REACTION = "(?:quiet|silent|calm)";
 
 /**
  * The verbs that decide for the Player Character, each as [the form after a subject, the form after "makes", and
- * what has to follow it when only some of its uses decide].
+ * what has to follow it when only some of its uses decide]. A null "makes" form means the verb decides only when he
+ * is its subject: "Ishaan pulls away" is his choice, where "she forces Ishaan back" is hers, done to him.
  *
  * Narrow on purpose: "Ishaan is offered a seat" is a circumstance landing on him and passes; "Ishaan tells her",
  * "Ishaan agrees" and "makes Ishaan cry" decide for him and do not. A few verbs decide only with the words given:
- * "Ishaan goes quiet" is his reaction where "Ishaan goes to Pune" is a trip, "Ishaan leaves her" is a choice
- * toward someone where "Ishaan leaves for Pune on Day 4" is a plan, and "Ishaan gives in" decides where "Ishaan
- * gives a talk" is an event. A question ("will Ishaan tell her?") uses the bare verb, and passes.
+ * "Ishaan goes quiet" is his reaction where "Ishaan goes to Pune" is a trip and "Ishaan goes pale" is his body,
+ * "Ishaan leaves her" is a choice toward someone where "Ishaan leaves for Pune on Day 4" is a plan, and "Ishaan gives
+ * in" decides where "Ishaan gives a talk" is an event. A question ("will Ishaan tell her?") uses the bare verb, and
+ * passes.
  */
-const DECIDING_VERBS: readonly (readonly [string, string, string?])[] = [
+const DECIDING_VERBS: readonly (readonly [string, string | null, string?])[] = [
   ["tells", "tell"], ["says", "say"], ["asks", "ask"], ["answers", "answer"], ["decides", "decide"], ["agrees", "agree"],
   ["refuses", "refuse"], ["chooses", "choose"], ["realises", "realise"], ["realizes", "realize"], ["resists", "resist"],
   ["reacts", "react"], ["admits", "admit"], ["confesses", "confess"], ["breaks", "break"], ["cries", "cry"],
   ["feels", "feel"], ["wants", "want"], ["kisses", "kiss"], ["forgives", "forgive"], ["accepts", "accept"],
   ["rejects", "reject"], ["promises", "promise"], ["snaps", "snap"], ["softens", "soften"], ["apologises", "apologise"],
   ["apologizes", "apologize"], ["explains", "explain"], ["insists", "insist"], ["shouts", "shout"], ["whispers", "whisper"],
-  ["laughs", "laugh"], ["smiles", "smile"], ["pulls", "pull"], ["pushes", "push"], ["backs", "back"], ["lets", "let"],
+  ["laughs", "laugh"], ["smiles", "smile"], ["pulls", null], ["pushes", null], ["backs", null], ["lets", null],
   ["goes", "go", REACTION],
   ["stays", "stay", `(?:${REACTION}|with\\s+(?:her|him|them))`],
   ["leaves", "leave", "(?:her|him|them|the\\s+room)"],
   ["gives", "give", "in"],
   ["lies", "lie", "(?:to|about)"],
-  ["holds", "hold", "(?:her|him|them|back)"]
+  ["holds", null, "(?:her|him|them|back)"]
 ];
 
 const alternation = (form: 0 | 1) => DECIDING_VERBS
-  .map(([subject, made, complement]) => (form === 0 ? subject : made) + (complement ? `\\s+${complement}` : ""))
+  .flatMap(([subject, made, complement]) => {
+    const verb = form === 0 ? subject : made;
+    return verb === null ? [] : [verb + (complement ? `\\s+${complement}` : "")];
+  })
   .join("|");
 const AFTER_SUBJECT = alternation(0);
 const AFTER_MAKES = alternation(1);

@@ -4,7 +4,7 @@ import type { Beside } from "../story/beside.js";
 import type { Entry } from "../story/entries.js";
 import type { ModelChoice, State } from "../story/state.js";
 import { asCall, layers, section } from "../context/lens.js";
-import { decidesForPlayer, playerNames } from "./deciding.js";
+import { decidesForPlayer, playerNames, playersPartBreak } from "./deciding.js";
 import { matches, namer, nullable, peopleEnum, text } from "./format.js";
 import { BUDGETS, runAgent, type Checked } from "./step.js";
 
@@ -97,7 +97,7 @@ export function editorPrompt(ask: EditorAsk): { system: string; prompt: string }
     move?.payload.kind === "move" ? section(`move by="${pc}"`, move.payload.text) : null,
     section("reply", ask.reply),
     section("task", `Check the Reply against what the story has established. ${pc} is the player's character. Set its slips right in fixes; name what breaks it in breaks.`)
-  ], PROMPT));
+  ], PROMPT.replace("{{players_part}}", `${playersPartBreak(pc)} Someone remembering something ${pc} said or did that the story never showed breaks it too.`)));
 }
 
 /** [words] as a pattern that finds them whatever their quote marks and spacing, which models tidy as they copy. */
@@ -120,6 +120,16 @@ function narration(reply: string, names: string[]): string {
   const told = reply.replace(/"[^"]*"|“[^”]*”|‘[^’]*’/g, " ");
   const his = names.map(name => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
   return told.replace(new RegExp(`\\b(before|until|unless|if|whether)\\s+(?:${his})\\b`, "gi"), "$1 he");
+}
+
+/**
+ * The check in code alone: the phrase of [reply] that writes the Player Character's part, or null. It costs nothing,
+ * so it reads every Reply, where a model Editor no longer does (docs/adr/0024).
+ */
+export function playerPartIn(state: State, reply: string): string | null {
+  const pc = state.playerCharacter;
+  const names = playerNames({ name: pc, aliases: state.people[pc]?.aliases ?? [] });
+  return decidesForPlayer(narration(reply, names), names)?.replace(/\s+/g, " ") ?? null;
 }
 
 /**
@@ -157,11 +167,10 @@ export function checkEdit(ask: EditorAsk, answer: unknown): Checked<Edit> {
   });
 
   // Deciding for him is caught in code too (openspec scenes: The Reply never writes the Player Character).
-  const names = playerNames({ name: pc, aliases: state.people[pc]?.aliases ?? [] });
-  const phrase = decidesForPlayer(narration(text, names), names)?.replace(/\s+/g, " ") ?? null;
+  const phrase = playerPartIn(state, text);
   const seen = (words: string) => phrase !== null && (words.toLowerCase().includes(phrase.toLowerCase()) || phrase.toLowerCase().includes(words.trim().toLowerCase()));
   if (phrase && !raw.breaks.some(item => item.kind === "decides_for_player" && seen(item.words))) {
-    notes.push(`Decides for ${pc}: "${phrase}". What he says, chooses, does on purpose, thinks and feels is the player's: show only what can be seen of him.`);
+    notes.push(`Decides for ${pc}: "${phrase}". ${playersPartBreak(pc)}`);
   }
 
   const verdict: Verdict = notes.length ? "rewrite" : fixed.length ? "fixed" : "clean";

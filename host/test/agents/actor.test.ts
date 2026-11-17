@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { actorPrompt, writeReply, type ActorAsk } from "../../src/agents/actor.js";
+import { playersPart } from "../../src/agents/deciding.js";
 import { writerPrompt } from "../../src/agents/writer.js";
 import { Models } from "../../src/models/model-call.js";
 import { ScriptedRunner } from "../../src/models/scripted.js";
@@ -72,12 +73,13 @@ describe("the Actor's prompt, as a novelist (docs/adr/0017)", () => {
 
   // The two ways the Actor was seen crossing the Line around a remark (the-last-scene-scenarios design decision 3): a
   // past for him as someone's memory, and his own perception. Each is named in the instructions and again last.
-  it("tells the Actor that people remember of him only what the Story has shown, and that nothing is told from inside him", () => {
+  it("tells the Actor that people remember of him only what the Story has shown, and where the player's part ends", () => {
     const [{ system, prompt }] = sceneWithMoves("I sit down across from her.") as [{ system: string; prompt: string }];
     expect(system).toContain("The people here remember of Roopesh Gantasala only what the scene so far, The Story So Far and what they remember show, and their own past: they never recall anything else he said, chose or did on purpose.");
-    expect(system).toContain("Tell nothing from inside Roopesh Gantasala: what can be seen of him, never what he sees, notices or feels.");
+    expect(system).toContain(playersPart("Roopesh Gantasala"));
+    expect(system).not.toContain("never what he sees, notices or feels");
     expect(system).toContain("What each person here knows and believes is said plainly under what_each_knows: play each of them from it.");
-    expect(prompt.split("\n").at(-1)).toBe("Write what happens next. What Roopesh Gantasala says, chooses, thinks and feels belongs to the player, now and in anything the story has not shown; what he did before is only what the story has shown, as it shows it. Leave the rest out.");
+    expect(prompt.split("\n").at(-1)).toBe("Write what happens next. What Roopesh Gantasala says, chooses, thinks and feels belongs to the player, now and in anything the story has not shown; what is done to him lands. What he did before is only what the story has shown, as it shows it.");
   });
 
   it("carries the Scene word for word in its layer, and the Move to answer in this moment's", () => {
@@ -226,7 +228,7 @@ describe("what each person here knows (openspec living-world: Characters know on
     const alone = actorPrompt(asking(story));
     expect(`${alone.system}\n${alone.prompt}`).not.toContain("seating plan");
     // The Writer steers the Scene knowing who knows it.
-    expect(writerPrompt({ state: story.state(), scene: story.scene().slice(0, -1), move: "I sit down next to Hermione.", choice: null, beside: nothingBeside() }, []).prompt).toContain(`${seating} Known to Draconia Malfoy and Neville Longbottom.`);
+    expect(writerPrompt({ state: story.state(), scene: story.scene().slice(0, -1), move: "I sit down next to Hermione.", choice: null, beside: nothingBeside() }, [], "").prompt).toContain(`${seating} Known to Draconia Malfoy and Neville Longbottom.`);
 
     // With Neville there, it is his to tell: the Actor is given it, with who knows it.
     story.note({ here: ["Hermione Granger", "Neville Longbottom"] });

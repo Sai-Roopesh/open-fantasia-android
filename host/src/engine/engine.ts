@@ -11,11 +11,12 @@ import { directionDue, writePlan } from "../agents/director.js";
 import { outlineDue, outlineSet, writeOutline, type OutlineAsk } from "../agents/outline.js";
 import { foldDue, writeFold } from "../agents/folder.js";
 import { writeWeave } from "../agents/weaver.js";
-import { editReply } from "../agents/editor.js";
+import { editReply, playerPartIn } from "../agents/editor.js";
+import { playersPartBreak } from "../agents/deciding.js";
 import { recordDue } from "../agents/writer.js";
 import { LinkError } from "../link/errors.js";
 import type { Mac } from "../mac.js";
-import { actorOf, backupModels, jobModels, secondModel, type Job } from "../models/jobs.js";
+import { actorOf, backupModels, editsEveryReply, jobModels, secondModel, type Job } from "../models/jobs.js";
 import { nameIndex, storyName } from "../agents/names.js";
 import { checkPerson, portraitExtension } from "./people.js";
 import { arcsSet, clockSet, landmarkDropped, landmarkSet, placeSet, premiseSet, replyLengthSet, styleSet, worldSet, worldStands } from "./story.js";
@@ -1158,10 +1159,11 @@ export class Engine {
   }
 
   /**
-   * The Actor writes the Reply whole, and the Editor reads it before the player can (docs/adr/0019): slips are set
-   * right in place; a Reply that breaks what is established goes back to the Actor once, with the Editor's notes, and
-   * is read again; one that still breaks is kept with the Editor's note. The phone is told each step, and sent the
-   * Reply once it is checked. The Scene stays open until the player presses End Scene.
+   * The Reply is the draft the writing call made (docs/adr/0024). When the Mac is set to have every Reply edited, a
+   * model Editor reads it before the player can (docs/adr/0019): slips are set right in place, and a Reply that breaks
+   * what is established goes back once with its notes. Otherwise no second model reads it: the player reads every
+   * Reply anyway, and Redo is theirs. Either way the one line a Reply must keep is checked in code, for nothing, and a
+   * draft that writes the Player Character's part goes back once; one that still breaks is kept with the note.
    */
   private async actorStep(turn: Turn, note: Entry): Promise<void> {
     const { state, entries } = sceneEntries(this.mac, note.id);
@@ -1173,25 +1175,31 @@ export class Engine {
       this.say(turn, "writing");
       return writeReply(this.models, this.turnChoices(turn, "actor"), { state, beside, scene: entries, gathered, ...(again ? { again } : {}) }, turn.storyId, turn.traceId, turn.abort.signal);
     };
-    const check = (reply: string) => {
+    const pc = state.playerCharacter;
+    const editing = editsEveryReply(this.mac.home);
+    const check = async (reply: string): Promise<{ text: string; notes: string[]; callId: string | null }> => {
+      if (!editing) {
+        const phrase = playerPartIn(state, reply);
+        return { text: reply, notes: phrase ? [`Decides for ${pc}: "${phrase}". ${playersPartBreak(pc)}`] : [], callId: null };
+      }
       turn.step = "editor";
       this.say(turn, "checking");
-      return editReply(this.models, this.turnChoices(turn, "editor"), { state, beside, scene: entries, reply, present: state.scene?.here ?? [] }, turn.storyId, turn.traceId, turn.abort.signal);
+      const edit = await editReply(this.models, this.turnChoices(turn, "editor"), { state, beside, scene: entries, reply, present: state.scene?.here ?? [] }, turn.storyId, turn.traceId, turn.abort.signal);
+      return { text: edit.text, notes: edit.verdict === "rewrite" ? edit.notes : [], callId: edit.callId };
     };
     let reply: Draft = checkpoint ?? { ...await write(), beside, rewrites: 0 };
     this.drafts.save(note.id, reply);
     let edit = await check(reply.text);
-    if (edit.verdict === "rewrite" && reply.rewrites < 1) {
+    if (edit.notes.length && reply.rewrites < 1) {
       reply = { ...await write({ draft: reply.text, notes: edit.notes }), beside, rewrites: reply.rewrites + 1 };
       this.drafts.save(note.id, reply);
       edit = await check(reply.text);
     }
-    const breaks = edit.verdict === "rewrite" ? edit.notes.join("\n") : null;
-    const by = reply;
-    const kept = this.mac.tree.append(turn.storyId, note.id, { kind: "reply", text: edit.text, callId: by.callId, model: by.model, ...(breaks ? { note: breaks } : {}) });
+    const breaks = edit.notes.length ? edit.notes.join("\n") : null;
+    const kept = this.mac.tree.append(turn.storyId, note.id, { kind: "reply", text: edit.text, callId: reply.callId, model: reply.model, ...(breaks ? { note: breaks } : {}) });
     if (!this.mac.tree.moveHead(turn.pathId, note.id, kept.id)) throw new Error("The Path moved while its Reply was being written");
-    this.models.attach(by.callId, kept.id);
-    this.models.attach(edit.callId, kept.id);
+    this.models.attach(reply.callId, kept.id);
+    if (edit.callId) this.models.attach(edit.callId, kept.id);
     this.turns.delete(turn.storyId);
     this.publish(turn.storyId, kept);
   }

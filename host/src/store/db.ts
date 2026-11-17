@@ -132,7 +132,7 @@ function addPathColumns(db: Db): void {
  * What a call looked up, a line each, as JSON (docs/adr/0018). A store from before agents could look things up gains
  * it in place.
  */
-const CALL_COLUMNS: [string, string][] = [["lookups", "TEXT"], ["usage", "TEXT"]];
+const CALL_COLUMNS: [string, string][] = [["lookups", "TEXT"], ["usage", "TEXT"], ["wire", "TEXT"]];
 
 function addCallColumns(db: Db): void {
   const has = new Set((db.prepare("PRAGMA table_info(calls)").all() as { name: string }[]).map(column => column.name));

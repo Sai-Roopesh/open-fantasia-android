@@ -76,6 +76,9 @@ export interface Tools {
 /** What a model is told when it asks for one lookup more than its step allows. */
 export const NO_LOOKUPS_LEFT = "No lookups are left in this step. Answer now, with what you have.";
 
+/** How many of the latest calls keep the exact bytes they sent (`calls.wire`). */
+export const KEEP_WIRE = 200;
+
 /** A web lookup said in a line, the same whichever provider made it. */
 export const webLookup = {
   searched: (query: string) => `searched the web for “${query}”`,
@@ -95,7 +98,11 @@ export interface CanLookUp {
 export interface ModelRunner {
   /** The tools its models can use. A runner that does not say can use none, and its calls run without them. */
   readonly canLookUp?: CanLookUp;
-  run(request: ModelRequest, onText: (delta: string) => void, signal: AbortSignal, tools?: Tools, onUsage?: (usage: ModelUsage) => void): Promise<string>;
+  /**
+   * [onWire] hears each body a direct transport sends, exactly as sent, so a trace shows what the model read rather
+   * than what the host meant it to read. A runner behind a CLI cannot see that far and never calls it.
+   */
+  run(request: ModelRequest, onText: (delta: string) => void, signal: AbortSignal, tools?: Tools, onUsage?: (usage: ModelUsage) => void, onWire?: (body: unknown) => void): Promise<string>;
 }
 
 /** Why a model call failed, in words the player can read; the cause stays in the call's record. */
@@ -164,10 +171,15 @@ export class Models {
       .prepare("INSERT INTO calls (id, trace_id, story_id, agent, provider, model, request, started_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
       .run(callId, request.traceId, request.storyId, request.agent, request.model.provider, request.model.model, JSON.stringify(sent), new Date().toISOString());
     const lookups: string[] = [...prepared];
+    const wire: unknown[] = [];
     try {
       if (!runner) throw new Error(`No way to reach ${request.model.provider} models is set up on this Mac`);
       const text = await runner.run(sent, onText, signal, kit ? this.tools(kit, request.turns ?? 1, lookups, onLookup) : NO_TOOLS,
-        usage => this.db.prepare("UPDATE calls SET usage = ? WHERE id = ?").run(JSON.stringify(usage), callId));
+        usage => this.db.prepare("UPDATE calls SET usage = ? WHERE id = ?").run(JSON.stringify(usage), callId),
+        body => {
+          wire.push(body);
+          this.db.prepare("UPDATE calls SET wire = ? WHERE id = ?").run(JSON.stringify(wire), callId);
+        });
       this.unavailable.delete(request.model.provider);
       if (!text.trim()) throw new Error(`${request.model.model} returned nothing`);
       if (!request.schema) {
@@ -247,6 +259,9 @@ export class Models {
   private finish(callId: string, answer: string | null, error: string | null, lookups: string[]): void {
     this.db.prepare("UPDATE calls SET answer = ?, error = ?, lookups = ?, finished_at = ? WHERE id = ?")
       .run(answer, error, lookups.length ? JSON.stringify(lookups) : null, new Date().toISOString(), callId);
+    // The bytes a call sent are kept for comparing providers, not for the record: `request` keeps what the host asked.
+    // Only the latest calls keep them, so a long Story's database does not carry a second copy of every prompt.
+    this.db.prepare("UPDATE calls SET wire = NULL WHERE wire IS NOT NULL AND rowid <= (SELECT MAX(rowid) FROM calls) - ?").run(KEEP_WIRE);
   }
 }
 

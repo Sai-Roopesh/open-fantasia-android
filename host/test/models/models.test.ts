@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ModelCallFailed, Models, type ModelRequest } from "../../src/models/model-call.js";
+import { KEEP_WIRE, ModelCallFailed, Models, type ModelRequest, type ModelRunner } from "../../src/models/model-call.js";
 import { ScriptedRunner } from "../../src/models/scripted.js";
 import { ledger } from "../agents/ledger.js";
 import { freshHome, openHome } from "../support/host.js";
@@ -25,6 +25,21 @@ describe("model calls", () => {
     expect(row.answer).toBe("She moves her bag off the seat.");
     expect(row.trace_id).toBe("trace-1");
     expect(row.error).toBeNull();
+  });
+
+  it("keeps the bytes a direct transport sent, for the latest calls only", async () => {
+    const { db } = freshHome();
+    let sent = 0;
+    const direct: ModelRunner = { run: async (_request, _onText, _signal, _tools, _onUsage, onWire) => { onWire?.({ call: ++sent }); return "Done."; } };
+    const models = new Models(db, { claude: direct });
+    const ids: string[] = [];
+    for (let i = 0; i < KEEP_WIRE + 3; i++) ids.push((await models.call(request)).callId);
+    const wire = (id: string) => (db.prepare("SELECT wire FROM calls WHERE id = ?").get(id) as { wire: string | null }).wire;
+    expect(JSON.parse(wire(ids.at(-1)!)!)).toEqual([{ call: KEEP_WIRE + 3 }]);
+    expect(ids.filter(id => wire(id) !== null)).toHaveLength(KEEP_WIRE);
+    expect(wire(ids[0]!)).toBeNull();
+    // What the host asked is kept for every call, whatever happens to the bytes.
+    expect(JSON.parse((db.prepare("SELECT request FROM calls WHERE id = ?").get(ids[0]!) as { request: string }).request)).toEqual(request);
   });
 
   it("keeps the reason a call failed", async () => {

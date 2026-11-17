@@ -5,7 +5,7 @@ import { openMac } from "../mac.js";
 import { Engine } from "../engine/engine.js";
 import { subscriptionRunners } from "../models/runners.js";
 import { Models } from "../models/model-call.js";
-import { arc, claudeToken, clock, doctor, edit, group, importCommand, install, known, landmark, lead, length, models, moments, pair, person, place, portrait, premise, prompts, record, show, stories, style, taste, trace, world, worldIs, type LandmarkOptions, type PersonOptions } from "./commands.js";
+import { arc, claudeToken, clock, doctor, edit, editor, group, importCommand, install, known, landmark, lead, length, models, moments, pair, person, place, portrait, premise, prompts, record, show, stories, style, taste, trace, world, worldIs, type LandmarkOptions, type PersonOptions } from "./commands.js";
 import { serve } from "./serve.js";
 import { carryBeside } from "../store/carry.js";
 
@@ -69,6 +69,9 @@ program.command("person").argument("<story>", "a Story's id").argument("<name>",
     const home = mac();
     exitWith(await person(home, new Engine(home, new Models(home.db, {})), story, name, options, out));
   });
+program.command("editor").argument("[on-or-off]", "whether a model Editor reads every Reply before you do")
+  .description("Show or set whether every Reply is edited by a second model before you read it (off by default)")
+  .action((onOff: string | undefined) => exitWith(editor(mac(), onOff, out)));
 program.command("lead").argument("<story>", "a Story's id").argument("<name>", "the person").argument("<on-or-off>")
   .description("Make someone a Lead, or stop them being one")
   .action((story: string, name: string, onOff: string) => { const home = mac(); exitWith(lead(home, new Engine(home, new Models(home.db, {})), story, name, onOff, out)); });

@@ -37,6 +37,21 @@ describe("deciding for the Player Character", () => {
     expect(decidesForPlayer("Ishaan feels exhausted after the night.", names)).not.toBeNull();
   });
 
+  it("lets other people act on him, and his body answer, without that deciding for him", () => {
+    for (const done of [
+      "She forces Ishaan back against the door.",
+      "Meera makes Ishaan let go of the railing.",
+      "The slap makes Ishaan go red to the ears.",
+      "Ishaan goes pale.",
+      "Uncle Bhalla pulls Ishaan down onto the berth."
+    ]) {
+      expect(decidesForPlayer(done, names), done).toBeNull();
+    }
+    for (const chosen of ["Ishaan pushes her away.", "Ishaan pulls back from her.", "Ishaan holds her hand.", "The slap makes Ishaan cry."]) {
+      expect(decidesForPlayer(chosen, names), chosen).not.toBeNull();
+    }
+  });
+
   it("lets circumstances, other people's choices and questions pass", () => {
     for (const circumstance of [
       "Ishaan is offered a seat by the window.",

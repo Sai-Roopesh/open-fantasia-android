@@ -1,5 +1,6 @@
 import { Engine, type OutgoingEvent } from "../../src/engine/engine.js";
 import { FakeModels } from "../../src/models/fake.js";
+import { setEditsEveryReply } from "../../src/models/jobs.js";
 import { Models } from "../../src/models/model-call.js";
 import { scriptedRunners } from "../../src/models/runners.js";
 import type { Script } from "../../src/models/scripted.js";
@@ -16,6 +17,8 @@ type Scripts = { writer?: Script[]; actor?: Script[]; editor?: Script[]; chronic
 /** A Story ready to play on scripted models, with every event it sends kept. */
 export function playable(storyFile: StoryFile = hogwartsStoryFile(), scripts: Scripts = {}, actorFallback?: ConstructorParameters<typeof FakeModels>[1]) {
   const mac = freshHome();
+  // These scenarios were written for every Reply being edited; a Mac's default no longer does that (docs/adr/0024).
+  setEditsEveryReply(mac.home, true);
   const result = importStoryFile(writeStoryFile(storyFile), mac);
   if (!result.ok) throw new Error(`import failed: ${JSON.stringify(result.problems)}`);
   const models = new FakeModels(scripts, actorFallback);

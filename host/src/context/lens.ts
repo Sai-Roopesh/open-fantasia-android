@@ -180,11 +180,6 @@ export function calendarPart(state: State, lens: Lens): string | null {
   ].filter(Boolean).join("\n\n"));
 }
 
-/** The Threads, for the lenses that see the World. */
-export function threadsPart(state: State): string | null {
-  return section("threads", state.threads.map(thread => `- ${thread.name}: ${thread.now}`).join("\n"));
-}
-
 /**
  * What happened lately, each with who knows it; the character lens sees only what someone present knows, and not what
  * only the Player Character knows until he tells them on the page.
@@ -215,15 +210,6 @@ export function momentsPart(state: State, moments: Fact[]): string | null {
     `M${index + 1} (Scene ${fact.scene}; known to ${fact.knownTo.join(", ")}): ${fact.what}`,
     ...fact.quotes.map(quote => `  "${quote.text}"`)
   ].join("\n")).join("\n"));
-}
-
-/** What each person present knows, for the Actor (the character lens). */
-export function knowsPart(state: State, present: string[]): string | null {
-  return section("what_each_knows", present.filter(name => state.people[name]).map(name => {
-    const who = state.people[name];
-    const theirs = state.facts.filter(fact => fact.knownTo.includes(name)).slice(-BUDGET.perPerson);
-    return [`${name}:`, ...(who?.knows ?? []).map(line => `- ${line}`), ...theirs.map(fact => `- ${fact.what}${fact.quotes[0] ? ` ("${fact.quotes[0].text}")` : ""}`)].join("\n");
-  }).join("\n\n"));
 }
 
 /**
@@ -697,8 +683,11 @@ function sceneLayer(state: State, reader: Reader, entries: Entry[]): string {
   const pc = state.playerCharacter;
   const writer = reader === "writer";
   const playing = !scene.closed;
-  const head = [
-    `${scene.title}. ${scene.place}, from ${say(state, scene.at)}${scene.closed && scene.endedAt ? ` until ${say(state, scene.endedAt)}, when it ended` : ""}.`,
+  // What never changes while the Scene is played comes before its words, and what changes with every Reply (who is
+  // here, the beats, Focus and Linger) after them: a provider caches a prompt up to its first changed byte, so
+  // anything that changes above the Scene's words has them read again, uncached, on every Reply (docs/adr/0025).
+  const opened = `${scene.title}. ${scene.place}, from ${say(state, scene.at)}${scene.closed && scene.endedAt ? ` until ${say(state, scene.endedAt)}, when it ended` : ""}.`;
+  const now = [
     `Here besides ${pc}: ${scene.here.length ? list(scene.here) : "nobody"}.`,
     ...(writer && scene.purpose ? [`Purpose: ${scene.purpose}`, `Exit: ${scene.exit ?? ""}`] : []),
     ...(writer && scene.beats.length ? ["Beats:", ...scene.beats.map(beat => `- [${beat.status}] ${beat.text}`)] : []),
@@ -721,13 +710,14 @@ function sceneLayer(state: State, reader: Reader, entries: Entry[]): string {
   const latest = before.slice(-LATEST_EXCHANGES * 2);
   const passages = through >= 0 ? [...latest, ...words(entries.slice(through + 1))] : words(entries);
   const record = recorded && through >= 0 ? section("recorded_so_far", `The Scene so far, as it was recorded while it was played: ${recorded.paragraph}`) : null;
-  const kept = newest(passages, LIMITS.layers.scene - tokens(head) - tokens(record ?? "") - 60);
+  const kept = newest(passages, LIMITS.layers.scene - tokens(opened) - tokens(now) - tokens(record ?? "") - 60);
   const left = passages.length - kept.length + before.length - latest.length;
   const readIt = LOOKS_UP.has(reader) ? "; read the Scene in full when you need them" : "";
   return join([
-    section("scene", head),
+    section("scene", opened),
     record,
-    section("scene_so_far", [...(left ? [`(The Scene's first ${left} passages are left out${record ? ", told in its record above" : " for length"}${readIt}.)`] : []), ...kept].join("\n\n"))
+    section("scene_so_far", [...(left ? [`(The Scene's first ${left} passages are left out${record ? ", told in its record above" : " for length"}${readIt}.)`] : []), ...kept].join("\n\n")),
+    section("scene_now", now)
   ]);
 }
 

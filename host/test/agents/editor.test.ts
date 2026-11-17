@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { checkEdit, editorPrompt, editReply, type EditorAsk } from "../../src/agents/editor.js";
+import { playersPartBreak } from "../../src/agents/deciding.js";
 import { FakeModels } from "../../src/models/fake.js";
 import { Models } from "../../src/models/model-call.js";
 import { ScriptedRunner } from "../../src/models/scripted.js";
@@ -157,7 +158,15 @@ describe("the Editor's check of a Reply", () => {
     const edited = await edit(story, reply, fake);
     expect(fake.editor.requests).toHaveLength(1);
     expect(edited.verdict).toBe("rewrite");
-    expect(edited.notes).toEqual(["Decides for Roopesh Gantasala: \"Roopesh feels the old pull toward her, and hates it\". What he says, chooses, does on purpose, thinks and feels is the player's: show only what can be seen of him."]);
+    expect(edited.notes).toEqual([`Decides for Roopesh Gantasala: "Roopesh feels the old pull toward her, and hates it". ${playersPartBreak("Roopesh Gantasala")}`]);
+  });
+
+  it("lets a Reply act on the Player Character and say where it leaves him", async () => {
+    const story = lateScene();
+    story.move("I block the door.");
+    const reply = "Hermione shoves him hard in the chest. She forces Roopesh back against the shelves, and the slap that follows makes Roopesh go red to the ears.";
+    const edited = await edit(story, reply, new FakeModels());
+    expect(edited.verdict).toBe("clean");
   });
 
   it("sends back deciding for the Player Character that only the model sees", async () => {

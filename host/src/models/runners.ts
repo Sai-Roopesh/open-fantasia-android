@@ -1,7 +1,10 @@
 import { CLAUDE_TOKEN, readSecret } from "../secrets.js";
 import { AntigravityRunner } from "./antigravity.js";
+import { AntigravityDirectRunner } from "./antigravity-direct.js";
 import { ClaudeRunner } from "./claude.js";
 import { CodexRunner } from "./codex.js";
+import { CodexDirectRunner } from "./codex-direct.js";
+import { preferDirect } from "./direct.js";
 import type { OfferedModel } from "./catalog.js";
 import type { ModelRunner } from "./model-call.js";
 import type { ModelChoice } from "../story/state.js";
@@ -10,12 +13,18 @@ import type { ModelChoice } from "../story/state.js";
 export type ListingRunner = ModelRunner & { listModels(): Promise<OfferedModel[]> };
 export type Runners = Record<ModelChoice["provider"], ListingRunner> & { close(): void };
 
-/** A way to every provider through the player's own subscriptions (docs/adr/0005), each started on first use. */
+/**
+ * A way to every provider through the player's own subscriptions (docs/adr/0005), each started on first use. Codex
+ * and Antigravity are called directly, on the sign-in their own tools keep (docs/adr/0023); the tools stay as the way
+ * back when that sign-in needs renewing, and for listing models.
+ */
 export function subscriptionRunners(home: string): Runners {
   const claude = new ClaudeRunner(home, () => readSecret(CLAUDE_TOKEN));
-  const codex = new CodexRunner(home);
-  const antigravity = new AntigravityRunner(home);
-  return { claude, codex, antigravity, close: () => { claude.close(); codex.close(); antigravity.close(); } };
+  const codexCli = new CodexRunner(home);
+  const antigravityCli = new AntigravityRunner(home);
+  const codex = { ...preferDirect(new CodexDirectRunner(), codexCli), listModels: () => codexCli.listModels() };
+  const antigravity = { ...preferDirect(new AntigravityDirectRunner(), antigravityCli), listModels: () => antigravityCli.listModels() };
+  return { claude, codex, antigravity, close: () => { claude.close(); codexCli.close(); antigravityCli.close(); } };
 }
 
 /** One scripted runner standing in for every provider, so a setting on any of them plays without spending quota. */

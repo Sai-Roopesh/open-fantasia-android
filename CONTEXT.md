@@ -50,6 +50,7 @@ _Avoid_: Primary character, main character, love interest
 
 **Player Character**:
 The character the player plays, and the only one whose words, choices, thoughts and feelings are the player's.
+What other people do to him is theirs, and lands (docs/adr/0024).
 _Avoid_: Persona, protagonist, user, you
 
 **Cast**:
@@ -195,7 +196,8 @@ _Avoid_: Undo, revert, delete
 
 **Actor**:
 Plays everyone in a Scene and writes the Replies. Chosen per Story, with the same selected model and effort
-handling both the creative choice and the complete prose in one generation. The Editor checks it separately.
+handling both the creative choice and the complete prose in one generation. A Reply goes straight to the player;
+the Editor reads it first only when the Mac is set to.
 _Avoid_: Roleplay model, bot, character AI
 
 **Writer**:
@@ -216,9 +218,10 @@ go to.
 _Avoid_: World agent, simulator, world turn
 
 **Editor**:
-Reads each Reply before the player does, against what the Story has established: its Rules, what each person knows
-and believes, the clock, and what only the player may decide; sets right or sends back what breaks them. Checks the
-records and recaps of what happened against what they cover.
+When the Mac is set to (`fantasia editor on`), reads each Reply before the player does, against what the Story has
+established: its Rules, what each person knows and believes, the clock, and what only the player may decide; sets
+right or sends back what breaks them. Off by default (docs/adr/0024). Checks the records and recaps of what happened
+against what they cover.
 _Avoid_: Checker, validator, critic, continuity
 
 **Director**:

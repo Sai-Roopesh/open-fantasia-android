@@ -114,7 +114,7 @@ describe("what code counts, not the Writer", () => {
   it("keeps pacing counts without turning them into Writer deadlines", () => {
     const { state } = nightTrain();
     const stalled = play(state, ...Array.from({ length: 5 }, () => note({ plan: { purpose: "p", exit: "e" }, arcMoved: false })));
-    const task = writerPrompt({ state: stalled, scene: [], move: "I say nothing.", choice: null, beside: nothingBeside() }, []).prompt;
+    const task = writerPrompt({ state: stalled, scene: [], move: "I say nothing.", choice: null, beside: nothingBeside() }, [], "").prompt;
     expect(stalled.scene).toMatchObject({ beatInPlayFor: 5, withoutArc: 5 });
     expect(task).not.toMatch(/in play for 5 Replies|No Arc has moved/);
   });

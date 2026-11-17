@@ -33,7 +33,12 @@ export const DEFAULT_JOB_MODELS: Record<Job, ModelChoice> = {
 const SOL: ModelChoice = { provider: "codex", model: "gpt-6.1-sol" };
 
 /** models.json: a model per job at the top, as it has always been, and each Story's own Actor under `actors`. */
-type Saved = Partial<Record<Job, ModelChoice>> & { actors?: Record<string, ModelChoice>; backups?: Partial<Record<Job | "actor", ModelChoice>> };
+type Saved = Partial<Record<Job, ModelChoice>> & {
+  actors?: Record<string, ModelChoice>;
+  backups?: Partial<Record<Job | "actor", ModelChoice>>;
+  /** Whether a model Editor reads every Reply before the player does (docs/adr/0024). Off unless turned on. */
+  editEveryReply?: boolean;
+};
 
 const file = (home: string) => join(home, "models.json");
 
@@ -47,6 +52,18 @@ function save(home: string, settings: Saved): void {
   const writing = `${file(home)}.writing`;
   writeFileSync(writing, `${JSON.stringify(settings, null, 2)}\n`);
   renameSync(writing, file(home));
+}
+
+/**
+ * Whether a model Editor reads every Reply before the player does. Off unless turned on (docs/adr/0024): it found
+ * something in 7 of 110 Replies for 28.6% of all input, and every Reply waited for it.
+ */
+export function editsEveryReply(home: string): boolean {
+  return saved(home).editEveryReply === true;
+}
+
+export function setEditsEveryReply(home: string, on: boolean): void {
+  save(home, { ...saved(home), editEveryReply: on });
 }
 
 /**

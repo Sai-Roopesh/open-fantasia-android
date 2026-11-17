@@ -3,13 +3,19 @@ import type { Entry, Gathered } from "../story/entries.js";
 import type { Fact, ModelChoice, State } from "../story/state.js";
 import type { Beside } from "../story/beside.js";
 import { asCall, layers, recallFacts, section } from "../context/lens.js";
+import { playersPart } from "./deciding.js";
 import { AgentFailed, BUDGETS } from "./step.js";
 import { inPlayFacts } from "./writer.js";
 
+/**
+ * The length a Reply is written to, as a target rather than a ceiling. Measured on 17 November 2026 with the same
+ * request on Full (docs/adr/0024): "up to about six hundred words" gave 247 words from GPT 5.6 Sol and 259 from Gemini
+ * 3.8 Flash; "write about six hundred words" gave 621 and 514. A ceiling is read as permission to stop early.
+ */
 const LENGTH = {
-  short: "Keep each Reply short: one or two brief paragraphs.",
-  medium: "Keep each Reply to three or four paragraphs.",
-  full: "Let each Reply run as long as the moment needs, up to about six hundred words."
+  short: "Write about two hundred words. Let the moment decide the shape, not the count.",
+  medium: "Write about four hundred words. Let the moment decide the shape, not the count.",
+  full: "Write about six hundred words. Let the moment decide the shape, not the count."
 } as const;
 
 /**
@@ -37,9 +43,8 @@ export function actorInstructions(state: State): string {
     `You are writing a story together with a player. The player writes ${pc}; you write everyone and everything else, Reply by Reply, as a novelist does: you are shown everything about the people here, their history and what they hide, and you write each of them knowing only what they know.`,
     "",
     `Whatever ${pc}'s Move says has happened, even when it has someone else act, time pass or the place change. Carry on from its effect; do not retell it.`,
-    `Never decide what ${pc} says, chooses, does on purpose, thinks or feels. The people here may see ${pc} and say how ${pc} looks to them. Stop where it is ${pc}'s turn.`,
+    playersPart(pc),
     `The people here remember of ${pc} only what the scene so far, The Story So Far and what they remember show, and their own past: they never recall anything else he said, chose or did on purpose.`,
-    `Tell nothing from inside ${pc}: what can be seen of him, never what he sees, notices or feels.`,
     `What ${pc} thinks without saying it stays inside ${pc}. The people here hear only what was said aloud and see only what was done where they could see it.`,
     "Each person knows their own past, what they have lived through in this story, and what they have been told or have seen; nothing else. What each person here knows and believes is said plainly under what_each_knows: play each of them from it. Someone who believes something wrong acts on the belief; nobody acts on what they do not know, however well you know it.",
     "Write each person as who they are now, under people_now, not as who they were when the story began. Where things stand between them, and what is true now, they lived too, and they act from it; what has ended is over for them.",
@@ -93,7 +98,7 @@ export function actorPrompt(ask: ActorAsk): { system: string; prompt: string } {
       "It read:",
       again.draft
     ].join("\n")) : null,
-    `Write what happens next${again ? ", again: mend what it was sent back for, and keep what was right" : ""}. What ${pc} says, chooses, thinks and feels belongs to the player, now and in anything the story has not shown; what he did before is only what the story has shown, as it shows it. Leave the rest out.`
+    `Write what happens next${again ? ", again: mend what it was sent back for, and keep what was right" : ""}. What ${pc} says, chooses, thinks and feels belongs to the player, now and in anything the story has not shown; what is done to him lands. What he did before is only what the story has shown, as it shows it.`
   ], actorInstructions(state)));
 }
 
