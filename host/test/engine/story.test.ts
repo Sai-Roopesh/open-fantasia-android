@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { REPLY_LENGTH_GUIDE } from "../../src/agents/actor.js";
 import type { WorldMoved } from "../../src/story/entries.js";
 import type { State } from "../../src/story/state.js";
 import { besideOf, learnLesson, tasteOf } from "../../src/store/beside.js";
@@ -153,11 +154,11 @@ describe("long-run › Style is the player's own words", () => {
     const { mac, engine, storyId, head, play, models } = playable({ ...storyFile(), reply_length: "full" });
     await play("I sit at the other end of the sofa.");
     const before = head();
-    expect(models.actor.requests.at(-1)!.system).toContain("Write about six hundred words.");
+    expect(models.actor.requests.at(-1)!.system).toContain(REPLY_LENGTH_GUIDE.full);
     engine.setReplyLength(storyId, "short", head(), "length");
     await play("I ask what she is reading.");
-    expect(models.actor.requests.at(-1)!.system).toContain("Write about two hundred words.");
-    expect(models.actor.requests.at(-1)!.system).not.toContain("Write about six hundred words.");
+    expect(models.actor.requests.at(-1)!.system).toContain(REPLY_LENGTH_GUIDE.short);
+    expect(models.actor.requests.at(-1)!.system).not.toContain(REPLY_LENGTH_GUIDE.full);
     expect(mac.states.at(before).replyLength).toBe("full");
   });
 });

@@ -21,7 +21,10 @@ import type { Payload } from "../story/entries.js";
 import { parseStoryTime, sayStoryTime } from "../time.js";
 import { importStoryFile } from "../storyfile/import.js";
 import { besideOf, tasteOf } from "../store/beside.js";
-import { composerCall } from "../agents/composer.js";
+import { composerCall, parseComposedAnswer } from "../agents/composer.js";
+import { tokens } from "../context/lens.js";
+import { subscriptionRunners } from "../models/runners.js";
+import { Models } from "../models/model-call.js";
 import { editorPrompt } from "../agents/editor.js";
 import { Drafts } from "../store/drafts.js";
 import { Traces } from "../trace.js";
@@ -236,7 +239,7 @@ export function prompts(mac: Mac, storyId: string, move: string, out: Out): bool
   const path = mac.tree.currentPath(storyId);
   if (!path) return (out(`No Story ${storyId}.`), false);
   const head = path.headEntryId;
-  const beside = besideOf(mac, storyId);
+  const beside = besideOf(mac, storyId, head);
   const { state, entries } = sceneEntries(mac, head);
   const writing = composerCall({ state, scene: entries, move, choice: null, beside, path: mac.tree.pathTo(head) });
   for (const line of [`== Writing, for the Move: ${move}`, `-- system\n${writing.system}`, `-- prompt\n${writing.prompt}`]) out(line);
@@ -249,6 +252,77 @@ export function prompts(mac: Mac, storyId: string, move: string, out: Out): bool
   const editor = editorPrompt({ state: answered.state, beside: draft.beside, scene: answered.entries, reply: draft.text, present: answered.state.scene?.here ?? [] });
   for (const line of [`== The Editor, for the latest saved draft: ${latest?.payload.kind === "move" ? latest.payload.text : ""}`, `-- system\n${editor.system}`, `-- prompt\n${editor.prompt}`]) out(line);
   return true;
+}
+
+/**
+ * `fantasia bench`: reports exact Storyteller prompt token breakdown, cacheable prefix share, Path-isolated Direction
+ * count, Outline/Chronicler status, and with `--run` executes one non-mutating live generation so prose & usage can be
+ * judged directly before playing.
+ */
+export async function bench(
+  mac: Mac,
+  storyId: string,
+  move: string,
+  out: Out,
+  options: { run?: boolean; model?: string } = {}
+): Promise<boolean> {
+  const path = mac.tree.currentPath(storyId);
+  if (!path) return (out(`No Story ${storyId}.`), false);
+  const head = path.headEntryId;
+  const beside = besideOf(mac, storyId, head);
+  const allNotes = besideOf(mac, storyId).notes.filter(note => note.active !== false);
+  const activeNotes = beside.notes.filter(note => note.active !== false);
+  const { state, entries } = sceneEntries(mac, head);
+  const writing = composerCall({ state, scene: entries, move, choice: null, beside, path: mac.tree.pathTo(head) });
+  const sysTok = tokens(writing.system);
+  const turnTokens = writing.conversation.map(turn => tokens(turn.text));
+  const standingTok = turnTokens[0] ?? 0;
+  const historyTok = turnTokens.slice(1, -1).reduce((sum, count) => sum + count, 0);
+  const deltaTok = turnTokens.length > 1 ? (turnTokens.at(-1) ?? 0) : standingTok;
+  const totalTok = sysTok + turnTokens.reduce((sum, count) => sum + count, 0);
+  const cacheableTok = totalTok - deltaTok;
+  const cachePct = totalTok > 0 ? Math.round((cacheableTok / totalTok) * 100) : 0;
+  const exchanges = entries.filter(entry => entry.payload.kind === "move").length;
+
+  out(`Story: ${state.title} (${storyId})`);
+  out(`Path: ${path.id} (${path.origin}) · Scene ${state.scene?.number ?? 0} · ${exchanges} exchanges`);
+  out(`Outline: ${state.outline ? `v${state.outline.version} (Act ${state.outline.current})` : "none"} · Mid-scene recorded: ${state.scene?.recorded ? "yes" : "no"}`);
+  out(`Directions on this Path: ${activeNotes.length} active (${allNotes.length - activeNotes.length} isolated on other Paths)`);
+  out(`Prompt tokens (~est): total=${totalTok} · system=${sysTok} · standing=${standingTok} · history=${historyTok} (${Math.max(0, writing.conversation.length - 2)} turns) · uncached_delta=${deltaTok} · cacheable=${cachePct}%`);
+  if (!options.run) return true;
+
+  let choice = actorOf(mac, storyId);
+  if (options.model) {
+    const [providerPart, rest = ""] = options.model.split("/");
+    const [modelPart, effortPart] = rest.split(":");
+    if ((providerPart === "codex" || providerPart === "claude" || providerPart === "antigravity") && modelPart) {
+      choice = { provider: providerPart, model: modelPart, ...(effortPart ? { effort: effortPart } : {}) };
+    } else {
+      out("Model format: provider/model[:effort], e.g. codex/gpt-6.1-sol:medium");
+      return false;
+    }
+  }
+  if (!choice) return (out("No Actor model configured for this Story."), false);
+  const runners = subscriptionRunners(mac.home);
+  const models = new Models(mac.db, runners);
+  const started = Date.now();
+  try {
+    const answer = await models.call({
+      agent: "actor", model: choice, system: writing.system, prompt: writing.prompt, conversation: writing.conversation,
+      tools: writing.tools, turns: 4, traceId: `bench-${randomUUID().slice(0, 8)}`, storyId
+    });
+    const parsed = parseComposedAnswer(answer.text);
+    const words = parsed.reply.split(/\s+/).filter(Boolean).length;
+    const row = mac.db.prepare("SELECT usage FROM calls WHERE id = ?").get(answer.callId) as { usage: string | null } | undefined;
+    out(`Model: ${choice.provider}/${choice.model}${choice.effort ? ` (${choice.effort})` : ""} · ${((Date.now() - started) / 1000).toFixed(1)}s · ${words} words`);
+    if (row?.usage) out(`Usage: ${row.usage}`);
+    if (parsed.meta) out(`Scene state: ${JSON.stringify(parsed.meta)}`);
+    out("--- REPLY ---");
+    out(parsed.reply);
+    return true;
+  } finally {
+    runners.close();
+  }
 }
 
 /** `fantasia world`: the World off-screen on a Story's current Path, hidden things included, until Backstage arrives. */

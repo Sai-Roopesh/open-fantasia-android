@@ -132,7 +132,7 @@ describe("the-outline › Every Story has an Outline to its end", () => {
     expect(request.prompt).toContain(`- The Philosopher's Stone, ${say(state, "Day 278 21:00")}: Quirrell goes through the trapdoor for the Stone, with Voldemort on the back of his head.`);
     expect(request.prompt).toContain(`- The Battle of Hogwarts, ${say(state, "Day 1706 21:00")}: Voldemort comes for Hogwarts, and it ends one way or the other.`);
     expect(request.prompt).toContain("<task>\nThe Story is starting: write its Outline, from now to its end.\n\nGive the first Act in detail, the next outlined, and the rest sketched to how the Story ends.");
-    expect(request.prompt).toContain("This is deep planning: work it through in steps before you answer, never in one go.");
+    expect(request.prompt).toContain("Deep planning: think carefully");
     expect(written.dropped).toEqual([]);
 
     story.add(outlineSet(written, due!.ask, false));
@@ -189,7 +189,7 @@ describe("the-outline › Every Story has an Outline to its end", () => {
     };
     const runner = new ScriptedRunner([{ answer: JSON.stringify(night) }]);
     const written = await writeOutline(new Models(story.mac.db, { claude: runner }), [SONNET], story.state(), nothingBeside(), due!.ask, at(story), "trace-o", signal());
-    expect(flat(runner.requests[0]!.system)).toContain("A small story has a small Outline: a night on a train is one Act, the night, heading for the morning.");
+    expect(flat(runner.requests[0]!.system)).toContain("A small story needs only one Act.");
     expect(written.dropped).toEqual([]);
     story.add(outlineSet(written, due!.ask, false));
     const outline = story.state().outline!;
@@ -216,8 +216,7 @@ describe("the-outline › The Outline is woven from Lives", () => {
     const story = ledger(example("malfoy-problem"));
     const state = story.state();
     const { system, prompt } = outlinePrompt(state, nothingBeside(), START);
-    expect(flat(system)).toContain("Give every Close person and every Mover an intention for the current Act: - `pursues`: what they go after this Act for their own sake, not only about him: a father's plans for her, the Seeker's place,");
-    expect(flat(system)).toContain("- `feelings`: how their feelings about the people around them move this Act, him and others: rivals, friends, family.");
+    expect(flat(system)).toContain("one per Close person and Mover (`who`, `pursues`, `feelings`, `heading`).");
     // Each of them is shown: who they were when the Story began, who they are now, and that their Life is kept in full.
     expect(flat(system)).toContain(`- ${DRACONIA}, a Lead, also Connie: ${state.people[DRACONIA]!.whoTheyAre}`);
     expect(prompt).toContain(`\n${DRACONIA}\n  Now: as when the Story began.`);
@@ -277,7 +276,7 @@ describe("the-outline › Nothing enters without a payoff", () => {
     expect(outline.setups.find(setup => setup.id === "U2")).toMatchObject({ payoff: "He is the go-between who hired the masked wizards, and he leads to Selwyn's father.", turn: "T5", state: "waiting" });
     expect(currentAct(outline)!.turns.find(turn => turn.id === "T5")).toMatchObject({ when: "the week before Christmas", what: "The man who asked about the train is found in Lucius's pay." });
     expect(runner.requests[0]!.prompt).toContain("- [U2] A stranger in Hogsmeade asking about the train. Not planted yet. It pays off: He is the go-between who hired the masked wizards, and he leads to Selwyn's father. (waiting)");
-    expect(flat(runner.requests[0]!.system)).toContain("Nothing else new enters: no stranger, threat or mystery the Outline does not mean to pay off.");
+    expect(flat(runner.requests[0]!.system)).toContain("only setups from the Outline entering this Stretch");
 
     // Once he is in, the setup is not brought in again.
     story.plan({ ...written.value, afterScene: 1 });
@@ -360,7 +359,7 @@ describe("the-outline › Each Stretch is the next step of the current Act", () 
     const request = runner.requests[0]!;
     expect(request.prompt).toContain("<outline>\nWhere the Story is going, the Outline, as last revised when the Story started.\nAct 1, Year One, now. Its question: Can a Malfoy who owes a Muggle-born her life make him hers and keep her name? It builds to The Philosopher's Stone.\n- [T1] Ahead, the last fortnight of September: Draconia claims him in front of Slytherin; Hermione sees it and says nothing. It moves Draconia Malfoy and Hermione Granger.");
     expect(request.prompt).toContain("It is the next step of Act 1, Year One: every Scene that matters serves one of its turns or someone's Life, and nothing enters but a setup the Outline means to pay off.\n</task>");
-    expect(flat(request.system)).toContain("Every Scene that matters serves a turn, a Life, or both; one that serves nothing is not planned.");
+    expect(flat(request.system)).toContain("every scene serves a turn, a Life, or both");
     // A plan in which no Scene serves anything is sent back.
     expect(checkPlan(story.state(), { ...answer, scenes: [answer.scenes[2]] })).toMatchObject({ ok: false });
   });
@@ -422,7 +421,7 @@ describe("the-outline › The Director plans by working the plan through", () =>
     expect(request.tools).toEqual({ story: at(story), web: true });
     expect(request.turns).toBe(BUDGETS.directorDeep.turns);
     expect(request.prompt).toContain("Make Year Two the current Act and plan it in detail; outline the one after it, and sketch the rest to the end.");
-    expect(flat(request.prompt)).toContain("Research what the story stands on: the source books, the characters as they are written there, the setting and the period. For the Act you are detailing, find what its source holds (its events, its mysteries, its people) and bend it to where this story stands");
+    expect(flat(request.prompt)).toContain("Deep planning: think carefully, use lookups only when needed");
 
     const lookups = ["searched the web for “Harry Potter and the Chamber of Secrets plot”", "read https://harrypotter.fandom.com/wiki/Tom_Riddle%27s_diary"];
     expect(written.lookups.slice(0, 2)).toEqual(lookups);
@@ -487,7 +486,7 @@ describe("when the Outline is reconsidered (openspec the-outline: The Outline is
     expect(prompt).toContain("Year One ends with Draconia breaking from her father");
     expect(prompt).toContain("keep Hermione a rival this year");
     expect(prompt).not.toContain("<steering_notes>");
-    expect(flat(system)).toContain("A note wins over your own reading of play: if play has drawn Hermione to the centre of the Act and a note says to keep her a rival this year, she stays a rival.");
+    expect(flat(system)).toContain("Steering notes override your own reading of play.");
     expect(prompt).toContain("Follow every new steering note: Year One builds toward what the player asked from now on.");
     // The Outline it writes answers every note that waited: they stand from now on, and are not asked again.
     const answered = checkOutline(story.state(), beside, due!.ask, replan());

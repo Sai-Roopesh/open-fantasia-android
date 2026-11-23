@@ -186,11 +186,14 @@ describe("what each reader is given (the-storys-mind design decision 7)", () => 
     const story = nineteenIn();
     const beside: Beside = { ...nothingBeside(), taste: ["Never write her as a first-timer."], brief: { more: ["the rivalry"], less: [] }, notes: [{ id: "n1", text: "Let Hermione win Christmas.", writtenAt: "", answeredBy: null }] };
     const standing = Object.fromEntries(READERS.map(reader => [reader, layered(story, reader, beside).standing]));
-    for (const reader of ["writer", "director", "weaver"]) {
+    for (const reader of ["director", "weaver"]) {
       expect(standing[reader], reader).toContain("Act 1, Year One, now. Its question: Does Draconia take back the word she said on the train?");
       expect(standing[reader], reader).toContain("<threads>");
       expect(standing[reader], reader).toContain("More of:\n- the rivalry");
     }
+    expect(standing.writer, "writer").toContain("Act 1, Year One: Does Draconia take back the word she said on the train?");
+    expect(standing.writer, "writer").toContain("<threads>");
+    expect(standing.writer, "writer").toContain("More of:\n- the rivalry");
     for (const reader of ["actor", "editor", "chronicler"]) {
       expect(standing[reader], reader).not.toContain("<outline>");
       expect(standing[reader], reader).not.toContain("the rivalry");
@@ -200,7 +203,7 @@ describe("what each reader is given (the-storys-mind design decision 7)", () => 
     for (const reader of ["writer", "actor", "editor", "weaver"]) expect(standing[reader]).toContain("Let Hermione win Christmas.");
     expect(standing.chronicler).not.toContain("Let Hermione win Christmas.");
     // Where each person present is heading, for the Writer; everyone's for the Director.
-    expect(standing.writer).toContain(`- ${DRACONIA} pursues Roopesh, openly; feels jealous of Hermione; heading for saying it back by Christmas.`);
+    expect(standing.writer).toContain(`- ${DRACONIA}: pursues Roopesh, openly; feels jealous of Hermione; heading for saying it back by Christmas.`);
     expect(standing.writer).not.toContain("- Harry Potter pursues the Stone");
     expect(standing.director).toContain("- Harry Potter pursues the Stone");
     // Taste for whoever writes or steers; nothing of the player for the Chronicler, which only records.

@@ -276,7 +276,7 @@ const SEES_ALL: ReadonlySet<Reader> = new Set(["director", "weaver"]);
 /** How many things that ended are told, newest first, beside what is true now. */
 const ENDED = 6;
 /** How many of a recorded Scene's latest exchanges before its record's end are still carried word for word. */
-const LATEST_EXCHANGES = 6;
+const LATEST_EXCHANGES = 8;
 
 /**
  * The four layers of a prompt for [reader]: [present] are the people in the Scene besides the Player Character, or for
@@ -369,6 +369,15 @@ function asOf(state: State): string {
   return state.scene && !state.scene.closed ? state.scene.at : state.clock;
 }
 
+/** First sentence (or at most [max] chars) of [text], for compact index lines of off-screen people and places. */
+function briefLine(text: string, max = 140): string {
+  const clean = text.trim().replace(/\s+/g, " ");
+  const firstEnd = clean.search(/[.!?](?:\s|$)/);
+  const firstSentence = firstEnd > 0 && firstEnd + 1 <= max ? clean.slice(0, firstEnd + 1) : clean;
+  if (firstSentence.length <= max) return sentence(firstSentence);
+  return `${firstSentence.slice(0, max - 1).replace(/\s+\S*$/, "")}…`;
+}
+
 /** Layer 1, the Story: as it was set up and edited, its Rules, and the names given on the page. */
 function storyLayer(state: State, reader: Reader): string {
   const pc = state.playerCharacter;
@@ -377,28 +386,37 @@ function storyLayer(state: State, reader: Reader): string {
   const lookUp = LOOKS_UP.has(reader);
   const ids = RECORDS.has(reader);
   const writes = reader === "actor" || reader === "writer" || reader === "editor";
+  const prose = reader === "actor" || reader === "writer";
   const lead = (name: string) => state.leads.includes(name);
-  const person = (who: Person, role: string) => `- ${who.name}${role}${who.aliases.length ? `, also ${who.aliases.join(", ")}` : ""}${who.group ? `, of ${who.group}` : ""}: ${sentence(who.whoTheyAre)}${writes && who.appearance ? ` Looks: ${sentence(who.appearance)}` : ""}${who.after ? ` After: ${sentence(who.after)}` : ""}`;
+  const fullPerson = (who: Person, role: string) => `- ${who.name}${role}${who.aliases.length ? `, also ${who.aliases.join(", ")}` : ""}${who.group ? `, of ${who.group}` : ""}: ${sentence(who.whoTheyAre)}${writes && who.appearance ? ` Looks: ${sentence(who.appearance)}` : ""}${who.after ? ` After: ${sentence(who.after)}` : ""}`;
+  // For prose calls, keep full character sheets for the Player Character and Leads, and compact off-screen minor cast
+  // to a 1-line index (full history is fetched on demand via read_person). Cuts Layer 1 token cost ~50% while staying
+  // 100% static across the entire Story for maximum prompt cache hits.
+  const person = (who: Person, role: string) => (prose && !lead(who.name) && who.name !== pc
+    ? `- ${who.name}${who.aliases.length ? ` (${who.aliases.join(", ")})` : ""}${who.group ? `, ${who.group}` : ""}: ${briefLine(who.whoTheyAre, 120)}`
+    : fullPerson(who, role));
   const pcPerson = state.people[pc];
   // The Leads first, so a Story too big for its limit loses the least.
   const people = Object.values(state.people).filter(who => who.name !== pc && who.broughtIn === null).sort((left, right) => Number(lead(right.name)) - Number(lead(left.name)));
-  const places = (heading: string, items: { name: string; description: string }[]) => (items.length ? [heading, ...items.map(item => `- ${item.name}${item.description ? `: ${sentence(item.description)}` : ""}`)] : []);
+  const places = (heading: string, items: { name: string; description: string }[]) => (items.length
+    ? [heading, ...items.map(item => `- ${item.name}${item.description ? `: ${prose ? briefLine(item.description, 100) : sentence(item.description)}` : ""}`)]
+    : []);
   return join([
     part("story", `Title: ${state.title}`, [
       `Premise: ${state.premise}`,
       `Style: ${state.style}`,
       ...(steers && state.arcs.length ? ["Arcs:", ...state.arcs.map(arc => `- ${arc}`)] : []),
-      ...(steers && state.landmarks.length ? ["Landmarks:", ...state.landmarks.map(landmark => `- ${landmark.name}, ${say(state, landmark.at)}: ${sentence(landmark.what)}`)] : [])
+      ...(steers && !prose && state.landmarks.length ? ["Landmarks:", ...state.landmarks.map(landmark => `- ${landmark.name}, ${say(state, landmark.at)}: ${sentence(landmark.what)}`)] : [])
     ], limits.story, "first", lookUp),
     part("world", "The World.", [
       ...(state.world.summary ? [state.world.summary] : []),
-      ...(state.world.history ? [`History: ${state.world.history}`] : []),
+      ...(state.world.history && !prose ? [`History: ${state.world.history}`] : state.world.history ? [`History: ${briefLine(state.world.history, 240)}`] : []),
       ...places("Places:", state.world.places),
       ...places("Institutions:", state.world.institutions),
       ...places("Groups, each followed as one:", state.groups)
     ], limits.world, "first", lookUp),
     part("people", "Who each person was when the Story began. Who they are now is under where things stand, and comes first.", [
-      ...(pcPerson ? [person(pcPerson, ", the player's character")] : []),
+      ...(pcPerson ? [fullPerson(pcPerson, ", the player's character")] : []),
       ...people.map(who => person(who, lead(who.name) ? ", a Lead" : ""))
     ], limits.people, "first", lookUp),
     part("rules", "How this World works. Each Rule holds for the rest of the Story, unless the Story changes it on the page.",
@@ -429,11 +447,21 @@ function standingLayer(state: State, beside: Beside, reader: Reader, here: strin
   ]);
 }
 
-/** The Outline: the current Act in detail, where each person is heading, and the setups waiting; all of it for the Director. */
+/** The Outline: full Act/turn/setup ontology for Director and Weaver; crisp active compass for the prose writer. */
 function outlinePart(state: State, reader: Reader, here: string[]): string | null {
   const outline = state.outline;
   if (!outline) return null;
   const director = reader === "director";
+  const current = currentAct(outline);
+  const intentions = outline.intentions.filter(item => SEES_ALL.has(reader) || here.includes(item.who));
+  const setups = director ? outline.setups : waiting(outline);
+  if (reader === "writer") {
+    return part("outline", "Story compass (background tension, never a script to force).", [
+      ...(current ? [`Act ${current.number}, ${current.title}: ${sentence(current.question)}`] : []),
+      ...(intentions.length ? ["Active agendas:", ...intentions.map(item => `- ${item.who}: pursues ${clause(item.pursues)}; feels ${clause(item.feelings)}; heading for ${clause(item.heading)}.`)] : []),
+      ...(setups.length ? ["Setups in play:", ...setups.slice(0, 4).map(setup => `- ${sentence(setup.what)} Payoff: ${sentence(setup.payoff)}`)] : [])
+    ], Math.min(LIMITS.parts.outline, 1_200), "first", true);
+  }
   const id = (value: string) => (director ? `[${value}] ` : "");
   const detail = (act: Act): string[] => [
     `Act ${act.number}, ${act.title}${act.number === outline.current ? ", now" : ""}. Its question: ${sentence(act.question)} It builds to ${sentence(act.buildsTo)}`,
@@ -442,10 +470,7 @@ function outlinePart(state: State, reader: Reader, here: string[]): string | nul
     ...act.movers.map(item => `- ${item.who} this Act: ${sentence(item.doing)}`),
     ...(act.handsOn ? [`It hands on: ${sentence(act.handsOn)}`] : [])
   ];
-  const current = currentAct(outline);
   const later = outline.acts.filter(act => act.number > outline.current);
-  const intentions = outline.intentions.filter(item => SEES_ALL.has(reader) || here.includes(item.who));
-  const setups = director ? outline.setups : waiting(outline);
   return part("outline", `Where the Story is going, the Outline${director ? `, as last revised ${outline.revisedAfter ? `after Scene ${outline.revisedAfter}` : "when the Story started"}` : ""}.`, [
     ...(current ? detail(current) : []),
     ...(director ? outline.acts.filter(act => act !== current).flatMap(detail) : later.slice(0, 1).map(act => `Next, Act ${act.number}, ${act.title}: ${sentence(act.question)}`)),
@@ -678,27 +703,56 @@ function rememberedPart(state: State, here: string[]): string | null {
 
 /** Layer 3, the Scene: where and with whom, and what has passed in it word for word, its newest passages as far as fit. */
 function sceneLayer(state: State, reader: Reader, entries: Entry[]): string {
+  const parts = sceneParts(state, reader, entries);
+  if (!parts) return "";
+  return join([
+    parts.header,
+    parts.record,
+    section("scene_so_far", [...(parts.omittedNote ? [parts.omittedNote] : []), ...parts.passages.map(item => item.flat)].join("\n\n")),
+    parts.now
+  ]);
+}
+
+interface ScenePassage {
+  role: "user" | "assistant";
+  /** Clean text for real multi-turn messages. */
+  turn: string;
+  /** Flat representation inside `<scene_so_far>` for single-prompt runners and tests. */
+  flat: string;
+}
+
+function sceneParts(state: State, reader: Reader, entries: Entry[]): {
+  header: string | null;
+  record: string | null;
+  passages: ScenePassage[];
+  omittedNote: string | null;
+  now: string | null;
+} | null {
   const scene = state.scene;
-  if (!scene) return "";
+  if (!scene) return null;
   const pc = state.playerCharacter;
   const writer = reader === "writer";
   const playing = !scene.closed;
-  // What never changes while the Scene is played comes before its words, and what changes with every Reply (who is
-  // here, the beats, Focus and Linger) after them: a provider caches a prompt up to its first changed byte, so
-  // anything that changes above the Scene's words has them read again, uncached, on every Reply (docs/adr/0025).
-  const opened = `${scene.title}. ${scene.place}, from ${say(state, scene.at)}${scene.closed && scene.endedAt ? ` until ${say(state, scene.endedAt)}, when it ended` : ""}.`;
-  const now = [
+  // What never changes while the Scene is played comes before its words, and what changes with every Reply (moved
+  // location, who is here, the beats, Focus and Linger) after them: a provider caches a prompt up to its first changed
+  // byte, so keeping the opening place in `<scene>` and putting any new place in `<scene_now>` preserves the cache
+  // across location changes (docs/adr/0025).
+  const openingEntry = entries.find(entry => entry.payload.kind === "scene_opened");
+  const openedPlace = playing && openingEntry?.payload.kind === "scene_opened" ? openingEntry.payload.place : scene.place;
+  const opened = `${scene.title}. ${openedPlace}, from ${say(state, scene.at)}${scene.closed && scene.endedAt ? ` until ${say(state, scene.endedAt)}, when it ended` : ""}.`;
+  const nowText = [
+    ...(playing && scene.place !== openedPlace ? [`Now at: ${scene.place}.`] : []),
     `Here besides ${pc}: ${scene.here.length ? list(scene.here) : "nobody"}.`,
     ...(writer && scene.purpose ? [`Purpose: ${scene.purpose}`, `Exit: ${scene.exit ?? ""}`] : []),
     ...(writer && scene.beats.length ? ["Beats:", ...scene.beats.map(beat => `- [${beat.status}] ${beat.text}`)] : []),
     ...(playing && scene.focus ? [`Focus is on ${scene.focus}.`] : []),
     ...(playing && scene.linger ? ["Linger is on: the moment is held."] : [])
   ].join("\n");
-  const words = (from: Entry[]) => from.flatMap(entry => {
+  const toPassages = (from: Entry[]): ScenePassage[] => from.flatMap((entry): ScenePassage[] => {
     switch (entry.payload.kind) {
-      case "scene_opened": return entry.payload.prose ? [entry.payload.prose] : [];
-      case "move": return [`<move by="${pc}">\n${entry.payload.text}\n</move>`];
-      case "reply": return [entry.payload.text];
+      case "scene_opened": return entry.payload.prose ? [{ role: "assistant", turn: entry.payload.prose, flat: entry.payload.prose }] : [];
+      case "move": return [{ role: "user", turn: entry.payload.text, flat: `<move by="${pc}">\n${entry.payload.text}\n</move>` }];
+      case "reply": return [{ role: "assistant", turn: entry.payload.text, flat: entry.payload.text }];
       default: return [];
     }
   });
@@ -706,19 +760,66 @@ function sceneLayer(state: State, reader: Reader, entries: Entry[]): string {
   // record, then word for word from its latest exchanges before the record's end.
   const recorded = scene.recorded;
   const through = recorded ? entries.findIndex(entry => entry.id === recorded.through) : -1;
-  const before = through >= 0 ? words(entries.slice(0, through + 1)) : [];
+  const before = through >= 0 ? toPassages(entries.slice(0, through + 1)) : [];
   const latest = before.slice(-LATEST_EXCHANGES * 2);
-  const passages = through >= 0 ? [...latest, ...words(entries.slice(through + 1))] : words(entries);
+  const all = through >= 0 ? [...latest, ...toPassages(entries.slice(through + 1))] : toPassages(entries);
   const record = recorded && through >= 0 ? section("recorded_so_far", `The Scene so far, as it was recorded while it was played: ${recorded.paragraph}`) : null;
-  const kept = newest(passages, LIMITS.layers.scene - tokens(opened) - tokens(now) - tokens(record ?? "") - 60);
-  const left = passages.length - kept.length + before.length - latest.length;
+  const budget = LIMITS.layers.scene - tokens(opened) - tokens(nowText) - tokens(record ?? "") - 60;
+  const keptFlat = newest(all.map(item => item.flat), budget);
+  const kept = all.slice(all.length - keptFlat.length);
+  const left = all.length - kept.length + before.length - latest.length;
   const readIt = LOOKS_UP.has(reader) ? "; read the Scene in full when you need them" : "";
-  return join([
-    section("scene", opened),
+  const omittedNote = left ? `(The Scene's first ${left} passages are left out${record ? ", told in its record above" : " for length"}${readIt}.)` : null;
+  return {
+    header: section("scene", opened),
     record,
-    section("scene_so_far", [...(left ? [`(The Scene's first ${left} passages are left out${record ? ", told in its record above" : " for length"}${readIt}.)`] : []), ...kept].join("\n\n")),
-    section("scene_now", now)
+    passages: kept,
+    omittedNote,
+    now: section("scene_now", nowText)
+  };
+}
+
+/**
+ * Real alternating `user`/`assistant` conversation turns for prose generation (direct Codex & Antigravity transports):
+ * Turn 0 carries the stable standing context and Scene header, prior Moves and Replies follow as real user/assistant
+ * turns (so the model feels its own cadence and caches the full transcript prefix), and the final user turn carries
+ * volatile `<scene_now>` and the current moment.
+ */
+export function asTurns(
+  state: State,
+  beside: Beside,
+  reader: Reader,
+  present: string[],
+  scene: Entry[],
+  moment: (string | null)[],
+  instructions = ""
+): { system: string; prompt: string; turns: { role: "user" | "assistant"; text: string }[] } {
+  const layered = layers(state, beside, reader, present, scene, moment, instructions);
+  const flat = asCall(layered);
+  const parts = sceneParts(state, reader, scene);
+  if (!parts || parts.passages.length === 0) {
+    return { ...flat, turns: [{ role: "user", text: flat.prompt }] };
+  }
+  const here = [...new Set(present)].filter(name => name !== state.playerCharacter);
+  // Keep Turn 0 free of mutable `<active_directions>` so adding/editing/archiving a Direction never invalidates the
+  // cached Scene transcript prefix; place `<active_directions>` in the final turn where recency attention is strongest.
+  const cachedStanding = join([
+    standingLayer(state, beside, reader, here),
+    reader === "actor" || reader === "writer" ? voicesPart(state, here) : null
   ]);
+  const directions = reader === "chronicler" ? null : directionsPart(beside);
+  const turns: { role: "user" | "assistant"; text: string }[] = [];
+  const push = (role: "user" | "assistant", text: string) => {
+    const body = text.trim();
+    if (!body) return;
+    const prev = turns.at(-1);
+    if (prev && prev.role === role) prev.text = `${prev.text}\n\n${body}`;
+    else turns.push({ role, text: body });
+  };
+  push("user", join([cachedStanding, parts.header, parts.record, parts.omittedNote]));
+  for (const item of parts.passages) push(item.role, item.turn);
+  push("user", join([parts.now, directions, layered.moment]));
+  return { ...flat, turns };
 }
 
 /** Layer 4, the moment: the time, which moves here and nowhere else, then what the job brings, its longest part cut to fit. */

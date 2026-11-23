@@ -2,7 +2,7 @@ import type { Models } from "../models/model-call.js";
 import type { Entry, Gathered } from "../story/entries.js";
 import type { Fact, ModelChoice, State } from "../story/state.js";
 import type { Beside } from "../story/beside.js";
-import { asCall, layers, recallFacts, section } from "../context/lens.js";
+import { asTurns, recallFacts, section } from "../context/lens.js";
 import { playersPart } from "./deciding.js";
 import { AgentFailed, BUDGETS } from "./step.js";
 import { inPlayFacts } from "./writer.js";
@@ -12,11 +12,14 @@ import { inPlayFacts } from "./writer.js";
  * request on Full (docs/adr/0024): "up to about six hundred words" gave 247 words from GPT 5.6 Sol and 259 from Gemini
  * 3.8 Flash; "write about six hundred words" gave 621 and 514. A ceiling is read as permission to stop early.
  */
-const LENGTH = {
-  short: "Write about two hundred words. Let the moment decide the shape, not the count.",
-  medium: "Write about four hundred words. Let the moment decide the shape, not the count.",
-  full: "Write about six hundred words. Let the moment decide the shape, not the count."
+/** The length guidance for a Reply: natural targets that let the moment decide the shape. */
+export const REPLY_LENGTH_GUIDE = {
+  short: "Write around 150–200 words. Let the moment decide the shape, not the count.",
+  medium: "Write around 250–350 words. Let the moment decide the shape, not the count.",
+  full: "Write around 450–600 words. Let the moment decide the shape, not the count."
 } as const;
+
+const LENGTH = REPLY_LENGTH_GUIDE;
 
 /**
  * The Actor plays everyone in a Scene and writes the Replies as a novelist (docs/adr/0017): it reads the four layers
@@ -40,12 +43,12 @@ export interface ActorAsk {
 export function actorInstructions(state: State): string {
   const pc = state.playerCharacter;
   return [
-    `You are writing a story together with a player. The player writes ${pc}; you write everyone and everything else, Reply by Reply, as a novelist does: you are shown everything about the people here, their history and what they hide, and you write each of them knowing only what they know.`,
+    `You are writing a story together with a player. The player writes ${pc} in first person (I); you write everyone and everything else, Reply by Reply, as a novelist does: narrate in consistent second person (you/your) for ${pc} — never slip into third person (he/him) for ${pc} in narration — and write characters' dialogue in natural first person (I).`,
     "",
-    `Whatever ${pc}'s Move says has happened, even when it has someone else act, time pass or the place change. Carry on from its effect; do not retell it.`,
+    `Whatever ${pc}'s Move says has happened, even when it has someone else act, time pass, or the place change. Carry on from its immediate effect; do not retell it.`,
     playersPart(pc),
-    `The people here remember of ${pc} only what the scene so far, The Story So Far and what they remember show, and their own past: they never recall anything else he said, chose or did on purpose.`,
-    `What ${pc} thinks without saying it stays inside ${pc}. The people here hear only what was said aloud and see only what was done where they could see it.`,
+    `The people here remember of ${pc} only what the scene so far, The Story So Far, and what they remember show, and their own past: they never recall anything else the player never showed on the page.`,
+    `What ${pc} thinks without saying it stays private. The people here hear only what was said aloud and see only what was done where they could see it.`,
     "Each person knows their own past, what they have lived through in this story, and what they have been told or have seen; nothing else. What each person here knows and believes is said plainly under what_each_knows: play each of them from it. Someone who believes something wrong acts on the belief; nobody acts on what they do not know, however well you know it.",
     "Write each person as who they are now, under people_now, not as who they were when the story began. Where things stand between them, and what is true now, they lived too, and they act from it; what has ended is over for them.",
     "The people here want things and act on them without being asked. They are as kind or as cruel as they are; nobody softens to make things easier.",
@@ -69,7 +72,7 @@ const moment = (fact: Fact, scene: boolean) => `(${scene ? `Scene ${fact.scene};
  * people here remember, the Move, the Writer's plan for the Reply and what it gathered, and, when the Reply is written
  * again, what it was sent back for.
  */
-export function actorPrompt(ask: ActorAsk): { system: string; prompt: string } {
+export function actorPrompt(ask: ActorAsk): { system: string; prompt: string; turns: { role: "user" | "assistant"; text: string }[] } {
   const { state } = ask;
   const scene = state.scene;
   if (!scene) throw new Error("The Actor writes inside a Scene, and none is open");
@@ -85,7 +88,7 @@ export function actorPrompt(ask: ActorAsk): { system: string; prompt: string } {
     scene.linger ? "Force nothing. Let the moment breathe, and answer only what the Move does." : ""
   ].filter(Boolean).join("\n");
   const again = ask.again;
-  return asCall(layers(state, ask.beside, "actor", scene.here, ask.scene.slice(0, at), [
+  return asTurns(state, ask.beside, "actor", scene.here, ask.scene.slice(0, at), [
     section("remembered", recallFacts(state, scene.here).map(fact => moment(fact, true)).join("\n\n")),
     section(`move by="${pc}"`, move.payload.text),
     section("this_reply", thisReply),
@@ -98,8 +101,8 @@ export function actorPrompt(ask: ActorAsk): { system: string; prompt: string } {
       "It read:",
       again.draft
     ].join("\n")) : null,
-    `Write what happens next${again ? ", again: mend what it was sent back for, and keep what was right" : ""}. What ${pc} says, chooses, thinks and feels belongs to the player, now and in anything the story has not shown; what is done to him lands. What he did before is only what the story has shown, as it shows it.`
-  ], actorInstructions(state)));
+    `Write what happens next${again ? ", again: mend what it was sent back for, and keep what was right" : ""}. Narrate in second person (you/your) for ${pc} and first person (I) for character speech. What ${pc} says, chooses, thinks, and feels belongs to the player; what is done to you lands.`
+  ], actorInstructions(state));
 }
 
 /**
@@ -107,7 +110,7 @@ export function actorPrompt(ask: ActorAsk): { system: string; prompt: string } {
  * read it, so the second model steps in whenever the first fails or runs out of time.
  */
 export async function writeReply(models: Models, choices: ModelChoice[], ask: ActorAsk, storyId: string, traceId: string, signal: AbortSignal): Promise<{ text: string; callId: string; model: ModelChoice }> {
-  const { system, prompt } = actorPrompt(ask);
+  const { system, prompt, turns } = actorPrompt(ask);
   const reasons: string[] = [];
   const tried = new Set<string>();
   for (const model of choices) {
@@ -115,7 +118,7 @@ export async function writeReply(models: Models, choices: ModelChoice[], ask: Ac
     if (tried.has(key)) continue;
     tried.add(key);
     try {
-      const answer = await models.call({ agent: "actor", model, system, prompt, traceId, storyId }, () => {}, AbortSignal.any([signal, AbortSignal.timeout(BUDGETS.actor.ms)]));
+      const answer = await models.call({ agent: "actor", model, system, prompt, conversation: turns, traceId, storyId }, () => {}, AbortSignal.any([signal, AbortSignal.timeout(BUDGETS.actor.ms)]));
       return { text: answer.text.trim(), callId: answer.callId, model };
     } catch (error) {
       if (signal.aborted) throw error;

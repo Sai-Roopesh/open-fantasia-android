@@ -154,7 +154,7 @@ export function sceneView(mac: Mac, engine: Engine, storyId: string, traceId: st
   // A Move at the Day View opens the next Scene at once: its card, the Move, and the closed Scene among the earlier ones.
   const opening = openingEntries(state, all);
   // What the Story has learned from the player is kept beside it (docs/adr/0020).
-  const beside = besideOf(mac, storyId);
+  const beside = besideOf(mac, storyId, path.headEntryId);
   return {
     story_id: storyId,
     path_id: path.id,
@@ -264,7 +264,7 @@ export function entryEvent(mac: Mac, storyId: string, entry: Entry): StoryEvent 
     case "reply":
       return { kind: "reply", seq: entry.seq, passage: replyPassage(entry.id, payload), scene: sceneCard(storyId, mac.states.at(entry.id)) };
     case "scene_closed":
-      return { kind: "scene_closed", seq: entry.seq, day_view: dayView(mac.states.at(entry.id), { step: "chronicler", failed: null, rethinking: null }, besideOf(mac, storyId).reactions) };
+      return { kind: "scene_closed", seq: entry.seq, day_view: dayView(mac.states.at(entry.id), { step: "chronicler", failed: null, rethinking: null }, besideOf(mac, storyId, entry.id).reactions) };
     case "focus_set":
       return { kind: "focus_set", seq: entry.seq, focus: payload.on };
     case "linger_set":

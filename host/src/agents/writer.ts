@@ -2,7 +2,7 @@ import type { Choice, Entry, Gathered } from "../story/entries.js";
 import type { Beat, Fact, SceneCall, State } from "../story/state.js";
 import type { Beside } from "../story/beside.js";
 import { minutesOf, parseStoryTime, sayDate, sayTime } from "../time.js";
-import { asCall, layers, LIMITS, momentsPart, recallFacts, section, tokens } from "../context/lens.js";
+import { asCall, asTurns, layers, LIMITS, momentsPart, recallFacts, section, tokens } from "../context/lens.js";
 import { decidesForPlayer, playerNames } from "./deciding.js";
 import { addMinutes, matches, namer, nullable, oneOf, peopleEnum, text } from "./format.js";
 import { nameIndex, namedIn } from "./names.js";
@@ -17,10 +17,11 @@ import type { Checked } from "./step.js";
 const GATHERED = 4;
 
 /**
- * How long a Scene is carried word for word (the-storys-mind design decision 8): about thirty exchanges, or a little
- * under the Scene layer's limit, so nothing is cut before it is recorded.
+ * How long a Scene is carried before the Chronicler records it incrementally (the-storys-mind design decision 8):
+ * fourteen exchanges (or approaching the Scene layer's token budget), so long open scenes keep `truth`, bonds,
+ * moments, and `world` state alive instead of staying frozen until End Scene.
  */
-export const LONG_SCENE = { exchanges: 30, tokens: LIMITS.layers.scene - 2_000 } as const;
+export const LONG_SCENE = { exchanges: 18, tokens: LIMITS.layers.scene - 2_000 } as const;
 
 export interface WriterAsk {
   state: State;
@@ -83,12 +84,35 @@ function openingOf(state: State): Opening {
 }
 
 /**
- * Who the Writer reads where things stand for: whoever the choice at the Day View was with, or who is here, then the
- * Leads, whom it brings in where the Story allows.
+ * Who the Writer reads where things stand for in Layer 2 (standing): pinned to Leads + the Scene's opening cast so
+ * Turn 0 never mutates mid-Scene when a supporting character walks in or is mentioned — preserving 95%+ KV-cache hits
+ * across the entire Scene. Anyone who entered later or is mentioned in the Move goes into Layer 4 (`<mentioned>`).
  */
 function presentFor(ask: WriterAsk): string[] {
-  const here = openingOf(ask.state) === "day_view" ? ask.choice?.who ?? ask.state.scene?.here ?? [] : ask.state.scene?.here ?? [];
-  return [...new Set([...here, ...namedIn(ask.move, nameIndex(Object.values(ask.state.people))), ...ask.state.leads])];
+  const opening = openingOf(ask.state);
+  if (opening === "day_view") return [...new Set([...ask.state.leads, ...(ask.choice?.who ?? ask.state.scene?.here ?? [])])];
+  const opened = ask.scene.find(entry => entry.payload.kind === "scene_opened");
+  const initialWho = opened?.payload.kind === "scene_opened" ? opened.payload.who : ask.state.scene?.here ?? [];
+  return [...new Set([...ask.state.leads, ...initialWho])];
+}
+
+/** People currently present (who entered mid-Scene) or named in the Move who are not already in Layer 2's static cast. */
+function mentionedPart(ask: WriterAsk, standing: string[]): string | null {
+  const pc = ask.state.playerCharacter;
+  const known = new Set([pc, ...standing]);
+  const midSceneHere = openingOf(ask.state) === "day_view" ? [] : ask.state.scene?.here ?? [];
+  const extra = [...new Set([...midSceneHere, ...namedIn(ask.move, nameIndex(Object.values(ask.state.people)))])].filter(name => !known.has(name));
+  if (!extra.length) return null;
+  const lines = extra.map(name => {
+    const now = ask.state.truth.now[name];
+    const life = ask.state.lives[name];
+    const detail = [
+      now ? now.now : ask.state.people[name]?.whoTheyAre ?? "",
+      life && (life.where || life.doing) ? `Lately: ${[life.where ? `at ${life.where}` : "", life.doing ?? ""].filter(Boolean).join(", ")}.` : ""
+    ].filter(Boolean).join(" ");
+    return `- ${name}: ${detail}`;
+  });
+  return section("mentioned", lines.join("\n"));
 }
 
 /** The Writer's answer for this Story: its people and remembered Moments as fixed lists. */
@@ -146,12 +170,7 @@ function shownNotHere(ask: WriterAsk): string[] {
   return namedIn(reply.payload.text, nameIndex(Object.values(ask.state.people))).filter(name => name !== ask.state.playerCharacter && !here.includes(name));
 }
 
-/**
- * The Writer's prompt in four layers (the-storys-mind design decision 7): the Story with its instructions; where
- * things stand for the people the Reply is with; the Scene so far; and this moment: the Stretch's plan and the Scene
- * that matters, the Moments the people here remember, who the last Reply named, the Move, and its task.
- */
-export function writerPrompt(ask: WriterAsk, moments: Fact[], instructions: string): { system: string; prompt: string } {
+function writerMoment(ask: WriterAsk, moments: Fact[], standing: string[]): (string | null)[] {
   const { state } = ask;
   const pc = state.playerCharacter;
   const scene = state.scene;
@@ -170,14 +189,31 @@ export function writerPrompt(ask: WriterAsk, moments: Fact[], instructions: stri
     `Premise: ${state.plan.premise}`
   ].join("\n")) : null;
   const chosen = ask.choice?.scene ? state.plan?.scenes.find(item => item.id === ask.choice?.scene) : undefined;
-  return asCall(layers(state, ask.beside, "writer", presentFor(ask), ask.scene, [
+  return [
     plan,
     chosen ? section("scene_that_matters", [`${chosen.for}${chosen.lead ? ` It is about ${chosen.lead}.` : ""}`, ...(state.plan?.leads ?? []).filter(lead => lead.scene === chosen.id).map(lead => `${lead.who}'s move in it: ${lead.move}`)].join("\n")) : null,
+    mentionedPart(ask, standing),
     momentsPart(state, moments),
     section("shown_not_here", shownNotHere(ask).join(", ")),
     section(`move by="${pc}"`, ask.move),
     section("task", tasks.join("\n"))
-  ], instructions));
+  ];
+}
+
+/**
+ * The Writer's prompt in four layers (the-storys-mind design decision 7): the Story with its instructions; where
+ * things stand for the people the Reply is with; the Scene so far; and this moment: the Stretch's plan and the Scene
+ * that matters, the Moments the people here remember, who the last Reply named, the Move, and its task.
+ */
+export function writerPrompt(ask: WriterAsk, moments: Fact[], instructions: string): { system: string; prompt: string } {
+  const standing = presentFor(ask);
+  return asCall(layers(ask.state, ask.beside, "writer", standing, ask.scene, writerMoment(ask, moments, standing), instructions));
+}
+
+/** The Writer's prompt with real alternating user/assistant Scene turns for direct transports. */
+export function writerTurns(ask: WriterAsk, moments: Fact[], instructions: string): { system: string; prompt: string; turns: { role: "user" | "assistant"; text: string }[] } {
+  const standing = presentFor(ask);
+  return asTurns(ask.state, ask.beside, "writer", standing, ask.scene, writerMoment(ask, moments, standing), instructions);
 }
 
 function describeChoice(state: State, choice: Choice): string {
@@ -243,7 +279,9 @@ export function checkWriter(ask: WriterAsk, moments: Fact[], answer: unknown): C
   const problems: string[] = [];
   const pc = state.playerCharacter;
   const pcNames = playerNames({ name: pc, aliases: state.people[pc]?.aliases ?? [] });
-  for (const [where, value] of [["note", raw.note], ...raw.beats.map((beat, index) => [`beats[${index}]`, beat.text]), ["frame.purpose", raw.frame?.purpose ?? ""]] as [string, string][]) {
+  // Only check active/future beats (pending/in_play), never done/skipped beats that merely summarize a past Move.
+  const activeBeats = raw.beats.flatMap((beat, index) => (beat.status === "pending" || beat.status === "in_play" ? [[`beats[${index}]`, beat.text] as [string, string]] : []));
+  for (const [where, value] of [["note", raw.note], ...activeBeats, ["frame.purpose", raw.frame?.purpose ?? ""]] as [string, string][]) {
     const phrase = decidesForPlayer(value, pcNames);
     if (phrase) problems.push(`${where} decides for the player's character ("${phrase}"); make it a circumstance or someone else's choice`);
   }
@@ -298,10 +336,10 @@ export function checkWriter(ask: WriterAsk, moments: Fact[], answer: unknown): C
   };
 }
 
-/** The Writer's prompt for [ask], with the Moments it recalls for the people present. */
-export function writerCall(ask: WriterAsk, instructions: string): { system: string; prompt: string; moments: Fact[] } {
+/** The Writer's prompt for [ask], with the Moments it recalls for the people present and real Scene turns. */
+export function writerCall(ask: WriterAsk, instructions: string): { system: string; prompt: string; turns: { role: "user" | "assistant"; text: string }[]; moments: Fact[] } {
   const moments = recallFacts(ask.state, presentFor(ask));
-  return { ...writerPrompt(ask, moments, instructions), moments };
+  return { ...writerTurns(ask, moments, instructions), moments };
 }
 
 export function writerFacts(ask: WriterAsk) {

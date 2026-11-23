@@ -40,7 +40,7 @@ export function backstageView(mac: Mac, storyId: string, traceId: string): Backs
   }
   const scene = state.scene;
   // What the Story has learned from the player is kept beside it, not on the Path (docs/adr/0020).
-  const beside = besideOf(mac, storyId);
+  const beside = besideOf(mac, storyId, current.headEntryId);
   const path = mac.tree.pathTo(current.headEntryId);
   return {
     story_id: storyId,

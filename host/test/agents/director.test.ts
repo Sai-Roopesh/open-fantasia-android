@@ -153,7 +153,7 @@ describe("the Director's plan (openspec long-run: The Director shapes the long r
     expect(written.dropped).toEqual(["scenes.who: Madam Pince is not in the Story"]);
     expect(runner.requests).toHaveLength(1);
     const { system } = directorPrompt(story.state(), nothingBeside(), "A plan is due.");
-    expect(system).toContain("`who`: who is there besides the player's character, from the story's people; anyone else there stays unnamed.");
+    expect(system).toContain("`who` (story people besides the player's character)");
     expect(system).toContain("Places:\n- The Three Broomsticks: A pub in Hogsmeade.");
     // The Story's people are in layer 1, his character marked as the player's: never one the Director names in `who`.
     expect(system).toMatch(/<people>[^]*- Roopesh Gantasala, the player's character:/);
@@ -282,9 +282,7 @@ describe("when the Director plans (one-truth design decision 8)", () => {
     expect(reason).toBe("Scene 7, The Great Hall, peaked: give the characters a breath, then build again.");
     const { system, prompt } = directorPrompt(story.state(), nothingBeside(), reason!);
     expect(prompt).toContain("- Scene 6, Scene 6: 2\n- Scene 7, The Great Hall: 5\n</pace>");
-    expect(system.replace(/\s+/g, " ")).toContain("After a peak, give the characters a breath: the first Scene that matters is quiet (`quiet` true), an ordinary moment where they live with what happened, and then things move again.");
-    expect(system.replace(/\s+/g, " ")).toContain("Nothing is at stake in a quiet Scene from its start to its end: no warning, threat, secret, price or hint of trouble in it, not even as a closing line");
-    expect(system.replace(/\s+/g, " ")).toContain("A breath is a Scene, not a Stretch.");
+    expect(system.replace(/\s+/g, " ")).toContain("After a peak, make the first Scene `quiet: true` (ordinary breath, zero threats or hooks).");
     // A breath, then building again, is kept as planned: nothing makes the Stretch a rest.
     const breath = checkPlan(story.state(), plan({ scenes: [{ ...charms, date: dateOf(6), quiet: true }, { ...pitch, date: dateOf(10) }] }));
     expect(breath.ok && breath.value).toMatchObject({ phase: "build", scenes: [{ quiet: true }, { quiet: false }] });
@@ -319,7 +317,7 @@ describe("when the Director plans (one-truth design decision 8)", () => {
       "Stretch 3:\n- The end table: revision with Hermione (The library's end table; Hermione Granger)\n- The owlery: a letter from her father (The owlery; Draconia Malfoy)",
       "</recent_stretches>"
     ].join("\n"));
-    expect(system.replace(/\s+/g, " ")).toContain("`recent_stretches` lists the Scenes that mattered in the last Stretches. Plan none of the same shape: not the same people in the same kind of place with the same thing happening.");
+    expect(system.replace(/\s+/g, " ")).toContain("Avoid repeating shapes from `recent_stretches`.");
   });
 
   // GIVEN in Scene 4 Hermione confronted him about the light on the train, and he lied to her
@@ -364,8 +362,7 @@ describe("Arcs keep pace with the run (openspec long-run)", () => {
     const { system, prompt } = directorPrompt(story.state(), nothingBeside(), "There is no plan yet: this is the Story's first.");
     expect(prompt).toContain(`<the_run>\nToday is Friday 6 September 1991. The dates a Stretch from today can use: 1991-09-06 (Friday 6 September), 1991-09-07 (Saturday 7 September), 1991-09-08 (Sunday 8 September), 1991-09-09 (Monday 9 September), 1991-09-10 (Tuesday 10 September), 1991-09-11 (Wednesday 11 September). The Story runs to Voldemort's defeat, Tuesday 3 September 1996, 11:00 pm. Next: ${HALLOWEEN}, Tuesday 5 November 1991, 7:00 pm; then ${TRIWIZARD}, Wednesday 25 August 1993, 6:00 pm.\n</the_run>`);
     const rules = system.replace(/\s+/g, " ");
-    expect(rules).toContain("`next`: the step this Stretch needs for the Arc to stand where the roadmap says by the next Landmark.");
-    expect(rules).toContain("For every Arc, one `roadmap` row for each of the next two Landmarks: where the Arc should stand by then");
+    expect(rules).toContain("exact Arc names with `now` / `next` / `not_yet`, and `roadmap` targets by the next two Landmarks.");
     const fake = new FakeModels();
     const written = await writePlan(new Models(story.mac.db, { claude: fake }), [SONNET], story.state(), nothingBeside(), "There is no plan yet: this is the Story's first.", at(story), "trace-d", signal());
     expect(fake.requests[0]!.facts).toMatchObject({ coming: [HALLOWEEN, TRIWIZARD] });
@@ -387,7 +384,7 @@ describe("Arcs keep pace with the run (openspec long-run)", () => {
     const { system, prompt } = directorPrompt(story.state(), nothingBeside(), "The last Stretch has run its course.");
     expect(prompt).toContain(`<last_plan>\n- ${ARC}: was open contempt; next a grudging truce; not yet any public claim\n- Roadmap: ${ARC}, by ${HALLOWEEN}: Her first public claim on him.\n</last_plan>`);
     expect(prompt).toContain("In front of all Slytherin, Draconia said he was hers to insult and no one else's.");
-    expect(system.replace(/\s+/g, " ")).toContain("Keep your last roadmap unless the story has moved; when the player has run ahead, move it on; never hold an Arc back to wait for its dates.");
+    expect(system.replace(/\s+/g, " ")).toContain("Build on what happened; never rewrite the past or force the story back onto an obsolete track.");
   });
 });
 
@@ -400,7 +397,7 @@ describe("the Director's call", () => {
     const beside = { ...nothingBeside(), brief: { more: ["more danger"], less: ["the library"] }, playerTaste: ["don't decide what my character feels"] };
     const { system, prompt } = directorPrompt(story.state(), beside, "There is no plan yet: this is the Story's first.");
     // Layer 1, cached: how the Director works, then the Story with its Arcs.
-    expect(system.startsWith("You are the Director of an interactive story.")).toBe(true);
+    expect(system.startsWith("You are the Story's Director.")).toBe(true);
     expect(system).toContain("Premise: An enemies-to-lovers romance with Draconia Malfoy");
     expect(system).toContain(`- ${ARC}`);
     // Layer 2, where things stand: The Story So Far first, the Outline, the player's wishes, who matters now.

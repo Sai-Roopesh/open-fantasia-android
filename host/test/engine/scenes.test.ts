@@ -103,9 +103,10 @@ describe("a turn with the Writer", () => {
     expect(shown.day_view).toBeNull();
     expect(shown.turn.kind).toBe("idle");
     expect(events.some(event => event.event.kind === "scene_closed")).toBe(false);
-    // The Writer is never offered a way to close the Scene.
-    const call = (models.writer.requests[0]!.schema as { properties: { call: { enum: string[] } } }).properties.call.enum;
-    expect(call).toEqual(["continue", "land"]);
+    // The writing prompt runs free-text (no strict JSON schema) and never offers a way to close the Scene.
+    expect(models.writer.requests[0]!.schema).toBeUndefined();
+    expect(models.writer.requests[0]!.system).toContain("Only the player's End Scene closes a Scene.");
+    expect(models.writer.requests[0]!.system).not.toContain("leaves_scene");
   });
 
   // WHEN the player taps End scene after a Reply

@@ -193,4 +193,37 @@ describe("Paths", () => {
     engine.tryAnotherWay(storyId, move.id, latest, "trace-try");
     expect(mac.tree.currentPath(storyId)).toMatchObject({ origin: "tried", headEntryId: before, forkedAt: before });
   });
+
+  it("isolates non-remembered Redo notes and Scene reactions per Path, and preserves initial Outline from the beginning", async () => {
+    const played = await atTheLantern();
+    const { engine, storyId, head, mac, models } = played;
+    // Write a non-remembered Redo direction on Main, then start again from the beginning.
+    const localNote = "she is repeating the same thing like a parrot";
+    engine.redo(storyId, head(), localNote, false, "trace-redo");
+    await engine.settled(storyId);
+    expect(models.requests.filter(r => r.agent === "actor").at(-1)!.prompt).toContain(localNote);
+
+    // Attach a pre-play initial Outline directly under the opening Scene (as prepareStories does).
+    const opening = mac.tree.pathTo(head()).find(entry => entry.payload.kind === "scene_opened")!;
+    const initialOutline = mac.tree.append(storyId, opening.id, {
+      kind: "outline_set", reason: "Start.", planFollows: false, dropped: [], callId: "c-out",
+      model: { provider: "codex", model: "gpt-6.1-sol" },
+      outline: { current: 1, acts: [], ending: "The end.", intentions: [], setups: [], promoted: [], revisedAfter: 0, deep: true, lookedUp: [] }
+    });
+
+    // React to Scene 1 on Main after closing it.
+    engine.endScene(storyId, head(), "trace-end-main");
+    await engine.ended(storyId);
+    engine.setReaction(storyId, 1, "less", "too repetitive", "trace-react-main");
+    expect(played.view().day_view?.reaction).toBe("less");
+
+    // Start again from the beginning: inherits the initial Outline and sees NEITHER Main's local Redo note NOR Main's Scene 1 reaction.
+    engine.tryAnotherWay(storyId, null, head(), "trace-begin");
+    expect(mac.tree.currentPath(storyId)!.headEntryId).toBe(initialOutline.id);
+    expect(played.state().outline).not.toBeNull();
+    await played.play("I set the lantern down quietly.");
+    const freshPrompt = models.requests.filter(r => r.agent === "actor").at(-1)!.prompt;
+    expect(freshPrompt).not.toContain(localNote);
+    expect(freshPrompt).not.toContain("too repetitive");
+  });
 });

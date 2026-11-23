@@ -126,7 +126,7 @@ export function sceneEndWeave(mac: Mac, head: string, state: State): WeaveAsk {
   const from = behind ? state.worldAt : ended;
   const there = scene ? [{ place: scene.place, from: scene.at, until: ended }] : [];
   const storyId = mac.tree.entry(head)?.storyId;
-  return { state, ...(storyId ? { beside: besideOf(mac, storyId) } : {}), from, until: state.clock, gap: false, scene: endedScene(mac, head, state), missed: missed(state, behind ? state.worldAt : scene?.at ?? from, state.clock, there, null) };
+  return { state, ...(storyId ? { beside: besideOf(mac, storyId, head) } : {}), from, until: state.clock, gap: false, scene: endedScene(mac, head, state), missed: missed(state, behind ? state.worldAt : scene?.at ?? from, state.clock, there, null) };
 }
 
 /**

@@ -69,6 +69,7 @@ interface Failure {
  * pass re-plans one; and whether it is preparing the Story, writing its first Outline while a Scene is still open.
  */
 interface SceneEndRun {
+  pathId: string;
   done: Promise<void>;
   step: SceneEndStep | null;
   rethinking: string | null;
@@ -170,6 +171,8 @@ export class Engine {
   private readonly onceStep = new Map<string, { step: SceneEndStep; model: ModelChoice }>();
   /** Per Story, a focused pass's word that the Scene at [head] turned the Story, so Retry goes straight to the deep pass. */
   private readonly turned = new Map<string, { head: string; ask: OutlineAsk; lookups: string[] }>();
+  /** Once `resumeAll` runs (live server), fresh Paths without an Outline automatically run the Director at the start. */
+  private autoPrepare = false;
   private readonly bus = new EventEmitter();
   private readonly drafts: Drafts;
 
@@ -238,12 +241,19 @@ export class Engine {
     return { head_entry_id: path.headEntryId, trace_id: traceId };
   }
 
-  /** The player's reaction to a Scene played on the Path they are on, or its clearing, kept beside the Story. */
+  /** The player's reaction to a Scene played on the Path they are on, or its clearing, kept scoped to that Scene's close entry. */
   setReaction(storyId: string, scene: number, reaction: "more" | "less" | null, note: string | null, traceId: string): Accepted {
     const path = this.path(storyId);
     const played = this.mac.states.at(path.headEntryId).curve.find(item => item.scene === scene);
     if (!played) throw new LinkError("invalid", `Scene ${scene} has not been played on this Path.`);
-    setReaction(this.mac, storyId, scene, reaction ? { title: played.title, reaction, note: note?.trim() || null } : null);
+    const entries = this.mac.tree.pathTo(path.headEntryId);
+    let currentScene = 0;
+    let closedId: string | null = null;
+    for (const entry of entries) {
+      if (entry.payload.kind === "scene_opened") currentScene = entry.payload.number;
+      else if (entry.payload.kind === "scene_closed" && currentScene === scene) closedId = entry.id;
+    }
+    setReaction(this.mac, storyId, scene, reaction ? { title: played.title, reaction, note: note?.trim() || null } : null, closedId);
     return { head_entry_id: path.headEntryId, trace_id: traceId };
   }
 
@@ -481,7 +491,7 @@ export class Engine {
       if (now && now.focus !== before?.focus) parent = this.mac.tree.append(storyId, parent.id, { kind: "focus_set", on: now.focus });
       if (now && now.linger !== before?.linger) parent = this.mac.tree.append(storyId, parent.id, { kind: "linger_set", on: now.linger });
       const written = this.mac.tree.append(storyId, parent.id, { kind: "redo", direction: text, remember, ...(model ? { model } : {}), ...(reply.payload.kind === "reply" ? { rejected: { id: reply.id, text: reply.payload.text } } : {}) });
-      if (text) writeNote(this.mac, storyId, text, new Date(), written.id);
+      if (text) writeNote(this.mac, storyId, text, new Date(), written.id, remember);
       if (!this.mac.tree.moveHead(path.id, head.id, written.id)) throw new LinkError("stale_head", "The Story has moved on since you last looked.");
       return written;
     })();
@@ -521,8 +531,10 @@ export class Engine {
    * Outline yet, the Director's first, so no Scene's end runs before it.
    */
   private endOfScene(storyId: string): void {
+    const current = this.mac.tree.currentPath(storyId);
+    if (!current) return;
     const previous = this.sceneEnds.get(storyId)?.done ?? Promise.resolve();
-    const run: SceneEndRun = { done: Promise.resolve(), step: null, rethinking: null, preparing: false };
+    const run: SceneEndRun = { pathId: current.id, done: Promise.resolve(), step: null, rethinking: null, preparing: false };
     run.done = previous.then(() => this.runSceneEnd(storyId, run)).catch(() => {}).finally(() => {
       if (this.sceneEnds.get(storyId) === run) this.sceneEnds.delete(storyId);
       if (this.sceneEnds.size === 0 && this.turns.size === 0) this.onBusy(false);
@@ -539,8 +551,9 @@ export class Engine {
     // Director's are. A Stretch the Director plans after all is lived out by the World: the Weaver is asked again.
     let weaving: { traceId: string; plan: number; result: Promise<{ payload: Payload; answered: boolean }> } | null = null;
     for (;;) {
-      const path = this.mac.tree.currentPath(storyId);
+      const path = this.mac.tree.path(run.pathId);
       if (!path) return;
+      const isCurrent = this.mac.tree.currentPath(storyId)?.id === run.pathId;
       const state = this.mac.states.at(path.headEntryId);
       const step = owedStep(state);
       run.step = step;
@@ -554,9 +567,9 @@ export class Engine {
       // The Act being rethought stays on the line through the Director's step, until the World moves on.
       if (step !== "director") run.rethinking = null;
       // The Director's step may write the Outline and then the Stretch: the line says it once.
-      if (step !== said) this.sayStep(storyId, step);
+      if (isCurrent && step !== said) this.sayStep(storyId, step);
       said = step;
-      if (!step) return this.goOnFromLeaving(storyId);
+      if (!step) return isCurrent ? this.goOnFromLeaving(storyId) : undefined;
       const woven = step === "weaver" && weaving?.plan === (state.plan?.number ?? 0) ? weaving : null;
       const traceId = woven?.traceId ?? `${step}-${randomUUID().slice(0, 8)}`;
       try {
@@ -566,16 +579,20 @@ export class Engine {
         // The steering notes the Outline follows are answered by it (openspec the-outline: The player sees and steers the Outline).
         if (answered) answerNotes(this.mac, storyId, this.mac.states.at(entry.id).outline?.version ?? 0);
         if ("callId" in payload && payload.callId) this.models.attach(payload.callId, entry.id);
-        this.publish(storyId, entry);
+        if (this.mac.tree.currentPath(storyId)?.id === run.pathId) this.publish(storyId, entry);
       } catch (error) {
         run.rethinking = null;
-        // The first Outline, written while a Scene is still open, stops nothing: if it could not be written, the
-        // Director writes it in its place at that Scene's end, where a step that fails stops with Retry.
-        if (run.preparing) return this.sayStep(storyId, null);
         const reason = error instanceof Error ? error.message : String(error);
+        // The first Outline, written while a Scene is still open, stops nothing: log why it failed so it is visible,
+        // and let the Director try again at that Scene's end, where a step that fails stops with Retry.
+        if (run.preparing) {
+          console.warn(`[open-fantasia] Initial Outline preparation failed for story ${storyId} on path ${run.pathId}: ${reason}`);
+          if (this.mac.tree.currentPath(storyId)?.id === run.pathId) this.sayStep(storyId, null);
+          return;
+        }
         const at = this.newestSeq(storyId);
         this.stopped.set(storyId, { step, reason, traceId, seq: at });
-        this.emit(storyId, this.sceneEndFailed(storyId));
+        if (this.mac.tree.currentPath(storyId)?.id === run.pathId) this.emit(storyId, this.sceneEndFailed(storyId));
         return;
       }
     }
@@ -605,7 +622,7 @@ export class Engine {
       }
       case "director": {
         // The Outline first, reconsidered after every Scene; then the next Stretch, when one is due, as the next step of it.
-        const beside = besideOf(this.mac, storyId);
+        const beside = besideOf(this.mac, storyId, head);
         const due = outlineDue(state, beside);
         if (due) {
           const outlined = await this.outline(storyId, head, state, beside, due, choices("director"), traceId, signal, run);
@@ -677,6 +694,7 @@ export class Engine {
    * written: for `fantasia serve` when it starts.
    */
   resumeAll(): void {
+    this.autoPrepare = true;
     for (const storyId of this.storyIds()) this.resume(storyId, true);
   }
 
@@ -922,12 +940,12 @@ export class Engine {
       const next = played[index + 1]?.payload;
       if (written.payload.kind !== "move" || next?.kind !== "world_moved" || !(next as WorldMoved).gap) return;
       const state = this.mac.states.at(written.id);
-      const ask = gapWeave(state, written, besideOf(this.mac, storyId));
+      const ask = gapWeave(state, written, besideOf(this.mac, storyId, written.id));
       if (!ask || !state.scene) return;
       progress(`Living the span to ${ask.until} again`);
       const record = emptySpan(ask)
         ? { value: { lives: [], threads: [], happened: [], meanwhile: [], on: [], truth: emptyUpdate() }, callId: null, model: null, dropped: [] }
-        : await writeWeave(this.models, this.choices("weaver"), { ...ask, beside: besideOf(this.mac, storyId) }, storyId, `rebuild-${randomUUID().slice(0, 8)}`, new AbortController().signal);
+        : await writeWeave(this.models, this.choices("weaver"), { ...ask, beside: besideOf(this.mac, storyId, written.id) }, storyId, `rebuild-${randomUUID().slice(0, 8)}`, new AbortController().signal);
       const woven = put({ kind: "world_moved", scene: state.scene.number, gap: true, from: ask.from, until: ask.until, ...record.value, dropped: record.dropped, callId: record.callId, model: record.model });
       if (record.callId) this.models.attach(record.callId, woven.id);
     };
@@ -1003,9 +1021,12 @@ export class Engine {
   /** Tells every phone the Story is on another Path, or its Path moved back; a Scene end it owes runs. */
   private pathChanged(storyId: string, head: string, traceId: string): Accepted {
     this.stopped.delete(storyId);
+    this.failures.delete(storyId);
+    this.turned.delete(storyId);
+    this.onceStep.delete(storyId);
     const seq = this.newestSeq(storyId);
     this.emit(storyId, { id: String(seq), event: { kind: "path_changed", seq } });
-    this.resume(storyId);
+    this.resume(storyId, this.autoPrepare);
     return { head_entry_id: head, trace_id: traceId };
   }
 
@@ -1096,7 +1117,7 @@ export class Engine {
     // The Weaver lives the Gap out as the player wants the Story told (docs/adr/0020).
     const record = emptySpan(ask)
       ? { value: { lives: [], threads: [], happened: [], meanwhile: [], on: [], truth: emptyUpdate() }, callId: null, model: null, dropped: [] }
-      : await writeWeave(this.models, this.turnChoices(turn, "weaver"), { ...ask, beside: besideOf(this.mac, turn.storyId) }, turn.storyId, turn.traceId, turn.abort.signal);
+      : await writeWeave(this.models, this.turnChoices(turn, "weaver"), { ...ask, beside: besideOf(this.mac, turn.storyId, move.id) }, turn.storyId, turn.traceId, turn.abort.signal);
     const entry = this.mac.tree.append(turn.storyId, move.id, { kind: "world_moved", scene: state.scene.number, gap: true, from: ask.from, until: ask.until, ...record.value, dropped: record.dropped, callId: record.callId, model: record.model });
     if (!this.mac.tree.moveHead(turn.pathId, move.id, entry.id)) throw new Error("The Path moved while the World moved on");
     if (record.callId) this.models.attach(record.callId, entry.id);
@@ -1135,7 +1156,7 @@ export class Engine {
     this.say(turn, "writing");
     const text = turn.move.payload.kind === "move" ? turn.move.payload.text : "";
     const choice = turn.move.payload.kind === "move" ? turn.move.payload.choice ?? null : null;
-    const beside = besideOf(this.mac, turn.storyId);
+    const beside = besideOf(this.mac, turn.storyId, head.id);
     const ask = { state, scene: moveAt >= 0 ? entries.slice(0, moveAt) : entries, move: text, choice, beside, path: this.mac.tree.pathTo(head.id) };
     // The Writer may look things up before it plans; the player is told the Story is looking back (openspec presence).
     const { value: { plan, reply }, callId, model } = await composeReply(this.models, this.turnChoices(turn, "actor"), ask, turn.storyId, turn.traceId, turn.abort.signal, () => this.say(turn, "looking_back"));
@@ -1168,7 +1189,7 @@ export class Engine {
   private async actorStep(turn: Turn, note: Entry): Promise<void> {
     const { state, entries } = sceneEntries(this.mac, note.id);
     const checkpoint = this.drafts.get(note.id);
-    const beside = checkpoint?.beside ?? besideOf(this.mac, turn.storyId);
+    const beside = checkpoint?.beside ?? besideOf(this.mac, turn.storyId, note.id);
     const gathered = note.payload.kind === "beat_note" ? note.payload.gathered ?? [] : [];
     const write = (again?: { draft: string; notes: string[] }) => {
       turn.step = "actor";

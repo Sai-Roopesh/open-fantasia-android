@@ -310,7 +310,7 @@ describe("spans: only what reaches him (story-in-stretches design decision 4)", 
     await engine.settled(storyId);
     const request = models.weaver.requests.at(-1)!;
     expect(request.prompt).toContain('<span from="Saturday 7 September 1991, 7:30 am" until="Thursday 12 September 1991, 10:00 am">');
-    expect(request.system).toContain("let ordinary days pass without listing them: no meal, lesson or night's sleep that changed nothing.");
+    expect(request.system).toContain("Skip uneventful routine.");
     expect(request.prompt).toContain("<lead_moves_offscreen>\n- Draconia Malfoy: Has his name taken off the Charms seating plan.\n- Hermione Granger: Lends him her notes.\n</lead_moves_offscreen>");
     const gap = gapOf(path());
     expect(gap.from).toBe("Day 4 07:30");

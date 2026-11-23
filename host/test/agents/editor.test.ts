@@ -187,6 +187,18 @@ describe("the Editor's check of a Reply", () => {
     expect(await edit(story, waiting, new FakeModels())).toMatchObject({ verdict: "clean", text: waiting, notes: [] });
   });
 
+  it("catches second-person narration writing the player's dialogue, actions, or feelings, while allowing speech and physical actions done to you", async () => {
+    const story = lateScene();
+    story.move("I look at Hermione.");
+    const hijack = "Hermione steps back. You pull away and say you are done listening.";
+    const edited = await edit(story, hijack, new FakeModels());
+    expect(edited.verdict).toBe("rewrite");
+    expect(edited.notes[0]).toContain("Decides for Roopesh Gantasala:");
+
+    const fine = "\"You told me not to follow,\" Hermione snaps, catching your sleeve before you say a word and pulling you into the alcove. The way you said her name makes her flinch; after you asked about Scott, she does not look back.";
+    expect(await edit(story, fine, new FakeModels())).toMatchObject({ verdict: "clean", text: fine, notes: [] });
+  });
+
   it("is clean when nothing breaks, and the fake Editor finds nothing", async () => {
     const story = lateScene();
     story.move("I sit down between them.");

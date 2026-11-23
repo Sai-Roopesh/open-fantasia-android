@@ -242,7 +242,7 @@ export class FakeModels implements ModelRunner {
       const clock = addMinutes((request.facts as WriterFacts).clock, Number(raw.minutes ?? 0));
       const proseRequest = { ...request, prompt: request.prompt + `\n\n<this_reply>\nWhat happens next: ${String(raw.note ?? "")}\nReply clock: ${clock}\n</this_reply>` };
       const reply = await this.actor.run(proseRequest, () => {}, signal, tools);
-      const answer = JSON.stringify({ ...raw, reply });
+      const answer = `${reply}\n\n<scene_state>\n${JSON.stringify(raw)}\n</scene_state>`;
       onText(answer);
       return answer;
     }

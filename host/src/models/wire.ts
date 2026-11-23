@@ -17,6 +17,8 @@ export interface Conversation {
   effort?: string;
   /** Prose the player reads asks for full-length writing; anything else keeps the provider's default. */
   long: boolean;
+  /** Optional Story scope for isolating per-Story KV-cache shards on the provider backend. */
+  cacheScope?: string;
 }
 
 /** Calls whose answer the player reads as story, and so should not be cut short by a provider's default verbosity. */
@@ -25,16 +27,17 @@ const WRITES_PROSE = new Set<ModelRequest["agent"]>(["actor", "writer"]);
 export function conversationOf(request: ModelRequest): Conversation {
   return {
     system: request.system,
-    turns: [{ role: "user", text: request.prompt }],
+    turns: request.conversation?.length ? request.conversation : [{ role: "user", text: request.prompt }],
     ...(request.schema ? { schema: request.schema } : {}),
     ...(request.model.effort ? { effort: request.model.effort } : {}),
-    long: WRITES_PROSE.has(request.agent)
+    long: WRITES_PROSE.has(request.agent),
+    ...(request.storyId ? { cacheScope: request.storyId } : {})
   };
 }
 
-/** A stable key for the system prompt, so a provider's prompt cache keeps it between calls. */
-export function cacheKey(model: string, system: string): string {
-  return createHash("sha256").update(`${model}\n${system}`).digest("hex").slice(0, 32);
+/** A stable key for the system prompt (and Story shard when set), so a provider's prompt cache keeps it between calls. */
+export function cacheKey(model: string, system: string, scope?: string): string {
+  return createHash("sha256").update(scope ? `${model}\n${scope}\n${system}` : `${model}\n${system}`).digest("hex").slice(0, 32);
 }
 
 /** The Story's tools as a function declaration's parameters. */
@@ -65,7 +68,7 @@ export function codexBody(conversation: Conversation, model: string, tools: { st
     stream: true,
     store: false,
     parallel_tool_calls: false,
-    prompt_cache_key: cacheKey(model, conversation.system),
+    prompt_cache_key: cacheKey(model, conversation.system, conversation.cacheScope),
     ...(conversation.effort ? { reasoning: { effort: conversation.effort } } : {}),
     ...(toolList.length ? { tools: toolList, tool_choice: "auto", include: ["reasoning.encrypted_content"] } : {}),
     text

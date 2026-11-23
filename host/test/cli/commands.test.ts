@@ -3,7 +3,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { importCommand, models, moments, pair, prompts, record, show, stories, trace, world } from "../../src/cli/commands.js";
+import { bench, importCommand, models, moments, pair, prompts, record, show, stories, trace, world } from "../../src/cli/commands.js";
 import { Engine } from "../../src/engine/engine.js";
 import { Models } from "../../src/models/model-call.js";
 import { ScriptedRunner } from "../../src/models/scripted.js";
@@ -36,6 +36,17 @@ describe("the fantasia command", () => {
     expect(refused.lines[0]).toBe("Nothing was imported. 2 problems:");
     expect(refused.text()).toContain("leads[0]: \"Ginny\" is a Lead but not one of the people");
     expect(refused.text()).toContain("player_character: \"Nobody\" is the Player Character but not one of the people");
+  });
+
+  it("reports prompt token breakdown, cacheable ratio, and Path-isolated Directions via bench", async () => {
+    const s = playable(hogwartsWorldStoryFile());
+    await s.play("I sit down beside Hermione.");
+    await s.play("I ask what she is reading.");
+    const out = capture();
+    expect(await bench(s.mac, s.storyId, "I wait for her answer.", out.out)).toBe(true);
+    expect(out.text()).toContain("Prompt tokens (~est):");
+    expect(out.text()).toContain("cacheable=");
+    expect(out.text()).toContain("Directions on this Path: 0 active (0 isolated on other Paths)");
   });
 
   it("shows a Story's Path, and one entry in full", () => {

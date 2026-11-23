@@ -33,6 +33,17 @@ CREATE TABLE IF NOT EXISTS reactions (
   PRIMARY KEY (story_id, scene)
 );
 
+CREATE TABLE IF NOT EXISTS path_reactions (
+  story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
+  scene INTEGER NOT NULL,
+  scene_entry_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  reaction TEXT NOT NULL,
+  note TEXT,
+  PRIMARY KEY (story_id, scene_entry_id)
+);
+CREATE INDEX IF NOT EXISTS path_reactions_story ON path_reactions(story_id);
+
 CREATE TABLE IF NOT EXISTS steering_notes (
   id TEXT PRIMARY KEY,
   story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
@@ -58,12 +69,20 @@ function tables({ db }: Store): Db {
     if (!columns.has("active")) db.exec("ALTER TABLE steering_notes ADD COLUMN active INTEGER NOT NULL DEFAULT 1");
     if (!columns.has("source_entry")) db.exec("ALTER TABLE steering_notes ADD COLUMN source_entry TEXT");
     if (!columns.has("edited_at")) db.exec("ALTER TABLE steering_notes ADD COLUMN edited_at TEXT");
+    if (!columns.has("remember")) {
+      db.exec("ALTER TABLE steering_notes ADD COLUMN remember INTEGER NOT NULL DEFAULT 0");
+      db.exec(`UPDATE steering_notes SET remember = 1 WHERE source_entry IS NOT NULL AND EXISTS (
+        SELECT 1 FROM entries e WHERE e.id = steering_notes.source_entry AND json_extract(e.payload, '$.remember') = 1
+      )`);
+    }
     const tasteColumns = new Set((db.prepare("PRAGMA table_info(taste)").all() as { name: string }[]).map(row => row.name));
     if (!tasteColumns.has("active")) db.exec("ALTER TABLE taste ADD COLUMN active INTEGER NOT NULL DEFAULT 1");
     if (!tasteColumns.has("source_note_id")) db.exec("ALTER TABLE taste ADD COLUMN source_note_id TEXT");
-    // Recover the exact instructions from all played and abandoned Paths; their meaning belongs to the Story.
-    db.exec(`INSERT OR IGNORE INTO steering_notes (id, story_id, text, written_at, answered_by, source_entry)
-      SELECT id, story_id, json_extract(payload, '$.direction'), created_at, NULL, id FROM entries
+    // Recover exact Redo instructions; remember=1 notes are Story-wide while remember=0 notes remain scoped to their Path.
+    db.exec(`INSERT OR IGNORE INTO steering_notes (id, story_id, text, written_at, answered_by, source_entry, remember)
+      SELECT id, story_id, json_extract(payload, '$.direction'), created_at, NULL, id,
+        CASE WHEN json_extract(payload, '$.remember') = 1 THEN 1 ELSE 0 END
+      FROM entries
       WHERE kind = 'redo' AND length(trim(coalesce(json_extract(payload, '$.direction'), ''))) > 0`);
     // Retain old automatic paraphrases as history, rather than keeping a second, uneditable copy of a Direction
     // active after its original is archived. Explicitly authored Taste remains active.
@@ -86,12 +105,39 @@ function tables({ db }: Store): Db {
 /** The player's own Taste is kept with no Story. */
 const owner = (storyId: string, scope: TasteScope): string | null => (scope === "player" ? null : storyId);
 
-/** Everything the Story has learned from the player, for every agent that writes for it and for Backstage. */
-export function besideOf(store: Store, storyId: string): Beside {
+/** Every entry id on the lineage from the Story's root to [headEntryId]. */
+function lineageOf(db: Db, headEntryId: string): Set<string> {
+  const rows = db.prepare(`
+    WITH RECURSIVE path(id, parent_id) AS (
+      SELECT id, parent_id FROM entries WHERE id = ?
+      UNION ALL
+      SELECT e.id, e.parent_id FROM entries e JOIN path ON path.parent_id = e.id
+    )
+    SELECT id FROM path
+  `).all(headEntryId) as { id: string }[];
+  return new Set(rows.map(row => row.id));
+}
+
+/**
+ * Everything the Story has learned from the player, for every agent that writes for it and for Backstage.
+ * When [headEntryId] is given, Redo-originated Directions (`source_entry` set) and per-Path Scene reactions are
+ * filtered to that Path's ancestry so abandoned or sibling Paths never bleed into the active Path.
+ */
+export function besideOf(store: Store, storyId: string, headEntryId?: string | null): Beside {
   const db = tables(store);
+  const ancestors = headEntryId ? lineageOf(db, headEntryId) : null;
   const brief = db.prepare("SELECT more, less FROM briefs WHERE story_id = ?").get(storyId) as { more: string; less: string } | undefined;
-  const reactions = db.prepare("SELECT scene, title, reaction, note FROM reactions WHERE story_id = ? ORDER BY scene").all(storyId) as Reaction[];
-  const notes = (db.prepare("SELECT id, text, written_at AS writtenAt, answered_by AS answeredBy, active, source_entry AS sourceEntry FROM steering_notes WHERE story_id = ? ORDER BY written_at, rowid").all(storyId) as (Omit<SteeringNote, "active"> & { active: number; sourceEntry: string | null })[]).map(({ sourceEntry, ...note }) => ({ ...note, active: note.active === 1, requiresPlan: sourceEntry === null }));
+  const legacyReactions = db.prepare("SELECT scene, title, reaction, note FROM reactions WHERE story_id = ? ORDER BY scene").all(storyId) as Reaction[];
+  const pathReactions = (db.prepare("SELECT scene, scene_entry_id AS sceneEntryId, title, reaction, note FROM path_reactions WHERE story_id = ? ORDER BY scene").all(storyId) as (Reaction & { sceneEntryId: string })[])
+    .filter(row => !ancestors || ancestors.has(row.sceneEntryId));
+  const byScene = new Map<number, Reaction>();
+  for (const row of legacyReactions) byScene.set(row.scene, row);
+  for (const row of pathReactions) byScene.set(row.scene, { scene: row.scene, title: row.title, reaction: row.reaction, note: row.note });
+  const reactions = [...byScene.values()].sort((left, right) => left.scene - right.scene);
+  const rawNotes = db.prepare("SELECT id, text, written_at AS writtenAt, answered_by AS answeredBy, active, source_entry AS sourceEntry, remember FROM steering_notes WHERE story_id = ? ORDER BY written_at, rowid").all(storyId) as (Omit<SteeringNote, "active"> & { active: number; sourceEntry: string | null; remember: number })[];
+  const notes = rawNotes
+    .filter(note => !ancestors || note.sourceEntry === null || note.remember === 1 || ancestors.has(note.sourceEntry))
+    .map(({ sourceEntry, remember: _remember, ...note }) => ({ ...note, active: note.active === 1, requiresPlan: sourceEntry === null }));
   return {
     taste: tasteOf(store, storyId, "story"),
     playerTaste: tasteOf(store, storyId, "player"),
@@ -134,18 +180,24 @@ export function setBrief(store: Store, storyId: string, brief: { more: string[];
     .run(storyId, JSON.stringify(brief.more), JSON.stringify(brief.less));
 }
 
-/** The player's reaction to a played Scene, by its number; null clears it. */
-export function setReaction(store: Store, storyId: string, scene: number, reaction: Omit<Reaction, "scene"> | null): void {
+/** The player's reaction to a played Scene, scoped to [sceneEntryId] when provided; null clears it. */
+export function setReaction(store: Store, storyId: string, scene: number, reaction: Omit<Reaction, "scene"> | null, sceneEntryId?: string | null): void {
   const db = tables(store);
+  if (sceneEntryId) {
+    if (!reaction) db.prepare("DELETE FROM path_reactions WHERE story_id = ? AND scene_entry_id = ?").run(storyId, sceneEntryId);
+    else db.prepare("INSERT INTO path_reactions (story_id, scene, scene_entry_id, title, reaction, note) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(story_id, scene_entry_id) DO UPDATE SET title = excluded.title, reaction = excluded.reaction, note = excluded.note")
+      .run(storyId, scene, sceneEntryId, reaction.title, reaction.reaction, reaction.note);
+    return;
+  }
   if (!reaction) db.prepare("DELETE FROM reactions WHERE story_id = ? AND scene = ?").run(storyId, scene);
   else db.prepare("INSERT INTO reactions (story_id, scene, title, reaction, note) VALUES (?, ?, ?, ?, ?) ON CONFLICT(story_id, scene) DO UPDATE SET title = excluded.title, reaction = excluded.reaction, note = excluded.note")
     .run(storyId, scene, reaction.title, reaction.reaction, reaction.note);
 }
 
 /** A note steering the Outline, waiting for the Director at the next Scene's end. */
-export function writeNote(store: Store, storyId: string, text: string, now: Date = new Date(), sourceEntry?: string): SteeringNote {
+export function writeNote(store: Store, storyId: string, text: string, now: Date = new Date(), sourceEntry?: string, remember = false): SteeringNote {
   const note: SteeringNote = { id: sourceEntry ?? randomUUID(), text: text.trim(), writtenAt: now.toISOString(), answeredBy: null, active: true, requiresPlan: !sourceEntry };
-  tables(store).prepare("INSERT OR IGNORE INTO steering_notes (id, story_id, text, written_at, answered_by, source_entry) VALUES (?, ?, ?, ?, NULL, ?)").run(note.id, storyId, note.text, note.writtenAt, sourceEntry ?? null);
+  tables(store).prepare("INSERT OR IGNORE INTO steering_notes (id, story_id, text, written_at, answered_by, source_entry, remember) VALUES (?, ?, ?, ?, NULL, ?, ?)").run(note.id, storyId, note.text, note.writtenAt, sourceEntry ?? null, remember ? 1 : 0);
   return note;
 }
 

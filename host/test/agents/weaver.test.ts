@@ -216,7 +216,7 @@ describe("Lives lived out off the page (openspec living-world: Everyone has a Li
     expect(lives).toContain("\nDraconia Malfoy\n  Now: as when the Story began.\n  Heading this Act: a break with her father by June.");
     expect(lives).toContain("\nHermione Granger\n");
     expect(lives).toContain("\nQuirinus Quirrell\n");
-    expect(system.replace(/\s+/g, " ")).toContain("Live each one out over the span, always, and whole: what they do about what they want, apart from him as much as with him");
+    expect(system.replace(/\s+/g, " ")).toContain("move Close people and Movers (and any other person/Group whose movement affects the player) only as far as the span allows");
   });
 
   // GIVEN Hermione's Life says she is worried about her parents and about the exams
@@ -241,7 +241,7 @@ describe("Lives lived out off the page (openspec living-world: Everyone has a Li
     expect(hers).toContain("Wants: To come top in the exams, and a letter from home.");
     expect(prompt).toContain("- Hermione Granger pursues top marks in November, and why her parents stopped writing;");
     expect(prompt).toContain("the Lives of the people who matter, lived for their own sake");
-    expect(system.replace(/\s+/g, " ")).toContain("an exam to revise for, a letter from home, a rival, a friend in trouble");
+    expect(system.replace(/\s+/g, " ")).toContain("Move the off-screen World forward over the span between Scenes");
 
     // A week lived: her parents wrote, she revised; what she feels about him moved too.
     const lived = checkWeave(week, answer({
@@ -286,9 +286,8 @@ describe("a span skipped as asked (openspec living-world: Off-screen time is res
     // The Move is this moment, not a passage of the Scene that ended before it.
     expect(prompt).not.toContain("<scene_so_far>");
     const rules = system.replace(/\s+/g, " ");
-    expect(rules).toContain("Live the span as it says, with him there wherever it puts him.");
-    expect(rules).toContain("if it says their feelings for him grew, they have grown by the span's end, in who they are now and between them");
-    expect(rules).toContain("Where his Move puts him there (his classes, the evenings it names), he was there: put him in `known_to`.");
+    expect(rules).toContain("live the span exactly as the player's Move states");
+    expect(rules).toContain("include the player in `known_to` where the Move puts them");
     expect(rules).not.toContain("Everything else in the span goes on without him.");
 
     const grown = (who: string, feels: string) => ({ who, now: `${who.split(" ")[0]} spends her evenings in the library with him.`, feelings: [{ about: "Roopesh Gantasala", feels }], wants: "Him, though she would not say so.", hides: "How much she looks forward to the evenings." });
@@ -415,7 +414,7 @@ describe("the Weaver's call", () => {
     story.world({ on: [{ id: "o-1", at: "Day 4 20:00", place: "The Three Broomsticks", what: "The twins buy a round.", who: ["Harry Potter"] }] });
     const { system, prompt } = weaverPrompt(ask(story));
     expect(system).toContain("# The Weaver");
-    expect(system.replace(/\s+/g, " ")).toContain("give again each item still ahead that is still going on, as it was, or it is gone.");
+    expect(system.replace(/\s+/g, " ")).toContain("carrying forward still-upcoming items from `calendar`.");
     expect(system).toContain("- Crabbe and Goyle: Draconia's errands, and whatever she wants hit.");
     expect(prompt).toContain('<span from="Friday 6 September 1991, 10:10 pm" until="Saturday 7 September 1991, 7:30 am">');
     expect(prompt).toContain("Hermione would not say what she was reading.");
@@ -457,7 +456,7 @@ describe("the Weaver's call", () => {
     const weave = ask(story, { until: "Day 2 13:00" });
     const { system, prompt } = weaverPrompt(weave);
     expect(prompt).toContain("<scene>\nWater at Barog. Barog station platform, hill mist, the toy train's engine taking water, from Friday 17 July 2026, 9:05 am until Friday 17 July 2026, 9:40 am, when it ended.");
-    expect(system.replace(/\s+/g, " ")).toContain("Before the Scene opened he was off-screen; the World moves on around him, not with him.");
+    expect(system.replace(/\s+/g, " ")).toContain("Never invent actions or feelings for the player's character beyond their Move.");
     // Nothing the World writes is before the Scene ended, and nothing has him anywhere.
     const checked = checkWeave(weave, answer({
       lives: [{ who: "Ishaan Mehra", where: "back on the train", doing: "asleep", after: "Shimla" }, { who: "Meera", where: "Barog station platform", doing: "listening for the bird", after: "The hills" }],

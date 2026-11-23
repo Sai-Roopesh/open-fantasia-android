@@ -5,7 +5,7 @@ import { openMac } from "../mac.js";
 import { Engine } from "../engine/engine.js";
 import { subscriptionRunners } from "../models/runners.js";
 import { Models } from "../models/model-call.js";
-import { arc, claudeToken, clock, doctor, edit, editor, group, importCommand, install, known, landmark, lead, length, models, moments, pair, person, place, portrait, premise, prompts, record, show, stories, style, taste, trace, world, worldIs, type LandmarkOptions, type PersonOptions } from "./commands.js";
+import { arc, bench, claudeToken, clock, doctor, edit, editor, group, importCommand, install, known, landmark, lead, length, models, moments, pair, person, place, portrait, premise, prompts, record, show, stories, style, taste, trace, world, worldIs, type LandmarkOptions, type PersonOptions } from "./commands.js";
 import { serve } from "./serve.js";
 import { carryBeside } from "../store/carry.js";
 
@@ -49,6 +49,12 @@ program.command("record").argument("<story>", "a Story's id")
 program.command("prompts").argument("<story>", "a Story's id").argument("[move...]", "the Move the Writer plans for; a plain one when left out")
   .description("Print what the next Reply's Writer and Actor would be given, in full, calling no model")
   .action((story: string, move: string[]) => exitWith(prompts(mac(), story, move.join(" ") || "I wait to see what happens.", out)));
+program.command("bench").argument("<story>", "a Story's id").argument("[move...]", "optional Move to evaluate")
+  .option("--run", "execute one live read-only Reply and print prose, word count, and usage")
+  .option("--model <spec>", "override Actor model as provider/model[:effort], e.g. codex/gpt-6.1-sol:medium")
+  .description("Measure prompt token breakdown, cacheable ratio, Path isolation, and optionally A/B test a live Reply")
+  .action(async (story: string, move: string[], options: { run?: boolean; model?: string }) =>
+    exitWith(await bench(mac(), story, move.join(" ") || "I wait to see what happens.", out, options)));
 program.command("world").argument("<story>", "a Story's id")
   .option("--summary <words>", "what the World is: set it from here on the current Path").option("--history <words>", "the World's history: set it likewise")
   .description("Show the World off-screen: Lives, Threads, and what happened with who knows it; or with --summary or --history, set what the World is")

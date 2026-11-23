@@ -193,18 +193,18 @@ describe("the writing call's plan", () => {
     expect(prompt).toContain("The player chose at the Day View: go to The platform at Kalka on Friday 17 July 2026 at 7:30 am with Meera Kulkarni. Open the Scene it begins.");
   });
 
-  it("looks things up in the Story on its Path and on the web, telling each lookup as it is made, and hands on what it gathered", async () => {
+  it("looks things up in the Story on its Path without enabling web search on dialogue turns, and hands on what it gathered", async () => {
     const story = planned();
     const given = { ...ask(story, "I ask Meera what she said about the window seat."), path: story.mac.tree.pathTo(story.head()) };
     const runner = new ScriptedRunner([{
-      lookUp: [{ tool: "search_story", args: { words: "seat" } }, { tool: "web_search", args: { query: "Kalka Shimla toy train" } }],
+      lookUp: [{ tool: "search_story", args: { words: "seat" } }],
       then: { answer: JSON.stringify({ ...answer({ gathered: [{ words: "\"You're in my seat,\" she says." }, { words: "She says she has always hated trains." }] }), reply: "Meera repeats it, word for word." }) }
     }]);
     const heard: string[] = [];
     const { value: { plan }, lookups } = await composeReply(new Models(story.mac.db, { claude: runner }), [SONNET], given, story.storyId, "trace-w", new AbortController().signal, line => heard.push(line));
-    expect(runner.requests[0]!.tools).toEqual({ story: { storyId: story.storyId, head: story.head() }, web: true });
+    expect(runner.requests[0]!.tools).toEqual({ story: { storyId: story.storyId, head: story.head() }, web: false });
     expect(heard).toEqual(lookups);
-    expect(lookups).toEqual([expect.stringContaining("searched the Story for “seat”"), "searched the web for “Kalka Shimla toy train”"]);
+    expect(lookups).toEqual([expect.stringContaining("searched the Story for “seat”")]);
     // Kept in the Story's own words, from the Scene it was played in; words the Story never had are left out.
     expect(plan.gathered).toEqual([{ scene: 1, words: "\"You're in my seat,\" she says." }]);
   });
@@ -223,7 +223,7 @@ describe("the writing call's plan", () => {
     story.add({ kind: "scene_recorded", scene: 1, through: story.head(), paragraph: "They watched the hills.", moments: [], told: [], known: [], bonds: [], engagements: [], changed: [], truth: emptyUpdate(), dropped: [], callId: "c", model: SONNET });
     expect(recordDue(story.state(), scene)).toBe(false);
     const { prompt } = writerPrompt(ask(story, "I ask Meera where she is going."), [], "");
-    expect(prompt).toContain("This Scene has run 31 exchanges and was recorded so far.");
+    expect(prompt).toContain(`This Scene has run ${LONG_SCENE.exchanges + 1} exchanges and was recorded so far.`);
     expect(prompt).toContain("recording does not end it");
     expect(prompt).toContain("<recorded_so_far>\nThe Scene so far, as it was recorded while it was played: They watched the hills.\n</recorded_so_far>");
   });
@@ -235,6 +235,6 @@ describe("the writing call's plan", () => {
     expect(result.value.plan.clock).toBe("Day 1 22:43");
     expect(runner.requests).toHaveLength(2);
     expect(runner.requests[1]!.prompt).toContain("- note decides for the player's character (\"Ishaan tells her everything\")");
-    expect(runner.requests.every(request => request.agent === "actor" && request.schema !== undefined)).toBe(true);
+    expect(runner.requests.every(request => request.agent === "actor" && request.schema === undefined && (request.conversation?.length ?? 0) > 0)).toBe(true);
   });
 });

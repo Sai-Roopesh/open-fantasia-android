@@ -8,9 +8,9 @@
  * writer and the Editor cannot drift apart on where the line is.
  */
 export function playersPart(pc: string): string {
-  return `${pc} is the player's: only the player writes what ${pc} says, what he chooses to do, and what he thinks and feels. ` +
-    `Everything else can happen to him, as to anyone here. Someone can take his hand, pull him close, push him, slap him or walk him somewhere, and it lands: ` +
-    `write where it leaves him, the stumble, the sting, the wall at his back, then stop where his next word or choice is his.`;
+  return `${pc} is the player's: only the player writes what ${pc} says, chooses to do, thinks, or feels. ` +
+    `Everything else can happen to you, as to anyone here. Someone can take your hand, pull you close, push you, slap you, or walk you somewhere, and it lands: ` +
+    `write where it leaves you — the stumble, the sting, the wall at your back — then stop where the player's next word or choice belongs to them.`;
 }
 
 /** The same line, as the Editor checks a Reply against it. */
@@ -66,6 +66,28 @@ export function playerNames(person: { name: string; aliases: string[] }): string
   return [...new Set([person.name.trim(), first, ...person.aliases.map(alias => alias.trim())])]
     .filter(name => name.length > 1)
     .sort((left, right) => right.length - left.length);
+}
+
+/**
+ * Narrow second-person narrator check: catches ONLY clear present-tense narrator hijacking of the player's dialogue,
+ * decisions, or feelings ("You say...", "You pull away", "You feel...") — never past-tense references to the player's
+ * own Move ("when you asked", "what you told her").
+ */
+const YOU_DECIDING_VERBS = [
+  "say", "tell", "ask", "answer", "reply", "decide", "agree", "refuse", "choose",
+  "admit", "confess", "cry", "feel", "want", "kiss", "forgive", "accept", "reject",
+  "promise", "snap", "apologise", "apologize", "explain", "insist", "shout", "whisper",
+  "laugh", "smile", "nod", "pull\\s+(?:away|back|free)", "push\\s+(?:her|him|them)\\s+away",
+  "give\\s+in", `go\\s+${REACTION}`, `stay\\s+(?:${REACTION}|with\\s+(?:her|him|them))`
+].join("|");
+
+const YOU_SUBJECT = new RegExp(`(?:^|[.!?\\n]\\s*)you\\s+(?:${YOU_DECIDING_VERBS})\\b[^.;]{0,60}`, "i");
+const MAKES_YOU = new RegExp(`\\b(?:makes?|forces?)\\s+you\\s+(?:${AFTER_MAKES})\\b[^.;]{0,40}`, "i");
+
+/** Catches unambiguous second-person narrator control of `you` outside dialogue without false-positiving on references. */
+export function decidesForYou(text: string): string | null {
+  const found = YOU_SUBJECT.exec(text) ?? MAKES_YOU.exec(text);
+  return found ? found[0].replace(/^[.!?\n\s]+/, "").trim() : null;
 }
 
 /** The phrase in [text] that decides something for the Player Character, or null. */

@@ -21,8 +21,13 @@ export interface ModelRequest {
   model: ModelChoice;
   /** What stays the same across a Scene, so the provider's prompt cache can hit (docs/adr/0005). */
   system: string;
-  /** What changes every call. */
+  /** What changes every call (flat form for single-prompt runners and inspection). */
   prompt: string;
+  /**
+   * Optional multi-turn message history for direct transports (Codex & Antigravity): when present, `conversationOf`
+   * delivers these real alternating user/assistant turns instead of a single concatenated user prompt.
+   */
+  conversation?: { role: "user" | "assistant"; text: string }[];
   /** When set, the answer is JSON matching this schema, and the provider is asked for exactly that. */
   schema?: Record<string, unknown>;
   /**
@@ -160,7 +165,11 @@ export class Models {
         const search = storyTools(this.db, request.tools.story.storyId, request.tools.story.head).find(tool => tool.name === "search_story");
         if (search && words) {
           const found = search.run({ words });
-          sent.prompt += `\n\n<retrieved_story_evidence>\nThe host retrieved these saved passages for this call:\n${found.answer}\n</retrieved_story_evidence>`;
+          const evidence = `\n\n<retrieved_story_evidence>\nThe host retrieved these saved passages for this call:\n${found.answer}\n</retrieved_story_evidence>`;
+          sent.prompt += evidence;
+          if (sent.conversation?.length) {
+            sent.conversation = sent.conversation.map((turn, index, list) => (index === list.length - 1 ? { ...turn, text: turn.text + evidence } : turn));
+          }
           prepared.push(`prepared evidence: ${found.line}`);
         }
       } catch { /* Missing evidence stays missing; it is never invented. */ }

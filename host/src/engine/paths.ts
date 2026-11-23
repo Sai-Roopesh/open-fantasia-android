@@ -34,7 +34,14 @@ export function openingOf(mac: Mac, path: StoryPath): Entry {
 
 /** Try another way from [from], or start again from the opening when it is null: a new Path the player is now on. */
 export function tryAnotherWay(mac: Mac, path: StoryPath, from: string | null): StoryPath {
-  if (from === null) return mac.tree.startPath(path.storyId, openingOf(mac, path).id, "beginning", null);
+  if (from === null) {
+    const opening = openingOf(mac, path);
+    // Keep the Story's pre-play initial Outline if one was already prepared directly on the opening Scene.
+    const initialOutline = mac.db
+      .prepare("SELECT id FROM entries WHERE story_id = ? AND parent_id = ? AND kind = 'outline_set' ORDER BY seq DESC LIMIT 1")
+      .get(path.storyId, opening.id) as { id: string } | undefined;
+    return mac.tree.startPath(path.storyId, initialOutline?.id ?? opening.id, "beginning", null);
+  }
   const reply = replyOnPath(mac, path, from);
   return mac.tree.startPath(path.storyId, reply.id, "tried", reply.id);
 }

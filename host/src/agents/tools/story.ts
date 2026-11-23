@@ -344,6 +344,7 @@ function searchable(payload: Payload): [string, string][] {
     case "reply": return [["reply", payload.text]];
     case "scene_opened": return payload.prose ? [["opening", payload.prose]] : [];
     case "chronicle":
+    case "scene_recorded":
       return [
         ["record", payload.paragraph],
         ...payload.moments.map((moment): [string, string] => ["record", [moment.what, ...moment.quotes.map(quote => quote.text)].join(" ")]),

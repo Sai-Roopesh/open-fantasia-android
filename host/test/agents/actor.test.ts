@@ -74,12 +74,13 @@ describe("the Actor's prompt, as a novelist (docs/adr/0017)", () => {
   // The two ways the Actor was seen crossing the Line around a remark (the-last-scene-scenarios design decision 3): a
   // past for him as someone's memory, and his own perception. Each is named in the instructions and again last.
   it("tells the Actor that people remember of him only what the Story has shown, and where the player's part ends", () => {
-    const [{ system, prompt }] = sceneWithMoves("I sit down across from her.") as [{ system: string; prompt: string }];
-    expect(system).toContain("The people here remember of Roopesh Gantasala only what the scene so far, The Story So Far and what they remember show, and their own past: they never recall anything else he said, chose or did on purpose.");
+    const [first] = sceneWithMoves("I sit down across from her.");
+    const { system, prompt } = first!;
+    expect(system).toContain("The people here remember of Roopesh Gantasala only what the scene so far, The Story So Far, and what they remember show, and their own past: they never recall anything else the player never showed on the page.");
     expect(system).toContain(playersPart("Roopesh Gantasala"));
     expect(system).not.toContain("never what he sees, notices or feels");
     expect(system).toContain("What each person here knows and believes is said plainly under what_each_knows: play each of them from it.");
-    expect(prompt.split("\n").at(-1)).toBe("Write what happens next. What Roopesh Gantasala says, chooses, thinks and feels belongs to the player, now and in anything the story has not shown; what is done to him lands. What he did before is only what the story has shown, as it shows it.");
+    expect(prompt.split("\n").at(-1)).toBe("Write what happens next. Narrate in second person (you/your) for Roopesh Gantasala and first person (I) for character speech. What Roopesh Gantasala says, chooses, thinks, and feels belongs to the player; what is done to you lands.");
   });
 
   it("carries the Scene word for word in its layer, and the Move to answer in this moment's", () => {

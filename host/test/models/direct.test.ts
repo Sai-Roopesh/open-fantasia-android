@@ -68,6 +68,30 @@ describe("one request, delivered the same way to every provider", () => {
     expect((codexBody(conversationOf(request({ agent: "editor" })), "m", { story: [], web: false }).text as { verbosity: string }).verbosity).toBe("medium");
   });
 
+  it("delivers multi-turn conversation history to both Codex and Antigravity when present", () => {
+    const turns = [
+      { role: "user" as const, text: "Standing context" },
+      { role: "assistant" as const, text: "She looks up." },
+      { role: "user" as const, text: "I step inside." }
+    ];
+    const codex = codexBody(conversationOf(request({ conversation: turns })), "gpt-6.1-sol", { story: [], web: false });
+    expect(codex.input).toEqual([
+      { type: "message", role: "user", content: [{ type: "input_text", text: "Standing context" }] },
+      { type: "message", role: "assistant", content: [{ type: "output_text", text: "She looks up." }] },
+      { type: "message", role: "user", content: [{ type: "input_text", text: "I step inside." }] }
+    ]);
+    const agy = antigravityBody(conversationOf(request({ conversation: turns })), "gemini-3.8-flash-high", "project-1", { story: [] });
+    expect((agy.request as { contents: unknown }).contents).toEqual([
+      { role: "user", parts: [{ text: "Standing context" }] },
+      { role: "model", parts: [{ text: "She looks up." }] },
+      { role: "user", parts: [{ text: "I step inside." }] }
+    ]);
+    // Distinct Stories get distinct prompt_cache_key shards so switching Stories does not evict KV cache.
+    const shardA = codexBody(conversationOf(request({ storyId: "story-a" })), "gpt-6.1-sol", { story: [], web: false });
+    const shardB = codexBody(conversationOf(request({ storyId: "story-b" })), "gpt-6.1-sol", { story: [], web: false });
+    expect(shardA.prompt_cache_key).not.toBe(shardB.prompt_cache_key);
+  });
+
   it("turns a JSON Schema into the subset Gemini's responseSchema takes", () => {
     expect(geminiSchema(SCHEMA)).toEqual({ type: "object", required: ["reply", "moves_to"], properties: {
       reply: { type: "string", description: "The Reply" },

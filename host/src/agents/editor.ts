@@ -4,7 +4,7 @@ import type { Beside } from "../story/beside.js";
 import type { Entry } from "../story/entries.js";
 import type { ModelChoice, State } from "../story/state.js";
 import { asCall, layers, section } from "../context/lens.js";
-import { decidesForPlayer, playerNames, playersPartBreak } from "./deciding.js";
+import { decidesForPlayer, decidesForYou, playerNames, playersPartBreak } from "./deciding.js";
 import { matches, namer, nullable, peopleEnum, text } from "./format.js";
 import { BUDGETS, runAgent, type Checked } from "./step.js";
 
@@ -118,18 +118,20 @@ const found = (words: string, text: string) => {
  */
 function narration(reply: string, names: string[]): string {
   const told = reply.replace(/"[^"]*"|“[^”]*”|‘[^’]*’/g, " ");
-  const his = names.map(name => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+  const his = ["you", ...names].map(name => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
   return told.replace(new RegExp(`\\b(before|until|unless|if|whether)\\s+(?:${his})\\b`, "gi"), "$1 he");
 }
 
 /**
- * The check in code alone: the phrase of [reply] that writes the Player Character's part, or null. It costs nothing,
- * so it reads every Reply, where a model Editor no longer does (docs/adr/0024).
+ * The check in code alone: the phrase of [reply] that writes the Player Character's part (by name or in second-person
+ * narration), or null. It costs nothing, so it reads every Reply, where a model Editor no longer does (docs/adr/0024).
  */
 export function playerPartIn(state: State, reply: string): string | null {
   const pc = state.playerCharacter;
   const names = playerNames({ name: pc, aliases: state.people[pc]?.aliases ?? [] });
-  return decidesForPlayer(narration(reply, names), names)?.replace(/\s+/g, " ") ?? null;
+  const text = narration(reply, names);
+  const found = decidesForPlayer(text, names) ?? decidesForYou(text);
+  return found?.replace(/\s+/g, " ") ?? null;
 }
 
 /**
