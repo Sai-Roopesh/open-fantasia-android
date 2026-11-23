@@ -4,8 +4,11 @@ import { claimsAboutPlayer, decidesForPlayer, playerNames } from "../../src/agen
 describe("deciding for the Player Character", () => {
   const names = playerNames({ name: "Ishaan Mehra", aliases: ["Ishu"] });
 
-  it("knows the Player Character by full name, first name and alias, longest first", () => {
-    expect(names).toEqual(["Ishaan Mehra", "Ishaan", "Ishu"]);
+  it("knows the Player Character by full name, unambiguous name tokens, and alias, longest first", () => {
+    expect(names).toEqual(["Ishaan Mehra", "Ishaan", "Mehra", "Ishu"]);
+    // Multi-word given names like "Sai Roopesh" include "Roopesh", while surnames shared with other cast are excluded.
+    expect(playerNames({ name: "Sai Roopesh", aliases: [] }, [{ name: "Jean Grey" }])).toEqual(["Sai Roopesh", "Roopesh", "Sai"]);
+    expect(playerNames({ name: "Roopesh Malfoy", aliases: [] }, [{ name: "Draconia Malfoy" }])).toEqual(["Roopesh Malfoy", "Roopesh"]);
   });
 
   it("catches what decides what he says, chooses, does on purpose or feels", () => {

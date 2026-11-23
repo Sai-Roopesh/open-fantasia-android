@@ -226,4 +226,26 @@ describe("Paths", () => {
     expect(freshPrompt).not.toContain(localNote);
     expect(freshPrompt).not.toContain("too repetitive");
   });
+
+  it("tracks Backstage steering note answers per Path so answering on one Path does not suppress another Path", async () => {
+    const played = await atTheLantern();
+    const { engine, storyId, head, mac } = played;
+    const { besideOf, writeNote } = await import("../../src/store/beside.js");
+    const fork = head();
+    const main = mac.tree.currentPath(storyId)!;
+    engine.tryAnotherWay(storyId, fork, fork, "trace-branch");
+    const branch = mac.tree.currentPath(storyId)!;
+
+    // Write a Backstage steering note, then end Scene 1 on Branch (which answers it on Branch).
+    const note = writeNote(mac, storyId, "Bring Hagrid into the next Act.");
+    engine.endScene(storyId, head(), "trace-end-branch");
+    await engine.ended(storyId);
+    expect(besideOf(mac, storyId, head()).notes.find(n => n.id === note.id)?.answeredBy).not.toBeNull();
+
+    // Switch back to Main: the note has NOT been answered on Main's Outline yet.
+    engine.openPath(storyId, main.id, "trace-main");
+    expect(besideOf(mac, storyId, head()).notes.find(n => n.id === note.id)?.answeredBy).toBeNull();
+    // Branch still knows it was answered.
+    expect(besideOf(mac, storyId, mac.tree.path(branch.id)!.headEntryId).notes.find(n => n.id === note.id)?.answeredBy).not.toBeNull();
+  });
 });

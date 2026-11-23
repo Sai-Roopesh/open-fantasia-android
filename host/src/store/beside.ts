@@ -52,6 +52,15 @@ CREATE TABLE IF NOT EXISTS steering_notes (
   answered_by INTEGER
 );
 CREATE INDEX IF NOT EXISTS steering_notes_story ON steering_notes(story_id);
+
+CREATE TABLE IF NOT EXISTS note_answers (
+  story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
+  note_id TEXT NOT NULL REFERENCES steering_notes(id) ON DELETE CASCADE,
+  outline_entry_id TEXT NOT NULL,
+  version INTEGER NOT NULL,
+  PRIMARY KEY (story_id, note_id, outline_entry_id)
+);
+CREATE INDEX IF NOT EXISTS note_answers_story ON note_answers(story_id);
 `;
 
 /** Whose Taste: the Story's own, or the player's own across every Story. */
@@ -78,12 +87,13 @@ function tables({ db }: Store): Db {
     const tasteColumns = new Set((db.prepare("PRAGMA table_info(taste)").all() as { name: string }[]).map(row => row.name));
     if (!tasteColumns.has("active")) db.exec("ALTER TABLE taste ADD COLUMN active INTEGER NOT NULL DEFAULT 1");
     if (!tasteColumns.has("source_note_id")) db.exec("ALTER TABLE taste ADD COLUMN source_note_id TEXT");
-    // Recover exact Redo instructions; remember=1 notes are Story-wide while remember=0 notes remain scoped to their Path.
+    // Recover only remembered Redo instructions (remember=1); unremembered Redo corrections (remember=0) are one-shot
+    // for that single rewrite and must not persist into later Moves.
+    db.exec(`DELETE FROM steering_notes WHERE source_entry IS NOT NULL AND remember = 0 AND edited_at IS NULL`);
     db.exec(`INSERT OR IGNORE INTO steering_notes (id, story_id, text, written_at, answered_by, source_entry, remember)
-      SELECT id, story_id, json_extract(payload, '$.direction'), created_at, NULL, id,
-        CASE WHEN json_extract(payload, '$.remember') = 1 THEN 1 ELSE 0 END
+      SELECT id, story_id, json_extract(payload, '$.direction'), created_at, NULL, id, 1
       FROM entries
-      WHERE kind = 'redo' AND length(trim(coalesce(json_extract(payload, '$.direction'), ''))) > 0`);
+      WHERE kind = 'redo' AND json_extract(payload, '$.remember') = 1 AND length(trim(coalesce(json_extract(payload, '$.direction'), ''))) > 0`);
     // Retain old automatic paraphrases as history, rather than keeping a second, uneditable copy of a Direction
     // active after its original is archived. Explicitly authored Taste remains active.
     const aliases = db.prepare(`SELECT c.story_id AS storyId,
@@ -135,9 +145,29 @@ export function besideOf(store: Store, storyId: string, headEntryId?: string | n
   for (const row of pathReactions) byScene.set(row.scene, { scene: row.scene, title: row.title, reaction: row.reaction, note: row.note });
   const reactions = [...byScene.values()].sort((left, right) => left.scene - right.scene);
   const rawNotes = db.prepare("SELECT id, text, written_at AS writtenAt, answered_by AS answeredBy, active, source_entry AS sourceEntry, remember FROM steering_notes WHERE story_id = ? ORDER BY written_at, rowid").all(storyId) as (Omit<SteeringNote, "active"> & { active: number; sourceEntry: string | null; remember: number })[];
+  const answerRows = db.prepare("SELECT note_id AS noteId, outline_entry_id AS outlineEntryId, version FROM note_answers WHERE story_id = ?").all(storyId) as { noteId: string; outlineEntryId: string; version: number }[];
+  const answersByNote = new Map<string, { outlineEntryId: string; version: number }[]>();
+  for (const row of answerRows) {
+    const list = answersByNote.get(row.noteId);
+    if (list) list.push(row);
+    else answersByNote.set(row.noteId, [row]);
+  }
   const notes = rawNotes
-    .filter(note => !ancestors || note.sourceEntry === null || note.remember === 1 || ancestors.has(note.sourceEntry))
-    .map(({ sourceEntry, remember: _remember, ...note }) => ({ ...note, active: note.active === 1, requiresPlan: sourceEntry === null }));
+    // Never carry unremembered Redo corrections (sourceEntry != null && remember = 0) into subsequent turns.
+    .filter(note => note.sourceEntry === null || note.remember === 1)
+    .map(({ sourceEntry, remember: _remember, ...note }) => {
+      const scoped = answersByNote.get(note.id);
+      let answeredBy = note.answeredBy;
+      if (scoped && scoped.length > 0) {
+        if (ancestors) {
+          const hit = scoped.filter(item => ancestors.has(item.outlineEntryId)).sort((a, b) => b.version - a.version)[0];
+          answeredBy = hit ? hit.version : null;
+        } else {
+          answeredBy = Math.max(...scoped.map(item => item.version));
+        }
+      }
+      return { ...note, answeredBy, active: note.active === 1, requiresPlan: sourceEntry === null };
+    });
   return {
     taste: tasteOf(store, storyId, "story"),
     playerTaste: tasteOf(store, storyId, "player"),
@@ -212,13 +242,31 @@ export function editNote(store: Store, storyId: string, id: string, text: string
   db.exec("CREATE TABLE IF NOT EXISTS direction_edits (id INTEGER PRIMARY KEY, note_id TEXT NOT NULL, text TEXT NOT NULL, active INTEGER NOT NULL, edited_at TEXT NOT NULL)");
   return db.transaction(() => {
     db.prepare("INSERT INTO direction_edits (note_id, text, active, edited_at) SELECT id, text, active, ? FROM steering_notes WHERE story_id = ? AND id = ?").run(new Date().toISOString(), storyId, id);
+    db.prepare("DELETE FROM note_answers WHERE story_id = ? AND note_id = ?").run(storyId, id);
     return db.prepare("UPDATE steering_notes SET text = ?, active = ?, edited_at = ?, answered_by = NULL WHERE story_id = ? AND id = ?").run(text.trim(), Number(active), new Date().toISOString(), storyId, id).changes > 0;
   })();
 }
 
-/** Marks every note still waiting as answered by the Outline of [version], once the Director has written it. */
-export function answerNotes(store: Store, storyId: string, version: number): void {
-  tables(store).prepare("UPDATE steering_notes SET answered_by = ? WHERE story_id = ? AND active = 1 AND answered_by IS NULL").run(version, storyId);
+/**
+ * Marks every waiting note as answered by the Outline of [version], scoped to [outlineEntryId]'s Path when provided so
+ * answering a Backstage note on one Path does not suppress re-planning for it on a sibling Path.
+ */
+export function answerNotes(store: Store, storyId: string, version: number, outlineEntryId?: string | null): void {
+  const db = tables(store);
+  if (outlineEntryId) {
+    const ancestors = lineageOf(db, outlineEntryId);
+    const activeNotes = db.prepare("SELECT id FROM steering_notes WHERE story_id = ? AND active = 1 AND source_entry IS NULL").all(storyId) as { id: string }[];
+    const existing = db.prepare("SELECT outline_entry_id AS outlineEntryId FROM note_answers WHERE story_id = ? AND note_id = ?");
+    const insert = db.prepare("INSERT OR IGNORE INTO note_answers (story_id, note_id, outline_entry_id, version) VALUES (?, ?, ?, ?)");
+    db.transaction(() => {
+      for (const note of activeNotes) {
+        const rows = existing.all(storyId, note.id) as { outlineEntryId: string }[];
+        if (!rows.some(row => ancestors.has(row.outlineEntryId))) insert.run(storyId, note.id, outlineEntryId, version);
+      }
+    })();
+    return;
+  }
+  db.prepare("UPDATE steering_notes SET answered_by = ? WHERE story_id = ? AND active = 1 AND answered_by IS NULL").run(version, storyId);
 }
 
 /** Words that speak of the player or their character: "my character", "me", "I". */

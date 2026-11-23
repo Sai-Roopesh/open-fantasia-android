@@ -1,34 +1,74 @@
 import { readFileSync } from "node:fs";
 import type { Models } from "../models/model-call.js";
 import type { ModelChoice } from "../story/state.js";
-import { section } from "../context/lens.js";
+import { section, stripSceneState } from "../context/lens.js";
 import { REPLY_LENGTH_GUIDE } from "./actor.js";
 import { playersPart } from "./deciding.js";
 import { addMinutes } from "./format.js";
 import { checkWriter, writerCall, writerFacts, type WriterAsk, type WriterPlan } from "./writer.js";
-import { runAgent } from "./step.js";
+import { BUDGETS, runAgent } from "./step.js";
 
 const PROMPT = readFileSync(new URL("./COMPOSER.md", import.meta.url), "utf8");
 
-/** Parses a free-text Reply with an optional trailing `<scene_state>` JSON block (or a legacy JSON `{ reply, ... }` answer). */
+/** Extracts the first balanced JSON object from [text] and parses it, or null. */
+function parseJsonObject(text: string): Record<string, unknown> | null {
+  const cleaned = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+  const tryParse = (candidate: string): Record<string, unknown> | null => {
+    try {
+      const parsed = JSON.parse(candidate) as unknown;
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : null;
+    } catch {
+      return null;
+    }
+  };
+  const direct = tryParse(cleaned);
+  if (direct) return direct;
+  const start = cleaned.indexOf("{");
+  if (start < 0) return null;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = start; index < cleaned.length; index++) {
+    const ch = cleaned[index];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === "\"") inString = false;
+      continue;
+    }
+    if (ch === "\"") inString = true;
+    else if (ch === "{") depth++;
+    else if (ch === "}" && --depth === 0) return tryParse(cleaned.slice(start, index + 1));
+  }
+  return null;
+}
+
+/**
+ * Parses a free-text Reply with an optional trailing `<scene_state>` JSON block (closed or unclosed) or a legacy
+ * pure-JSON `{ reply, ... }` answer. Raw `<scene_state>` markup is always stripped so it can never reach the player.
+ */
 export function parseComposedAnswer(rawText: string): { reply: string; meta: Record<string, unknown> | null } {
   const trimmed = rawText.trim();
   if (!trimmed) return { reply: "", meta: null };
 
-  const matches = [...trimmed.matchAll(/<scene_state>\s*([\s\S]*?)\s*<\/scene_state>/gi)];
-  const last = matches.at(-1);
-  if (last && last.index !== undefined) {
-    const before = trimmed.slice(0, last.index).trim();
-    const after = trimmed.slice(last.index + last[0].length).trim();
-    const reply = [before, after].filter(Boolean).join("\n\n").trim();
-    const inner = (last[1] ?? "").trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
-    try {
-      const parsed = JSON.parse(inner) as unknown;
-      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        return { reply, meta: parsed as Record<string, unknown> };
-      }
-    } catch { /* Malformed bookkeeping falls back cleanly without losing the prose. */ }
-    return { reply, meta: null };
+  let meta: Record<string, unknown> | null = null;
+  const closed = [...trimmed.matchAll(/<scene_state>\s*([\s\S]*?)\s*<\/scene_state>/gi)];
+  for (const match of closed) {
+    const parsed = parseJsonObject(match[1] ?? "");
+    if (parsed) meta = parsed;
+  }
+
+  const withoutClosed = trimmed.replace(/<scene_state>[\s\S]*?<\/scene_state>/gi, "").trim();
+  const unclosed = /<scene_state>([\s\S]*)$/i.exec(withoutClosed);
+  if (unclosed) {
+    const parsed = parseJsonObject(unclosed[1] ?? "");
+    if (parsed) meta = parsed;
+    const reply = stripSceneState(trimmed);
+    return { reply, meta };
+  }
+
+  if (closed.length > 0) {
+    return { reply: stripSceneState(trimmed), meta };
   }
 
   // Backwards compatibility with pure JSON `{ reply, ... }` answers from legacy fixtures or models.
@@ -36,16 +76,13 @@ export function parseComposedAnswer(rawText: string): { reply: string; meta: Rec
     try {
       const parsed = JSON.parse(trimmed) as unknown;
       if (parsed && typeof parsed === "object" && !Array.isArray(parsed) && typeof (parsed as { reply?: unknown }).reply === "string") {
-        const { reply, ...meta } = parsed as Record<string, unknown> & { reply: string };
-        return { reply: reply.trim(), meta };
+        const { reply, ...rest } = parsed as Record<string, unknown> & { reply: string };
+        return { reply: stripSceneState(reply), meta: rest };
       }
     } catch { /* Treat as plain prose below. */ }
   }
 
-  // Strip any unclosed trailing `<scene_state>` tag so raw XML never reaches the player.
-  const openTag = trimmed.search(/<scene_state>\s*$/i);
-  const reply = (openTag >= 0 ? trimmed.slice(0, openTag) : trimmed).trim();
-  return { reply, meta: null };
+  return { reply: stripSceneState(trimmed), meta: null };
 }
 
 function defaultFrame(ask: WriterAsk): { title: string; place: string; purpose: string; exit: string } | null {
@@ -107,6 +144,13 @@ function normalizedMeta(ask: WriterAsk, meta: Record<string, unknown>): Record<s
       : null;
   const comesIn = Array.isArray(meta.comes_in) ? meta.comes_in : Array.isArray(meta.entered) ? meta.entered : [];
   const goes = Array.isArray(meta.goes) ? meta.goes : Array.isArray(meta.left) ? meta.left : [];
+  let minutes: unknown = 2;
+  if (typeof meta.minutes === "number" && Number.isFinite(meta.minutes)) {
+    minutes = meta.minutes < 0 ? meta.minutes : Math.round(meta.minutes);
+  } else if (typeof meta.minutes === "string" && /^-?\d+(?:\.\d+)?$/.test(meta.minutes.trim())) {
+    const num = Number(meta.minutes.trim());
+    minutes = num < 0 ? num : Math.round(num);
+  }
   return {
     frame,
     comes_in: comesIn,
@@ -115,7 +159,7 @@ function normalizedMeta(ask: WriterAsk, meta: Record<string, unknown>): Record<s
     note: typeof meta.note === "string" && meta.note.trim() ? meta.note : "The scene continues.",
     call: meta.call === "land" || meta.call === "continue" ? meta.call : "continue",
     intensity: typeof meta.intensity === "number" && Number.isInteger(meta.intensity) && meta.intensity >= 1 && meta.intensity <= 5 ? meta.intensity : 2,
-    minutes: meta.minutes !== undefined ? meta.minutes : 2,
+    minutes,
     in_play: Array.isArray(meta.in_play) ? meta.in_play : [],
     moves_to: opening === "day_view" ? null : place,
     gathered: Array.isArray(meta.gathered) ? meta.gathered : []
@@ -123,7 +167,7 @@ function normalizedMeta(ask: WriterAsk, meta: Record<string, unknown>): Record<s
 }
 
 /** The exact combined writing request, shared by the engine and CLI prompt inspection. */
-export function composerCall(ask: WriterAsk) {
+export function composerCall(ask: WriterAsk, again?: { draft: string; notes: string[] }) {
   const instructions = [PROMPT.trim(), playersPart(ask.state.playerCharacter), REPLY_LENGTH_GUIDE[ask.state.replyLength]].join("\n\n");
   const call = writerCall(ask, instructions);
   const moveAt = ask.path?.findLastIndex(entry => entry.payload.kind === "move") ?? -1;
@@ -133,15 +177,27 @@ export function composerCall(ask: WriterAsk) {
   const revision = rejected
     ? "\n\n" + section("revision", `The player is revising this rejected draft. It is not canon. Apply the current correction in context, preserving what fits. Without a new correction, try a different handling of the same Move while honoring active Directions.\n\n${rejected.text}`)
     : "";
-  const prompt = call.prompt + revision;
-  const conversation = revision
-    ? call.turns.map((turn, index, list) => (index === list.length - 1 ? { ...turn, text: turn.text + revision } : turn))
+  const sentBack = again
+    ? "\n\n" + section("sent_back", [
+        "Your Reply was read before the player saw it, and sent back to be written again. What breaks it:",
+        ...again.notes.map(note => `- ${note}`),
+        "",
+        "Rewrite the Reply cleanly, mending what it was sent back for while keeping what worked.",
+        "",
+        "It read:",
+        again.draft
+      ].join("\n"))
+    : "";
+  const tail = revision + sentBack;
+  const prompt = call.prompt + tail;
+  const conversation = tail
+    ? call.turns.map((turn, index, list) => (index === list.length - 1 ? { ...turn, text: turn.text + tail } : turn))
     : call.turns;
   return {
     system: call.system,
     prompt,
     conversation,
-    facts: { ...writerFacts(ask), composing: true },
+    facts: { ...writerFacts(ask), ...(again ? { rewriting: true } : { composing: true }) },
     // Keep Story lookup tools for memory callbacks; omit live web search from per-turn dialogue to cut hidden tool-prompt overhead and keep immersion.
     tools: { story: head ? { storyId: head.storyId, head: head.id } : null, web: false },
     moments: call.moments
@@ -163,9 +219,37 @@ export async function composeReply(models: Models, choices: ModelChoice[], ask: 
     if (!meta) return { ok: true, value: { plan: fallbackPlan(ask), reply }, dropped: ["scene_state: omitted or unreadable, kept prose with default scene state"] };
     const checked = checkWriter(ask, moments, normalizedMeta(ask, meta));
     if (checked.ok) return { ...checked, value: { plan: checked.value, reply } };
-    // Refuse only when active planning violates the player boundary or moves the clock backward; never discard good prose over a minor metadata glitch.
-    const fatal = checked.problems.filter(problem => problem.includes("decides for the player's character") || problem.includes("minutes"));
+    // Refuse only when active planning explicitly returned by the model violates the player boundary or moves the clock backward;
+    // never discard good prose over inherited legacy beats or minor metadata glitches.
+    const fatal = checked.problems.filter(problem =>
+      problem.includes("minutes")
+      || (problem.includes("decides for the player's character") && (Array.isArray(meta.beats) || !problem.startsWith("beats[")))
+    );
     if (fatal.length) return { ok: false, problems: fatal };
     return { ok: true, value: { plan: fallbackPlan(ask), reply }, dropped: checked.problems };
   }, { turns: 6, ms: 240_000 }, signal, onLookup);
+}
+
+/**
+ * Rewrites a draft that failed the code or Editor check using the exact same cached system prompt, tools, and
+ * multi-turn prefix as `composeReply`, preserving any one-shot Redo direction and stripping `<scene_state>`.
+ */
+export async function rewriteComposedReply(
+  models: Models,
+  choices: ModelChoice[],
+  ask: WriterAsk,
+  again: { draft: string; notes: string[] },
+  storyId: string,
+  traceId: string,
+  signal: AbortSignal
+): Promise<{ text: string; callId: string; model: ModelChoice }> {
+  const call = composerCall(ask, again);
+  const { value, callId, model } = await runAgent<string>(models, choices, {
+    system: call.system, prompt: call.prompt, conversation: call.conversation, facts: call.facts, tools: call.tools, agent: "actor", traceId, storyId
+  }, answer => {
+    if (typeof answer !== "string" || !answer.trim()) return { ok: false, problems: ["reply: write the complete Reply"] };
+    const { reply } = parseComposedAnswer(answer);
+    return reply ? { ok: true, value: reply } : { ok: false, problems: ["reply: write the complete Reply"] };
+  }, { turns: 2, ms: BUDGETS.actor.ms }, signal);
+  return { text: value, callId, model };
 }

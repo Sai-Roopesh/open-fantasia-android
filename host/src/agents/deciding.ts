@@ -60,34 +60,83 @@ const alternation = (form: 0 | 1) => DECIDING_VERBS
 const AFTER_SUBJECT = alternation(0);
 const AFTER_MAKES = alternation(1);
 
-/** The names the Player Character answers to, longest first: full name, first name and aliases. */
-export function playerNames(person: { name: string; aliases: string[] }): string[] {
-  const first = person.name.trim().split(/\s+/)[0] ?? "";
-  return [...new Set([person.name.trim(), first, ...person.aliases.map(alias => alias.trim())])]
+/**
+ * The names the Player Character answers to, longest first: full name, unambiguous tokens of their name (so
+ * "Sai Roopesh" includes "Roopesh" as well as "Sai" unless another person shares that token), and aliases.
+ */
+export function playerNames(person: { name: string; aliases: string[] }, others: readonly { name: string; aliases?: string[] }[] = []): string[] {
+  const full = person.name.trim();
+  const shared = new Set(
+    others
+      .filter(other => other.name.trim().toLocaleLowerCase() !== full.toLocaleLowerCase())
+      .flatMap(other => [other.name, ...(other.aliases ?? []), ...other.name.trim().split(/\s+/)])
+      .map(token => token.trim().toLocaleLowerCase())
+      .filter(Boolean)
+  );
+  const tokens = full.split(/\s+/).filter((token, index) => token.length > 1 && (index === 0 || !shared.has(token.toLocaleLowerCase())));
+  return [...new Set([full, ...tokens, ...person.aliases.map(alias => alias.trim())])]
     .filter(name => name.length > 1)
     .sort((left, right) => right.length - left.length);
 }
 
+const OPT_ADVERB = "(?:(?:don't|do\\s+not|can't|cannot|won't|will\\s+not|quietly|softly|slowly|finally|barely|hoarsely|flatly|just|still|only|almost|merely|simply)\\s+)?";
+
+const SPEECH_VERBS = [
+  "say", "says", "said", "tell", "tells", "told", "ask", "asks", "asked",
+  "answer", "answers", "answered", "reply", "replies", "replied",
+  "whisper", "whispers", "whispered", "mutter", "mutters", "muttered",
+  "murmur", "murmurs", "murmured", "breathe", "breathes", "breathed",
+  "snap", "snaps", "snapped", "shout", "shouts", "shouted", "yell", "yells", "yelled",
+  "manage", "manages", "managed", "choke\\s+out", "chokes\\s+out", "choked\\s+out",
+  "stammer", "stammers", "stammered", "add", "adds", "added",
+  "finish", "finishes", "finished", "repeat", "repeats", "repeated",
+  "admit", "admits", "admitted", "confess", "confesses", "confessed",
+  "insist", "insists", "insisted", "promise", "promises", "promised",
+  "hiss", "hisses", "hissed", "blurt\\s+out", "blurts\\s+out", "blurted\\s+out",
+  "call\\s+out", "calls\\s+out", "called\\s+out"
+].join("|");
+
 /**
- * Narrow second-person narrator check: catches ONLY clear present-tense narrator hijacking of the player's dialogue,
- * decisions, or feelings ("You say...", "You pull away", "You feel...") — never past-tense references to the player's
- * own Move ("when you asked", "what you told her").
+ * Catches quoted dialogue attributed to the player (`"Leave," you mutter`, `You quietly say, "No"`, `"Stop," Roopesh
+ * whispers`). Operates on text where quoted spans are replaced by `«Q»`, so character dialogue talking about `you`
+ * never triggers false positives.
+ */
+export function decidesPlayerDialogue(quotedPlaceholderText: string, names: string[]): string | null {
+  const subjects = ["you", ...names].map(name => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+  const afterQuote = new RegExp(`«Q»\\s*,?\\s*(?:and\\s+)?(?:${subjects})\\s+${OPT_ADVERB}(?:${SPEECH_VERBS})\\b[^.\\n]{0,40}`, "i");
+  const beforeQuote = new RegExp(`(?:^|[.!?;,\\n]\\s*(?:and\\s+|but\\s+)?)(?:${subjects})\\s+${OPT_ADVERB}(?:${SPEECH_VERBS})\\b[^.\\n]{0,40}«Q»`, "i");
+  const found = afterQuote.exec(quotedPlaceholderText) ?? beforeQuote.exec(quotedPlaceholderText);
+  return found ? found[0].replace(/^[.!?;,\n\s]+/, "").replace(/«Q»/g, '"…"').trim() : null;
+}
+
+/**
+ * Narrow second-person narrator check: catches clear present-tense narrator hijacking of the player's dialogue,
+ * decisions, actions, or feelings ("You say...", "You quietly whisper", ", and you nod", "You pull away",
+ * "You feel...") — never past-tense or subordinate references to the player's own Move ("when you asked",
+ * "what you told her", "before you say a word").
  */
 const YOU_DECIDING_VERBS = [
   "say", "tell", "ask", "answer", "reply", "decide", "agree", "refuse", "choose",
-  "admit", "confess", "cry", "feel", "want", "kiss", "forgive", "accept", "reject",
-  "promise", "snap", "apologise", "apologize", "explain", "insist", "shout", "whisper",
-  "laugh", "smile", "nod", "pull\\s+(?:away|back|free)", "push\\s+(?:her|him|them)\\s+away",
+  "admit", "confess", "cry", "sob", "feel", "want", "think", "wonder", "realise", "realize",
+  "wish", "hope", "regret", "kiss", "hug", "embrace", "forgive", "accept", "reject",
+  "promise", "snap", "apologise", "apologize", "explain", "insist", "shout", "yell",
+  "whisper", "mutter", "murmur", "breathe", "stammer", "manage", "choke\\s+out", "sigh",
+  "laugh", "smile", "grin", "nod", "shake\\s+your\\s+head", "shrug",
+  "pull\\s+(?:away|back|free|her|him|them)", "push\\s+(?:her|him|them|away|back)",
+  "back\\s+away", "step\\s+(?:back|away|forward|closer|out|inside)",
+  "turn\\s+(?:away|around|back|toward|to\\s+(?:her|him|them|the\\s+door))",
+  "walk\\s+(?:away|out|over|back|toward)", "leave\\s+(?:her|him|them|the\\s+room)",
+  "reach\\s+(?:out|for|toward)", "take\\s+(?:her|his|their)\\s+hand",
   "give\\s+in", `go\\s+${REACTION}`, `stay\\s+(?:${REACTION}|with\\s+(?:her|him|them))`
 ].join("|");
 
-const YOU_SUBJECT = new RegExp(`(?:^|[.!?\\n]\\s*)you\\s+(?:${YOU_DECIDING_VERBS})\\b[^.;]{0,60}`, "i");
-const MAKES_YOU = new RegExp(`\\b(?:makes?|forces?)\\s+you\\s+(?:${AFTER_MAKES})\\b[^.;]{0,40}`, "i");
+const YOU_SUBJECT = new RegExp(`(?:^|[.!?\\n]\\s*|,\\s*(?:and|but|so)\\s+|;\\s*)you\\s+${OPT_ADVERB}(?:${YOU_DECIDING_VERBS})\\b[^.;\\n]{0,60}`, "i");
+const MAKES_YOU = new RegExp(`\\b(?:makes?|forces?)\\s+you\\s+(?:${AFTER_MAKES})\\b[^.;\\n]{0,40}`, "i");
 
 /** Catches unambiguous second-person narrator control of `you` outside dialogue without false-positiving on references. */
 export function decidesForYou(text: string): string | null {
   const found = YOU_SUBJECT.exec(text) ?? MAKES_YOU.exec(text);
-  return found ? found[0].replace(/^[.!?\n\s]+/, "").trim() : null;
+  return found ? found[0].replace(/^[.!?;,\n\s]+/, "").trim() : null;
 }
 
 /** The phrase in [text] that decides something for the Player Character, or null. */

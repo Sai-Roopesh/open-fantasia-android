@@ -339,8 +339,10 @@ describe("Focus, Linger and Redo", () => {
 
     await play("I ask her what she's reading.");
     expect(JSON.stringify(view())).not.toContain(direction);
-    expect(models.actor.requests.at(-1)!.prompt).toContain(direction);
-    expect(besideOf(mac, storyId).notes.some(note => note.text === direction && note.active)).toBe(true);
+    // An unremembered Redo direction is one-shot for that rewrite only: it must not bleed into later Moves or notes.
+    expect(models.actor.requests.at(-1)!.prompt).not.toContain(direction);
+    expect(models.requests.filter(request => request.agent === "actor").at(-1)!.conversation?.map(turn => turn.text).join("\n")).not.toContain(direction);
+    expect(besideOf(mac, storyId, head()).notes.some(note => note.text === direction)).toBe(false);
     expect(besideOf(mac, storyId).taste).toEqual([]);
   });
 

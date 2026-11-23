@@ -2,7 +2,7 @@ import type { Db } from "./db.js";
 import type { Beside } from "../story/beside.js";
 import type { ModelChoice } from "../story/state.js";
 
-export interface Draft { text: string; callId: string; model: ModelChoice; beside: Beside; rewrites: number }
+export interface Draft { text: string; callId: string; model: ModelChoice; beside: Beside; rewrites: number; beforeId?: string }
 
 /** Durable intermediate work, separate from the played Story. Recovery never pays to regenerate a checked draft. */
 export class Drafts {

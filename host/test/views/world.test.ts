@@ -136,13 +136,17 @@ describe("who and what the World screen lists", () => {
     expect(people.find(person => person.name === "Vincent Crabbe")).toMatchObject({ group: "Crabbe and Goyle", known: "Draconia's bodyguard." });
   });
 
-  it("marks the places a Scene has been, and lists what is ahead in order, with countdowns", () => {
-    const { mac, storyId } = playable(story());
-    const world = worldView(mac, storyId, "t");
-    expect(world.places).toEqual([
+  it("marks the places a Scene has been (including mid-Scene moves), and lists what is ahead in order, with countdowns", async () => {
+    const s = playable(story(), {
+      writer: [{ answer: JSON.stringify({ frame: { title: "After curfew", place: "The Gryffindor common room", purpose: "p", exit: "e" }, comes_in: [], goes: [], beats: [], note: "n", call: "continue", intensity: 2, minutes: 2, in_play: [], moves_to: "The Owlery" }) }]
+    });
+    const before = worldView(s.mac, s.storyId, "t");
+    expect(before.places).toEqual([
       { name: "The Gryffindor common room", description: "Red and gold, a fire that never goes out.", been: true },
       { name: "The Owlery", description: "Cold, and full of owls.", been: false }
     ]);
-    expect(world.calendar).toEqual([{ kind: "landmark", name: "The flying test", what: "First-years fly for the first time.", at_label: expect.stringContaining("9:00 am"), when: "2 days" }]);
+    expect(before.calendar).toEqual([{ kind: "landmark", name: "The flying test", what: "First-years fly for the first time.", at_label: expect.stringContaining("9:00 am"), when: "2 days" }]);
+    await s.play("I walk up to the Owlery.");
+    expect(worldView(s.mac, s.storyId, "t").places.find(place => place.name === "The Owlery")?.been).toBe(true);
   });
 });

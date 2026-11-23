@@ -48,7 +48,11 @@ export function worldView(mac: Mac, storyId: string, traceId: string): WorldView
   }));
   const people = [...leads, ...[...others, ...groups].sort((left, right) => left.name.localeCompare(right.name))];
 
-  const scenePlaces = mac.tree.pathTo(head).flatMap(entry => entry.payload.kind === "scene_opened" ? [entry.payload.place] : []);
+  const scenePlaces = mac.tree.pathTo(head).flatMap(entry => {
+    if (entry.payload.kind === "scene_opened") return [entry.payload.place];
+    if (entry.payload.kind === "beat_note" && entry.payload.place) return [entry.payload.place];
+    return [];
+  });
   const places: WorldPlace[] = [...state.world.places, ...state.world.institutions].map(place => ({
     name: place.name, description: place.description,
     been: scenePlaces.some(where => samePlace(where, place.name))

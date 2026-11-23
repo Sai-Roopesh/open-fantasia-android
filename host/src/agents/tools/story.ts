@@ -114,7 +114,7 @@ interface SceneSpan {
 }
 
 /** The search's own index: built and brought up to date when searched (entries never change, so it only grows). */
-const INDEX_SHAPE = 1;
+const INDEX_SHAPE = 2;
 
 /** The Story on one Path at one head, read lazily. */
 class StoryAt {

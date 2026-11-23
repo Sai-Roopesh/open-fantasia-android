@@ -170,6 +170,14 @@ function shownNotHere(ask: WriterAsk): string[] {
   return namedIn(reply.payload.text, nameIndex(Object.values(ask.state.people))).filter(name => name !== ask.state.playerCharacter && !here.includes(name));
 }
 
+function longRunPart(state: State): string | null {
+  return state.plan ? section("long_run", [
+    `Toward ${state.plan.toward}, a ${state.plan.phase} Stretch.`,
+    ...state.plan.arcs.map(arc => `- ${arc.arc}: now ${arc.now}; may move to ${arc.next}; not yet ${arc.notYet}`),
+    `Premise: ${state.plan.premise}`
+  ].join("\n")) : null;
+}
+
 function writerMoment(ask: WriterAsk, moments: Fact[], standing: string[]): (string | null)[] {
   const { state } = ask;
   const pc = state.playerCharacter;
@@ -183,11 +191,7 @@ function writerMoment(ask: WriterAsk, moments: Fact[], standing: string[]): (str
   if (scene?.focus && !scene.closed) tasks.push(`Focus is on ${scene.focus}.`);
   if (scene?.linger && !scene.closed) tasks.push("Linger is on: hold the beat in play, force nothing, and call continue. Wherever the Move goes and however long it takes, the Scene goes on; set moves_to when they go somewhere.");
   if (state.pendingDirection?.text) tasks.push(`The player redid the last Reply with this Direction: ${state.pendingDirection.text}`);
-  const plan = state.plan ? section("long_run", [
-    `Toward ${state.plan.toward}, a ${state.plan.phase} Stretch.`,
-    ...state.plan.arcs.map(arc => `- ${arc.arc}: now ${arc.now}; may move to ${arc.next}; not yet ${arc.notYet}`),
-    `Premise: ${state.plan.premise}`
-  ].join("\n")) : null;
+  const plan = longRunPart(state);
   const chosen = ask.choice?.scene ? state.plan?.scenes.find(item => item.id === ask.choice?.scene) : undefined;
   return [
     plan,
@@ -221,7 +225,10 @@ export function writerTurns(ask: WriterAsk, moments: Fact[], instructions: strin
     mentionedPart(ask, standing),
     ask.state.pendingDirection?.text ? section("direction", `Redo direction: ${ask.state.pendingDirection.text}`) : null
   ];
-  return asTurns(ask.state, ask.beside, "writer", standing, ask.scene, writerMoment(ask, moments, standing), instructions, { text: ask.move, extra });
+  // Static per-Scene standing blocks (<long_run> and cross-Scene <remembered> Moments) live in Turn 0 so they reach
+  // direct Codex/Antigravity calls while staying 100% KV-cached across every turn of the Scene.
+  const staticStanding: (string | null)[] = [longRunPart(ask.state), momentsPart(ask.state, moments)];
+  return asTurns(ask.state, ask.beside, "writer", standing, ask.scene, writerMoment(ask, moments, standing), instructions, { text: ask.move, extra, staticStanding });
 }
 
 function describeChoice(state: State, choice: Choice): string {
@@ -286,7 +293,7 @@ export function checkWriter(ask: WriterAsk, moments: Fact[], answer: unknown): C
   const dropped: string[] = [];
   const problems: string[] = [];
   const pc = state.playerCharacter;
-  const pcNames = playerNames({ name: pc, aliases: state.people[pc]?.aliases ?? [] });
+  const pcNames = playerNames({ name: pc, aliases: state.people[pc]?.aliases ?? [] }, Object.values(state.people));
   // Only check active/future beats (pending/in_play), never done/skipped beats that merely summarize a past Move.
   const activeBeats = raw.beats.flatMap((beat, index) => (beat.status === "pending" || beat.status === "in_play" ? [[`beats[${index}]`, beat.text] as [string, string]] : []));
   for (const [where, value] of [["note", raw.note], ...activeBeats, ["frame.purpose", raw.frame?.purpose ?? ""]] as [string, string][]) {

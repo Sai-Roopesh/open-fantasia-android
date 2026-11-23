@@ -9,6 +9,7 @@ import type { Entry, ReplyWritten } from "../story/entries.js";
 import { sceneSpans } from "../story/spans.js";
 import { besideOf } from "../store/beside.js";
 import type { Reaction, State } from "../story/state.js";
+import { stripSceneState } from "../context/lens.js";
 import { minutesOf, parseStoryTime, sayDate, sayStoryTime, sayTime, type StoryTime } from "../time.js";
 
 /** How many Landmarks ahead the Day View counts down to. */
@@ -242,9 +243,10 @@ function exchanges(entries: Entry[]): Exchange[] {
   return result;
 }
 
-/** A Reply as the phone shows it: its words, with the Editor's note when it still breaks something (docs/adr/0019). */
+/** A Reply as the phone shows it: its words (with any legacy `<scene_state>` tag stripped), and the Editor's note when present. */
 function replyPassage(entryId: string, reply: ReplyWritten): Passage {
-  return reply.note ? { entry_id: entryId, text: reply.text, note: reply.note } : { entry_id: entryId, text: reply.text };
+  const text = stripSceneState(reply.text);
+  return reply.note ? { entry_id: entryId, text, note: reply.note } : { entry_id: entryId, text };
 }
 
 /** The live event an entry becomes once it is written; the Writer's Beat Notes belong to Backstage and send none. */

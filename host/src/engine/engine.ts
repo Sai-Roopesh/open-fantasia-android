@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { writeReply } from "../agents/actor.js";
-import { composeReply } from "../agents/composer.js";
+import { composeReply, parseComposedAnswer, rewriteComposedReply } from "../agents/composer.js";
 import { Drafts, type Draft } from "../store/drafts.js";
 import { writeChronicle } from "../agents/chronicler.js";
 import { directionDue, writePlan } from "../agents/director.js";
@@ -491,7 +491,7 @@ export class Engine {
       if (now && now.focus !== before?.focus) parent = this.mac.tree.append(storyId, parent.id, { kind: "focus_set", on: now.focus });
       if (now && now.linger !== before?.linger) parent = this.mac.tree.append(storyId, parent.id, { kind: "linger_set", on: now.linger });
       const written = this.mac.tree.append(storyId, parent.id, { kind: "redo", direction: text, remember, ...(model ? { model } : {}), ...(reply.payload.kind === "reply" ? { rejected: { id: reply.id, text: reply.payload.text } } : {}) });
-      if (text) writeNote(this.mac, storyId, text, new Date(), written.id, remember);
+      if (text && remember) writeNote(this.mac, storyId, text, new Date(), written.id, true);
       if (!this.mac.tree.moveHead(path.id, head.id, written.id)) throw new LinkError("stale_head", "The Story has moved on since you last looked.");
       return written;
     })();
@@ -576,8 +576,8 @@ export class Engine {
         const { payload, answered } = await (woven?.result ?? this.sceneEndStep(storyId, path.headEntryId, state, step, traceId, run));
         const entry = this.mac.tree.append(storyId, path.headEntryId, payload);
         if (!this.mac.tree.moveHead(path.id, path.headEntryId, entry.id)) return;
-        // The steering notes the Outline follows are answered by it (openspec the-outline: The player sees and steers the Outline).
-        if (answered) answerNotes(this.mac, storyId, this.mac.states.at(entry.id).outline?.version ?? 0);
+        // The steering notes the Outline follows are answered by it, scoped to this Path's outline entry.
+        if (answered) answerNotes(this.mac, storyId, this.mac.states.at(entry.id).outline?.version ?? 0, entry.id);
         if ("callId" in payload && payload.callId) this.models.attach(payload.callId, entry.id);
         if (this.mac.tree.currentPath(storyId)?.id === run.pathId) this.publish(storyId, entry);
       } catch (error) {
@@ -1170,7 +1170,7 @@ export class Engine {
         clock: plan.clock, inPlay: plan.inPlay, ...(plan.movesTo ? { place: plan.movesTo } : {}), ...(plan.gathered.length ? { gathered: plan.gathered } : {}), callId, model
       });
       if (!this.mac.tree.moveHead(turn.pathId, head.id, note.id)) throw new Error("The Path moved while the Writer planned its Reply");
-      this.drafts.save(note.id, { text: reply, callId, model, beside, rewrites: 0 });
+      this.drafts.save(note.id, { text: reply, callId, model, beside, rewrites: 0, beforeId: head.id });
       return { opened, note };
     })();
     // Exact Directions already live beside the Story; generation never invents a second, global instruction.
@@ -1191,10 +1191,20 @@ export class Engine {
     const checkpoint = this.drafts.get(note.id);
     const beside = checkpoint?.beside ?? besideOf(this.mac, turn.storyId, note.id);
     const gathered = note.payload.kind === "beat_note" ? note.payload.gathered ?? [] : [];
-    const write = (again?: { draft: string; notes: string[] }) => {
+    const write = async (again?: { draft: string; notes: string[] }) => {
       turn.step = "actor";
       this.say(turn, "writing");
-      return writeReply(this.models, this.turnChoices(turn, "actor"), { state, beside, scene: entries, gathered, ...(again ? { again } : {}) }, turn.storyId, turn.traceId, turn.abort.signal);
+      if (again && checkpoint?.beforeId) {
+        const beforeState = this.mac.states.at(checkpoint.beforeId);
+        const beforeScene = sceneEntries(this.mac, checkpoint.beforeId).entries;
+        const moveAt = beforeScene.findIndex(entry => entry.id === turn.move.id);
+        const text = turn.move.payload.kind === "move" ? turn.move.payload.text : "";
+        const choice = turn.move.payload.kind === "move" ? turn.move.payload.choice ?? null : null;
+        const ask = { state: beforeState, scene: moveAt >= 0 ? beforeScene.slice(0, moveAt) : beforeScene, move: text, choice, beside, path: this.mac.tree.pathTo(checkpoint.beforeId) };
+        return rewriteComposedReply(this.models, this.turnChoices(turn, "actor"), ask, again, turn.storyId, turn.traceId, turn.abort.signal);
+      }
+      const written = await writeReply(this.models, this.turnChoices(turn, "actor"), { state, beside, scene: entries, gathered, ...(again ? { again } : {}) }, turn.storyId, turn.traceId, turn.abort.signal);
+      return { ...written, text: parseComposedAnswer(written.text).reply || written.text };
     };
     const pc = state.playerCharacter;
     const editing = editsEveryReply(this.mac.home);
@@ -1212,7 +1222,7 @@ export class Engine {
     this.drafts.save(note.id, reply);
     let edit = await check(reply.text);
     if (edit.notes.length && reply.rewrites < 1) {
-      reply = { ...await write({ draft: reply.text, notes: edit.notes }), beside, rewrites: reply.rewrites + 1 };
+      reply = { ...await write({ draft: reply.text, notes: edit.notes }), beside, rewrites: reply.rewrites + 1, ...(checkpoint?.beforeId ? { beforeId: checkpoint.beforeId } : {}) };
       this.drafts.save(note.id, reply);
       edit = await check(reply.text);
     }

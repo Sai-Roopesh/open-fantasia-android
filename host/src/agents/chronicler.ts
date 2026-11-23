@@ -178,7 +178,7 @@ export function checkChronicle(ask: ChronicleAsk, moments: Fact[], answer: unkno
   const raw = format.value;
   const dropped: string[] = [];
   const pc = state.playerCharacter;
-  const pcNames = playerNames({ name: pc, aliases: state.people[pc]?.aliases ?? [] });
+  const pcNames = playerNames({ name: pc, aliases: state.people[pc]?.aliases ?? [] }, Object.values(state.people));
   const quotesOf = (where: string, quotes: { entry: string; text: string }[]): Quote[] => quotes.flatMap(quote => {
     const item = items.find(passage => passage.label === quote.entry);
     const words = item ? findWords(item.text, quote.text) : null;

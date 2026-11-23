@@ -4,7 +4,7 @@ import type { Beside } from "../story/beside.js";
 import type { Entry } from "../story/entries.js";
 import type { ModelChoice, State } from "../story/state.js";
 import { asCall, layers, section } from "../context/lens.js";
-import { decidesForPlayer, decidesForYou, playerNames, playersPartBreak } from "./deciding.js";
+import { decidesForPlayer, decidesForYou, decidesPlayerDialogue, playerNames, playersPartBreak } from "./deciding.js";
 import { matches, namer, nullable, peopleEnum, text } from "./format.js";
 import { BUDGETS, runAgent, type Checked } from "./step.js";
 
@@ -113,23 +113,27 @@ const found = (words: string, text: string) => {
 };
 
 /**
- * The Reply as told, for the check in code: without what is said aloud in it, which is the speaker's to say of him, and
- * with him as "he" where a clause only waits on him ("before Roopesh says a word"), which decides nothing.
+ * The Reply with every quoted speech span replaced by a `«Q»` placeholder, and subordinate clauses waiting on the
+ * player ("before you say a word", "when you asked") neutralized so they never false-positive.
  */
-function narration(reply: string, names: string[]): string {
-  const told = reply.replace(/"[^"]*"|“[^”]*”|‘[^’]*’/g, " ");
+function narrationWithQuotePlaceholders(reply: string, names: string[]): string {
+  const masked = reply.replace(/"[^"]*"|“[^”]*”|‘[^’]*’/g, "«Q»");
   const his = ["you", ...names].map(name => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
-  return told.replace(new RegExp(`\\b(before|until|unless|if|whether)\\s+(?:${his})\\b`, "gi"), "$1 he");
+  return masked.replace(new RegExp(`\\b(before|until|unless|if|whether|when|after|while|as|once|because|since|what|how|that)\\s+(?:${his})\\b`, "gi"), "$1 he");
 }
 
 /**
- * The check in code alone: the phrase of [reply] that writes the Player Character's part (by name or in second-person
- * narration), or null. It costs nothing, so it reads every Reply, where a model Editor no longer does (docs/adr/0024).
+ * The check in code alone: the phrase of [reply] that writes the Player Character's part (quoted dialogue attributed
+ * to them, by name, or in second-person narration), or null. It costs nothing, so it reads every Reply, where a model
+ * Editor no longer does (docs/adr/0024).
  */
 export function playerPartIn(state: State, reply: string): string | null {
   const pc = state.playerCharacter;
-  const names = playerNames({ name: pc, aliases: state.people[pc]?.aliases ?? [] });
-  const text = narration(reply, names);
+  const names = playerNames({ name: pc, aliases: state.people[pc]?.aliases ?? [] }, Object.values(state.people));
+  const withPlaceholders = narrationWithQuotePlaceholders(reply, names);
+  const dialogue = decidesPlayerDialogue(withPlaceholders, names);
+  if (dialogue) return dialogue.replace(/\s+/g, " ");
+  const text = withPlaceholders.replace(/«Q»/g, " ");
   const found = decidesForPlayer(text, names) ?? decidesForYou(text);
   return found?.replace(/\s+/g, " ") ?? null;
 }

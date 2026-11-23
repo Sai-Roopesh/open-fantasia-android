@@ -37,6 +37,14 @@ export const LIMITS = {
   }
 } as const;
 
+/** Strips any closed or unclosed `<scene_state>` metadata blocks from prose so raw tags never leak to the player or history. */
+export function stripSceneState(text: string): string {
+  return text
+    .replace(/<scene_state>[\s\S]*?<\/scene_state>/gi, "")
+    .replace(/<scene_state>[\s\S]*$/i, "")
+    .trim();
+}
+
 /** [body] in a tag, closed by the tag's name alone; null when there is nothing in it. */
 export function section(tag: string, body: string): string | null {
   return body.trim() ? `<${tag}>\n${body.trim()}\n</${tag.split(" ")[0]}>` : null;
@@ -288,7 +296,7 @@ export function layers(state: State, beside: Beside, reader: Reader, present: st
   const here = [...new Set(present)].filter(name => name !== state.playerCharacter);
   return {
     story: join([instructions.trim() || null, storyLayer(state, reader)]),
-    standing: join([standingLayer(state, beside, reader, here), reader === "chronicler" ? null : directionsPart(beside),
+    standing: join([standingLayer(state, beside, reader, here, scene), reader === "chronicler" ? null : directionsPart(beside),
       reader === "actor" || reader === "writer" ? voicesPart(state, here) : null]),
     scene: sceneLayer(state, reader, scene),
     moment: momentLayer(state, moment)
@@ -429,7 +437,7 @@ function storyLayer(state: State, reader: Reader): string {
 }
 
 /** Layer 2, where things stand as of the last Scene's end: what does not hang on who is present first, then what does. */
-function standingLayer(state: State, beside: Beside, reader: Reader, here: string[]): string {
+function standingLayer(state: State, beside: Beside, reader: Reader, here: string[], scene: Entry[]): string {
   const at = asOf(state);
   const steers = STEERS.has(reader);
   return join([
@@ -438,7 +446,7 @@ function standingLayer(state: State, beside: Beside, reader: Reader, here: strin
     steers ? part("threads", "What is developing in the World on its own.", state.threads.map(thread => `- ${thread.name}: ${sentence(thread.now)}`), LIMITS.parts.threads, "first", true) : null,
     calendarOf(state, reader, at),
     wishesPart(beside, reader),
-    livesPart(state, reader, here),
+    livesPart(state, reader, here, scene),
     betweenPart(state, reader, here),
     knowsOf(state, reader, here),
     truthsPart(state, reader, here, at),
@@ -514,9 +522,25 @@ function wishesPart(beside: Beside, reader: Reader): string | null {
 }
 
 /** Who each person is now (openspec the-truth: Who each person is now is kept): what writes them reads it first. */
-function livesPart(state: State, reader: Reader, here: string[]): string | null {
+function livesPart(state: State, reader: Reader, here: string[], scene: Entry[]): string | null {
   const pc = state.playerCharacter;
   const steers = STEERS.has(reader);
+  const prose = reader === "actor" || reader === "writer";
+  const openingEntry = scene.find(entry => entry.payload.kind === "scene_opened");
+  const openingWho = state.scene && !state.scene.closed
+    ? (openingEntry?.payload.kind === "scene_opened" ? openingEntry.payload.who : state.scene.here)
+    : (state.scene?.met ?? []);
+  const inOpening = new Set(openingWho);
+  // Static across an open Scene (depends only on completed Scenes + opening cast) so Turn 0 stays 100% KV-cached.
+  const appearedOnPath = new Set(
+    [
+      ...state.storySoFar.acts.flatMap(item => item.who),
+      ...state.storySoFar.scenes.flatMap(item => item.who),
+      ...state.facts.filter(fact => fact.source === "page").flatMap(fact => fact.knownTo),
+      ...openingWho
+    ].filter(name => name !== pc && Boolean(state.people[name]))
+  );
+  const notAppeared = Object.keys(state.people).filter(name => name !== pc && !appearedOnPath.has(name));
   // Each person's share of the part: who they are now first, so a long list of feelings never pushes it out.
   const share = Math.max(500, Math.floor(LIMITS.parts.lives / Math.max(1, here.length)));
   const writes = reader === "actor" || reader === "writer" || reader === "editor";
@@ -527,8 +551,10 @@ function livesPart(state: State, reader: Reader, here: string[]): string | null 
     const named = state.truth.names[name];
     const intention = steers ? state.outline?.intentions.find(item => item.who === name) : undefined;
     const known = reader !== "actor" ? state.known[name] : undefined;
+    const offscreenLead = prose && state.scene && !state.scene.closed && !inOpening.has(name) && state.leads.includes(name);
     return first([
       `${name}${person && person.broughtIn !== null ? ` (new to the Story: ${clause(person.whoTheyAre)})` : ""}${!person && named ? ` (first named in Scene ${named.first}: ${clause(named.what)})` : ""}`,
+      ...(offscreenLead ? ["  Presence: off-screen Lead (not in this Scene unless introduced)."] : []),
       // Someone the Director brought in is not among the people in layer 1: whoever writes them is told how they look here.
       ...(writes && person && person.broughtIn !== null && person.appearance ? [`  Looks: ${sentence(person.appearance)}`] : []),
       now ? `  Now, as of Scene ${now.scene}: ${sentence(now.now)}` : "  Now: as when the Story began.",
@@ -541,8 +567,14 @@ function livesPart(state: State, reader: Reader, here: string[]): string | null 
       ...(known ? [`  What ${pc} knows of them: ${sentence(known.text)}`] : [])
     ], share).join("\n");
   };
-  const who = SEES_ALL.has(reader) ? "Who each person who matters is now" : "Who each person here is now";
-  return part("people_now", `${who}, as of the last Scene's end. Write them from this, not from who they were when the Story began.`, here.map(life), LIMITS.parts.lives, "first", LOOKS_UP.has(reader));
+  const pathCastSummary = prose && notAppeared.length > 0
+    ? [
+        `Appeared on this Path so far: ${appearedOnPath.size ? list([...appearedOnPath]) : "none yet"}.`,
+        `Off-screen background cast not yet seen on this Path (not present here; do not assume prior scenes with them on this Path): ${list(notAppeared)}.`
+      ]
+    : [];
+  const who = SEES_ALL.has(reader) ? "Who each person who matters is now" : prose ? "Active cast and Leads" : "Who each person here is now";
+  return part("people_now", `${who}, as of the last Scene's end. Write them from this, not from who they were when the Story began.`, [...pathCastSummary, ...here.map(life)], LIMITS.parts.lives, "first", LOOKS_UP.has(reader));
 }
 
 /**
@@ -739,7 +771,8 @@ function sceneParts(state: State, reader: Reader, entries: Entry[]): {
   // across location changes (docs/adr/0025).
   const openingEntry = entries.find(entry => entry.payload.kind === "scene_opened");
   const openedPlace = playing && openingEntry?.payload.kind === "scene_opened" ? openingEntry.payload.place : scene.place;
-  const opened = `${scene.title}. ${openedPlace}, from ${say(state, scene.at)}${scene.closed && scene.endedAt ? ` until ${say(state, scene.endedAt)}, when it ended` : ""}.`;
+  const openedWho = playing && openingEntry?.payload.kind === "scene_opened" ? openingEntry.payload.who : null;
+  const opened = `${scene.title}. ${openedPlace}, from ${say(state, scene.at)}${scene.closed && scene.endedAt ? ` until ${say(state, scene.endedAt)}, when it ended` : ""}.${openedWho ? ` Present at scene start besides ${pc}: ${openedWho.length ? list(openedWho) : "nobody"}.` : ""}`;
   const nowText = [
     ...(playing && scene.place !== openedPlace ? [`Now at: ${scene.place}.`] : []),
     `Here besides ${pc}: ${scene.here.length ? list(scene.here) : "nobody"}.`,
@@ -750,9 +783,12 @@ function sceneParts(state: State, reader: Reader, entries: Entry[]): {
   ].join("\n");
   const toPassages = (from: Entry[]): ScenePassage[] => from.flatMap((entry): ScenePassage[] => {
     switch (entry.payload.kind) {
-      case "scene_opened": return entry.payload.prose ? [{ role: "assistant", turn: entry.payload.prose, flat: entry.payload.prose }] : [];
+      case "scene_opened": return entry.payload.prose ? [{ role: "assistant", turn: stripSceneState(entry.payload.prose), flat: stripSceneState(entry.payload.prose) }] : [];
       case "move": return [{ role: "user", turn: entry.payload.text, flat: `<move by="${pc}">\n${entry.payload.text}\n</move>` }];
-      case "reply": return [{ role: "assistant", turn: entry.payload.text, flat: entry.payload.text }];
+      case "reply": {
+        const clean = stripSceneState(entry.payload.text);
+        return [{ role: "assistant", turn: clean, flat: clean }];
+      }
       default: return [];
     }
   });
@@ -784,10 +820,14 @@ function sceneParts(state: State, reader: Reader, entries: Entry[]): {
  * Strictly append-only across consecutive turns (empirically verified against Codex Responses API: mutating the last
  * turn between calls drops KV cache to ~30%, while keeping `turns[0..2N]` byte-identical and only appending
  * `assistant(reply)` + `user(nextMove)` hits 97%+ real KV cache):
- * - Turn 0 (`user`): stable standing context, active Directions, Voice examples, static Scene header, and active Focus/Linger.
+ * - Turn 0 (`user`): stable standing context, active Directions, Voice examples, static per-Scene blocks (`<long_run>`,
+ *   `<remembered>`), static Scene header, and active Focus/Linger.
  * - Turns 1..2N-1: exact alternating `assistant`/`user` history of the Scene so far.
  * - Final Turn 2N (`user`): bare `moveText` (so on Turn N+1 it stays byte-identical as a historical Move!), plus any
- *   one-shot cue only when genuinely present (e.g., Day View opening choice, `<mentioned>` newcomer, or `<revision>`).
+ *   one-shot cue only when genuinely present (e.g., `<mentioned>` newcomer, `<direction>`, `<revision>`, `<sent_back>`).
+ * When opening a new Scene from Day View (`state.scene?.closed`), closed-Scene raw passages are NOT replayed as active
+ * conversation turns; instead Turn 0 sends the fresh standing context plus the full Day View moment (`<now>`,
+ * `<long_run>`, `<scene_that_matters>`, `<remembered>`, `<move>`, `<task>`).
  */
 export function asTurns(
   state: State,
@@ -797,13 +837,13 @@ export function asTurns(
   scene: Entry[],
   moment: (string | null)[],
   instructions = "",
-  currentMove?: { text: string; extra?: (string | null)[] }
+  currentMove?: { text: string; extra?: (string | null)[]; staticStanding?: (string | null)[] }
 ): { system: string; prompt: string; turns: { role: "user" | "assistant"; text: string }[] } {
   const layered = layers(state, beside, reader, present, scene, moment, instructions);
   const flat = asCall(layered);
   const parts = sceneParts(state, reader, scene);
-  if (!parts || parts.passages.length === 0) {
-    return { ...flat, turns: [{ role: "user", text: flat.prompt }] };
+  if (!parts || parts.passages.length === 0 || state.scene?.closed) {
+    return { ...flat, turns: [{ role: "user", text: state.scene?.closed ? join([layered.standing, layered.moment]) : flat.prompt }] };
   }
   const controls = state.scene && !state.scene.closed
     ? section("scene_controls", [
@@ -819,7 +859,7 @@ export function asTurns(
     if (prev && prev.role === role) prev.text = `${prev.text}\n\n${body}`;
     else turns.push({ role, text: body });
   };
-  push("user", join([layered.standing, parts.header, parts.record, parts.omittedNote, controls]));
+  push("user", join([layered.standing, ...(currentMove?.staticStanding ?? []), parts.header, parts.record, parts.omittedNote, controls]));
   for (const item of parts.passages) push(item.role, item.turn);
   if (currentMove) {
     push("user", join([currentMove.text, ...(currentMove.extra ?? [])]));
