@@ -102,7 +102,10 @@ export function actorPrompt(ask: ActorAsk): { system: string; prompt: string; tu
       again.draft
     ].join("\n")) : null,
     `Write what happens next${again ? ", again: mend what it was sent back for, and keep what was right" : ""}. Narrate in second person (you/your) for ${pc} and first person (I) for character speech. What ${pc} says, chooses, thinks, and feels belongs to the player; what is done to you lands.`
-  ], actorInstructions(state));
+  ], actorInstructions(state), {
+    text: move.payload.text,
+    extra: again ? [section("sent_back", ["Your Reply was read before the player saw it, and sent back to be written again. What breaks it:", ...again.notes.map(note => `- ${note}`), "", "It read:", again.draft].join("\n"))] : []
+  });
 }
 
 /**

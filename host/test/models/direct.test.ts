@@ -157,7 +157,7 @@ describe("Codex, called directly", () => {
     await runner.run(request({ prompt: "two" }), () => {}, new AbortController().signal);
     await runner.run(request({ system: "Another Story." }), () => {}, new AbortController().signal);
     const sessions = sent.map(item => item.headers["session-id"]);
-    expect(sessions[0]).toMatch(/^[0-9a-f]{32}$/);
+    expect(sessions[0]).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-8[0-9a-f]{3}-[0-9a-f]{12}$/);
     expect(sessions[0]).toBe(sent[0]!.body.prompt_cache_key);
     expect(sessions[1]).toBe(sessions[0]);
     expect(sessions[2]).not.toBe(sessions[0]);

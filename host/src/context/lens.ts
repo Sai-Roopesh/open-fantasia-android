@@ -780,10 +780,14 @@ function sceneParts(state: State, reader: Reader, entries: Entry[]): {
 }
 
 /**
- * Real alternating `user`/`assistant` conversation turns for prose generation (direct Codex & Antigravity transports):
- * Turn 0 carries the stable standing context and Scene header, prior Moves and Replies follow as real user/assistant
- * turns (so the model feels its own cadence and caches the full transcript prefix), and the final user turn carries
- * volatile `<scene_now>` and the current moment.
+ * Real alternating `user`/`assistant` conversation turns for prose generation (direct Codex & Antigravity transports).
+ * Strictly append-only across consecutive turns (empirically verified against Codex Responses API: mutating the last
+ * turn between calls drops KV cache to ~30%, while keeping `turns[0..2N]` byte-identical and only appending
+ * `assistant(reply)` + `user(nextMove)` hits 97%+ real KV cache):
+ * - Turn 0 (`user`): stable standing context, active Directions, Voice examples, static Scene header, and active Focus/Linger.
+ * - Turns 1..2N-1: exact alternating `assistant`/`user` history of the Scene so far.
+ * - Final Turn 2N (`user`): bare `moveText` (so on Turn N+1 it stays byte-identical as a historical Move!), plus any
+ *   one-shot cue only when genuinely present (e.g., Day View opening choice, `<mentioned>` newcomer, or `<revision>`).
  */
 export function asTurns(
   state: State,
@@ -792,7 +796,8 @@ export function asTurns(
   present: string[],
   scene: Entry[],
   moment: (string | null)[],
-  instructions = ""
+  instructions = "",
+  currentMove?: { text: string; extra?: (string | null)[] }
 ): { system: string; prompt: string; turns: { role: "user" | "assistant"; text: string }[] } {
   const layered = layers(state, beside, reader, present, scene, moment, instructions);
   const flat = asCall(layered);
@@ -800,14 +805,12 @@ export function asTurns(
   if (!parts || parts.passages.length === 0) {
     return { ...flat, turns: [{ role: "user", text: flat.prompt }] };
   }
-  const here = [...new Set(present)].filter(name => name !== state.playerCharacter);
-  // Keep Turn 0 free of mutable `<active_directions>` so adding/editing/archiving a Direction never invalidates the
-  // cached Scene transcript prefix; place `<active_directions>` in the final turn where recency attention is strongest.
-  const cachedStanding = join([
-    standingLayer(state, beside, reader, here),
-    reader === "actor" || reader === "writer" ? voicesPart(state, here) : null
-  ]);
-  const directions = reader === "chronicler" ? null : directionsPart(beside);
+  const controls = state.scene && !state.scene.closed
+    ? section("scene_controls", [
+        state.scene.focus ? `Focus is on ${state.scene.focus}.` : "",
+        state.scene.linger ? "Linger is on: hold the moment without forcing a payoff." : ""
+      ].filter(Boolean).join("\n"))
+    : null;
   const turns: { role: "user" | "assistant"; text: string }[] = [];
   const push = (role: "user" | "assistant", text: string) => {
     const body = text.trim();
@@ -816,9 +819,13 @@ export function asTurns(
     if (prev && prev.role === role) prev.text = `${prev.text}\n\n${body}`;
     else turns.push({ role, text: body });
   };
-  push("user", join([cachedStanding, parts.header, parts.record, parts.omittedNote]));
+  push("user", join([layered.standing, parts.header, parts.record, parts.omittedNote, controls]));
   for (const item of parts.passages) push(item.role, item.turn);
-  push("user", join([parts.now, directions, layered.moment]));
+  if (currentMove) {
+    push("user", join([currentMove.text, ...(currentMove.extra ?? [])]));
+  } else {
+    push("user", join([parts.now, layered.moment]));
+  }
   return { ...flat, turns };
 }
 

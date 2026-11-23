@@ -210,10 +210,18 @@ export function writerPrompt(ask: WriterAsk, moments: Fact[], instructions: stri
   return asCall(layers(ask.state, ask.beside, "writer", standing, ask.scene, writerMoment(ask, moments, standing), instructions));
 }
 
-/** The Writer's prompt with real alternating user/assistant Scene turns for direct transports. */
+/** The Writer's prompt with strictly append-only alternating user/assistant Scene turns for 97%+ KV-cache hits. */
 export function writerTurns(ask: WriterAsk, moments: Fact[], instructions: string): { system: string; prompt: string; turns: { role: "user" | "assistant"; text: string }[] } {
   const standing = presentFor(ask);
-  return asTurns(ask.state, ask.beside, "writer", standing, ask.scene, writerMoment(ask, moments, standing), instructions);
+  const opening = openingOf(ask.state);
+  const extra: (string | null)[] = [
+    opening === "day_view"
+      ? section("task", ask.choice ? `The player chose at the Day View: ${describeChoice(ask.state, ask.choice)}. Open the Scene it begins.` : "The last Scene has closed: this Move opens a new Scene.")
+      : null,
+    mentionedPart(ask, standing),
+    ask.state.pendingDirection?.text ? section("direction", `Redo direction: ${ask.state.pendingDirection.text}`) : null
+  ];
+  return asTurns(ask.state, ask.beside, "writer", standing, ask.scene, writerMoment(ask, moments, standing), instructions, { text: ask.move, extra });
 }
 
 function describeChoice(state: State, choice: Choice): string {

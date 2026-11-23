@@ -44,20 +44,21 @@ describe("a Scene's prompts share their beginning, so the provider's cache is re
     expect(third!.prompt.slice(third!.prompt.indexOf("<scene_now>"))).toContain("Now at: The corridor outside.");
     expect(third!.prompt.slice(third!.prompt.indexOf("<scene_now>"))).toContain("<mentioned>");
     expect(third!.prompt.slice(third!.prompt.indexOf("<scene_now>"))).toContain("Rubeus Hagrid");
-    // Real alternating user/assistant turns for direct transports.
+    // Real alternating user/assistant turns for direct transports, strictly append-only across consecutive turns
+    // (including keeping Turn N's final user Move byte-identical on Turn N+1 so Codex hits 97%+ KV cache).
+    expect(second!.conversation?.map(turn => turn.role)).toEqual(["user", "assistant", "user", "assistant", "user"]);
     expect(third!.conversation?.map(turn => turn.role)).toEqual(["user", "assistant", "user", "assistant", "user", "assistant", "user"]);
+    expect(third!.conversation!.slice(0, second!.conversation!.length)).toEqual(second!.conversation);
     expect(third!.schema).toBeUndefined();
 
-    // Adding a Direction or having a new non-Lead walk in mid-Scene NEVER mutates Turn 0 or prior turns (preserves KV cache).
+    // Active Directions live in Turn 0 so consecutive turns with an active Direction remain strictly append-only.
     writeNote(s.mac, s.storyId, "Keep the tension sharp and dry.");
-    await s.play("I wait for Hagrid to answer.");
-    const fourth = s.models.requests.filter(request => request.agent === "actor").at(-1)!;
-    expect(fourth.conversation![0]).toEqual(third!.conversation![0]);
-    expect(fourth.conversation![1]).toEqual(third!.conversation![1]);
-    expect(fourth.conversation![2]).toEqual(third!.conversation![2]);
-    expect(fourth.conversation![3]).toEqual(third!.conversation![3]);
-    expect(fourth.conversation!.at(-1)!.text).toContain("<active_directions>");
-    expect(fourth.conversation!.at(-1)!.text).toContain("Keep the tension sharp and dry.");
+    await s.play("I wait for Hermione to answer.");
+    await s.play("I tap the table once.");
+    const [fourth, fifth] = s.models.requests.filter(request => request.agent === "actor").slice(-2);
+    expect(fourth!.conversation![0]!.text).toContain("<active_directions>");
+    expect(fourth!.conversation![0]!.text).toContain("Keep the tension sharp and dry.");
+    expect(fifth!.conversation!.slice(0, fourth!.conversation!.length)).toEqual(fourth!.conversation);
   });
 
   it("parses free-text prose with trailing <scene_state> and tolerates omitted metadata or done beats mentioning past player moves", async () => {

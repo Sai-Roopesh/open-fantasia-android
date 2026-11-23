@@ -35,9 +35,10 @@ export function conversationOf(request: ModelRequest): Conversation {
   };
 }
 
-/** A stable key for the system prompt (and Story shard when set), so a provider's prompt cache keeps it between calls. */
+/** A stable UUID-formatted key for the system prompt (and Story shard when set), matching Codex CLI's session-id format. */
 export function cacheKey(model: string, system: string, scope?: string): string {
-  return createHash("sha256").update(scope ? `${model}\n${scope}\n${system}` : `${model}\n${system}`).digest("hex").slice(0, 32);
+  const hex = createHash("sha256").update(scope ? `${model}\n${scope}\n${system}` : `${model}\n${system}`).digest("hex").slice(0, 32);
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
 
 /** The Story's tools as a function declaration's parameters. */
