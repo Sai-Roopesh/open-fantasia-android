@@ -1,7 +1,7 @@
 import { writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { AntigravityDirectRunner } from "../../src/models/antigravity-direct.js";
-import { CodexDirectRunner } from "../../src/models/codex-direct.js";
+import { AntigravityDirectRunner, antigravityGatewayModels } from "../../src/models/antigravity-direct.js";
+import { CodexDirectRunner, codexBackendModels } from "../../src/models/codex-direct.js";
 import { antigravityToken, codexCredentials, preferDirect, UseFallback } from "../../src/models/direct.js";
 import { NO_TOOLS, type ModelRequest, type ModelRunner, type ToolSpec, type Tools } from "../../src/models/model-call.js";
 import { antigravityBody, codexBody, conversationOf, geminiSchema, schemaInWords } from "../../src/models/wire.js";
@@ -39,15 +39,15 @@ function authored(): Set<string> {
  * (a skills catalogue, an agent-team prompt, a global AGENTS.md) cannot reach a model without failing this test.
  */
 describe("one request, delivered the same way to every provider", () => {
-  const codexConstants = new Set(["gpt-6.1-sol", "low", "medium", "high", "message", "user", "input_text", "function", "web_search", "auto", "reasoning.encrypted_content", "json_schema", "answer", "object", "null"]);
+  const codexConstants = new Set(["", "gpt-6.1-sol", "low", "medium", "high", "message", "developer", "user", "input_text", "function", "web_search", "auto", "reasoning.encrypted_content", "json_schema", "answer", "object", "null"]);
   const antigravityConstants = new Set(["gemini-3.8-flash-high", "project-1", "antigravity", "agent", "user", "application/json", "OBJECT", "object"]);
 
-  it("gives Codex the system prompt as its instructions and nothing the host did not write", () => {
+  it("gives Codex the system prompt as its leading developer message and nothing the host did not write", () => {
     const body = codexBody(conversationOf(request({ schema: SCHEMA })), "gpt-6.1-sol", { story: [SEARCH], web: true });
-    expect(body.instructions).toBe(SYSTEM);
+    expect(body.instructions).toBe("");
     const found = strings(body);
-    expect(found.filter(item => item.text === SYSTEM).map(item => item.at)).toEqual(["$.instructions"]);
-    expect(found.filter(item => item.text === PROMPT).map(item => item.at)).toEqual(["$.input[0].content[0].text"]);
+    expect(found.filter(item => item.text === SYSTEM).map(item => item.at)).toEqual(["$.input[0].content[0].text"]);
+    expect(found.filter(item => item.text === PROMPT).map(item => item.at)).toEqual(["$.input[1].content[0].text"]);
     const own = authored();
     const stray = found.filter(item => !own.has(item.text) && !codexConstants.has(item.text) && item.at !== "$.prompt_cache_key");
     expect(stray).toEqual([]);
@@ -77,6 +77,7 @@ describe("one request, delivered the same way to every provider", () => {
     ];
     const codex = codexBody(conversationOf(request({ conversation: turns })), "gpt-6.1-sol", { story: [], web: false });
     expect(codex.input).toEqual([
+      { type: "message", role: "developer", content: [{ type: "input_text", text: SYSTEM }] },
       { type: "message", role: "user", content: [{ type: "input_text", text: "Standing context" }] },
       { type: "message", role: "assistant", content: [{ type: "output_text", text: "She looks up." }] },
       { type: "message", role: "user", content: [{ type: "input_text", text: "I step inside." }] }
@@ -140,7 +141,7 @@ describe("Codex, called directly", () => {
     expect(deltas.join("")).toBe("She left for the telegram.");
     expect(tools.asked).toEqual(["search_story:Shimla"]);
     const second = sent[1]!.body.input as Record<string, unknown>[];
-    expect(second.slice(1)).toEqual([
+    expect(second.slice(2)).toEqual([
       { type: "reasoning", encrypted_content: "x" },
       { type: "function_call", call_id: "call_1", name: "search_story", arguments: "{\"words\":\"Shimla\"}" },
       { type: "function_call_output", call_id: "call_1", output: "Meera: \"I left Shimla because of the telegram.\"" }
@@ -181,6 +182,29 @@ describe("Codex, called directly", () => {
     expect(codexCredentials(file, 1_000_000)).toEqual({ token: token(2_000), accountId: "acct" });
     expect(() => codexCredentials(file, 1_990_000)).toThrow(UseFallback);
     expect(() => codexCredentials(`${file}.missing`)).toThrow(UseFallback);
+  });
+
+  it("lists all visible Codex models directly from /backend-api/codex/models", async () => {
+    expect(codexBackendModels([
+      { slug: "gpt-6.2-sol", display_name: "GPT-6.2-Sol", visibility: "list", default_reasoning_level: "low", supported_reasoning_levels: [{ effort: "low" }, { effort: "medium" }, { effort: "high" }] },
+      { slug: "gpt-reserve", display_name: "GPT-Reserve", visibility: "hide", default_reasoning_level: "medium", supported_reasoning_levels: [{ effort: "medium" }] }
+    ])).toEqual([
+      { id: "gpt-6.2-sol", aliases: [], name: "GPT 6.2 Sol", efforts: ["low", "medium", "high"], defaultEffort: "low" }
+    ]);
+
+    const get = (async (url: string, init: { method?: string; headers: Record<string, string> }) => {
+      expect(url).toContain("/backend-api/codex/models");
+      expect(init.method).toBe("GET");
+      expect(init.headers["chatgpt-account-id"]).toBe("a");
+      return new Response(JSON.stringify({
+        models: [
+          { slug: "gpt-6.2-sol", display_name: "GPT-6.2-Sol", visibility: "list", default_reasoning_level: "low", supported_reasoning_levels: [{ effort: "low" }, { effort: "medium" }] }
+        ]
+      }));
+    }) as unknown as typeof fetch;
+    expect(await new CodexDirectRunner(signedIn, get).listModels()).toEqual([
+      { id: "gpt-6.2-sol", aliases: [], name: "GPT 6.2 Sol", efforts: ["low", "medium"], defaultEffort: "low" }
+    ]);
   });
 });
 
@@ -239,5 +263,85 @@ describe("Antigravity, called directly", () => {
     expect(antigravityToken(() => stored("2026-11-17T12:00:00Z"), Date.parse("2026-11-17T11:00:00Z"))).toBe("ya29");
     expect(() => antigravityToken(() => stored("2026-11-17T11:00:30Z"), Date.parse("2026-11-17T11:00:00Z"))).toThrow(UseFallback);
     expect(() => antigravityToken(() => { throw new Error("not found"); })).toThrow(UseFallback);
+  });
+
+  it("folds all latest Antigravity models from the gateway payload in recommended order, dropping non-callable entries", () => {
+    expect(antigravityGatewayModels({
+      agentModelSorts: [{ groups: [{ modelIds: [
+        "gemini-4-neon-high", "gemini-4-neon-xhigh", "gemini-4-neon-medium", "gemini-4-neon-low",
+        "gemini-4-carbon-high", "gemini-4-carbon-medium",
+        "gemini-pro-orchestrator-neon",
+        "claude-opus-5-5-low", "claude-opus-5-5-high",
+        "gpt-oss-120b-medium"
+      ] }] }],
+      imageGenerationModelIds: ["gemini-3.1-flash-image"],
+      tieredModelIds: { pro: ["gemini-4-hydrogen-tiered-xhigh"] },
+      models: {
+        "gemini-4-neon-high": { displayName: "Gemini 4 Neon (High)", recommended: true },
+        "gemini-4-neon-xhigh": { displayName: "Gemini 4 Neon (XHigh)", recommended: true },
+        "gemini-4-neon-medium": { displayName: "Gemini 4 Neon (Medium)", recommended: true },
+        "gemini-4-neon-low": { displayName: "Gemini 4 Neon (Low)", recommended: true },
+        "gemini-4-carbon-high": { displayName: "Gemini 4 Carbon (High)", recommended: true },
+        "gemini-4-carbon-medium": { displayName: "Gemini 4 Carbon (Medium)", recommended: true },
+        "gemini-pro-orchestrator-neon": { displayName: "Orchestrator (Neon)", recommended: true },
+        "claude-opus-5-5-low": { displayName: "Claude Opus 5.5 (Low)", recommended: true },
+        "claude-opus-5-5-high": { displayName: "Claude Opus 5.5 (High)", recommended: true },
+        "gpt-oss-120b-medium": { displayName: "GPT-OSS 120B (Medium)", recommended: true },
+        "gemini-3.5-flash-lite": { displayName: "Gemini 3.5 Flash Lite", recommended: true },
+        "gemini-2.5-flash": { displayName: "Gemini 3.5 Flash Lite", recommended: true },
+        "gemini-3.1-flash-image": { displayName: "Gemini 3.1 Flash Image", recommended: false },
+        "gemini-4-hydrogen-tiered-xhigh": { displayName: "Gemini 4 Hydrogen (XHigh)", recommended: true },
+        "internal-model": { displayName: "Internal", recommended: true, isInternal: true }
+      }
+    })).toEqual([
+      { id: "gemini-4-neon", aliases: [], name: "Gemini 4 Neon", efforts: ["low", "medium", "high", "xhigh"], defaultEffort: "medium" },
+      { id: "gemini-4-carbon", aliases: [], name: "Gemini 4 Carbon", efforts: ["medium", "high"], defaultEffort: "medium" },
+      { id: "claude-opus-5-5", aliases: [], name: "Claude Opus 5.5", efforts: ["low", "high"], defaultEffort: "high" },
+      { id: "gpt-oss-120b", aliases: [], name: "GPT-OSS 120B", efforts: ["medium"], defaultEffort: "medium" },
+      { id: "gemini-3.5-flash-lite", aliases: [], name: "Gemini 3.5 Flash Lite", efforts: [], defaultEffort: null }
+    ]);
+  });
+
+  it("lists models directly via fetchAvailableModels and falls back to the local Hub daemon when the keychain token expired", async () => {
+    const gatewayPayload = {
+      agentModelSorts: [{ groups: [{ modelIds: ["gemini-4-neon-high", "gemini-4-neon-xhigh"] }] }],
+      models: {
+        "gemini-4-neon-high": { displayName: "Gemini 4 Neon (High)", recommended: true },
+        "gemini-4-neon-xhigh": { displayName: "Gemini 4 Neon (XHigh)", recommended: true }
+      }
+    };
+    const { post, sent } = fetchOf([new Response(JSON.stringify(gatewayPayload))]);
+    const direct = await new AntigravityDirectRunner("2.32.2", () => "token", post, async () => {}, () => []).listModels();
+    expect(direct).toEqual([{ id: "gemini-4-neon", aliases: [], name: "Gemini 4 Neon", efforts: ["high", "xhigh"], defaultEffort: "xhigh" }]);
+    expect(sent.some(item => item.url.includes("fetchAvailableModels") && item.body.project === "project-1")).toBe(true);
+
+    const daemonFetch = (async (url: string, init: { headers: Record<string, string> }) => {
+      expect(url).toBe("http://127.0.0.1:62305/exa.language_server_pb.LanguageServerService/GetAvailableModels");
+      expect(init.headers["x-codeium-csrf-token"]).toBe("csrf-1");
+      return new Response(JSON.stringify({ response: gatewayPayload }));
+    }) as unknown as typeof fetch;
+    const fromDaemon = await new AntigravityDirectRunner(
+      "2.32.2",
+      () => { throw new UseFallback("expired"); },
+      daemonFetch,
+      async () => {},
+      () => [{ httpPort: 62305, csrfToken: "csrf-1" }]
+    ).listModels();
+    expect(fromDaemon).toEqual(direct);
+  });
+
+  it("falls back to schema-in-words when a Claude-on-Antigravity model rejects tool_choice for responseSchema", async () => {
+    const unsupportedToolChoice = () => new Response(JSON.stringify({ error: { message: "tool_choice: type \"tool\" and \"any\" are not supported for this model." } }), { status: 400 });
+    const answer = [{ response: { candidates: [{ content: { parts: [{ text: "{\"reply\":\"Yes.\",\"moves_to\":null}" }] }, finishReason: "STOP" }] } }];
+    const { post, sent } = fetchOf([unsupportedToolChoice(), answer, answer]);
+    const runner = new AntigravityDirectRunner("2.32.2", () => "token", post);
+    const claudeOnAgy = request({ schema: SCHEMA, model: { provider: "antigravity", model: "claude-sonnet-5-5", effort: "medium" } });
+    expect(await runner.run(claudeOnAgy, () => {}, new AbortController().signal)).toBe("{\"reply\":\"Yes.\",\"moves_to\":null}");
+    // Gemini with the exact same schema still uses responseSchema because schema refusal is keyed per model.
+    const gemini = request({ schema: SCHEMA, model: { provider: "antigravity", model: "gemini-4-neon", effort: "medium" } });
+    expect(await runner.run(gemini, () => {}, new AbortController().signal)).toBe("{\"reply\":\"Yes.\",\"moves_to\":null}");
+    const calls = sent.filter(item => item.url.includes("streamGenerateContent")).map(item => item.body.request as { generationConfig: Record<string, unknown> });
+    expect(calls[1]!.generationConfig).toEqual({ responseMimeType: "application/json" });
+    expect(calls[2]!.generationConfig.responseSchema).toBeDefined();
   });
 });

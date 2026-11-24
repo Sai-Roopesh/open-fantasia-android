@@ -1,9 +1,33 @@
+import type { OfferedModel } from "./catalog.js";
 import { NO_TOOLS, type ModelRequest, type ModelRunner, type ModelUsage, type Tools } from "./model-call.js";
 import { webSearchLine, withoutAddedNulls, type CodexWebSearch } from "./codex.js";
 import { codexBody, conversationOf } from "./wire.js";
 import { codexCredentials, readEvents, refusal, Used, type CodexCredentials } from "./direct.js";
 
 const ENDPOINT = "https://chatgpt.com/backend-api/codex/responses";
+const MODELS_ENDPOINT = "https://chatgpt.com/backend-api/codex/models?client_version=1.0.0";
+
+/** One model entry returned by `/backend-api/codex/models`. */
+export interface CodexBackendModel {
+  slug: string;
+  display_name?: string;
+  visibility?: string;
+  default_reasoning_level?: string | null;
+  supported_reasoning_levels?: { effort: string }[];
+}
+
+/** Codex's live backend model list, hidden internal entries omitted, formatted to match `codexModels`. */
+export function codexBackendModels(listed: readonly CodexBackendModel[]): OfferedModel[] {
+  return listed
+    .filter(model => model.visibility !== "hide")
+    .map(model => ({
+      id: model.slug,
+      aliases: [],
+      name: (model.display_name ?? model.slug).replace(/-/g, " "),
+      efforts: (model.supported_reasoning_levels ?? []).map(level => level.effort),
+      defaultEffort: model.default_reasoning_level ?? null
+    }));
+}
 
 /** A turn of a Responses conversation: a message, a tool call, its result, or reasoning to carry forward. */
 type Item = Record<string, unknown> & { type?: string };
@@ -59,6 +83,25 @@ export class CodexDirectRunner implements ModelRunner {
         input.push({ type: "function_call_output", call_id: call.call_id, output: tools.use(String(call.name), args) });
       }
     }
+  }
+
+  /** Lists all latest Codex models directly from the ChatGPT Codex backend (including models newer than the installed CLI). */
+  async listModels(signal?: AbortSignal): Promise<OfferedModel[]> {
+    const { token, accountId } = this.credentials();
+    const response = await this.post(MODELS_ENDPOINT, {
+      method: "GET",
+      ...(signal ? { signal } : {}),
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "chatgpt-account-id": accountId,
+        originator: "open-fantasia"
+      }
+    });
+    if (!response.ok) throw await refusal("Codex", response);
+    const data = await response.json() as { models?: CodexBackendModel[] };
+    const listed = codexBackendModels(data.models ?? []);
+    if (listed.length === 0) throw new Error("Codex returned no models");
+    return listed;
   }
 
   private async stream(body: unknown, token: string, accountId: string, signal: AbortSignal, onText: (delta: string) => void) {

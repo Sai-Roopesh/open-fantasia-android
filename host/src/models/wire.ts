@@ -47,7 +47,14 @@ function parameters(spec: ToolSpec): Schema {
   };
 }
 
-/** The body the ChatGPT Codex backend takes (`/backend-api/codex/responses`), as the Codex CLI itself sends it. */
+/**
+ * The body the ChatGPT Codex backend takes (`/backend-api/codex/responses`), as the Codex CLI itself sends it.
+ *
+ * The system prompt is placed in `input[0]` as a `developer` message with `instructions: ""` rather than top-level
+ * `instructions`: empirically verified live on 25 Nov 2026 that `gpt-6.2-sol` and `gpt-6.2-astra` do not prefix-cache
+ * large top-level `instructions` across multi-turn appends (dropping to ~20–29% cache hit), whereas sending the
+ * system prompt as `input[0]` (`role: "developer"`) hits 92%+ KV cache on `gpt-6.2-*` and 92–98% on `gpt-6.1-sol`.
+ */
 export function codexBody(conversation: Conversation, model: string, tools: { story: ToolSpec[]; web: boolean }): Schema {
   const text: Schema = { verbosity: conversation.verbosity };
   if (conversation.schema) text.format = { type: "json_schema", name: "answer", strict: true, schema: strict(conversation.schema as never) };
@@ -57,12 +64,15 @@ export function codexBody(conversation: Conversation, model: string, tools: { st
   ];
   return {
     model,
-    instructions: conversation.system,
-    input: conversation.turns.map(turn => ({
-      type: "message",
-      role: turn.role,
-      content: [{ type: turn.role === "user" ? "input_text" : "output_text", text: turn.text }]
-    })),
+    instructions: "",
+    input: [
+      { type: "message", role: "developer", content: [{ type: "input_text", text: conversation.system }] },
+      ...conversation.turns.map(turn => ({
+        type: "message",
+        role: turn.role,
+        content: [{ type: turn.role === "user" ? "input_text" : "output_text", text: turn.text }]
+      }))
+    ],
     stream: true,
     store: false,
     parallel_tool_calls: false,

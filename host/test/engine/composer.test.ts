@@ -211,21 +211,22 @@ describe("one writing generation with shared Directions", () => {
     const actorCalls = s.models.requests.filter(request => request.agent === "actor");
     const scene2Open = codexBody(conversationOf(actorCalls[1]!), "gpt-6.1-sol", { story: [], web: false });
     const scene2OpenInput = scene2Open.input as { role: string; content: { text: string }[] }[];
-    // Opening Scene 2 from Day View sends a single fresh Turn 0 — never replaying closed Scene 1's raw exchanges.
-    expect(scene2OpenInput).toHaveLength(1);
-    expect(scene2OpenInput[0]!.content[0]!.text).toContain("<story_so_far>");
-    expect(scene2OpenInput[0]!.content[0]!.text).toContain("<long_run>");
-    expect(scene2OpenInput[0]!.content[0]!.text).toContain("<remembered>");
-    expect(scene2OpenInput[0]!.content[0]!.text).toContain("<now>");
-    expect(scene2OpenInput[0]!.content[0]!.text).not.toContain("Hermione marks her place.");
+    // Opening Scene 2 from Day View sends developer(system) + a single fresh Turn 0 — never replaying closed Scene 1's raw exchanges.
+    expect(scene2OpenInput).toHaveLength(2);
+    expect(scene2OpenInput[0]!.role).toBe("developer");
+    expect(scene2OpenInput[1]!.content[0]!.text).toContain("<story_so_far>");
+    expect(scene2OpenInput[1]!.content[0]!.text).toContain("<long_run>");
+    expect(scene2OpenInput[1]!.content[0]!.text).toContain("<remembered>");
+    expect(scene2OpenInput[1]!.content[0]!.text).toContain("<now>");
+    expect(scene2OpenInput[1]!.content[0]!.text).not.toContain("Hermione marks her place.");
 
     // Mid-Scene 2 turns deliver <long_run>, <remembered>, and clear on-Path vs. off-screen cast inside Turn 0,
-    // and remain strictly append-only on the exact Codex wire payload (preserving 97%+ KV cache).
+    // and remain strictly append-only on the exact Codex wire payload (preserving 92–98% KV cache across Codex models).
     const scene2Turn2 = codexBody(conversationOf(actorCalls[2]!), "gpt-6.1-sol", { story: [], web: false });
     const scene2Turn3 = codexBody(conversationOf(actorCalls[3]!), "gpt-6.1-sol", { story: [], web: false });
     const turn2Input = scene2Turn2.input as { role: string; content: { text: string }[] }[];
     const turn3Input = scene2Turn3.input as { role: string; content: { text: string }[] }[];
-    const turn0Text = turn2Input[0]!.content[0]!.text;
+    const turn0Text = turn2Input[1]!.content[0]!.text;
     expect(turn0Text).toContain("<long_run>");
     expect(turn0Text).toContain("<remembered>");
     expect(turn0Text).toContain("Appeared on this Path so far:");

@@ -22,8 +22,36 @@ export function subscriptionRunners(home: string): Runners {
   const claude = new ClaudeRunner(home, () => readSecret(CLAUDE_TOKEN));
   const codexCli = new CodexRunner(home);
   const antigravityCli = new AntigravityRunner(home);
-  const codex = { ...preferDirect(new CodexDirectRunner(), codexCli), listModels: () => codexCli.listModels() };
-  const antigravity = { ...preferDirect(new AntigravityDirectRunner(), antigravityCli), listModels: () => antigravityCli.listModels() };
+  const codexDirect = new CodexDirectRunner();
+  const codex = {
+    ...preferDirect(codexDirect, codexCli),
+    listModels: async () => {
+      try {
+        return await codexDirect.listModels();
+      } catch (directError) {
+        try {
+          return await codexCli.listModels();
+        } catch {
+          throw directError;
+        }
+      }
+    }
+  };
+  const antigravityDirect = new AntigravityDirectRunner();
+  const antigravity = {
+    ...preferDirect(antigravityDirect, antigravityCli),
+    listModels: async () => {
+      try {
+        return await antigravityDirect.listModels();
+      } catch (directError) {
+        try {
+          return await antigravityCli.listModels();
+        } catch {
+          throw directError;
+        }
+      }
+    }
+  };
   return { claude, codex, antigravity, close: () => { claude.close(); codexCli.close(); antigravityCli.close(); } };
 }
 

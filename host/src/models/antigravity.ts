@@ -145,14 +145,15 @@ function unfenced(answer: string): string {
 const EFFORTS = ["low", "medium", "high", "xhigh", "max"];
 
 /**
- * Antigravity's models from `agy models`, one per line, "id<TAB>name". Ids that differ only by an effort suffix
- * ("gemini-3.8-flash-high", "-medium", "-low") are one model with those efforts, lowest first. agy names no default
- * effort, yet refuses such a model without one, so medium is its default when it has medium, else its highest.
+ * Folds Antigravity model ids that differ only by an effort suffix ("gemini-4-neon-xhigh", "-high", "-medium", "-low")
+ * into one offered model with its efforts lowest-first. Antigravity names no default effort yet requires one when the
+ * model has effort variants, so medium is used when available, else the highest effort.
  */
-export function agyModels(listing: string): OfferedModel[] {
+export function foldAntigravityModels(entries: readonly { id: string; name: string }[]): OfferedModel[] {
   const models = new Map<string, OfferedModel>();
-  for (const line of listing.split("\n")) {
-    const [id, name] = line.split("\t").map(part => part.trim());
+  for (const entry of entries) {
+    const id = entry.id.trim();
+    const name = entry.name.trim();
     if (!id || !name) continue;
     const suffix = EFFORTS.find(effort => id.endsWith(`-${effort}`));
     const base = suffix ? id.slice(0, -(suffix.length + 1)) : id;
@@ -161,5 +162,17 @@ export function agyModels(listing: string): OfferedModel[] {
     models.set(base, model);
   }
   return [...models.values()].map(model => ({ ...model, defaultEffort: model.efforts.includes("medium") ? "medium" : model.efforts.at(-1) ?? null }));
+}
+
+/**
+ * Antigravity's models from `agy models`, one per line, "id<TAB>name".
+ */
+export function agyModels(listing: string): OfferedModel[] {
+  const entries: { id: string; name: string }[] = [];
+  for (const line of listing.split("\n")) {
+    const [id = "", name = ""] = line.split("\t").map(part => part.trim());
+    if (id && name) entries.push({ id, name });
+  }
+  return foldAntigravityModels(entries);
 }
 
