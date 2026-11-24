@@ -8,15 +8,19 @@ import { AgentFailed, BUDGETS } from "./step.js";
 import { inPlayFacts } from "./writer.js";
 
 /**
- * The length a Reply is written to, as a target rather than a ceiling. Measured on 17 November 2026 with the same
- * request on Full (docs/adr/0024): "up to about six hundred words" gave 247 words from GPT 5.6 Sol and 259 from Gemini
- * 3.8 Flash; "write about six hundred words" gave 621 and 514. A ceiling is read as permission to stop early.
+ * Tight, beat-driven length guidance for each Reply length setting the player can choose in Story settings (`Short`,
+ * `Medium`, `Full`), paired with matching provider verbosity so replies stay punchy instead of padding to 600 words.
  */
-/** The length guidance for a Reply: natural targets that let the moment decide the shape. */
 export const REPLY_LENGTH_GUIDE = {
-  short: "Write around 150–200 words. Let the moment decide the shape, not the count.",
-  medium: "Write around 250–350 words. Let the moment decide the shape, not the count.",
-  full: "Write around 450–600 words. Let the moment decide the shape, not the count."
+  short: "Keep this Reply brief and punchy: 1–2 short paragraphs (around 60–120 words). Play one immediate beat and stop — zero filler.",
+  medium: "Keep this Reply tight and focused: 2–3 paragraphs (around 130–220 words). Match the weight of the Move, play one clear beat, and stop — zero padding.",
+  full: "Write 2–4 sharp, grounded paragraphs (around 200–320 words max). Match the weight of the Move — a short Move gets a tighter Reply. Play one clear beat with real momentum and stop; never pad with background filler or monologues."
+} as const;
+
+export const REPLY_VERBOSITY = {
+  short: "low",
+  medium: "medium",
+  full: "medium"
 } as const;
 
 const LENGTH = REPLY_LENGTH_GUIDE;
@@ -121,7 +125,7 @@ export async function writeReply(models: Models, choices: ModelChoice[], ask: Ac
     if (tried.has(key)) continue;
     tried.add(key);
     try {
-      const answer = await models.call({ agent: "actor", model, system, prompt, conversation: turns, traceId, storyId }, () => {}, AbortSignal.any([signal, AbortSignal.timeout(BUDGETS.actor.ms)]));
+      const answer = await models.call({ agent: "actor", model, system, prompt, conversation: turns, verbosity: REPLY_VERBOSITY[ask.state.replyLength], traceId, storyId }, () => {}, AbortSignal.any([signal, AbortSignal.timeout(BUDGETS.actor.ms)]));
       return { text: answer.text.trim(), callId: answer.callId, model };
     } catch (error) {
       if (signal.aborted) throw error;

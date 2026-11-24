@@ -45,6 +45,27 @@ export function stripSceneState(text: string): string {
     .trim();
 }
 
+/**
+ * Splits an inline out-of-character author/director note (`director note: ...`, `OOC: ...`, `[OOC: ...]`) from a
+ * player's Move so the model obeys it as a one-shot directive without treating it as spoken dialogue or leaking it
+ * into later turns and Chronicler records.
+ */
+export function splitMoveNote(text: string): { move: string; note: string | null } {
+  const labeled = /(?:^|\n)\s*(?:director(?:'s)?\s+note|author(?:'s)?\s+note|ooc)\s*:\s*([\s\S]+)$/i.exec(text);
+  if (labeled && labeled.index !== undefined) {
+    const move = text.slice(0, labeled.index).trim();
+    const note = (labeled[1] ?? "").trim();
+    if (note) return { move, note };
+  }
+  const bracketed = /\s*[\[(]\s*(?:director(?:'s)?\s+note|ooc)\s*:\s*([\s\S]+?)[\])]\s*$/i.exec(text);
+  if (bracketed && bracketed.index !== undefined) {
+    const move = text.slice(0, bracketed.index).trim();
+    const note = (bracketed[1] ?? "").trim();
+    if (note) return { move, note };
+  }
+  return { move: text.trim(), note: null };
+}
+
 /** [body] in a tag, closed by the tag's name alone; null when there is nothing in it. */
 export function section(tag: string, body: string): string | null {
   return body.trim() ? `<${tag}>\n${body.trim()}\n</${tag.split(" ")[0]}>` : null;
@@ -784,7 +805,10 @@ function sceneParts(state: State, reader: Reader, entries: Entry[]): {
   const toPassages = (from: Entry[]): ScenePassage[] => from.flatMap((entry): ScenePassage[] => {
     switch (entry.payload.kind) {
       case "scene_opened": return entry.payload.prose ? [{ role: "assistant", turn: stripSceneState(entry.payload.prose), flat: stripSceneState(entry.payload.prose) }] : [];
-      case "move": return [{ role: "user", turn: entry.payload.text, flat: `<move by="${pc}">\n${entry.payload.text}\n</move>` }];
+      case "move": {
+        const cleaned = splitMoveNote(entry.payload.text).move || entry.payload.text;
+        return [{ role: "user", turn: cleaned, flat: `<move by="${pc}">\n${cleaned}\n</move>` }];
+      }
       case "reply": {
         const clean = stripSceneState(entry.payload.text);
         return [{ role: "assistant", turn: clean, flat: clean }];

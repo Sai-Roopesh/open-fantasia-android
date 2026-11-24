@@ -309,7 +309,7 @@ export async function bench(
   try {
     const answer = await models.call({
       agent: "actor", model: choice, system: writing.system, prompt: writing.prompt, conversation: writing.conversation,
-      tools: writing.tools, turns: 4, traceId: `bench-${randomUUID().slice(0, 8)}`, storyId
+      verbosity: writing.verbosity, tools: writing.tools, turns: 4, traceId: `bench-${randomUUID().slice(0, 8)}`, storyId
     });
     const parsed = parseComposedAnswer(answer.text);
     const words = parsed.reply.split(/\s+/).filter(Boolean).length;

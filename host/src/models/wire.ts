@@ -15,14 +15,11 @@ export interface Conversation {
   /** A JSON answer matching this schema; prose when not set. */
   schema?: Schema;
   effort?: string;
-  /** Prose the player reads asks for full-length writing; anything else keeps the provider's default. */
-  long: boolean;
+  /** Output verbosity sent to providers that support it (e.g. Codex `text.verbosity`). */
+  verbosity: "low" | "medium" | "high";
   /** Optional Story scope for isolating per-Story KV-cache shards on the provider backend. */
   cacheScope?: string;
 }
-
-/** Calls whose answer the player reads as story, and so should not be cut short by a provider's default verbosity. */
-const WRITES_PROSE = new Set<ModelRequest["agent"]>(["actor", "writer"]);
 
 export function conversationOf(request: ModelRequest): Conversation {
   return {
@@ -30,7 +27,7 @@ export function conversationOf(request: ModelRequest): Conversation {
     turns: request.conversation?.length ? request.conversation : [{ role: "user", text: request.prompt }],
     ...(request.schema ? { schema: request.schema } : {}),
     ...(request.model.effort ? { effort: request.model.effort } : {}),
-    long: WRITES_PROSE.has(request.agent),
+    verbosity: request.verbosity ?? "medium",
     ...(request.storyId ? { cacheScope: request.storyId } : {})
   };
 }
@@ -52,7 +49,7 @@ function parameters(spec: ToolSpec): Schema {
 
 /** The body the ChatGPT Codex backend takes (`/backend-api/codex/responses`), as the Codex CLI itself sends it. */
 export function codexBody(conversation: Conversation, model: string, tools: { story: ToolSpec[]; web: boolean }): Schema {
-  const text: Schema = { verbosity: conversation.long ? "high" : "medium" };
+  const text: Schema = { verbosity: conversation.verbosity };
   if (conversation.schema) text.format = { type: "json_schema", name: "answer", strict: true, schema: strict(conversation.schema as never) };
   const toolList = [
     ...tools.story.map(spec => ({ type: "function", name: spec.name, description: spec.description, strict: false, parameters: { ...parameters(spec), additionalProperties: false } })),

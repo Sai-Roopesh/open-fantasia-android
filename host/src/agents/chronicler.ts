@@ -7,7 +7,7 @@ import type { Engagement, Fact, ModelChoice, Quote, State } from "../story/state
 import { minutesOf, parseStoryTime } from "../time.js";
 import { engagementsAhead } from "../story/day.js";
 import { livedAs, tierOf, tiers } from "../story/relevance.js";
-import { asCall, join, layers, recallFacts, say, section } from "../context/lens.js";
+import { asCall, join, layers, recallFacts, say, section, splitMoveNote } from "../context/lens.js";
 import { claimsAboutPlayer, playerNames } from "./deciding.js";
 import { matches, namer, oneOf, peopleEnum, storyTime, text, timeFormat, wordCount } from "./format.js";
 import { BUDGETS, runAgent, type Checked, type ToolKit } from "./step.js";
@@ -94,10 +94,12 @@ function findWords(source: string, quote: string): string | null {
   return source.slice(first, last + 1);
 }
 
-/** The Scene's Moves and Replies, labelled P1 … for quoting. */
+/** The Scene's Moves and Replies, labelled P1 … for quoting (stripping inline OOC / director notes from Moves). */
 export function passages(scene: Entry[]): { label: string; entry: Entry; text: string; move: boolean }[] {
   return scene.flatMap(entry => {
-    const words = entry.payload.kind === "move" ? entry.payload.text : entry.payload.kind === "reply" ? entry.payload.text : entry.payload.kind === "scene_opened" ? entry.payload.prose ?? "" : "";
+    const words = entry.payload.kind === "move"
+      ? splitMoveNote(entry.payload.text).move
+      : entry.payload.kind === "reply" ? entry.payload.text : entry.payload.kind === "scene_opened" ? entry.payload.prose ?? "" : "";
     return words ? [{ entry, text: words, move: entry.payload.kind === "move" }] : [];
   }).map((item, index) => ({ label: `P${index + 1}`, ...item }));
 }

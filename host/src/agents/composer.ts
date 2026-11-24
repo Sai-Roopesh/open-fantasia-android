@@ -2,13 +2,21 @@ import { readFileSync } from "node:fs";
 import type { Models } from "../models/model-call.js";
 import type { ModelChoice } from "../story/state.js";
 import { section, stripSceneState } from "../context/lens.js";
-import { REPLY_LENGTH_GUIDE } from "./actor.js";
+import { minutesOf, parseAnyTime, parseStoryTime } from "../time.js";
+import { REPLY_LENGTH_GUIDE, REPLY_VERBOSITY } from "./actor.js";
 import { playersPart } from "./deciding.js";
 import { addMinutes } from "./format.js";
 import { checkWriter, writerCall, writerFacts, type WriterAsk, type WriterPlan } from "./writer.js";
 import { BUDGETS, runAgent } from "./step.js";
 
 const PROMPT = readFileSync(new URL("./COMPOSER.md", import.meta.url), "utf8");
+
+/** Strips a stray leading markdown heading or bold date/place banner (`**Friday, 27 Nov — ...**`) from prose. */
+function cleanProse(text: string): string {
+  const stripped = stripSceneState(text);
+  const withoutBanner = stripped.replace(/^(?:#{1,3}\s+[^\n]+|\*\*[^*\n]{4,140}\*\*)\s*\n+/, "");
+  return withoutBanner.trim() || stripped;
+}
 
 /** Extracts the first balanced JSON object from [text] and parses it, or null. */
 function parseJsonObject(text: string): Record<string, unknown> | null {
@@ -63,12 +71,11 @@ export function parseComposedAnswer(rawText: string): { reply: string; meta: Rec
   if (unclosed) {
     const parsed = parseJsonObject(unclosed[1] ?? "");
     if (parsed) meta = parsed;
-    const reply = stripSceneState(trimmed);
-    return { reply, meta };
+    return { reply: cleanProse(trimmed), meta };
   }
 
   if (closed.length > 0) {
-    return { reply: stripSceneState(trimmed), meta };
+    return { reply: cleanProse(trimmed), meta };
   }
 
   // Backwards compatibility with pure JSON `{ reply, ... }` answers from legacy fixtures or models.
@@ -77,12 +84,12 @@ export function parseComposedAnswer(rawText: string): { reply: string; meta: Rec
       const parsed = JSON.parse(trimmed) as unknown;
       if (parsed && typeof parsed === "object" && !Array.isArray(parsed) && typeof (parsed as { reply?: unknown }).reply === "string") {
         const { reply, ...rest } = parsed as Record<string, unknown> & { reply: string };
-        return { reply: stripSceneState(reply), meta: rest };
+        return { reply: cleanProse(reply), meta: rest };
       }
     } catch { /* Treat as plain prose below. */ }
   }
 
-  return { reply: stripSceneState(trimmed), meta: null };
+  return { reply: cleanProse(trimmed), meta: null };
 }
 
 function defaultFrame(ask: WriterAsk): { title: string; place: string; purpose: string; exit: string } | null {
@@ -145,7 +152,16 @@ function normalizedMeta(ask: WriterAsk, meta: Record<string, unknown>): Record<s
   const comesIn = Array.isArray(meta.comes_in) ? meta.comes_in : Array.isArray(meta.entered) ? meta.entered : [];
   const goes = Array.isArray(meta.goes) ? meta.goes : Array.isArray(meta.left) ? meta.left : [];
   let minutes: unknown = 2;
-  if (typeof meta.minutes === "number" && Number.isFinite(meta.minutes)) {
+  const now = parseStoryTime(ask.state.clock);
+  if (typeof meta.at === "string" && now) {
+    const target = parseAnyTime(meta.at, ask.state.dayOne);
+    if (target && minutesOf(target) > minutesOf(now)) minutes = minutesOf(target) - minutesOf(now);
+  } else if (typeof meta.days === "number" && Number.isFinite(meta.days) && meta.days > 0 && now) {
+    const timeMatch = typeof meta.time === "string" ? /^(\d{1,2}):(\d{2})$/.exec(meta.time.trim()) : null;
+    const targetMinute = timeMatch ? Math.min(23, Number(timeMatch[1])) * 60 + Math.min(59, Number(timeMatch[2])) : now.minuteOfDay;
+    const delta = minutesOf({ day: now.day + Math.round(meta.days), minuteOfDay: targetMinute }) - minutesOf(now);
+    if (delta > 0) minutes = delta;
+  } else if (typeof meta.minutes === "number" && Number.isFinite(meta.minutes)) {
     minutes = meta.minutes < 0 ? meta.minutes : Math.round(meta.minutes);
   } else if (typeof meta.minutes === "string" && /^-?\d+(?:\.\d+)?$/.test(meta.minutes.trim())) {
     const num = Number(meta.minutes.trim());
@@ -197,6 +213,7 @@ export function composerCall(ask: WriterAsk, again?: { draft: string; notes: str
     system: call.system,
     prompt,
     conversation,
+    verbosity: REPLY_VERBOSITY[ask.state.replyLength],
     facts: { ...writerFacts(ask), ...(again ? { rewriting: true } : { composing: true }) },
     // Keep Story lookup tools for memory callbacks; omit live web search from per-turn dialogue to cut hidden tool-prompt overhead and keep immersion.
     tools: { story: head ? { storyId: head.storyId, head: head.id } : null, web: false },
@@ -245,7 +262,7 @@ export async function rewriteComposedReply(
 ): Promise<{ text: string; callId: string; model: ModelChoice }> {
   const call = composerCall(ask, again);
   const { value, callId, model } = await runAgent<string>(models, choices, {
-    system: call.system, prompt: call.prompt, conversation: call.conversation, facts: call.facts, tools: call.tools, agent: "actor", traceId, storyId
+    system: call.system, prompt: call.prompt, conversation: call.conversation, verbosity: call.verbosity, facts: call.facts, tools: call.tools, agent: "actor", traceId, storyId
   }, answer => {
     if (typeof answer !== "string" || !answer.trim()) return { ok: false, problems: ["reply: write the complete Reply"] };
     const { reply } = parseComposedAnswer(answer);

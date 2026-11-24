@@ -28,6 +28,8 @@ export interface ModelRequest {
    * delivers these real alternating user/assistant turns instead of a single concatenated user prompt.
    */
   conversation?: { role: "user" | "assistant"; text: string }[];
+  /** Optional output verbosity hint for providers that support it (maps from the Story's chosen replyLength). */
+  verbosity?: "low" | "medium" | "high";
   /** When set, the answer is JSON matching this schema, and the provider is asked for exactly that. */
   schema?: Record<string, unknown>;
   /**

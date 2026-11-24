@@ -39,7 +39,7 @@ function authored(): Set<string> {
  * (a skills catalogue, an agent-team prompt, a global AGENTS.md) cannot reach a model without failing this test.
  */
 describe("one request, delivered the same way to every provider", () => {
-  const codexConstants = new Set(["gpt-6.1-sol", "high", "message", "user", "input_text", "function", "web_search", "auto", "reasoning.encrypted_content", "json_schema", "answer", "object", "null"]);
+  const codexConstants = new Set(["gpt-6.1-sol", "low", "medium", "high", "message", "user", "input_text", "function", "web_search", "auto", "reasoning.encrypted_content", "json_schema", "answer", "object", "null"]);
   const antigravityConstants = new Set(["gemini-3.8-flash-high", "project-1", "antigravity", "agent", "user", "application/json", "OBJECT", "object"]);
 
   it("gives Codex the system prompt as its instructions and nothing the host did not write", () => {
@@ -63,8 +63,9 @@ describe("one request, delivered the same way to every provider", () => {
     expect(stray).toEqual([]);
   });
 
-  it("asks for full-length writing only where the player reads the answer as story", () => {
-    expect((codexBody(conversationOf(request()), "m", { story: [], web: false }).text as { verbosity: string }).verbosity).toBe("high");
+  it("passes the Story's chosen verbosity through to Codex instead of hardcoding high verbosity", () => {
+    expect((codexBody(conversationOf(request()), "m", { story: [], web: false }).text as { verbosity: string }).verbosity).toBe("medium");
+    expect((codexBody(conversationOf(request({ verbosity: "low" })), "m", { story: [], web: false }).text as { verbosity: string }).verbosity).toBe("low");
     expect((codexBody(conversationOf(request({ agent: "editor" })), "m", { story: [], web: false }).text as { verbosity: string }).verbosity).toBe("medium");
   });
 

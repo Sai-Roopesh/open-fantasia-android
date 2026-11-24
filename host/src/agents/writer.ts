@@ -2,7 +2,7 @@ import type { Choice, Entry, Gathered } from "../story/entries.js";
 import type { Beat, Fact, SceneCall, State } from "../story/state.js";
 import type { Beside } from "../story/beside.js";
 import { minutesOf, parseStoryTime, sayDate, sayTime } from "../time.js";
-import { asCall, asTurns, layers, LIMITS, momentsPart, recallFacts, section, tokens } from "../context/lens.js";
+import { asCall, asTurns, layers, LIMITS, momentsPart, recallFacts, section, splitMoveNote, tokens } from "../context/lens.js";
 import { decidesForPlayer, playerNames } from "./deciding.js";
 import { addMinutes, matches, namer, nullable, oneOf, peopleEnum, text } from "./format.js";
 import { nameIndex, namedIn } from "./names.js";
@@ -193,13 +193,15 @@ function writerMoment(ask: WriterAsk, moments: Fact[], standing: string[]): (str
   if (state.pendingDirection?.text) tasks.push(`The player redid the last Reply with this Direction: ${state.pendingDirection.text}`);
   const plan = longRunPart(state);
   const chosen = ask.choice?.scene ? state.plan?.scenes.find(item => item.id === ask.choice?.scene) : undefined;
+  const { move: moveBody, note: inlineNote } = splitMoveNote(ask.move);
   return [
     plan,
     chosen ? section("scene_that_matters", [`${chosen.for}${chosen.lead ? ` It is about ${chosen.lead}.` : ""}`, ...(state.plan?.leads ?? []).filter(lead => lead.scene === chosen.id).map(lead => `${lead.who}'s move in it: ${lead.move}`)].join("\n")) : null,
     mentionedPart(ask, standing),
     momentsPart(state, moments),
     section("shown_not_here", shownNotHere(ask).join(", ")),
-    section(`move by="${pc}"`, ask.move),
+    section(`move by="${pc}"`, moveBody || ask.move),
+    inlineNote ? section("director_note", `Author direction for this Reply (obey fully in the scene; never speak aloud or treat as dialogue):\n${inlineNote}`) : null,
     section("task", tasks.join("\n"))
   ];
 }
@@ -218,17 +220,19 @@ export function writerPrompt(ask: WriterAsk, moments: Fact[], instructions: stri
 export function writerTurns(ask: WriterAsk, moments: Fact[], instructions: string): { system: string; prompt: string; turns: { role: "user" | "assistant"; text: string }[] } {
   const standing = presentFor(ask);
   const opening = openingOf(ask.state);
+  const { move: moveBody, note: inlineNote } = splitMoveNote(ask.move);
   const extra: (string | null)[] = [
     opening === "day_view"
       ? section("task", ask.choice ? `The player chose at the Day View: ${describeChoice(ask.state, ask.choice)}. Open the Scene it begins.` : "The last Scene has closed: this Move opens a new Scene.")
       : null,
     mentionedPart(ask, standing),
+    inlineNote ? section("director_note", `Author direction for this Reply (obey fully in the scene; never speak aloud or treat as dialogue):\n${inlineNote}`) : null,
     ask.state.pendingDirection?.text ? section("direction", `Redo direction: ${ask.state.pendingDirection.text}`) : null
   ];
   // Static per-Scene standing blocks (<long_run> and cross-Scene <remembered> Moments) live in Turn 0 so they reach
   // direct Codex/Antigravity calls while staying 100% KV-cached across every turn of the Scene.
   const staticStanding: (string | null)[] = [longRunPart(ask.state), momentsPart(ask.state, moments)];
-  return asTurns(ask.state, ask.beside, "writer", standing, ask.scene, writerMoment(ask, moments, standing), instructions, { text: ask.move, extra, staticStanding });
+  return asTurns(ask.state, ask.beside, "writer", standing, ask.scene, writerMoment(ask, moments, standing), instructions, { text: moveBody, extra, staticStanding });
 }
 
 function describeChoice(state: State, choice: Choice): string {

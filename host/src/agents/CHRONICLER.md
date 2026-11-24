@@ -4,7 +4,7 @@ Record what actually happened in this Scene (`P1`, `P2`, …) without inventing 
 
 ## Strict ground rules
 - **Exact quotes**: every `quotes` item copies verbatim words from its cited passage (`entry: "P4"`). Never paraphrase or tidy quotes; uncited claims are dropped.
-- **Player boundary**: only the player's Moves establish what the player's character said, did, thought, or felt. Never record a Reply's claim about the player as fact; unspoken thoughts stay private.
+- **Player boundary**: only the player's Moves establish what the player's character said, did, thought, or felt. Never record a Reply's claim about the player as fact; unspoken thoughts stay private. Ignore out-of-character notes (`director note:`, `OOC:`) inside a Move — never quote or record them as in-character speech or action.
 - **Ids**: existing items show bracketed ids (`[B3]`, `[T7]`, `[R2]`); pass the bare id (`"B3"`) when closing or replacing. Record only what this Scene changed.
 
 ## Fields

@@ -244,6 +244,46 @@ describe("one writing generation with shared Directions", () => {
     expect(afterLeak.conversation!.map(turn => turn.text).join("\n")).not.toContain("<scene_state>");
   });
 
+  it("maps Story replyLength to Codex verbosity, splits inline director notes cleanly, and advances clock on time-skip scene_state", async () => {
+    const { codexBody, conversationOf } = await import("../../src/models/wire.js");
+    const { passages } = await import("../../src/agents/chronicler.js");
+    const { composeReply } = await import("../../src/agents/composer.js");
+    const { ScriptedRunner } = await import("../../src/models/scripted.js");
+
+    // Leading bold scene headers are stripped cleanly from prose.
+    expect(parseComposedAnswer("**Friday, 27 November — Xavier estate**\n\nEmma kisses you back.\n\n<scene_state>{\"days\":6,\"time\":\"09:00\"}</scene_state>")).toEqual({
+      reply: "Emma kisses you back.",
+      meta: { days: 6, time: "09:00" }
+    });
+
+    const s = playable();
+    await s.play("I sit beside Hermione.\n\ndirector note:\nmake her sharp and impatient");
+    const firstCall = s.models.requests.filter(request => request.agent === "actor").at(-1)!;
+    expect(firstCall.conversation!.at(-1)!.text).toContain("<director_note>");
+    expect(firstCall.conversation!.at(-1)!.text).toContain("make her sharp and impatient");
+    expect((codexBody(conversationOf(firstCall), "gpt-6.1-sol", { story: [], web: false }).text as { verbosity: string }).verbosity).toBe("medium");
+
+    // Switch to Short reply length and play next Move: verbosity drops to low, and old inline director note is stripped from history & Chronicler passages.
+    s.engine.setReplyLength(s.storyId, "short", s.head(), "len-short");
+    await s.play("I tap the table.");
+    const secondCall = s.models.requests.filter(request => request.agent === "actor").at(-1)!;
+    expect((codexBody(conversationOf(secondCall), "gpt-6.1-sol", { story: [], web: false }).text as { verbosity: string }).verbosity).toBe("low");
+    expect(secondCall.conversation!.map(turn => turn.text).join("\n")).not.toContain("make her sharp and impatient");
+    expect(passages(s.mac.tree.pathTo(s.head())).map(item => item.text).join("\n")).not.toContain("director note");
+
+    // Time-skip scene_state (`days` + `time`) advances the real Story clock instead of freezing on the old day.
+    const runner = new ScriptedRunner([{ answer: "**Next Friday — Great Hall**\n\nShe is already waiting.\n\n<scene_state>{\"days\":6,\"time\":\"09:00\",\"place\":\"The Great Hall\"}</scene_state>" }]);
+    const res = await composeReply(
+      new Models(s.mac.db, { codex: runner }),
+      [{ provider: "codex", model: "gpt-6.1-sol" }],
+      { state: s.state(), scene: s.mac.tree.pathTo(s.head()), move: "time skip 6 days to morning", choice: null, beside: besideOf(s.mac, s.storyId, s.head()) },
+      s.storyId, "trace-skip", new AbortController().signal
+    );
+    expect(res.value.reply).toBe("She is already waiting.");
+    expect(res.value.plan.clock).toBe("Day 9 09:00");
+    expect(res.value.plan.movesTo).toBe("The Great Hall");
+  });
+
   it("resumes the saved draft after an Editor failure, including after a worker restart", async () => {
     const s = playable(undefined, { editor: [{ fail: "editor unavailable" }, { fail: "editor unavailable" }] });
     await s.play("I sit down.");
