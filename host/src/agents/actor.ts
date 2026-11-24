@@ -8,19 +8,19 @@ import { AgentFailed, BUDGETS } from "./step.js";
 import { inPlayFacts } from "./writer.js";
 
 /**
- * Tight, beat-driven length guidance for each Reply length setting the player can choose in Story settings (`Short`,
- * `Medium`, `Full`), paired with matching provider verbosity so replies stay punchy instead of padding to 600 words.
+ * Natural, target-based length guidance for each Reply length setting (`Short`, `Medium`, `Full`), paired 1-to-1 with
+ * provider verbosity. Targets rather than hard ceilings (docs/adr/0024) let emotional beats breathe without padding.
  */
 export const REPLY_LENGTH_GUIDE = {
-  short: "Keep this Reply brief and punchy: 1–2 short paragraphs (around 60–120 words). Play one immediate beat and stop — zero filler.",
-  medium: "Keep this Reply tight and focused: 2–3 paragraphs (around 130–220 words). Match the weight of the Move, play one clear beat, and stop — zero padding.",
-  full: "Write 2–4 sharp, grounded paragraphs (around 200–320 words max). Match the weight of the Move — a short Move gets a tighter Reply. Play one clear beat with real momentum and stop; never pad with background filler or monologues."
+  short: "Write around 140–200 words (1–2 paragraphs). Keep the beat crisp and grounded, then stop where the player's next choice belongs.",
+  medium: "Write around 240–340 words (2–4 paragraphs). Give the moment room for subtext and physical detail without padding, then stop where the player's next choice belongs.",
+  full: "Write around 380–520 words. Give the beat room for atmosphere, physical detail, and real emotional movement without padding or rushing past the player's next choice."
 } as const;
 
 export const REPLY_VERBOSITY = {
   short: "low",
   medium: "medium",
-  full: "medium"
+  full: "high"
 } as const;
 
 const LENGTH = REPLY_LENGTH_GUIDE;

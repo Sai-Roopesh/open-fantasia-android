@@ -261,15 +261,21 @@ describe("one writing generation with shared Directions", () => {
     const firstCall = s.models.requests.filter(request => request.agent === "actor").at(-1)!;
     expect(firstCall.conversation!.at(-1)!.text).toContain("<director_note>");
     expect(firstCall.conversation!.at(-1)!.text).toContain("make her sharp and impatient");
-    expect((codexBody(conversationOf(firstCall), "gpt-6.1-sol", { story: [], web: false }).text as { verbosity: string }).verbosity).toBe("medium");
+    expect((codexBody(conversationOf(firstCall), "gpt-6.1-sol", { story: [], web: false }).text as { verbosity: string }).verbosity).toBe("high");
 
-    // Switch to Short reply length and play next Move: verbosity drops to low, and old inline director note is stripped from history & Chronicler passages.
-    s.engine.setReplyLength(s.storyId, "short", s.head(), "len-short");
+    // Switch to Medium reply length: verbosity maps to medium, and old inline director note is stripped from history & Chronicler passages.
+    s.engine.setReplyLength(s.storyId, "medium", s.head(), "len-medium");
     await s.play("I tap the table.");
     const secondCall = s.models.requests.filter(request => request.agent === "actor").at(-1)!;
-    expect((codexBody(conversationOf(secondCall), "gpt-6.1-sol", { story: [], web: false }).text as { verbosity: string }).verbosity).toBe("low");
+    expect((codexBody(conversationOf(secondCall), "gpt-6.1-sol", { story: [], web: false }).text as { verbosity: string }).verbosity).toBe("medium");
     expect(secondCall.conversation!.map(turn => turn.text).join("\n")).not.toContain("make her sharp and impatient");
     expect(passages(s.mac.tree.pathTo(s.head())).map(item => item.text).join("\n")).not.toContain("director note");
+
+    // Switch to Short reply length: verbosity maps to low.
+    s.engine.setReplyLength(s.storyId, "short", s.head(), "len-short");
+    await s.play("I glance at the fire.");
+    const thirdCall = s.models.requests.filter(request => request.agent === "actor").at(-1)!;
+    expect((codexBody(conversationOf(thirdCall), "gpt-6.1-sol", { story: [], web: false }).text as { verbosity: string }).verbosity).toBe("low");
 
     // Time-skip scene_state (`days` + `time`) advances the real Story clock instead of freezing on the old day.
     const runner = new ScriptedRunner([{ answer: "**Next Friday — Great Hall**\n\nShe is already waiting.\n\n<scene_state>{\"days\":6,\"time\":\"09:00\",\"place\":\"The Great Hall\"}</scene_state>" }]);

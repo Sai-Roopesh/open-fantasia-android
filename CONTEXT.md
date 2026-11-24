@@ -69,7 +69,7 @@ _Avoid_: Crowd, extras, faction
 
 **Story File**:
 A portable document that sets a Story up: its World, people and Groups, Leads, Player Character, Premise, Arcs,
-Landmarks, Style and opening. Stories are written as Story Files outside the app and taken in whole.
+Landmarks, Style and opening. Stories are written as Story Files outside the app (see `docs/story-authoring.md`) and taken in whole.
 _Avoid_: Export, prompt pack, template, preset
 
 ### Playing

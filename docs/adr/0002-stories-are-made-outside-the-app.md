@@ -13,5 +13,6 @@ not publish it.
 ## Consequences
 
 - The Story File is a contract between Claude and the app, and is specified as carefully as any screen.
+- When authoring a new `story.yaml`, follow [docs/story-authoring.md](../story-authoring.md) so `world`, `people`, `style`, and `brief` are written as vivid fiction notes rather than defensive boilerplate.
 - Editing in the app has to cover creating new people, places, Groups, Landmarks and Arcs, because the app is
   where a running Story changes most.
