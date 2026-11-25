@@ -54,7 +54,7 @@ export type ModelJob = "actor" | "writer" | "editor" | "chronicler" | "weaver" |
  * This interface was referenced by `Link`'s JSON-Schema
  * via the `definition` "ModelProvider".
  */
-export type ModelProvider = "claude" | "codex" | "antigravity";
+export type ModelProvider = "claude" | "codex" | "antigravity" | "opencode";
 /**
  * This interface was referenced by `Link`'s JSON-Schema
  * via the `definition` "CalendarKind".

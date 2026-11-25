@@ -18,7 +18,7 @@ Allowed downward layer order (a module may import from its own layer or earlier 
 1. `story/` — pure domain types, immutable entry definitions, pure reducer, relevance/day/outline/truth logic. Zero I/O, zero SQLite, zero model calls.
 2. `store/` — SQLite persistence (`db.ts`, `tree.ts`, `states.ts`, `beside.ts`, `drafts.ts`), `mac.ts`, `home.ts`, `secrets.ts`, `trace.ts`.
 3. `context/` — deterministic four-layer prompt assembly (`lens.ts`). Pure functions over `State`, `Beside`, and `Entry[]`.
-4. `models/` — direct provider transports (`codex-direct.ts`, `antigravity-direct.ts`, `claude.ts`), `wire.ts`, `model-call.ts`, `catalog.ts`, `jobs.ts`, `runners.ts`. May not import `agents/` or `engine/`.
+4. `models/` — direct provider transports (`codex-direct.ts`, `antigravity-direct.ts`, `opencode-direct.ts`, `claude.ts`), `wire.ts`, `model-call.ts`, `catalog.ts`, `jobs.ts`, `runners.ts`. May not import `agents/` or `engine/`.
 5. `agents/` — prompt definitions, `<scene_state>` / JSON parsers, validators, Story lookup tools (`tools/story.ts`), and `step.ts`.
 6. `storyfile/` — Story File validation and import.
 7. `engine/` — single-queue Story orchestrator, Path operations, Scene End sequencing.

@@ -70,7 +70,7 @@ export interface StoryFile {
  * via the `definition` "ModelChoice".
  */
 export interface ModelChoice {
-  provider: "claude" | "codex" | "antigravity";
+  provider: "claude" | "codex" | "antigravity" | "opencode";
   /**
    * The id the provider lists the model under.
    */

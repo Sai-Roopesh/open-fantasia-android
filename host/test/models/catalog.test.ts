@@ -43,7 +43,7 @@ describe("what each provider offers, as the Models screen shows it", () => {
 
   it("gives a choice without an effort its model's default, so a provider that needs one is never asked without it", async () => {
     const { home } = freshHome();
-    const catalog = new Catalog(home, { claude: async () => [opus], codex: async () => [sol], antigravity: async () => [flash] });
+    const catalog = new Catalog(home, { claude: async () => [opus], codex: async () => [sol], antigravity: async () => [flash], opencode: async () => [] });
     await catalog.refresh();
     expect(catalog.complete({ provider: "antigravity", model: "gemini-3.8-flash" })).toEqual({ provider: "antigravity", model: "gemini-3.8-flash", effort: "medium" });
     expect(catalog.complete({ provider: "codex", model: "gpt-6.1-sol" })).toEqual({ provider: "codex", model: "gpt-6.1-sol", effort: "low" });
@@ -55,7 +55,7 @@ describe("what each provider offers, as the Models screen shows it", () => {
 
   it("names a choice with its effort, and finds a model by its id or its alias", async () => {
     const { home } = freshHome();
-    const catalog = new Catalog(home, { claude: async () => [opus], codex: async () => [sol], antigravity: async () => [flash] });
+    const catalog = new Catalog(home, { claude: async () => [opus], codex: async () => [sol], antigravity: async () => [flash], opencode: async () => [] });
     await catalog.refresh();
     expect(catalog.label({ provider: "codex", model: "gpt-6.1-sol", effort: "high" })).toBe("GPT 6.1 Sol · high");
     expect(catalog.label({ provider: "claude", model: "opus" })).toBe("Opus 5.5");
@@ -70,7 +70,7 @@ describe("what each provider offers, as the Models screen shows it", () => {
   it("keeps the last list each provider gave, and shows it marked unreachable when the provider cannot be asked", async () => {
     const { home } = freshHome();
     let codexUp = true;
-    const sources = { claude: async () => [opus], codex: async () => { if (!codexUp) throw new Error("Codex is not signed in"); return [sol]; }, antigravity: async () => [flash] };
+    const sources = { claude: async () => [opus], codex: async () => { if (!codexUp) throw new Error("Codex is not signed in"); return [sol]; }, antigravity: async () => [flash], opencode: async () => [] };
     await new Catalog(home, sources).refresh();
     expect(existsSync(join(home, "catalog.json"))).toBe(true);
     codexUp = false;
@@ -80,7 +80,7 @@ describe("what each provider offers, as the Models screen shows it", () => {
     expect(restarted.view().find(provider => provider.provider === "codex")).toEqual({
       provider: "codex", label: "CODEX", reachable: false, reason: "Codex is not signed in", models: [sol]
     });
-    expect(restarted.view().map(provider => provider.label)).toEqual(["CLAUDE", "CODEX", "ANTIGRAVITY"]);
+    expect(restarted.view().map(provider => provider.label)).toEqual(["CLAUDE", "CODEX", "ANTIGRAVITY", "OPENCODE"]);
     // A choice is not refused only because its provider could not be asked just now.
     expect(restarted.offers({ provider: "codex", model: "gpt-6.1-sol" })).toBe(true);
     expect(JSON.parse(readFileSync(join(home, "catalog.json"), "utf8")).codex).toEqual([sol]);
@@ -88,7 +88,7 @@ describe("what each provider offers, as the Models screen shows it", () => {
 
   it("says why a provider that was never reached offers nothing", async () => {
     const { home } = freshHome();
-    const catalog = new Catalog(home, { claude: async () => [opus], codex: async () => [sol], antigravity: async () => { throw new Error("spawn agy ENOENT"); } });
+    const catalog = new Catalog(home, { claude: async () => [opus], codex: async () => [sol], antigravity: async () => { throw new Error("spawn agy ENOENT"); }, opencode: async () => [] });
     await catalog.refresh();
     expect(catalog.view().find(provider => provider.provider === "antigravity")).toEqual({
       provider: "antigravity", label: "ANTIGRAVITY", reachable: false, reason: "spawn agy ENOENT", models: []

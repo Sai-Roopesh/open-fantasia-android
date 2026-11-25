@@ -14,8 +14,8 @@ import { pathsView } from "../views/paths.js";
 import { randomUUID } from "node:crypto";
 import { Catalog } from "../models/catalog.js";
 import { actorOf, DEFAULT_JOB_MODELS, editsEveryReply, JOBS, jobModels, setEditsEveryReply, setJobModel, setStoryActor, storyActor, type Job } from "../models/jobs.js";
-import { CLAUDE_TOKEN, readSecret, storeSecret } from "../secrets.js";
-import { antigravityToken, codexCredentials } from "../models/direct.js";
+import { CLAUDE_TOKEN, OPENCODE_KEY, readSecret, storeSecret } from "../secrets.js";
+import { antigravityToken, codexCredentials, opencodeApiKey } from "../models/direct.js";
 import type { ModelChoice } from "../story/state.js";
 import type { Payload } from "../story/entries.js";
 import { parseStoryTime, sayStoryTime } from "../time.js";
@@ -124,12 +124,12 @@ function describe(payload: Payload): string {
   }
 }
 
-const PROVIDERS: readonly ModelChoice["provider"][] = ["claude", "codex", "antigravity"];
+const PROVIDERS: readonly ModelChoice["provider"][] = ["claude", "codex", "antigravity", "opencode"];
 
 /** The catalog as the Mac last kept it: the command reads what `fantasia serve` was told, and asks no provider itself. */
 function keptCatalog(home: string): Catalog {
   const unasked = () => Promise.reject(new Error("Not asked from the command line"));
-  return new Catalog(home, { claude: unasked, codex: unasked, antigravity: unasked });
+  return new Catalog(home, { claude: unasked, codex: unasked, antigravity: unasked, opencode: unasked });
 }
 
 const sayChoice = (choice: ModelChoice) => `${choice.provider} ${choice.model}${choice.effort ? ` (effort ${choice.effort})` : ""}`;
@@ -295,7 +295,7 @@ export async function bench(
   if (options.model) {
     const [providerPart, rest = ""] = options.model.split("/");
     const [modelPart, effortPart] = rest.split(":");
-    if ((providerPart === "codex" || providerPart === "claude" || providerPart === "antigravity") && modelPart) {
+    if ((providerPart === "codex" || providerPart === "claude" || providerPart === "antigravity" || providerPart === "opencode") && modelPart) {
       choice = { provider: providerPart, model: modelPart, ...(effortPart ? { effort: effortPart } : {}) };
     } else {
       out("Model format: provider/model[:effort], e.g. codex/gpt-6.1-sol:medium");
@@ -364,6 +364,15 @@ export function claudeToken(fromFirstHost: boolean, pasted: string | null, out: 
   return true;
 }
 
+/** Stores the OpenCode Go API key in the Mac keychain. */
+export function opencodeKey(pasted: string | null, out: Out): boolean {
+  const key = pasted?.trim();
+  if (!key) return (out("No API key given. Create one in OpenCode Console (Account -> Personal API keys) and paste it into `fantasia opencode-key`."), false);
+  storeSecret(OPENCODE_KEY, "Open Fantasia OpenCode Go API key", key);
+  out("Stored the OpenCode Go API key in the keychain.");
+  return true;
+}
+
 const LAUNCH_AGENT = "com.openfantasia.host";
 
 /** Installs `fantasia serve` as a LaunchAgent: started at login and restarted if it stops. */
@@ -411,6 +420,12 @@ export function doctor(mac: Mac, out: Out): boolean {
     } catch (error) {
       checks.push([`${name} direct`, true, `${error instanceof Error ? error.message : String(error)}; calls go through ${tool}, which renews it`]);
     }
+  }
+  try {
+    opencodeApiKey();
+    checks.push(["OpenCode Go", true, "configured: calls go straight to opencode.ai/inference/go"]);
+  } catch {
+    checks.push(["OpenCode Go", true, "not configured: run `fantasia opencode-key` or `/connect` in `opencode`"]);
   }
   const plist = join(homedir(), "Library", "LaunchAgents", `${LAUNCH_AGENT}.plist`);
   let running = false;

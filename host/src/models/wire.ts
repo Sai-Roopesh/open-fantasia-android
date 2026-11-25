@@ -108,6 +108,48 @@ export function codexBody(conversation: Conversation, model: string, tools: { st
 export const schemaInWords = (schema: Schema) => `Answer with one JSON object and nothing else, matching this JSON Schema:\n${JSON.stringify(schema)}`;
 
 /**
+ * The body the OpenCode Go gateway takes (`/inference/go/openai/v1/responses`), which translates OpenAI Responses
+ * requests to every Go model's native protocol (GLM, DeepSeek, Kimi, Grok, Gemini, Claude, GPT) while preserving
+ * Story Bible `developer` prefix caching and append-only multi-turn history.
+ */
+export function opencodeBody(conversation: Conversation, model: string, tools: { story: ToolSpec[] }, schemaInText = false): Schema {
+  const asked = conversation.schema && schemaInText ? schemaInWords(conversation.schema) : null;
+  const toolList = tools.story.map(spec => ({
+    type: "function",
+    name: spec.name,
+    description: spec.description,
+    strict: false,
+    parameters: { ...parameters(spec), additionalProperties: false }
+  }));
+  const text: Schema = {};
+  if (conversation.schema && !schemaInText) {
+    text.format = { type: "json_schema", name: "answer", strict: true, schema: strict(conversation.schema as never) };
+  }
+  return {
+    model,
+    instructions: "",
+    input: [
+      ...codexDeveloperMessages(conversation.system),
+      ...conversation.turns.map((turn, index) => ({
+        type: "message",
+        role: turn.role,
+        content: [{
+          type: turn.role === "user" ? "input_text" : "output_text",
+          text: asked && index === conversation.turns.length - 1 ? `${turn.text}\n\n${asked}` : turn.text
+        }]
+      }))
+    ],
+    stream: true,
+    store: false,
+    parallel_tool_calls: false,
+    prompt_cache_key: cacheKey(model, conversation.system, conversation.cacheScope),
+    ...(conversation.effort ? { reasoning: { effort: conversation.effort } } : {}),
+    ...(toolList.length ? { tools: toolList, tool_choice: "auto" } : {}),
+    ...(Object.keys(text).length ? { text } : {})
+  };
+}
+
+/**
  * The body the Antigravity gateway takes (`/v1internal:streamGenerateContent`), Gemini's own request inside it. A JSON
  * answer is held to its schema as Gemini writes; a schema the gateway finds too large to hold it to ([schemaInText])
  * is asked for in words at the end of the message instead, as `agy` always did.

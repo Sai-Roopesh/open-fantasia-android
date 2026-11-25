@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { OPENCODE_KEY, readSecret } from "../secrets.js";
 import type { ModelRunner, ModelUsage } from "./model-call.js";
 
 /**
@@ -209,4 +210,22 @@ export async function resolveAntigravityToken(
 
 function readAntigravityKeychain(): string {
   return execFileSync("/usr/bin/security", ["find-generic-password", "-s", "gemini", "-a", "antigravity", "-w"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+}
+
+/**
+ * Resolves the OpenCode Go API key from (1) `OPENCODE_API_KEY` env / macOS keychain (`fantasia opencode-key`) or
+ * (2) OpenCode's own `~/.local/share/opencode/auth.json` (`opencode-go` / `opencode` entry from `/connect`).
+ */
+export function opencodeApiKey(
+  readStored: () => string | null = () => readSecret(OPENCODE_KEY),
+  authFile = join(homedir(), ".local", "share", "opencode", "auth.json")
+): string {
+  const stored = readStored()?.trim();
+  if (stored) return stored;
+  try {
+    const auth = JSON.parse(readFileSync(authFile, "utf8")) as Record<string, { key?: string; access?: string } | undefined>;
+    const key = auth["opencode-go"]?.key ?? auth["opencode-go"]?.access ?? auth.opencode?.key ?? auth.opencode?.access;
+    if (key?.trim()) return key.trim();
+  } catch { /* No OpenCode CLI auth file or unreadable. */ }
+  throw new Error("OpenCode Go is not set up on this Mac. Run `fantasia opencode-key` or connect OpenCode Go in `opencode`.");
 }

@@ -1,11 +1,11 @@
 {
   "maxCycles": 0,
-  "maxTotalLines": 13950,
+  "maxTotalLines": 14260,
   "defaultMaxFileLines": 350,
   "fileCeilings": {
     "engine/engine.ts": 1270,
     "context/lens.ts": 790,
-    "cli/commands.ts": 725,
+    "cli/commands.ts": 745,
     "agents/outline.ts": 475,
     "store/story-tools.ts": 415,
     "link/server.ts": 410,

@@ -2,9 +2,10 @@ import { writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { AntigravityDirectRunner, antigravityGatewayModels } from "../../src/models/antigravity-direct.js";
 import { CodexDirectRunner, codexBackendModels } from "../../src/models/codex-direct.js";
-import { antigravityToken, codexCredentials, preferDirect, UseFallback } from "../../src/models/direct.js";
+import { antigravityToken, codexCredentials, opencodeApiKey, preferDirect, UseFallback } from "../../src/models/direct.js";
 import { NO_TOOLS, type ModelRequest, type ModelRunner, type ToolSpec, type Tools } from "../../src/models/model-call.js";
-import { antigravityBody, codexBody, conversationOf, geminiSchema, schemaInWords } from "../../src/models/wire.js";
+import { OpencodeDirectRunner, opencodeGoModels } from "../../src/models/opencode-direct.js";
+import { antigravityBody, codexBody, conversationOf, geminiSchema, opencodeBody, schemaInWords } from "../../src/models/wire.js";
 
 const SYSTEM = "SYSTEM-SENTINEL: you write everyone but Ishaan.";
 const PROMPT = "PROMPT-SENTINEL: *I block the door.*";
@@ -352,5 +353,69 @@ describe("Antigravity, called directly", () => {
     const calls = sent.filter(item => item.url.includes("streamGenerateContent")).map(item => item.body.request as { generationConfig: Record<string, unknown> });
     expect(calls[1]!.generationConfig).toEqual({ responseMimeType: "application/json" });
     expect(calls[2]!.generationConfig.responseSchema).toBeDefined();
+  });
+});
+
+describe("OpenCode Go, called directly", () => {
+  it("sends custom User-Agent, x-opencode-session, Story Bible developer prefix, handles tools, and parses OpenCode usage", async () => {
+    const { post, sent } = fetchOf([
+      [{ type: "response.output_item.done", item: { id: "fc_1", type: "function_call", call_id: "call_1", name: "search_story", arguments: "{\"words\":\"Shimla\"}" } },
+        { type: "response.completed", response: { usage: { opencode: { allowance: 0.004, tokens: { input: 100, cache_read: 900, output: 20, reasoning: 5 } } } } }],
+      [{ type: "response.output_text.delta", delta: "She left for the telegram." },
+        { type: "response.output_item.done", item: { id: "msg_1", type: "message", content: [{ type: "output_text", text: "She left for the telegram." }] } },
+        { type: "response.completed", response: { usage: { input_tokens: 1100, input_tokens_details: { cached_tokens: 950 }, output_tokens: 30, output_tokens_details: { reasoning_tokens: 10 }, opencode: { allowance: 0.005 } } } }]
+    ]);
+    const tools = lookupTools();
+    const usage: unknown[] = [];
+    const runner = new OpencodeDirectRunner(() => "oc_sk_test", post, async () => {});
+    const answer = await runner.run(
+      request({ model: { provider: "opencode", model: "glm-5.3", effort: "high" }, storyId: "story-1" }),
+      () => {}, new AbortController().signal, tools, u => usage.push(u)
+    );
+    expect(answer).toBe("She left for the telegram.");
+    expect(tools.asked).toEqual(["search_story:Shimla"]);
+    expect(sent[0]!.url).toBe("https://opencode.ai/inference/go/openai/v1/responses");
+    expect(sent[0]!.headers["User-Agent"]).toBe("open-fantasia/1.0");
+    expect(sent[0]!.headers["x-opencode-session"]).toBe(`ses_${String(sent[0]!.body.prompt_cache_key)}`);
+    expect(sent[0]!.headers["session-id"]).toBe(String(sent[0]!.body.prompt_cache_key));
+    expect(sent[0]!.body.text).toBeUndefined();
+    expect(usage.at(-1)).toEqual({ input_tokens: 2100, cached_tokens: 1850, output_tokens: 50, reasoning_tokens: 15, requests: 2, allowance: 0.005 });
+
+    // Wire purity: opencodeBody carries only host-authored strings and protocol constants.
+    const body = opencodeBody(conversationOf(request({ model: { provider: "opencode", model: "glm-5.3", effort: "high" }, schema: SCHEMA })), "glm-5.3", { story: [SEARCH] });
+    expect(body.instructions).toBe("");
+    expect((body.text as { format?: { type: string } }).format?.type).toBe("json_schema");
+  });
+
+  it("filters out free-only models from OpenCode Go catalog, sorts featured and highest allowance first, and resolves keys from keychain or auth.json", async () => {
+    expect(opencodeGoModels([
+      { id: "beam-free", name: "Beam Free", type: "chat", cost: { text: { input: { price: 0 } } }, go: { monthly_usage: { go: 0 } } },
+      { id: "text-embedding-3-small", name: "Embed", type: "embedding", cost: { text: { input: { price: 0.02 } } }, go: { monthly_usage: { go: 10 } } },
+      { id: "grok-4.7", name: "Grok 4.7", type: "chat", capabilities: { reasoning: { supported: true, effort: ["low", "medium", "high", "xhigh"] } }, cost: { text: { input: { price: 2 } } }, go: { monthly_usage: { go: 15 }, featured: false } },
+      { id: "glm-5.3", name: "GLM-5.3", type: "chat", capabilities: { reasoning: { supported: true, effort: ["low", "high", "max"] } }, cost: { text: { input: { price: 1.4 } } }, go: { monthly_usage: { go: 200 }, featured: true } }
+    ])).toEqual([
+      { id: "glm-5.3", aliases: [], name: "GLM-5.3", efforts: ["low", "high", "max"], defaultEffort: "high" },
+      { id: "grok-4.7", aliases: [], name: "Grok 4.7", efforts: ["low", "medium", "high", "xhigh"], defaultEffort: "medium" }
+    ]);
+
+    const dir = process.env.TMPDIR ?? "/tmp";
+    const file = `${dir}/fantasia-opencode-auth-${process.pid}.json`;
+    writeFileSync(file, JSON.stringify({ "opencode-go": { type: "api", key: "oc_sk_from_auth" } }));
+    expect(opencodeApiKey(() => "oc_sk_from_keychain", file)).toBe("oc_sk_from_keychain");
+    expect(opencodeApiKey(() => null, file)).toBe("oc_sk_from_auth");
+    expect(() => opencodeApiKey(() => null, `${file}.missing`)).toThrow(/fantasia opencode-key/);
+  });
+
+  it("falls back to schema-in-words when an OpenCode Go model rejects strict json_schema", async () => {
+    const unsupported = () => new Response(JSON.stringify({ error: { message: "text.format json_schema is not supported" } }), { status: 400 });
+    const answer = [{ type: "response.output_item.done", item: { id: "m1", type: "message", content: [{ type: "output_text", text: "```json\n{\"reply\":\"Yes.\",\"moves_to\":null}\n```" }] } },
+      { type: "response.completed", response: { usage: { input_tokens: 10, output_tokens: 5 } } }];
+    const { post, sent } = fetchOf([unsupported(), answer]);
+    const runner = new OpencodeDirectRunner(() => "oc_sk_test", post, async () => {});
+    const out = await runner.run(request({ model: { provider: "opencode", model: "glm-5.3", effort: "high" }, schema: SCHEMA }), () => {}, new AbortController().signal);
+    expect(out).toBe("{\"reply\":\"Yes.\",\"moves_to\":null}");
+    expect(sent[0]!.body.text).toBeDefined();
+    expect(sent[1]!.body.text).toBeUndefined();
+    expect(JSON.stringify(sent[1]!.body.input)).toContain(schemaInWords(SCHEMA).slice(0, 40));
   });
 });

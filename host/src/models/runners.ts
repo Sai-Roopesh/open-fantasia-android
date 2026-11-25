@@ -4,6 +4,7 @@ import { AntigravityDirectRunner } from "./antigravity-direct.js";
 import { ClaudeRunner } from "./claude.js";
 import { CodexRunner } from "./codex.js";
 import { CodexDirectRunner } from "./codex-direct.js";
+import { OpencodeDirectRunner } from "./opencode-direct.js";
 import { preferDirect } from "./direct.js";
 import type { OfferedModel } from "./catalog.js";
 import type { ModelRunner } from "./model-call.js";
@@ -52,7 +53,8 @@ export function subscriptionRunners(home: string): Runners {
       }
     }
   };
-  return { claude, codex, antigravity, close: () => { claude.close(); codexCli.close(); antigravityCli.close(); } };
+  const opencode = new OpencodeDirectRunner();
+  return { claude, codex, antigravity, opencode, close: () => { claude.close(); codexCli.close(); antigravityCli.close(); } };
 }
 
 /** One scripted runner standing in for every provider, so a setting on any of them plays without spending quota. */
@@ -62,7 +64,7 @@ export function scriptedRunners(runner: ModelRunner, offered: Partial<Record<Mod
     run: (request, onText, signal, tools) => runner.run(request, onText, signal, tools),
     listModels: async () => offered[provider] ?? []
   });
-  return { claude: listing("claude"), codex: listing("codex"), antigravity: listing("antigravity"), close: () => {} };
+  return { claude: listing("claude"), codex: listing("codex"), antigravity: listing("antigravity"), opencode: listing("opencode"), close: () => {} };
 }
 
 const upTo = (top: string) => ["low", "medium", "high", "xhigh", "max", "ultra"].slice(0, ["low", "medium", "high", "xhigh", "max", "ultra"].indexOf(top) + 1);
@@ -84,6 +86,10 @@ export const SCRIPTED_OFFERS: Record<ModelChoice["provider"], OfferedModel[]> = 
   ],
   antigravity: [
     { id: "gemini-3.8-flash", aliases: [], name: "Gemini 3.8 Flash", efforts: ["low", "medium", "high"], defaultEffort: "medium" }
+  ],
+  opencode: [
+    { id: "glm-5.3", aliases: [], name: "GLM-5.3", efforts: ["low", "high", "max"], defaultEffort: "high" },
+    { id: "grok-4.7", aliases: [], name: "Grok 4.7", efforts: ["low", "medium", "high", "xhigh"], defaultEffort: "medium" }
   ]
 };
 

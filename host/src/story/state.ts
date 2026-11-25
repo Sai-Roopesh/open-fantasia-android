@@ -3,7 +3,7 @@ import type { Quote, TruthState } from "./truth.js";
 export type { Quote };
 /** Which model does a job: the provider and the id it lists the model under. */
 export interface ModelChoice {
-  provider: "claude" | "codex" | "antigravity";
+  provider: "claude" | "codex" | "antigravity" | "opencode";
   model: string;
   effort?: string;
 }

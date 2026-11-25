@@ -406,7 +406,7 @@ describe.skipIf(!token)("one truth, live", () => {
   it("outside-the-scene › One Models screen › The Folder on Haiku", async () => {
     const story = live(malfoyProblemStoryFile());
     try {
-      const catalog = new Catalog(story.mac.home, { claude: () => story.claude.listModels(), codex: async () => [], antigravity: async () => [] });
+      const catalog = new Catalog(story.mac.home, { claude: () => story.claude.listModels(), codex: async () => [], antigravity: async () => [], opencode: async () => [] });
       await catalog.refresh();
       const folder = () => modelsView(story.mac, catalog, "real-models").jobs.find(job => job.job === "folder")!;
       expect(folder().model.choice).toMatchObject({ provider: "claude", model: "claude-haiku-4-5-20251001" });

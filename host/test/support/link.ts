@@ -167,7 +167,12 @@ export const OFFERED = SCRIPTED_OFFERS;
 
 /** A catalog that has asked every provider and been given [OFFERED]. */
 export async function offeredCatalog(home: string): Promise<Catalog> {
-  const catalog = new Catalog(home, { claude: async () => OFFERED.claude, codex: async () => OFFERED.codex, antigravity: async () => OFFERED.antigravity });
+  const catalog = new Catalog(home, {
+    claude: async () => OFFERED.claude,
+    codex: async () => OFFERED.codex,
+    antigravity: async () => OFFERED.antigravity,
+    opencode: async () => OFFERED.opencode
+  });
   await catalog.refresh();
   return catalog;
 }

@@ -48,7 +48,8 @@ describe("the Models screen over the link", () => {
     expect(view.providers.map(provider => [provider.label, provider.reachable, provider.models.map(model => model.name)])).toEqual([
       ["CLAUDE", true, ["Opus 5.5", "Fable 5.1", "Sonnet 5.5", "Haiku 4.5"]],
       ["CODEX", true, ["GPT 6.1 Sol", "GPT 6 Luna"]],
-      ["ANTIGRAVITY", true, ["Gemini 3.8 Flash"]]
+      ["ANTIGRAVITY", true, ["Gemini 3.8 Flash"]],
+      ["OPENCODE", true, ["GLM-5.3", "Grok 4.7"]]
     ]);
     expect(view.providers[1]!.models[0]).toEqual({ id: "gpt-6.1-sol", name: "GPT 6.1 Sol", efforts: ["low", "medium", "high", "xhigh", "max", "ultra"], default_effort: "low" });
   });

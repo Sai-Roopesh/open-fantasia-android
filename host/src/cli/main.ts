@@ -5,7 +5,7 @@ import { openMac } from "../mac.js";
 import { Engine } from "../engine/engine.js";
 import { subscriptionRunners } from "../models/runners.js";
 import { Models } from "../models/model-call.js";
-import { arc, bench, claudeToken, clock, doctor, edit, editor, group, importCommand, install, known, landmark, lead, length, models, moments, pair, person, place, portrait, premise, prompts, record, show, stories, style, taste, trace, world, worldIs, type LandmarkOptions, type PersonOptions } from "./commands.js";
+import { arc, bench, claudeToken, clock, doctor, edit, editor, group, importCommand, install, known, landmark, lead, length, models, moments, opencodeKey, pair, person, place, portrait, premise, prompts, record, show, stories, style, taste, trace, world, worldIs, type LandmarkOptions, type PersonOptions } from "./commands.js";
 import { serve } from "./serve.js";
 
 /**
@@ -157,6 +157,9 @@ program.command("trace").argument("<id>", "a trace id the app showed").descripti
 program.command("claude-token").description("Store the Claude subscription token: paste it on stdin, or copy it from the first Open Fantasia")
   .option("--from-first-host", "copy the token the first Open Fantasia's host stored")
   .action((options: { fromFirstHost?: boolean }) => exitWith(claudeToken(options.fromFirstHost ?? false, options.fromFirstHost ? null : readFileSync(0, "utf8"), out)));
+
+program.command("opencode-key").description("Store the OpenCode Go API key in the keychain: paste it on stdin")
+  .action(() => exitWith(opencodeKey(readFileSync(0, "utf8"), out)));
 
 program.command("install").description("Run `fantasia serve` at login, kept running")
   .action(() => install(mac(), out));

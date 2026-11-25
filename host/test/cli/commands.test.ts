@@ -120,7 +120,8 @@ describe("the fantasia command", () => {
       `actor  "After Curfew" (${storyId})  claude  claude-opus-5-5  effort high  (its Story File's)`,
       "claude offers  claude-opus-5-5 (low medium high xhigh max), claude-fable-5-1 (low medium high xhigh max), claude-sonnet-5-5 (low medium high xhigh max), claude-haiku-4-5-20251001",
       "codex offers  gpt-6.1-sol (low medium high xhigh max ultra), gpt-6-luna (low medium high xhigh max)",
-      "antigravity offers  gemini-3.8-flash (low medium high)"
+      "antigravity offers  gemini-3.8-flash (low medium high)",
+      "opencode offers  glm-5.3 (low high max), grok-4.7 (low medium high xhigh)"
     ].join("\n"));
 
     const set = capture();

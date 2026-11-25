@@ -28,8 +28,8 @@ export interface ProviderOffer {
   models: OfferedModel[];
 }
 
-const PROVIDERS: readonly Provider[] = ["claude", "codex", "antigravity"];
-const PROVIDER_NAMES: Record<Provider, string> = { claude: "Claude", codex: "Codex", antigravity: "Antigravity" };
+const PROVIDERS: readonly Provider[] = ["claude", "codex", "antigravity", "opencode"];
+const PROVIDER_NAMES: Record<Provider, string> = { claude: "Claude", codex: "Codex", antigravity: "Antigravity", opencode: "OpenCode" };
 const HOUR = 60 * 60 * 1000;
 
 /**

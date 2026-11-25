@@ -32,7 +32,8 @@ export async function serve(mac: Mac, options: { port?: number; fakeModels: bool
   const engine = new Engine(mac, new Models(mac.db, runners), keepAwake());
   // What each provider offers, asked now and every hour; the last list each gave is kept for when it cannot be asked.
   const catalog = new Catalog(mac.home, {
-    claude: () => runners.claude.listModels(), codex: () => runners.codex.listModels(), antigravity: () => runners.antigravity.listModels()
+    claude: () => runners.claude.listModels(), codex: () => runners.codex.listModels(),
+    antigravity: () => runners.antigravity.listModels(), opencode: () => runners.opencode.listModels()
   });
   const stopCataloguing = catalog.start();
   const app = buildLink({ mac, engine, pairing: new Pairing(mac.db), catalog, hostId: me.hostId, hostName: me.hostName, https: certificate });

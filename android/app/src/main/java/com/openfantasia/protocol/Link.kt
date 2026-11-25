@@ -1829,7 +1829,8 @@ data class ModelChoice (
 enum class ModelProvider(val value: String) {
     @SerialName("antigravity") Antigravity("antigravity"),
     @SerialName("claude") Claude("claude"),
-    @SerialName("codex") Codex("codex");
+    @SerialName("codex") Codex("codex"),
+    @SerialName("opencode") Opencode("opencode");
 }
 
 /**

@@ -156,7 +156,8 @@
           "enum": [
             "claude",
             "codex",
-            "antigravity"
+            "antigravity",
+            "opencode"
           ]
         },
         "model": {
