@@ -117,8 +117,9 @@ describe("one request, delivered the same way to every provider", () => {
 /** A fetch that answers each request with the next of [answers], an SSE stream of events, and keeps what it was sent. */
 function fetchOf(answers: (Record<string, unknown>[] | Response)[]) {
   const sent: { url: string; body: Record<string, unknown>; headers: Record<string, string> }[] = [];
-  const post = (async (url: string, init: { body: string; headers: Record<string, string> }) => {
-    sent.push({ url: String(url), body: JSON.parse(init.body) as Record<string, unknown>, headers: init.headers });
+  const post = (async (url: string, init: { body?: string; headers: Record<string, string> }) => {
+    if (String(url).endsWith("/inference/go/v1/models")) return new Response(JSON.stringify({ data: [] }));
+    sent.push({ url: String(url), body: JSON.parse(init.body ?? "{}") as Record<string, unknown>, headers: init.headers });
     if (String(url).includes("loadCodeAssist")) return new Response(JSON.stringify({ cloudaicompanionProject: "project-1" }));
     const next = answers.shift();
     if (next instanceof Response) return next;
@@ -473,5 +474,56 @@ describe("OpenCode Go, called directly", () => {
     expect(sent[0]!.body.text).toBeDefined();
     expect(sent[1]!.body.text).toBeUndefined();
     expect(JSON.stringify(sent[1]!.body.input)).toContain(schemaInWords(SCHEMA).slice(0, 40));
+  });
+
+  it("lazily loads /inference/go/v1/models once on cold start so explicitCache breakpoints apply before listModels()", async () => {
+    let modelFetches = 0;
+    const chatBodies: Record<string, unknown>[] = [];
+    const customFetch = (async (url: string, init: { method?: string; body?: string }) => {
+      if (String(url).endsWith("/inference/go/v1/models")) {
+        modelFetches++;
+        return new Response(JSON.stringify({
+          data: [{
+            id: "deepseek-v4",
+            type: "chat",
+            recommended_api: "chat-completions",
+            capabilities: { cache: { explicit: true } },
+            cost: { text: { input: { price: 1 } } },
+            go: { monthly_usage: { go: 100 } }
+          }]
+        }));
+      }
+      chatBodies.push(JSON.parse(init.body ?? "{}") as Record<string, unknown>);
+      return new Response(
+        `data: ${JSON.stringify({ choices: [{ delta: { content: "She answers." } }] })}\n\n`,
+        { headers: { "Content-Type": "text/event-stream" } }
+      );
+    }) as unknown as typeof fetch;
+
+    const runner = new OpencodeDirectRunner(() => "oc_sk_test", customFetch, async () => {});
+    const req = request({
+      model: { provider: "opencode", model: "deepseek-v4", effort: "high" },
+      system: "<story>\nBible\n</people>\n\nRules",
+      conversation: [{ role: "user", text: "Opening" }, { role: "assistant", text: "Reply 1" }, { role: "user", text: "Move 2" }],
+      storyId: "story-1"
+    });
+    expect(await runner.run(req, () => {}, new AbortController().signal)).toBe("She answers.");
+    expect(await runner.run(req, () => {}, new AbortController().signal)).toBe("She answers.");
+    expect(modelFetches).toBe(1);
+    const messages = chatBodies[0]!.messages as { role: string; content: unknown }[];
+    expect(messages[0]!.content).toEqual([{ type: "text", text: "<story>\nBible\n</people>", cache_control: { type: "ephemeral" } }]);
+    expect(messages[1]!.content).toEqual([{ type: "text", text: "Rules", cache_control: { type: "ephemeral" } }]);
+    expect(messages[3]!.content).toEqual([{ type: "text", text: "Reply 1", cache_control: { type: "ephemeral" } }]);
+
+    // If /v1/models fails transiently on cold start, inference still proceeds via inferOpencodeApi().
+    const failCatalog = (async (url: string) => {
+      if (String(url).endsWith("/inference/go/v1/models")) return new Response("upstream down", { status: 503 });
+      return new Response(
+        `data: ${JSON.stringify({ choices: [{ delta: { content: "Fallback ok." } }] })}\n\n`,
+        { headers: { "Content-Type": "text/event-stream" } }
+      );
+    }) as unknown as typeof fetch;
+    const fallbackRunner = new OpencodeDirectRunner(() => "oc_sk_test", failCatalog, async () => {});
+    expect(await fallbackRunner.run(req, () => {}, new AbortController().signal)).toBe("Fallback ok.");
   });
 });

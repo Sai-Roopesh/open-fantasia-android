@@ -64,6 +64,8 @@ export class OpencodeDirectRunner implements ModelRunner {
   readonly canLookUp = { story: true, web: false };
   private readonly tooLarge = new Set<string>();
   private readonly routes = new Map<string, OpencodeRoute>();
+  private routesLoaded = false;
+  private routesLoading: Promise<void> | null = null;
 
   constructor(
     private readonly apiKey: () => string = () => opencodeApiKey(),
@@ -80,6 +82,7 @@ export class OpencodeDirectRunner implements ModelRunner {
     onWire?: (body: unknown) => void
   ): Promise<string> {
     const key = this.apiKey();
+    if (!this.routes.has(request.model.model)) await this.ensureRoutes(key, signal);
     const route = this.routes.get(request.model.model) ?? { api: inferOpencodeApi(request.model.model) };
     const conversation = conversationOf(request);
     const session = cacheKey(request.model.model, conversation.system, conversation.cacheScope);
@@ -111,6 +114,14 @@ export class OpencodeDirectRunner implements ModelRunner {
   /** Lists all paid/Go chat models available on the caller's OpenCode Go workspace and records their native API routes. */
   async listModels(signal?: AbortSignal): Promise<OfferedModel[]> {
     const key = this.apiKey();
+    const entries = await this.fetchRoutes(key, signal);
+    this.routesLoaded = true;
+    const listed = opencodeGoModels(entries);
+    if (listed.length === 0) throw new Error("OpenCode Go returned no models");
+    return listed;
+  }
+
+  private async fetchRoutes(key: string, signal?: AbortSignal): Promise<OpencodeGoModel[]> {
     const response = await this.post(MODELS_ENDPOINT, {
       method: "GET",
       ...(signal ? { signal } : {}),
@@ -120,9 +131,31 @@ export class OpencodeDirectRunner implements ModelRunner {
     const data = await response.json() as { data?: OpencodeGoModel[] };
     const entries = data.data ?? [];
     for (const entry of entries) this.routes.set(entry.id, routeOfModel(entry));
-    const listed = opencodeGoModels(entries);
-    if (listed.length === 0) throw new Error("OpenCode Go returned no models");
-    return listed;
+    return entries;
+  }
+
+  /** Lazily loads `/inference/go/v1/models` once on cold start so `explicitCache` and exact API routes work before `listModels()`. */
+  private async ensureRoutes(key: string, signal: AbortSignal): Promise<void> {
+    if (this.routesLoaded) return;
+    if (!this.routesLoading) {
+      this.routesLoading = this.fetchRoutes(key, AbortSignal.timeout(5_000))
+        .then(() => { this.routesLoaded = true; })
+        .catch(() => { /* Fall back to inferOpencodeApi() if catalog fetch fails transiently. */ })
+        .finally(() => { this.routesLoading = null; });
+    }
+    if (signal.aborted) throw new Error("OpenCode Go: stopped");
+    let onAbort: (() => void) | undefined;
+    try {
+      await Promise.race([
+        this.routesLoading,
+        new Promise<never>((_, reject) => {
+          onAbort = () => reject(new Error("OpenCode Go: stopped"));
+          signal.addEventListener("abort", onAbort, { once: true });
+        })
+      ]);
+    } finally {
+      if (onAbort) signal.removeEventListener("abort", onAbort);
+    }
   }
 
   private recordUsage(used: Used, usage: OpencodeUsage | null, onUsage?: (usage: ModelUsage) => void): void {
