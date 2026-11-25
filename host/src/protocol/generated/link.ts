@@ -548,6 +548,7 @@ export interface StoryEvent {
     | "linger_set"
     | "redo"
     | "reply_started"
+    | "reply_delta"
     | "turn_step"
     | "reply_failed"
     | "world_moved"
@@ -560,6 +561,10 @@ export interface StoryEvent {
   seq: number;
   scene?: SceneCard1;
   passage?: Passage;
+  /**
+   * reply_delta: live streamed prose chunk while the Reply is being written.
+   */
+  delta?: string;
   reason?: string;
   trace_id?: string;
   day_view?: DayView1;

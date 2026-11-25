@@ -61,7 +61,8 @@ export async function runAgent<T>(
   check: (answer: unknown) => Checked<T>,
   budget: Budget,
   signal: AbortSignal,
-  onLookup: (line: string) => void = () => {}
+  onLookup: (line: string) => void = () => {},
+  onText: (delta: string) => void = () => {}
 ): Promise<{ value: T; callId: string; model: ModelChoice; dropped: string[]; lookups: string[] }> {
   const reasons: string[] = [];
   const tried = new Set<string>();
@@ -79,7 +80,9 @@ export async function runAgent<T>(
         const conversation = suffix && request.conversation?.length
           ? request.conversation.map((turn, index, list) => (index === list.length - 1 ? { ...turn, text: turn.text + suffix } : turn))
           : request.conversation;
-        answer = await models.call({ ...request, model, prompt, ...(conversation ? { conversation } : {}), turns: budget.turns }, () => {}, timed.signal, onLookup);
+        // Stream tokens only on the primary first attempt so failed/repaired calls never emit duplicate partial text.
+        const stream = tried.size === 1 && attempt === 0 ? onText : () => {};
+        answer = await models.call({ ...request, model, prompt, ...(conversation ? { conversation } : {}), turns: budget.turns }, stream, timed.signal, onLookup);
       } catch (error) {
         if (signal.aborted) throw error;
         reasons.push(`${model.model}: ${error instanceof Error ? error.message : String(error)}`);

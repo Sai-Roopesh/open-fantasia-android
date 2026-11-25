@@ -47,4 +47,20 @@ class StoryEventsTest {
             assertEquals(com.openfantasia.protocol.CONTRACT_VERSION.toString(), request.getHeader("Fantasia-Contract"))
         }
     }
+
+    @Test fun `reply_delta streams live prose and is replaced cleanly by the final reply`() {
+        val projection = SceneProjection(sceneFixture())
+        projection.apply(StoryEventEnvelope("2", StoryEvent(kind = StoryEventKind.Move, passage = Passage(entryID = "m2", text = "I speak."), seq = 2)))
+        projection.apply(StoryEventEnvelope(null, StoryEvent(kind = StoryEventKind.ReplyStarted, seq = 2, turnStep = TurnStep.Writing, traceID = "t2")))
+        val d1 = projection.apply(StoryEventEnvelope(null, StoryEvent(kind = StoryEventKind.ReplyDelta, seq = 2, delta = "She looks up")))
+        val d2 = projection.apply(StoryEventEnvelope(null, StoryEvent(kind = StoryEventKind.ReplyDelta, seq = 2, delta = " and smiles.")))
+        assertEquals(STREAMING_ENTRY_ID, d1.exchanges.last().reply?.entryID)
+        assertEquals("She looks up", d1.exchanges.last().reply?.text)
+        assertEquals("She looks up and smiles.", d2.exchanges.last().reply?.text)
+        assertEquals(TurnStateKind.Writing, d2.turn.kind)
+        val committed = projection.apply(StoryEventEnvelope("3", StoryEvent(kind = StoryEventKind.Reply, passage = Passage(entryID = "r3", text = "She looks up and smiles."), seq = 3)))
+        assertEquals("r3", committed.exchanges.last().reply?.entryID)
+        assertEquals("She looks up and smiles.", committed.exchanges.last().reply?.text)
+        assertEquals(TurnStateKind.Idle, committed.turn.kind)
+    }
 }

@@ -128,7 +128,7 @@ private val FantasiaRumourGround = Color(0xFF30261A)
         LazyColumn(Modifier.weight(1f).testTag("backstage"), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(22.dp)) {
             item(key = "notice") {
-                Text("Everything $playerCharacter doesn't know. Nothing here reaches the Scene, the Day View, the World or the Journal.",
+                Text("Spoilers · hidden from $playerCharacter and never shown in the Story.",
                     style = FantasiaType.caption, color = FantasiaSecondary,
                     modifier = Modifier.fillMaxWidth().background(BackstageCard, RoundedCornerShape(14.dp)).drawBehind {
                         drawRoundRect(BackstageDash, cornerRadius = CornerRadius(14.dp.toPx()),
@@ -169,11 +169,11 @@ private val FantasiaRumourGround = Color(0xFF30261A)
             backstage.truth.takeIf { it.people.isNotEmpty() || it.between.isNotEmpty() || it.truths.isNotEmpty() || it.rules.isNotEmpty() || it.names.isNotEmpty() }
                 ?.let { truth -> item(key = "truth") { WhatTheStoryKeeps(truth) } }
             item(key = "taste") {
-                Taste("TASTE · WHAT THE STORY HAS LEARNED", "Nothing yet. A Redo you ask it to remember becomes a line here.",
+                Taste("TASTE · THIS STORY", "None yet. Remembered redo directions appear here.",
                     backstage.taste, besideEnabled, reword = { reword(Scope.Story, it) }, remove = { removeTaste(Scope.Story, it) })
             }
             item(key = "player-taste") {
-                Taste("YOUR OWN TASTE · EVERY STORY", "Nothing yet. A lesson about how you like to read, learned in any Story, becomes a line here.",
+                Taste("YOUR TASTE · ALL STORIES", "None yet. Global preferences across stories appear here.",
                     backstage.playerTaste, besideEnabled, reword = { reword(Scope.Player, it) }, remove = { removeTaste(Scope.Player, it) },
                     modifier = Modifier.testTag("player-taste"))
             }
@@ -327,7 +327,7 @@ private val PurpleGround = Color(0xFF2B2342)
     Column(Modifier.fillMaxWidth().background(BackstageCard, RoundedCornerShape(16.dp)).padding(horizontal = 16.dp, vertical = 14.dp)
         .testTag("notes"), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         SectionLabel("YOUR DIRECTIONS")
-        Text("Active directions guide every subsequent reply. Redo notes are saved here automatically.", style = FantasiaType.caption, color = FantasiaSecondary)
+        Text("Active directions steer future replies.", style = FantasiaType.caption, color = FantasiaSecondary)
         BasicTextField(value = draft, onValueChange = write, minLines = 2, maxLines = 5, textStyle = FantasiaType.composer.copy(color = FantasiaText),
             cursorBrush = SolidColor(FantasiaLabel), modifier = Modifier.fillMaxWidth().testTag("note-field").semantics { contentDescription = "Write a note" }
                 .background(FantasiaBackground, FantasiaShapes.field).padding(12.dp))
@@ -505,7 +505,7 @@ internal fun sourceLine(source: SourceRow): String = "from ${source.sceneNumber?
             }
         }
         if (brief.more.isEmpty() && brief.less.isEmpty())
-            Text("Nothing yet. Say what you want more of and less of, and the Director plans every Stretch from it.",
+            Text("None yet. Add what you want more or less of to steer upcoming scenes.",
                 style = FantasiaType.meta.copy(lineHeight = 19.sp), color = FantasiaCaption)
         for ((label, color, lines) in listOf(Triple("MORE OF", FantasiaSeen, brief.more), Triple("LESS OF", FantasiaRumour, brief.less))) {
             if (lines.isEmpty()) continue

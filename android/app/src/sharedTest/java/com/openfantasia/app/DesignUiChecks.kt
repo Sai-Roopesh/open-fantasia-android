@@ -29,7 +29,6 @@ open class DesignUiChecks {
         compose.onNodeWithText("Sunday 7:40 am · choosing where to go").assertIsDisplayed()
         compose.onNodeWithText("3 Scenes played").assertIsDisplayed()
         compose.onAllNodesWithText("yesterday").assertCountEquals(if (first == "yesterday") 2 else 1)
-        compose.onNodeWithText("New Stories are made with Claude on the Mac and appear here once imported.").assertIsDisplayed()
         compose.preview("Main")
         compose.runOnIdle { link.reachable.value = false }
         compose.onNodeWithText("Sai's MacBook Air · unreachable").assertIsDisplayed()
@@ -72,7 +71,7 @@ open class DesignUiChecks {
         compose.onNodeWithText("Common room · Friday 9:40 pm").assertIsDisplayed()
         compose.onNodeWithContentDescription("Hermione Granger's Portrait").assertIsDisplayed().assertIsSelected()
         compose.onNodeWithText("Hermione").assertIsDisplayed()
-        compose.onNodeWithText("Focus on Hermione · tap a Portrait to change").assertIsDisplayed()
+        compose.onNodeWithText("Focused: Hermione").assertIsDisplayed()
         compose.onNodeWithTag("portrait-Hermione Granger", useUnmergedTree = true).assertWidthIsEqualTo(56.dp).assertHeightIsEqualTo(56.dp)
         compose.onNodeWithTag("composer").assertHeightIsEqualTo(70.dp).assertIsEnabled()
         compose.onNodeWithText("What does Roopesh do?").assertIsDisplayed()
@@ -110,12 +109,11 @@ open class DesignUiChecks {
         assertEquals(listOf("chai, chai garam", "fine"), italic)
     }
 
-    // A Scene without Focus says how to put someone in it: Focus is set with words, not by guessing at a Portrait.
     fun noFocus() {
         openScene()
         compose.onNodeWithTag("scene-passages").performScrollToNode(hasTestTag("scene-title"))
         compose.onNodeWithContentDescription("Hermione's Portrait").assertIsNotSelected()
-        compose.onNodeWithText("Tap a Portrait to focus on someone").assertIsDisplayed()
+        compose.onNodeWithText("Focused:", substring = true).assertDoesNotExist()
     }
 
     // WHEN the player taps Copy on the latest Reply

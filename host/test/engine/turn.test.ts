@@ -128,11 +128,13 @@ describe("a Reply arrives whole (docs/adr/0019, docs/adr/0024)", () => {
     engine.move(storyId, "I raise my glass.", head(), "trace-w");
     await engine.settled(storyId);
 
-    expect(told(events)).toEqual(["move", "turn_step:writing", "reply"]);
+    expect(told(events).filter(kind => kind !== "reply_delta")).toEqual(["move", "turn_step:writing", "reply"]);
     expect(read).toEqual(["writing"]);
-    // The Reply arrives whole, in its own event, and no word of it before.
+    // Live prose deltas stream smoothly while writing (never leaking <scene_state>) before the final committed Reply.
+    const streamed = events.filter(event => event.event.kind === "reply_delta").map(event => event.event.delta ?? "").join("");
+    expect(streamed.length).toBeGreaterThan(0);
+    expect(streamed).not.toContain("<scene_state>");
     expect(events.at(-1)!.event.passage).toEqual({ entry_id: head(), text: reply });
-    expect(events.filter(event => JSON.stringify(event.event).includes("does not look at you"))).toHaveLength(1);
     const calls = mac.db.prepare("SELECT agent FROM calls WHERE trace_id = 'trace-w' ORDER BY rowid").all() as { agent: string }[];
     expect(calls.map(call => call.agent)).toEqual(["actor"]);
     expect(sceneView(mac, engine, storyId, "trace-read").turn).toEqual({ kind: "idle" });

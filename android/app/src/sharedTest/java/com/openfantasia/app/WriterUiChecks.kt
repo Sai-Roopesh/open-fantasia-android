@@ -47,7 +47,7 @@ open class WriterUiChecks {
         openScene()
         compose.onNodeWithText("End scene").assertIsEnabled().performClick()
         compose.onNodeWithText("End this Scene?").assertIsDisplayed()
-        compose.onNodeWithText("The Scene is recorded as it stands, and the Day View opens.").assertIsDisplayed()
+        compose.onNodeWithText("Saves this scene and opens the Day View.").assertIsDisplayed()
         compose.onNodeWithTag("end-scene-sheet").assertIsDisplayed()
         compose.preview("EndScene")
         compose.onNodeWithText("Keep playing").performClick()
@@ -96,9 +96,9 @@ open class WriterUiChecks {
         compose.onNodeWithTag("scene-passages").performScrollToNode(hasTestTag("scene-title"))
         compose.onNodeWithContentDescription("Hermione's Portrait").performClick()
         compose.onNodeWithTag("scene-passages").performScrollToNode(hasTestTag("scene-title"))
-        compose.onNodeWithText("Focus on Hermione · tap a Portrait to change").assertIsDisplayed()
+        compose.onNodeWithText("Focused: Hermione").assertIsDisplayed()
         compose.onNodeWithContentDescription("Hermione's Portrait").assertIsSelected().performClick()
-        compose.onNodeWithText("Focus on Hermione · tap a Portrait to change").assertDoesNotExist()
+        compose.onNodeWithText("Focused: Hermione").assertDoesNotExist()
         compose.runOnIdle {
             assertEquals(listOf(FocusRequest(after = "reply", on = "Hermione"), FocusRequest(after = "focus-1", on = null)), link.focuses)
         }
@@ -116,7 +116,7 @@ open class WriterUiChecks {
                 StoryEvent(kind = StoryEventKind.SceneOpened, seq = 4, scene = card, focus = "Draconia")))
         }
         compose.onNodeWithTag("scene-passages").performScrollToNode(hasTestTag("scene-title"))
-        compose.onNodeWithText("Focus on Draconia · tap a Portrait to change").assertIsDisplayed()
+        compose.onNodeWithText("Focused: Draconia").assertIsDisplayed()
         compose.onNodeWithContentDescription("Draconia's Portrait").assertIsSelected()
         compose.runOnIdle {
             val card = link.current.value.scene.copy(number = 16, title = "At breakfast",
@@ -126,7 +126,7 @@ open class WriterUiChecks {
         }
         compose.onNodeWithTag("scene-passages").performScrollToNode(hasTestTag("scene-title"))
         compose.onNodeWithText("At breakfast").assertIsDisplayed()
-        compose.onNodeWithText("Focus on Draconia · tap a Portrait to change").assertDoesNotExist()
+        compose.onNodeWithText("Focused: Draconia").assertDoesNotExist()
         compose.onNodeWithContentDescription("Draconia's Portrait").assertIsNotSelected()
     }
 
@@ -137,13 +137,13 @@ open class WriterUiChecks {
                 StoryEvent(kind = StoryEventKind.FocusSet, seq = 4, focus = "Hermione")))
         }
         compose.onNodeWithTag("scene-passages").performScrollToNode(hasTestTag("scene-title"))
-        compose.onNodeWithText("Focus on Hermione · tap a Portrait to change").assertIsDisplayed()
+        compose.onNodeWithText("Focused: Hermione").assertIsDisplayed()
         compose.onNodeWithContentDescription("Hermione's Portrait").assertIsSelected()
         compose.runOnIdle {
             link.current.value = SceneProjection(link.current.value).apply(StoryEventEnvelope("5",
                 StoryEvent(kind = StoryEventKind.FocusSet, seq = 5, focus = null)))
         }
-        compose.onNodeWithText("Focus on Hermione · tap a Portrait to change").assertDoesNotExist()
+        compose.onNodeWithText("Focused: Hermione").assertDoesNotExist()
         compose.onNodeWithContentDescription("Hermione's Portrait").assertIsNotSelected()
     }
 
@@ -380,7 +380,7 @@ open class WriterUiChecks {
         compose.onNodeWithTag("composer").assertIsEnabled().performTextInput("I wait beside her.")
         compose.onNodeWithTag("composer").assertTextContains("I wait beside her.")
         compose.onNodeWithTag("send-move").assertIsNotEnabled()
-        compose.onNodeWithText("Your Move sends once the Reply is done.").assertIsDisplayed()
+        compose.onNodeWithText("Queued for after this reply.").assertIsDisplayed()
         compose.onNodeWithContentDescription("Linger").assertIsNotEnabled()
         compose.onNodeWithText("End scene").assertIsNotEnabled()
         compose.runOnIdle { assertTrue(link.moves.isEmpty()); link.current.value = link.current.value.copy(turn = TurnState(kind = TurnStateKind.Writing)) }
@@ -398,7 +398,7 @@ open class WriterUiChecks {
         compose.onNodeWithText("She finishes.").assertIsDisplayed()
         compose.onNodeWithTag("composer").assertTextContains("I wait beside her. I stay.")
         compose.onNodeWithTag("send-move").assertIsEnabled()
-        compose.onNodeWithText("Your Move sends once the Reply is done.").assertDoesNotExist()
+        compose.onNodeWithText("Queued for after this reply.").assertDoesNotExist()
         compose.onNodeWithTag("reply-under-way").assertDoesNotExist()
         compose.runOnIdle { assertTrue("The Reply appearing must not send the draft", link.moves.isEmpty()) }
         compose.onNodeWithTag("send-move").performClick()

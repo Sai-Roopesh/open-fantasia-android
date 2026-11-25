@@ -71,8 +71,30 @@ internal val TurnStep.kind: TurnStateKind
         TurnStep.Checking -> TurnStateKind.Checking
     }
 
+/** Synthetic entry ID for live-streamed prose before the final committed Reply arrives. */
+internal const val STREAMING_ENTRY_ID = "__streaming__"
+
 /** Events that write no entry: their ids ("12.step.weaver") are not a place in the order. */
-private val UNPLACED = setOf(StoryEventKind.ReplyFailed, StoryEventKind.TurnStep, StoryEventKind.SceneEndStep, StoryEventKind.SceneEndFailed)
+private val UNPLACED = setOf(StoryEventKind.ReplyDelta, StoryEventKind.ReplyFailed, StoryEventKind.TurnStep, StoryEventKind.SceneEndStep, StoryEventKind.SceneEndFailed)
+
+private fun List<Exchange>.withoutStreaming(): List<Exchange> = mapNotNull { exchange ->
+    if (exchange.reply?.entryID != STREAMING_ENTRY_ID) exchange
+    else exchange.move?.let { exchange.copy(reply = null) }
+}
+
+private fun List<Exchange>.appendDelta(delta: String): List<Exchange> {
+    if (delta.isEmpty()) return this
+    val exchanges = toMutableList()
+    val last = exchanges.lastOrNull()
+    when {
+        last != null && last.reply?.entryID == STREAMING_ENTRY_ID ->
+            exchanges[exchanges.lastIndex] = last.copy(reply = last.reply.copy(text = last.reply.text + delta))
+        last != null && last.move != null && last.reply == null ->
+            exchanges[exchanges.lastIndex] = last.copy(reply = Passage(entryID = STREAMING_ENTRY_ID, text = delta))
+        else -> exchanges += Exchange(reply = Passage(entryID = STREAMING_ENTRY_ID, text = delta))
+    }
+    return exchanges
+}
 
 class SceneProjection(initial: SceneView) {
     var view: SceneView = initial
@@ -99,10 +121,10 @@ class SceneProjection(initial: SceneView) {
             StoryEventKind.SceneEndFailed -> view.copy(dayView = view.dayView?.let { day ->
                 event.step?.let { step -> day.copy(sceneEnd = SceneEnd(failed = SceneEndFailure(step = step, reason = event.reason.orEmpty(), traceID = event.traceID.orEmpty()))) } ?: day
             })
-            StoryEventKind.SceneClosed -> view.copy(seq = maxOf(view.seq, event.seq), dayView = requireNotNull(event.dayView), focus = null, linger = false)
+            StoryEventKind.SceneClosed -> view.copy(seq = maxOf(view.seq, event.seq), exchanges = view.exchanges.withoutStreaming(), dayView = requireNotNull(event.dayView), focus = null, linger = false)
             StoryEventKind.FocusSet -> view.copy(seq = maxOf(view.seq, event.seq), focus = event.focus)
             StoryEventKind.LingerSet -> view.copy(seq = maxOf(view.seq, event.seq), linger = requireNotNull(event.linger))
-            StoryEventKind.Redo -> view.copy(seq = maxOf(view.seq, event.seq))
+            StoryEventKind.Redo -> view.copy(seq = maxOf(view.seq, event.seq), exchanges = view.exchanges.withoutStreaming())
             StoryEventKind.SceneOpened -> view.copy(
                 scene = requireNotNull(event.scene), focus = event.focus, linger = false, dayView = null, opening = null,
                 exchanges = event.passage?.let { listOf(Exchange(reply = it)) } ?: emptyList(),
@@ -111,28 +133,35 @@ class SceneProjection(initial: SceneView) {
             )
             // A Move at the Day View opens the next Scene at once, under its card; the stream then reads the Mac's view.
             StoryEventKind.Move -> view.copy(
-                exchanges = (if (event.opening != null) emptyList() else view.exchanges) + Exchange(move = requireNotNull(event.passage)),
+                exchanges = (if (event.opening != null) emptyList() else view.exchanges.withoutStreaming()) + Exchange(move = requireNotNull(event.passage)),
                 dayView = if (event.opening != null) null else view.dayView, opening = event.opening ?: view.opening,
                 headEntryID = event.passage.entryID, seq = maxOf(view.seq, event.seq),
                 turn = TurnState(kind = TurnStateKind.Idle)
             )
-            // The Reply arrives whole, checked, with the Editor's note when it still breaks something (docs/adr/0019).
+            // Live prose chunks arrive while the Actor writes; replaced seamlessly by the committed Reply.
+            StoryEventKind.ReplyDelta -> view.copy(
+                seq = maxOf(view.seq, event.seq),
+                exchanges = view.exchanges.appendDelta(event.delta.orEmpty()),
+                turn = TurnState(kind = TurnStateKind.Writing, traceID = view.turn.traceID)
+            )
+            // The final committed Reply replaces any live-streamed passage in place.
             StoryEventKind.Reply -> {
                 val reply = requireNotNull(event.passage)
                 val exchanges = view.exchanges.toMutableList()
-                if (exchanges.lastOrNull()?.let { it.move != null && it.reply == null } == true) {
-                    exchanges[exchanges.lastIndex] = exchanges.last().copy(reply = reply)
+                val last = exchanges.lastOrNull()
+                if (last != null && (last.reply?.entryID == STREAMING_ENTRY_ID || (last.move != null && last.reply == null))) {
+                    exchanges[exchanges.lastIndex] = last.copy(reply = reply)
                 } else exchanges += Exchange(reply = reply)
                 view.copy(scene = event.scene ?: view.scene, exchanges = exchanges, headEntryID = reply.entryID, seq = maxOf(view.seq, event.seq),
                     turn = TurnState(kind = TurnStateKind.Idle))
             }
             // The turn begins written, unless its start says it is looking something up first; each step then says what it is doing.
-            StoryEventKind.ReplyStarted -> view.copy(seq = maxOf(view.seq, event.seq), turn = TurnState(kind = event.turnStep?.kind ?: TurnStateKind.Writing,
-                traceID = event.traceID))
+            StoryEventKind.ReplyStarted -> view.copy(seq = maxOf(view.seq, event.seq), exchanges = view.exchanges.withoutStreaming(),
+                turn = TurnState(kind = event.turnStep?.kind ?: TurnStateKind.Writing, traceID = event.traceID))
             StoryEventKind.TurnStep -> view.copy(seq = maxOf(view.seq, event.seq), turn = TurnState(kind = requireNotNull(event.turnStep).kind,
                 traceID = event.traceID ?: view.turn.traceID))
-            StoryEventKind.ReplyFailed -> view.copy(seq = maxOf(view.seq, event.seq), turn = TurnState(kind = TurnStateKind.Failed,
-                reason = requireNotNull(event.reason), traceID = event.traceID))
+            StoryEventKind.ReplyFailed -> view.copy(seq = maxOf(view.seq, event.seq), exchanges = view.exchanges.withoutStreaming(),
+                turn = TurnState(kind = TurnStateKind.Failed, reason = requireNotNull(event.reason), traceID = event.traceID))
         }
         // Retry can reuse the Move's seq, so a start resumes from the entry it follows.
         if (event.kind == StoryEventKind.ReplyStarted) lastEventID = envelope.id?.takeIf { order?.seq == event.seq } ?: event.seq.toString()

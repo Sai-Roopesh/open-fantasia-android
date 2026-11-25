@@ -1,9 +1,9 @@
 {
   "maxCycles": 0,
-  "maxTotalLines": 14260,
+  "maxTotalLines": 14320,
   "defaultMaxFileLines": 350,
   "fileCeilings": {
-    "engine/engine.ts": 1270,
+    "engine/engine.ts": 1250,
     "context/lens.ts": 790,
     "cli/commands.ts": 745,
     "agents/outline.ts": 475,

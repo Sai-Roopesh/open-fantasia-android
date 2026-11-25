@@ -39,7 +39,7 @@ import java.util.Locale
 internal fun firstName(name: String) = name.trim().substringBefore(' ')
 internal val SceneView.replyComing: Boolean
     get() = turn.underWay ||
-        (turn.kind == TurnStateKind.Idle && exchanges.lastOrNull()?.let { it.move != null && it.reply == null } == true)
+        (turn.kind == TurnStateKind.Idle && exchanges.lastOrNull()?.let { it.move != null && (it.reply == null || it.reply.entryID == STREAMING_ENTRY_ID) } == true)
 
 /**
  * The one line while a Reply is under way (SceneWriting.dc.html; openspec presence: A Reply arrives checked and whole):
@@ -120,7 +120,7 @@ class SceneScrollState(val list: LazyListState) {
     val density = LocalDensity.current
     val imeBottom = WindowInsets.ime.getBottom(density)
     val replyComing = scene.replyComing || awaitingReply
-    val latestReply = scene.exchanges.lastOrNull { it.reply != null }?.reply
+    val latestReply = scene.exchanges.lastOrNull { it.reply != null && it.reply.entryID != STREAMING_ENTRY_ID }?.reply
     var previouslyOffset by remember(previously?.since) { mutableStateOf<Int?>(null) }
     val copy = { text: String -> clipboard.setPrimaryClip(ClipData.newPlainText("Reply", text)) }
     // The Reply being held, whose menu is open (LongPress.dc.html); everything else steps back.
@@ -128,7 +128,7 @@ class SceneScrollState(val list: LazyListState) {
     var editing by remember(scene.storyID, scene.headEntryID) { mutableStateOf<Editing?>(null) }
     // The latest Move and Reply: an edit changes them in place, anything earlier on a new Path (openspec scenes: Editing).
     val latestMove = scene.exchanges.lastOrNull()?.move?.entryID
-    val latestReplyID = scene.exchanges.lastOrNull()?.reply?.entryID
+    val latestReplyID = scene.exchanges.lastOrNull()?.reply?.takeIf { it.entryID != STREAMING_ENTRY_ID }?.entryID
     fun actions(passage: Passage, isMove: Boolean) = PassageActions(isMove = isMove,
         latest = passage.entryID == (if (isMove) latestMove else latestReplyID), canRewind = isMove || passage.entryID != scene.headEntryID,
         pathsEnabled = pathsEnabled, copy = { copy(passage.text) }, rewind = { rewind(passage.entryID) }, tryAnotherWay = { tryAnotherWay(passage.entryID) },
@@ -152,25 +152,29 @@ class SceneScrollState(val list: LazyListState) {
                             actions = actions(move, isMove = true), hold = { held = move.entryID }, release = { held = null })
                     }
                     exchange.reply?.let { reply ->
-                        if (reply == latestReply && scene.dayView == null && previously != null) {
-                            PreviouslyCard(previously, dismissPreviously, Modifier.onGloballyPositioned { previouslyOffset = it.positionInParent().y.toInt() })
-                        }
-                        HeldReply(reply, held = held == reply.entryID, dimmed = held != null && held != reply.entryID,
-                            actions = actions(reply, isMove = false), hold = { held = reply.entryID }, release = { held = null })
-                        val latestActions = reply == latestReply && !replyComing && scene.turn.kind != TurnStateKind.Failed
-                        val canRedo = latestActions && scene.dayView == null &&
-                            scene.exchanges.lastOrNull()?.let { it.move != null && it.reply != null } == true
-                        // The Editor's note, when the Reply still breaks something after it was written again; Redo moves into it.
-                        reply.note?.let { note -> EditorNote(note, if (canRedo) ({ showRedo = true }) else null, controlsEnabled) }
-                        if (latestActions) {
-                            // The latest Reply's actions, in view without a menu, as drawn in Scene.dc.html.
-                            Row(Modifier.offset(x = (-8).dp).testTag("latest-actions"), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                ReplyAction("Copy", onClick = { copy(reply.text) })
-                                if (canRedo && reply.note == null) {
-                                    ReplyAction("Redo", enabled = controlsEnabled, onClick = { showRedo = true })
+                        if (reply.entryID == STREAMING_ENTRY_ID) {
+                            Box(Modifier.testTag("streaming-reply")) { ReplyPassage(reply) }
+                        } else {
+                            if (reply == latestReply && scene.dayView == null && previously != null) {
+                                PreviouslyCard(previously, dismissPreviously, Modifier.onGloballyPositioned { previouslyOffset = it.positionInParent().y.toInt() })
+                            }
+                            HeldReply(reply, held = held == reply.entryID, dimmed = held != null && held != reply.entryID,
+                                actions = actions(reply, isMove = false), hold = { held = reply.entryID }, release = { held = null })
+                            val latestActions = reply == latestReply && !replyComing && scene.turn.kind != TurnStateKind.Failed
+                            val canRedo = latestActions && scene.dayView == null &&
+                                scene.exchanges.lastOrNull()?.let { it.move != null && it.reply != null && it.reply.entryID != STREAMING_ENTRY_ID } == true
+                            // The Editor's note, when the Reply still breaks something after it was written again; Redo moves into it.
+                            reply.note?.let { note -> EditorNote(note, if (canRedo) ({ showRedo = true }) else null, controlsEnabled) }
+                            if (latestActions) {
+                                // The latest Reply's actions, in view without a menu, as drawn in Scene.dc.html.
+                                Row(Modifier.offset(x = (-8).dp).testTag("latest-actions"), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    ReplyAction("Copy", onClick = { copy(reply.text) })
+                                    if (canRedo && reply.note == null) {
+                                        ReplyAction("Redo", enabled = controlsEnabled, onClick = { showRedo = true })
+                                    }
+                                    ReplyAction("Edit", enabled = pathsEnabled, onClick = { editing = Editing(reply.entryID, reply.text, isMove = false, latest = true) })
+                                    ReplyAction("Try another way", enabled = pathsEnabled, onClick = { tryAnotherWay(reply.entryID) })
                                 }
-                                ReplyAction("Edit", enabled = pathsEnabled, onClick = { editing = Editing(reply.entryID, reply.text, isMove = false, latest = true) })
-                                ReplyAction("Try another way", enabled = pathsEnabled, onClick = { tryAnotherWay(reply.entryID) })
                             }
                         }
                     }
@@ -355,7 +359,7 @@ class SceneScrollState(val list: LazyListState) {
         DaySheet("end-scene-sheet", dismiss = { confirming = false }) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("End this Scene?", style = FantasiaType.sheetTitle)
-                Text("The Scene is recorded as it stands, and the Day View opens.", style = FantasiaType.caption, color = FantasiaSecondary)
+                Text("Saves this scene and opens the Day View.", style = FantasiaType.caption, color = FantasiaSecondary)
             }
             Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End)) {
                 TextButton(onClick = { confirming = false }, modifier = Modifier.height(48.dp), shape = FantasiaShapes.round,
@@ -369,11 +373,11 @@ class SceneScrollState(val list: LazyListState) {
 
 @Composable fun MoveComposer(state: FantasiaState, write: (String) -> Unit, send: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        if (!state.reachable) Text("The Mac is unreachable", color = FailureAmber, style = FantasiaType.small)
+        if (!state.reachable) Text("Mac offline", color = FailureAmber, style = FantasiaType.small)
         state.waitingMove?.takeIf { it.storyID == state.scene?.storyID }?.let { move ->
             Column(Modifier.fillMaxWidth().testTag("waiting-move"), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(move.text, style = FantasiaType.composer, color = FantasiaSecondary, maxLines = 3, overflow = TextOverflow.Ellipsis)
-                Text("Sends when the Mac is back.", style = FantasiaType.small, color = FantasiaCaption)
+                Text("Queued · waiting for Mac", style = FantasiaType.small, color = FantasiaCaption)
             }
         }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -395,7 +399,7 @@ class SceneScrollState(val list: LazyListState) {
                 FantasiaIcon(FantasiaIconKind.Send, Modifier.size(20.dp))
             }
         }
-        if (state.replyComing) Text("Your Move sends once the Reply is done.", style = FantasiaType.small, color = FantasiaCaption)
+        if (state.replyComing) Text("Queued for after this reply.", style = FantasiaType.small, color = FantasiaCaption)
     }
 }
 
@@ -448,8 +452,13 @@ class SceneScrollState(val list: LazyListState) {
                         enabled = enabled, role = Role.Button, onClick = { setFocus(person.name) }), focused = person.name == focus)
                 }
             }
-            if (focus != null) Text("Focus on ${firstName(focus)} · tap a Portrait to change", color = FantasiaLabel, style = FantasiaType.small, modifier = Modifier.padding(top = 8.dp))
-            else if (card.people.isNotEmpty()) Text("Tap a Portrait to focus on someone", color = FantasiaCaption, style = FantasiaType.small, modifier = Modifier.padding(top = 8.dp))
+            if (focus != null) {
+                Surface(shape = FantasiaShapes.round, color = FantasiaRaised, border = BorderStroke(1.dp, FantasiaAccent),
+                    modifier = Modifier.padding(top = 8.dp)) {
+                    Text("Focused: ${firstName(focus)}", color = FantasiaLabel, style = FantasiaType.small,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp))
+                }
+            }
         }
     }
 }

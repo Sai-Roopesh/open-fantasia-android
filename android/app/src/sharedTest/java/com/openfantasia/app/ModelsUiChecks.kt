@@ -10,7 +10,7 @@ open class ModelsUiChecks : WorldUiChecks() {
         val model = FantasiaModel(link)
         compose.setContent { FantasiaApp(model, PairingScanner { error("Already paired") }) }
         compose.onNodeWithContentDescription("Models").performClick()
-        compose.onNodeWithText("THE ACTOR · EACH STORY ITS OWN").assertIsDisplayed()
+        compose.onNodeWithText("STORY ACTORS").assertIsDisplayed()
     }
 
     /** The picker's chip for [name] under the row that is open. */
@@ -20,7 +20,7 @@ open class ModelsUiChecks : WorldUiChecks() {
     // THEN the next Weaver work runs on GPT 6.1 Sol
     fun movingTheWeaverToCodex() {
         openModels()
-        compose.onNodeWithText("EVERY STORY").assertIsDisplayed()
+        compose.onNodeWithText("BACKGROUND JOBS").assertIsDisplayed()
         for ((job, does) in listOf("Writer" to "Plans each Reply before it starts", "Editor" to "Checks each Reply before you read it",
                 "Chronicler" to "Records what happened", "Director" to "Keeps the Outline and plans the days ahead", "Weaver" to "Moves the World on")) {
             compose.onNodeWithTag("models").performScrollToNode(hasText(does))
@@ -30,7 +30,7 @@ open class ModelsUiChecks : WorldUiChecks() {
         compose.onNodeWithText("Weaver").performClick()
         compose.onNodeWithTag("models").performScrollToNode(hasText("CODEX"))
         compose.onNodeWithText("CLAUDE").assertIsDisplayed()
-        compose.onNodeWithText("CODEX").assertIsDisplayed()
+        compose.onNodeWithText("CODEX").assertIsDisplayed().performClick()
         compose.preview("Models")
         chip("GPT 6.1 Sol").performClick()
         compose.runOnIdle {
@@ -71,7 +71,7 @@ open class ModelsUiChecks : WorldUiChecks() {
         link.modelsView = FakeFantasiaLink.modelsFixture(antigravityReason = "agy is not signed in")
         openModels()
         compose.onNodeWithText("Writer").performClick()
-        compose.onNodeWithTag("models").performScrollToNode(hasText("agy is not signed in"))
+        compose.onNodeWithText("ANTIGRAVITY").performClick()
         compose.onNodeWithText("agy is not signed in").assertIsDisplayed()
         chip("Gemini 3.8 Flash").assertIsNotEnabled()
     }
@@ -83,9 +83,10 @@ open class ModelsUiChecks : WorldUiChecks() {
         openScene()
         compose.onNodeWithText("Redo").performClick()
         compose.onNodeWithText("Written by").assertIsDisplayed()
-        compose.onNodeWithText("Opus 5.5 · this Story's Actor").assertIsDisplayed().performClick()
-        compose.onNodeWithText("GPT 6.1 Sol · just this Reply").performClick()
-        compose.onNodeWithText("GPT 6.1 Sol · just this Reply").assertIsDisplayed()
+        compose.onNodeWithText("Opus 5.5 · Story Actor").assertIsDisplayed().performClick()
+        compose.onNodeWithText("CODEX").performClick()
+        chip("GPT 6.1 Sol").performClick()
+        compose.onNodeWithText("GPT 6.1 Sol · this reply only").assertIsDisplayed()
         compose.preview("RedoModel")
         compose.onNodeWithTag("confirm-redo").performClick()
         compose.runOnIdle {
@@ -104,6 +105,7 @@ open class ModelsUiChecks : WorldUiChecks() {
         compose.onNodeWithTag("scene-passages").performScrollToNode(hasText("Another model"))
         compose.onNodeWithText("Another model").assertIsDisplayed().performClick()
         compose.onNodeWithText("Write it with another model").assertIsDisplayed()
+        compose.onNodeWithText("CODEX").performClick()
         chip("GPT 6.1 Sol").performClick()
         compose.runOnIdle {
             assertEquals(listOf(RetryRequest(model = ModelChoice(provider = ModelProvider.Codex, model = "gpt-6.1-sol", effort = "low"))), link.retryRequests)
@@ -150,9 +152,9 @@ open class ModelsUiChecks : WorldUiChecks() {
         }
         compose.onNodeWithTag("models").performScrollToNode(hasText("Folder"))
         compose.onNode(hasText("Folder") and hasText("Haiku 4.5")).assertIsDisplayed()
-        // Its second model: one a provider, the chosen one lit, and More… for the rest.
-        compose.onNodeWithTag("models").performScrollToNode(hasText("IF IT FAILS, TRY"))
-        compose.onNodeWithText("IF IT FAILS, TRY").assertIsDisplayed()
+        // Its fallback model: collapsed to one line by default, then quick picks + More… when opened.
+        compose.onNodeWithTag("models").performScrollToNode(hasText("Change"))
+        compose.onNodeWithText("Change").performClick()
         backup("GPT 6.1 Sol").assertIsSelected()
         backup("Opus 5.5").assertIsNotSelected()
         compose.onNodeWithTag("models").performScrollToNode(hasText("More…"))
@@ -180,12 +182,14 @@ open class ModelsUiChecks : WorldUiChecks() {
     fun theDefaults() {
         openModels()
         for (story in listOf("The Malfoy Problem", "The coast")) compose.onNode(hasText(story) and hasText("Opus 5.5")).assertIsDisplayed()
-        compose.onNode(hasText("If it fails, try") and hasText("For every Story's Actor") and hasText("GPT 6.1 Sol · low")).assertIsDisplayed()
+        compose.onNode(hasText("Actor fallback") and hasText("Used if a story's Actor fails") and hasText("GPT 6.1 Sol · low")).assertIsDisplayed()
         for ((job, model) in listOf("Writer" to "Opus 5.5", "Editor" to "Sonnet 5.5", "Chronicler" to "Opus 5.5",
                 "Director" to "Fable 5.1 · high", "Weaver" to "Opus 5.5", "Folder" to "Opus 5.5")) {
             val row = hasText(job) and hasText(model)
             compose.onNodeWithTag("models").performScrollToNode(row)
             compose.onNode(row).assertIsDisplayed().performClick()
+            compose.onNodeWithTag("models").performScrollToNode(hasText("Change"))
+            compose.onNodeWithText("Change").performClick()
             compose.onNodeWithTag("models").performScrollToNode(hasText("GPT 6.1 Sol") and hasAnyAncestor(hasTestTag("backup-picker")))
             backup("GPT 6.1 Sol").assertIsSelected()
             if (job == "Editor") compose.preview("Models · the Editor")
@@ -198,7 +202,7 @@ open class ModelsUiChecks : WorldUiChecks() {
     // The Actor's second model, for every Story, in the Actor's section.
     fun theActorsSecondModel() {
         openModels()
-        compose.onNode(hasText("If it fails, try") and hasText("For every Story's Actor") and hasText("GPT 6.1 Sol · low")).assertIsDisplayed().performClick()
+        compose.onNode(hasText("Actor fallback") and hasText("Used if a story's Actor fails") and hasText("GPT 6.1 Sol · low")).assertIsDisplayed().performClick()
         backup("GPT 6.1 Sol").assertIsSelected()
         backup("Opus 5.5").performClick()
         compose.runOnIdle {

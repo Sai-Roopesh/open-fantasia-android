@@ -791,6 +791,11 @@ data class StoryEvent (
     val dayView: DayView? = null,
 
     /**
+     * reply_delta: live streamed prose chunk while the Reply is being written.
+     */
+    val delta: String? = null,
+
+    /**
      * scene_opened and focus_set: who the Scene is focused on, or null.
      */
     val focus: String? = null,
@@ -844,6 +849,7 @@ enum class StoryEventKind(val value: String) {
     @SerialName("path_changed") PathChanged("path_changed"),
     @SerialName("redo") Redo("redo"),
     @SerialName("reply") Reply("reply"),
+    @SerialName("reply_delta") ReplyDelta("reply_delta"),
     @SerialName("reply_failed") ReplyFailed("reply_failed"),
     @SerialName("reply_started") ReplyStarted("reply_started"),
     @SerialName("scene_closed") SceneClosed("scene_closed"),

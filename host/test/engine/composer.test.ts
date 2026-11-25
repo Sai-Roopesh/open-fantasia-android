@@ -6,7 +6,7 @@ import { Models } from "../../src/models/model-call.js";
 import { FakeModels } from "../../src/models/fake.js";
 import { openHome } from "../support/host.js";
 import { scriptedRunners } from "../../src/models/runners.js";
-import { parseComposedAnswer, planFromMeta, recordDue } from "../../src/agents/composer.js";
+import { parseComposedAnswer, planFromMeta, proseStreamFilter, recordDue } from "../../src/agents/composer.js";
 import { playerPartIn } from "../../src/agents/editor.js";
 import { sceneEndWeave } from "../../src/engine/scene-end.js";
 import { storyTools } from "../../src/store/story-tools.js";
@@ -73,6 +73,11 @@ describe("a Scene's prompts share their beginning, so the provider's cache is re
       reply: "Pure prose with no state block.",
       meta: null
     });
+    // Live prose stream filter never leaks <scene_state> even when split across SSE token chunks.
+    const streamed: string[] = [];
+    const feed = proseStreamFilter(delta => streamed.push(delta));
+    for (const chunk of ["She looks ", "up slowly.\n\n<sce", "ne_state>{\"minutes\":2}</scene_state>"]) feed(chunk);
+    expect(streamed.join("")).toBe("She looks up slowly.");
     const s = playable();
     await s.play("I ask Hermione whether she is coming inside.");
     const planned = planFromMeta(

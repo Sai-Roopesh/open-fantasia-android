@@ -207,10 +207,48 @@ export function composerCall(ask: ComposerAsk, again?: { draft: string; notes: s
 }
 
 /**
+ * Streams prose deltas cleanly while holding back a tiny trailing window so `<scene_state>` (even split across SSE
+ * chunks) is never emitted to the player. Once `<scene_state` appears, everything before it is flushed and the tail
+ * is suppressed.
+ */
+export function proseStreamFilter(emit: (delta: string) => void): (chunk: string) => void {
+  const MARKER = "<scene_state";
+  let pending = "";
+  let stopped = false;
+  return chunk => {
+    if (stopped || !chunk) return;
+    pending += chunk;
+    const lower = pending.toLowerCase();
+    const at = lower.indexOf(MARKER);
+    if (at >= 0) {
+      const before = pending.slice(0, at).trimEnd();
+      if (before) emit(before);
+      pending = "";
+      stopped = true;
+      return;
+    }
+    const safe = pending.length - MARKER.length;
+    if (safe > 0) {
+      emit(pending.slice(0, safe));
+      pending = pending.slice(safe);
+    }
+  };
+}
+
+/**
  * One unconstrained free-text generation owns the prose first and appends compact `<scene_state>` bookkeeping at the
  * tail (no strict JSON schema constraint choking creative prose); the Editor / code check remains independent.
  */
-export async function composeReply(models: Models, choices: ModelChoice[], ask: ComposerAsk, storyId: string, traceId: string, signal: AbortSignal, onLookup?: (line: string) => void) {
+export async function composeReply(
+  models: Models,
+  choices: ModelChoice[],
+  ask: ComposerAsk,
+  storyId: string,
+  traceId: string,
+  signal: AbortSignal,
+  onLookup?: (line: string) => void,
+  onText?: (delta: string) => void
+) {
   const call = composerCall(ask);
   return runAgent<{ plan: ScenePlan; reply: string }>(models, choices, {
     system: call.system, prompt: call.prompt, conversation: call.conversation, verbosity: call.verbosity, facts: call.facts, tools: call.tools, agent: "actor", traceId, storyId
@@ -221,7 +259,7 @@ export async function composeReply(models: Models, choices: ModelChoice[], ask: 
     const planned = planFromMeta(ask, meta);
     if (!planned.ok) return planned;
     return { ok: true, value: { plan: planned.plan, reply }, dropped: planned.dropped };
-  }, BUDGETS.composer, signal, onLookup);
+  }, BUDGETS.composer, signal, onLookup, onText ? proseStreamFilter(onText) : undefined);
 }
 
 /**

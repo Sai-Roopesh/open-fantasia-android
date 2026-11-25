@@ -48,7 +48,7 @@ internal fun playedAgo(updatedAt: String, now: Instant = Instant.now(), zone: Zo
             Spacer(Modifier.size(8.dp).background(if (state.reachable) FantasiaSeen else FailureAmber, FantasiaShapes.round))
             Text("${state.hostName} · ${if (state.reachable) "connected" else "unreachable"}", style = FantasiaType.meta, color = FantasiaSecondary)
         }
-        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             items(state.stories, key = { it.id }) { story ->
                 Surface(onClick = { openStory(story.id) }, modifier = Modifier.fillMaxWidth(), shape = FantasiaShapes.card,
                     color = FantasiaSurface, border = BorderStroke(1.dp, FantasiaLine)) {
@@ -64,7 +64,5 @@ internal fun playedAgo(updatedAt: String, now: Instant = Instant.now(), zone: Zo
                 }
             }
         }
-        Text("New Stories are made with Claude on the Mac and appear here once imported.", style = FantasiaType.caption,
-            color = FantasiaCaption, modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 28.dp))
     }
 }

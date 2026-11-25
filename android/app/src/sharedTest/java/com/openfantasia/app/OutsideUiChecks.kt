@@ -40,7 +40,7 @@ open class OutsideUiChecks : WorldUiChecks() {
     fun quirrellsNights() {
         openScene()
         compose.onNodeWithContentDescription("Backstage").performClick()
-        compose.onNodeWithText("Everything Roopesh doesn't know. Nothing here reaches the Scene, the Day View, the World or the Journal.").assertIsDisplayed()
+        compose.onNodeWithText("Spoilers · hidden from Roopesh and never shown in the Story.").assertIsDisplayed()
         backstage("OFF-SCREEN").assertIsDisplayed()
         backstage("Saturday").assertIsDisplayed()
         backstage("11:50 pm").assertIsDisplayed()
@@ -52,7 +52,7 @@ open class OutsideUiChecks : WorldUiChecks() {
         backstage("THE WRITER · THIS SCENE").assertIsDisplayed()
         compose.onNodeWithText("LANDING").assertIsDisplayed()
         backstage("Out: she goes up to bed, or asks him to come and look.").assertIsDisplayed()
-        backstage("TASTE · WHAT THE STORY HAS LEARNED").assertIsDisplayed()
+        backstage("TASTE · THIS STORY").assertIsDisplayed()
         compose.preview("Backstage")
         // Another day, from the day's chip.
         backstage("Saturday").performClick()
@@ -153,7 +153,7 @@ open class OutsideUiChecks : WorldUiChecks() {
         openScene()
         compose.onNodeWithContentDescription("Backstage").performClick()
         backstage("YOUR BRIEF").assertIsDisplayed()
-        compose.onNodeWithText("Nothing yet. Say what you want more of and less of, and the Director plans every Stretch from it.").assertIsDisplayed()
+        compose.onNodeWithText("None yet. Add what you want more or less of to steer upcoming scenes.").assertIsDisplayed()
         compose.onNodeWithText("Edit").performClick()
         compose.onNodeWithText("Your brief").assertIsDisplayed()
         compose.onNodeWithTag("brief-more").performTextInput("More danger\nMysteries that aren't in the books")
@@ -177,7 +177,7 @@ open class OutsideUiChecks : WorldUiChecks() {
     fun nothingMissingFromTheRecord() {
         openScene()
         compose.onNodeWithContentDescription("Backstage").performClick()
-        backstage("TASTE · WHAT THE STORY HAS LEARNED").assertIsDisplayed()
+        backstage("TASTE · THIS STORY").assertIsDisplayed()
         compose.onNodeWithText("THE RECORD").assertDoesNotExist()
     }
 
@@ -210,7 +210,7 @@ open class OutsideUiChecks : WorldUiChecks() {
     fun noDirectorBeforeHePlans() {
         openScene()
         compose.onNodeWithContentDescription("Backstage").performClick()
-        backstage("TASTE · WHAT THE STORY HAS LEARNED").assertIsDisplayed()
+        backstage("TASTE · THIS STORY").assertIsDisplayed()
         compose.onNodeWithText("THE DIRECTOR").assertDoesNotExist()
     }
 
@@ -334,7 +334,7 @@ open class OutsideUiChecks : WorldUiChecks() {
         val reworded = "Don't decide what my character feels or thinks."
         openScene()
         compose.onNodeWithContentDescription("Backstage").performClick()
-        backstage("YOUR OWN TASTE · EVERY STORY").assertIsDisplayed()
+        backstage("YOUR TASTE · ALL STORIES").assertIsDisplayed()
         backstage(line).performClick()
         compose.onNodeWithText("A lesson of yours").assertIsDisplayed()
         compose.onNodeWithText("A line of your own Taste: every Story you play reads it, this one and the next.").assertIsDisplayed()
@@ -350,7 +350,7 @@ open class OutsideUiChecks : WorldUiChecks() {
             assertEquals(listOf(RemoveTasteRequest(line = reworded, scope = Scope.Player)), link.tasteRemovals)
             assertEquals("reply", link.current.value.headEntryID)
         }
-        backstage("Nothing yet. A lesson about how you like to read, learned in any Story, becomes a line here.").assertIsDisplayed()
+        backstage("None yet. Global preferences across stories appear here.").assertIsDisplayed()
         backstage("Keep school procedure to a line.").assertIsDisplayed()
     }
 }

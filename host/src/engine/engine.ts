@@ -30,7 +30,9 @@ import { sceneEntries } from "../store/scene-entries.js";
 import { chosen } from "./choosing.js";
 import { clearable, rewind, tryAnotherWay } from "./paths.js";
 import { editEarlier, editInPlace, isLatest, passageOnPath, wordsOf } from "./editing.js";
+import { DERIVED, KINDS, replacedEvents, type Rebuilt } from "./rebuild.js";
 import { emptySpan, endedScene, gapWeave, lookedUpBoth, nextStep, owedStep, planFollowsAt, rethinkingOf, sceneEndWeave, turnedAsk } from "./scene-end.js";
+export type { Rebuilt };
 
 /** A live event and its id on the stream: "<seq>" for an entry, "<seq>.<n>" for what a turn under way says. */
 export interface OutgoingEvent {
@@ -51,6 +53,9 @@ interface Turn {
   /** The line the phone was last told, and how many lines it has been told in this turn. */
   said: TurnLine | null;
   told: number;
+  /** Live prose streamed to watching phones during this turn (only when model Editor is off). */
+  streamed: string;
+  deltas: number;
   traceId: string;
   done: Promise<void>;
   abort: AbortController;
@@ -103,44 +108,6 @@ const TURN_FAILED: Record<TurnJob, string> = {
 
 /** Heads that mean a Move is still waiting for its Reply. */
 const WAITING: readonly EntryKind[] = ["move", "redo", "scene_recorded", "beat_note"];
-
-/** What a rebuild writes afresh, and so does not copy from the old Path. */
-const DERIVED: ReadonlySet<string> = new Set(["chronicle", "outline_set", "director_plan", "world_moved", "story_folded", "scene_recorded"]);
-/** What a rebuild copies as played: the player's words, the Story's Replies, and every edit; nothing kept beside the Story. */
-const KINDS: ReadonlySet<string> = new Set([
-  "scene_opened", "move", "redo", "beat_note", "reply", "scene_closed", "focus_set", "linger_set",
-  "known_set", "person_set", "lead_set", "group_set", "portrait_set", "premise_set", "style_set", "reply_length_set", "arcs_set",
-  "landmark_set", "landmark_dropped", "place_set", "world_set", "clock_set", "routine_set"
-]);
-
-/** What a rebuild made. */
-export interface Rebuilt {
-  pathId: string;
-  scenes: number;
-  /** Off-page events of the old Path the new one no longer has, with the Scenes whose Replies seem to speak of them. */
-  replaced: { what: string; mentionedIn: number[] }[];
-}
-
-const COMMON = new Set(["about", "after", "again", "their", "there", "these", "where", "which", "while", "would", "could", "should", "before", "being", "every", "other", "still", "through", "because", "under", "roopesh"]);
-
-/** Off-page events the old Path had over a span the rebuild lived again, and the later Replies that share their words. */
-function replacedEvents(old: Entry[], rebuilt: Entry[]): Rebuilt["replaced"] {
-  const now = new Set(rebuilt.flatMap(entry => (entry.payload.kind === "world_moved" ? entry.payload.happened.map(item => item.what) : [])));
-  const words = (text: string) => new Set(text.split(/[^A-Za-z']+/).map(word => word.toLowerCase()).filter(word => word.length > 4 && !COMMON.has(word)));
-  const replies: { scene: number; words: Set<string> }[] = [];
-  let scene = 0;
-  for (const entry of rebuilt) {
-    if (entry.payload.kind === "scene_opened") scene = entry.payload.number;
-    if (entry.payload.kind === "reply") replies.push({ scene, words: words(entry.payload.text) });
-  }
-  return old.flatMap(entry => (entry.payload.kind === "world_moved" && entry.payload.gap ? entry.payload.happened : []))
-    .filter(item => !now.has(item.what))
-    .map(item => {
-      const own = [...words(item.what)];
-      const mentionedIn = [...new Set(replies.filter(reply => own.filter(word => reply.words.has(word)).length >= 3).map(reply => reply.scene))];
-      return { what: item.what, mentionedIn };
-    });
-}
 
 /** What a step of the end of a Scene a Move left could not do, as the turn's failure says it. */
 const LEFT_STEP: Record<SceneEndStep, string> = {
@@ -235,6 +202,7 @@ export class Engine {
    */
   setBrief(storyId: string, more: string[], less: string[], traceId: string): Accepted {
     const path = this.path(storyId);
+    this.notWriting(storyId);
     const clean = (lines: string[]) => lines.map(line => line.trim()).filter(Boolean);
     setBrief(this.mac, storyId, { more: clean(more), less: clean(less) });
     return { head_entry_id: path.headEntryId, trace_id: traceId };
@@ -622,7 +590,6 @@ export class Engine {
         return { payload: { kind: "chronicle", scene: scene.number, ...value, dropped, callId, model }, answered: false };
       }
       case "director": {
-        // The Outline first, reconsidered after every Scene; then the next Stretch, when one is due, as the next step of it.
         const beside = besideOf(this.mac, storyId, head);
         const due = outlineDue(state, beside);
         if (due) {
@@ -876,8 +843,11 @@ export class Engine {
     if (stopped && stopped.seq >= seenSeq) missed.push(this.sceneEndFailed(storyId));
     const turn = this.turns.get(storyId);
     if (turn) {
-      // A Reply's words arrive whole (docs/adr/0019): a phone that comes back mid-turn learns what it is doing.
       missed.push(this.started(turn));
+      if (turn.streamed) {
+        const seq = this.newestSeq(storyId);
+        missed.push({ id: `${seq}.delta.${turn.deltas || 1}`, event: { kind: "reply_delta", seq, delta: turn.streamed, trace_id: turn.traceId } });
+      }
     } else {
       const state = this.turnState(storyId);
       const head = this.mac.tree.entry(path.headEntryId);
@@ -1075,7 +1045,7 @@ export class Engine {
     const path = this.mac.tree.path(pathId);
     const redone = path ? this.mac.tree.pathTo(path.headEntryId).slice(this.mac.tree.pathTo(move.id).length).findLast(entry => entry.payload.kind === "redo") : undefined;
     const redoModel = redone?.payload.kind === "redo" ? redone.payload.model : undefined;
-    const turn: Turn = { storyId, pathId, move, once: { ...(redoModel ? { actor: redoModel } : {}), ...once }, step: "writer", line: "looking_back", said: null, told: 0, traceId, abort, done: Promise.resolve() };
+    const turn: Turn = { storyId, pathId, move, once: { ...(redoModel ? { actor: redoModel } : {}), ...once }, step: "writer", line: "looking_back", said: null, told: 0, streamed: "", deltas: 0, traceId, abort, done: Promise.resolve() };
     this.turns.set(storyId, turn);
     this.onBusy(true);
     turn.done = this.runTurn(turn).finally(() => {
@@ -1159,8 +1129,15 @@ export class Engine {
     const choice = turn.move.payload.kind === "move" ? turn.move.payload.choice ?? null : null;
     const beside = besideOf(this.mac, turn.storyId, head.id);
     const ask = { state, scene: moveAt >= 0 ? entries.slice(0, moveAt) : entries, move: text, choice, beside, path: this.mac.tree.pathTo(head.id) };
-    // The Writer may look things up before it plans; the player is told the Story is looking back (openspec presence).
-    const { value: { plan, reply }, callId, model } = await composeReply(this.models, this.turnChoices(turn, "actor"), ask, turn.storyId, turn.traceId, turn.abort.signal, () => this.say(turn, "looking_back"));
+    const streamDelta = editsEveryReply(this.mac.home) ? undefined : (delta: string) => {
+      turn.streamed += delta;
+      const seq = this.newestSeq(turn.storyId);
+      this.emit(turn.storyId, { id: `${seq}.delta.${++turn.deltas}`, event: { kind: "reply_delta", seq, delta, trace_id: turn.traceId } });
+    };
+    const { value: { plan, reply }, callId, model } = await composeReply(
+      this.models, this.turnChoices(turn, "actor"), ask, turn.storyId, turn.traceId, turn.abort.signal,
+      () => this.say(turn, "looking_back"), streamDelta
+    );
     const written = this.mac.db.transaction(() => {
       let parent = head;
       const opened = plan.opens

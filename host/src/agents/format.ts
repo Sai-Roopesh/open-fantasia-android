@@ -23,10 +23,15 @@ function lookup(values: string[]): { type: "string"; enum: string[] } {
   return schema;
 }
 
-/** A list of the Story's people, besides the Player Character unless asked. */
-export function peopleEnum(state: State, withPlayer = false, extra: string[] = []): { type: "string"; enum: string[] } {
+/**
+ * A Story person/group field in a JSON Schema. Small casts (<= 12) use an enum; larger casts use plain string so huge
+ * enum arrays are not repeated across ~12 schema slots (slashing hidden schema tokens and preventing Gemini "too many
+ * states for serving" 400s). `namer()` validates and fuzzy-matches every returned name in code either way.
+ */
+export function peopleEnum(state: State, withPlayer = false, extra: string[] = []): { type: "string"; enum?: string[] } {
   const names = Object.keys(state.people).filter(name => withPlayer || name !== state.playerCharacter);
-  return lookup([...new Set([...names, ...state.groups.map(group => group.name), ...extra])]);
+  const values = [...new Set([...names, ...state.groups.map(group => group.name), ...extra])];
+  return values.length > 0 && values.length <= 12 ? lookup(values) : { type: "string" };
 }
 
 export function oneOf(values: string[]): { type: "string"; enum: string[] } | { type: "string"; minLength: 1 } {

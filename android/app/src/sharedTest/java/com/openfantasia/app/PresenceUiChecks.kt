@@ -12,7 +12,7 @@ open class PresenceUiChecks : WorldUiChecks() {
     fun theMacIsAsleep() {
         openScene()
         compose.runOnIdle { link.reachable.value = false }
-        compose.onNodeWithText("The Mac is unreachable").assertIsDisplayed()
+        compose.onNodeWithText("Mac offline").assertIsDisplayed()
         compose.onNodeWithText("She smiles.").assertIsDisplayed()
         compose.onNodeWithContentDescription("Journal").performClick()
         compose.onNodeWithText("The insult").assertIsDisplayed()
@@ -26,12 +26,12 @@ open class PresenceUiChecks : WorldUiChecks() {
         compose.runOnIdle { link.reachable.value = false }
         compose.onNodeWithTag("composer").performTextInput("I wait for her to look up.")
         compose.onNodeWithTag("send-move").assertIsEnabled().performClick()
-        compose.onNodeWithText("Sends when the Mac is back.").assertIsDisplayed()
+        compose.onNodeWithText("Queued · waiting for Mac").assertIsDisplayed()
         compose.runOnIdle { assertTrue(link.moves.isEmpty()) }
         compose.runOnIdle { link.reachable.value = true }
         compose.waitUntil(3000) { link.moves.isNotEmpty() }
         compose.runOnIdle { assertEquals(listOf(MoveRequest(after = "reply", text = "I wait for her to look up.")), link.moves) }
-        compose.onNodeWithText("Sends when the Mac is back.").assertDoesNotExist()
+        compose.onNodeWithText("Queued · waiting for Mac").assertDoesNotExist()
     }
 
     fun aWaitingMoveMeetsAStoryThatMovedOn() {
