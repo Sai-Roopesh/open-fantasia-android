@@ -379,7 +379,8 @@ open class WriterUiChecks {
         openScene()
         compose.onNodeWithTag("composer").assertIsEnabled().performTextInput("I wait beside her.")
         compose.onNodeWithTag("composer").assertTextContains("I wait beside her.")
-        compose.onNodeWithTag("send-move").assertIsNotEnabled()
+        compose.onNodeWithTag("stop-reply").assertIsDisplayed().assertIsEnabled()
+        compose.onNodeWithTag("send-move").assertDoesNotExist()
         compose.onNodeWithText("Queued for after this reply.").assertIsDisplayed()
         compose.onNodeWithContentDescription("Linger").assertIsNotEnabled()
         compose.onNodeWithText("End scene").assertIsNotEnabled()
@@ -390,7 +391,7 @@ open class WriterUiChecks {
         compose.onNodeWithTag("composer").performTextInput(" I stay.")
         compose.runOnIdle { link.current.value = link.current.value.copy(turn = TurnState(kind = TurnStateKind.Checking)) }
         compose.onNodeWithText("Checking…").assertIsDisplayed()
-        compose.onNodeWithTag("send-move").assertIsNotEnabled()
+        compose.onNodeWithTag("stop-reply").assertIsDisplayed()
         compose.runOnIdle {
             link.current.value = SceneProjection(link.current.value).apply(StoryEventEnvelope("5", StoryEvent(kind = StoryEventKind.Reply,
                 seq = 5, passage = Passage(entryID = "finished", text = "She finishes."))))

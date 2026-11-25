@@ -1536,7 +1536,20 @@ export interface ModelsView {
   actor_backup: ChosenModel2;
   jobs: JobModel[];
   providers: ProviderModels[];
+  /**
+   * Whether the Editor checks every Reply before showing it (off by default for live streaming and lower token cost).
+   */
+  edit_every_reply?: boolean;
   trace_id: string;
+}
+/**
+ * Turns the Editor on or off for every Story.
+ *
+ * This interface was referenced by `Link`'s JSON-Schema
+ * via the `definition` "SetEditorEnabledRequest".
+ */
+export interface SetEditorEnabledRequest {
+  enabled: boolean;
 }
 /**
  * A model as the Models screen shows it: the choice, and its name with the effort ("GPT 6.1 Sol · high").

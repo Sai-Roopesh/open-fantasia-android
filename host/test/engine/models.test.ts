@@ -149,6 +149,20 @@ describe("the models each job runs on", () => {
     expect(secondModel(OPUS, OPUS, "weaver")).toEqual(SOL);
   });
 
+  it("skips unreachable fallback providers when another reachable provider is available", () => {
+    const offers = [
+      { provider: "claude" as const, reachable: false, models: [{ id: "claude-opus-5-5", defaultEffort: null }] },
+      { provider: "codex" as const, reachable: false, models: [{ id: "gpt-6.1-sol", defaultEffort: "low" }] },
+      { provider: "opencode" as const, reachable: true, models: [{ id: "glm-5.3", defaultEffort: "high" }, { id: "kimi-k3.1-pro", defaultEffort: "high" }] }
+    ];
+    expect(secondModel({ provider: "opencode", model: "glm-5.3", effort: "high" }, SOL, "actor", offers)).toEqual({
+      provider: "opencode", model: "kimi-k3.1-pro", effort: "high"
+    });
+    expect(secondModel(SOL, OPUS, "weaver", offers)).toEqual({
+      provider: "opencode", model: "glm-5.3", effort: "high"
+    });
+  });
+
   it("refuses a model for a Retry with nothing to retry", async () => {
     const { engine, storyId } = playable(hogwartsStoryFile());
     expect(() => engine.retry(storyId, "trace", SOL)).toThrow(/nothing waiting to be tried again/);

@@ -101,14 +101,14 @@ import kotlinx.coroutines.launch
                             if (scene.dayView == null) HorizontalDivider(color = FantasiaHeaderLine)
                             Column(Modifier.padding(start = 16.dp, end = 16.dp, top = if (scene.dayView == null) 10.dp else 4.dp, bottom = if (scene.dayView == null) 18.dp else 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                 if (scene.dayView == null && scene.turn.kind != com.openfantasia.protocol.TurnStateKind.Failed) SceneControls(scene, state.canChangeScene, model::endScene, model::linger)
-                                MoveComposer(state, model::writeMove) { model.sendMove(); moveSent() }
+                                MoveComposer(state, model::writeMove, send = { model.sendMove(); moveSent() }, stop = model::cancelReply)
                             }
                         }
                     }
                 }
                 else if (state.showingModels) {
                     ModelsScreen(state.models, enabled = state.reachable, back = model::closeModels, setJob = model::setJobModel, setBackup = model::setJobBackup,
-                        setActor = { storyID, choice -> model.setActor(storyID, choice) }, modifier = Modifier.weight(1f))
+                        setActor = { storyID, choice -> model.setActor(storyID, choice) }, setEditorEnabled = model::setEditorEnabled, modifier = Modifier.weight(1f))
                 }
                 else {
                     HomeScreen(state, model::openStory, Modifier.weight(1f), openModels = model::openModels)

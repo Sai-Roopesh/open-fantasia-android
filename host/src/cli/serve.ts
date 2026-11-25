@@ -29,12 +29,12 @@ export async function serve(mac: Mac, options: { port?: number; fakeModels: bool
   const certificate = await ensureCertificate(mac.home);
   // Scripted models play the app without spending quota: the Writer keeps every rule and each Reply quotes its Move.
   const runners = options.fakeModels ? scriptedRunners(new FakeModels({}, fakeReply)) : subscriptionRunners(mac.home);
-  const engine = new Engine(mac, new Models(mac.db, runners), keepAwake());
   // What each provider offers, asked now and every hour; the last list each gave is kept for when it cannot be asked.
   const catalog = new Catalog(mac.home, {
     claude: () => runners.claude.listModels(), codex: () => runners.codex.listModels(),
     antigravity: () => runners.antigravity.listModels(), opencode: () => runners.opencode.listModels()
   });
+  const engine = new Engine(mac, new Models(mac.db, runners), keepAwake(), catalog);
   const stopCataloguing = catalog.start();
   const app = buildLink({ mac, engine, pairing: new Pairing(mac.db), catalog, hostId: me.hostId, hostName: me.hostName, https: certificate });
   await app.listen({ port: me.port, host: "0.0.0.0" });

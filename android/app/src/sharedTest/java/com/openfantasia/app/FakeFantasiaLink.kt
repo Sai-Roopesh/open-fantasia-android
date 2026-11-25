@@ -169,6 +169,17 @@ class FakeFantasiaLink(override var isPaired: Boolean = true) : FantasiaLink {
         })
         return modelsView
     }
+    val cancels = mutableListOf<String>()
+    val editorToggles = mutableListOf<Boolean>()
+    override suspend fun cancelReply(storyID: String): Accepted {
+        cancels += storyID
+        return Accepted(headEntryID = current.value.headEntryID, traceID = "cancel")
+    }
+    override suspend fun setEditorEnabled(request: SetEditorEnabledRequest): ModelsView {
+        editorToggles += request.enabled
+        modelsView = modelsView.copy(editEveryReply = request.enabled)
+        return modelsView
+    }
     override suspend fun setActor(storyID: String, request: SetActorRequest): ModelsView {
         actorSets += storyID to request.model
         modelsView = modelsView.copy(stories = modelsView.stories.map {

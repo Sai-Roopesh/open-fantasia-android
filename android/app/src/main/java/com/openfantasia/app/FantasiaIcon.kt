@@ -3,7 +3,9 @@ package com.openfantasia.app
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
@@ -12,7 +14,7 @@ import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.material3.LocalContentColor
 
-internal enum class FantasiaIconKind { Back, Send, Scan, Linger, Dismiss, Copy, Rewind, TryAnotherWay, Edit, Models, ChevronRight, ChevronDown, Add, World, Journal, Paths, Backstage, Check, More, Less }
+internal enum class FantasiaIconKind { Back, Send, Stop, Scan, Linger, Dismiss, Copy, Rewind, TryAnotherWay, Edit, Models, ChevronRight, ChevronDown, Add, World, Journal, Paths, Backstage, Check, More, Less }
 
 // The strokes and viewboxes of the approved HTML icons, without a platform icon font.
 @Composable internal fun FantasiaIcon(kind: FantasiaIconKind, modifier: Modifier, color: Color = LocalContentColor.current) {
@@ -25,6 +27,7 @@ internal enum class FantasiaIconKind { Back, Send, Scan, Linger, Dismiss, Copy, 
             FantasiaIconKind.Dismiss -> { line(6f, 6f, 18f, 18f, 2f); line(18f, 6f, 6f, 18f, 2f) }
             FantasiaIconKind.Back -> { line(15f, 18f, 9f, 12f); line(9f, 12f, 15f, 6f) }
             FantasiaIconKind.Send -> { line(5f, 12f, 19f, 12f, 2f); line(13f, 6f, 19f, 12f, 2f); line(19f, 12f, 13f, 18f, 2f) }
+            FantasiaIconKind.Stop -> drawRoundRect(color, topLeft = Offset(6.5f * sx, 6.5f * sy), size = Size(11f * sx, 11f * sy), cornerRadius = CornerRadius(2.5f * sx, 2.5f * sy))
             FantasiaIconKind.Scan -> {
                 for ((x, y) in listOf(4f to 4f, 20f to 4f, 4f to 20f, 20f to 20f)) {
                     line(x, y, if (x == 4f) 8f else 16f, y, 1.9f)

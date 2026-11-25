@@ -40,12 +40,16 @@ class LinkClient(val address: HttpUrl, fingerprint: String, private val deviceTo
         command(listOf("stories", storyID, "choose"), commandJson.encodeToString(request))
     suspend fun retry(storyID: String, request: RetryRequest): TurnAccepted =
         command(listOf("stories", storyID, "retry"), commandJson.encodeToString(request))
+    suspend fun cancelReply(storyID: String): Accepted =
+        command(listOf("stories", storyID, "cancel"), "{}")
 
     // The Models screen (openspec outside-the-scene: One Models screen): settings of the Mac, put whole.
     suspend fun models(): ModelsView = command("models")
     // Without defaults: the Mac takes `backup` only as true or absent.
     suspend fun setJobModel(job: ModelJob, request: SetJobModelRequest): ModelsView =
         command(listOf("models", "jobs", job.value), linkJson.encodeToString(request), put = true)
+    suspend fun setEditorEnabled(request: SetEditorEnabledRequest): ModelsView =
+        command(listOf("models", "editor-enabled"), commandJson.encodeToString(request), put = true)
     suspend fun setActor(storyID: String, request: SetActorRequest): ModelsView =
         command(listOf("stories", storyID, "actor"), commandJson.encodeToString(request), put = true)
 

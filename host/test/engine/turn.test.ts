@@ -140,6 +140,36 @@ describe("a Reply arrives whole (docs/adr/0019, docs/adr/0024)", () => {
     expect(sceneView(mac, engine, storyId, "trace-read").turn).toEqual({ kind: "idle" });
   });
 
+  it("cancels an in-flight Reply cleanly without losing the player's Move, ready for Retry", async () => {
+    let calls = 0;
+    const slowRunner = {
+      async run(_req: unknown, onText: (delta: string) => void, signal: AbortSignal): Promise<string> {
+        calls++;
+        if (calls === 1) {
+          onText("Partial draft...");
+          return new Promise((_resolve, reject) => {
+            signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+          });
+        }
+        return "She steadies the glass and answers.";
+      }
+    };
+    const { mac, engine, storyId, head, events } = playable(slowRunner as never);
+    engine.move(storyId, "I raise my glass.", head(), "trace-c");
+    await new Promise(resolve => setTimeout(resolve, 15));
+    engine.cancelReply(storyId, "trace-stop");
+    await engine.settled(storyId);
+
+    expect(events.at(-1)!.event.kind).toBe("reply_failed");
+    expect(events.at(-1)!.event.reason).toBe("Stopped.");
+    expect(sceneView(mac, engine, storyId, "trace-read").turn).toEqual({ kind: "failed", reason: "Stopped.", trace_id: "trace-c", job: "actor" });
+    // Retry immediately writes the reply for the preserved Move.
+    engine.retry(storyId, "trace-retry");
+    await engine.settled(storyId);
+    expect(events.at(-1)!.event.passage?.text).toBe("She steadies the glass and answers.");
+    expect(sceneView(mac, engine, storyId, "trace-read").turn).toEqual({ kind: "idle" });
+  });
+
   // GIVEN the Mac is set to have every Reply edited
   // THEN the Editor reads it under the turn's trace, after the Actor and before the Reply is kept
   it("reads every Reply with the Editor first when the Mac is set to", async () => {

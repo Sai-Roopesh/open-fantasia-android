@@ -1945,8 +1945,25 @@
             "$ref": "#/$defs/ProviderModels"
           }
         },
+        "edit_every_reply": {
+          "description": "Whether the Editor checks every Reply before showing it (off by default for live streaming and lower token cost).",
+          "type": "boolean"
+        },
         "trace_id": {
           "type": "string"
+        }
+      }
+    },
+    "SetEditorEnabledRequest": {
+      "description": "Turns the Editor on or off for every Story.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
         }
       }
     },

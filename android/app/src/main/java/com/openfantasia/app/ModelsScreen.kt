@@ -43,7 +43,8 @@ private sealed interface Opened {
     setJob: (ModelJob, ModelChoice) -> Unit,
     setActor: (String, ModelChoice) -> Unit,
     modifier: Modifier = Modifier,
-    setBackup: (ModelJob, ModelChoice) -> Unit = { _, _ -> }
+    setBackup: (ModelJob, ModelChoice) -> Unit = { _, _ -> },
+    setEditorEnabled: (Boolean) -> Unit = {}
 ) {
     var opened by remember { mutableStateOf<Opened?>(null) }
     Column(modifier) {
@@ -84,17 +85,33 @@ private sealed interface Opened {
             }
             item(key = "jobs") {
                 Section("BACKGROUND JOBS") {
+                    val editorOn = models.editEveryReply != false
                     models.jobs.forEachIndexed { index, job ->
                         if (index > 0) RowDivider()
                         val open = opened == Opened.Job(job.job)
-                        ModelRow(title = job.title, does = job.does, label = job.model.label, open = open,
+                        val isEditor = job.job == ModelJob.Editor
+                        val rowLabel = if (isEditor && !editorOn) "Off" else job.model.label
+                        ModelRow(title = job.title, does = job.does, label = rowLabel, open = open, dimmed = isEditor && !editorOn,
                             first = index == 0, last = index == models.jobs.lastIndex,
                             toggle = { opened = if (open) null else Opened.Job(job.job) }) {
                             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                ModelPicker(models.providers, job.model.choice, enabled, "${job.title}'s model") { setJob(job.job, it) }
-                                HorizontalDivider(color = FantasiaLine)
-                                BackupPicker(models.providers, job.backup.choice, job.backup.label, enabled, "${job.title}'s fallback", collapsible = true) {
-                                    setBackup(job.job, it)
+                                if (isEditor) {
+                                    Row(Modifier.fillMaxWidth().testTag("editor-toggle"), verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                            Text("Review every Reply", style = FantasiaType.plain)
+                                            Text("Off by default for live streaming and lower token cost.", style = FantasiaType.small, color = FantasiaCaption)
+                                        }
+                                        Switch(checked = editorOn, onCheckedChange = setEditorEnabled, enabled = enabled)
+                                    }
+                                    if (editorOn) HorizontalDivider(color = FantasiaLine)
+                                }
+                                if (!isEditor || editorOn) {
+                                    ModelPicker(models.providers, job.model.choice, enabled, "${job.title}'s model") { setJob(job.job, it) }
+                                    HorizontalDivider(color = FantasiaLine)
+                                    BackupPicker(models.providers, job.backup.choice, job.backup.label, enabled, "${job.title}'s fallback", collapsible = true) {
+                                        setBackup(job.job, it)
+                                    }
                                 }
                             }
                         }
@@ -121,7 +138,7 @@ private sealed interface Opened {
 /** One row: its name, what it does, and a clean model pill; tapping expands its picker in place. */
 @Composable private fun ModelRow(
     title: String, does: String?, label: String, open: Boolean, first: Boolean, last: Boolean,
-    toggle: () -> Unit, picker: @Composable () -> Unit
+    dimmed: Boolean = false, toggle: () -> Unit, picker: @Composable () -> Unit
 ) {
     val shape = RoundedCornerShape(topStart = if (first) 16.dp else 0.dp, topEnd = if (first) 16.dp else 0.dp,
         bottomStart = if (last) 16.dp else 0.dp, bottomEnd = if (last) 16.dp else 0.dp)
@@ -135,9 +152,9 @@ private sealed interface Opened {
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
                 does?.let { Text(it, style = FantasiaType.small, color = FantasiaCaption, maxLines = 1, overflow = TextOverflow.Ellipsis) }
             }
-            Surface(shape = FantasiaShapes.round, color = if (open) FantasiaChosenEffort else FantasiaRaised,
-                border = BorderStroke(1.dp, if (open) FantasiaAccent else FantasiaLine)) {
-                Text(label, style = FantasiaType.meta, color = if (open) FantasiaPressed else FantasiaSecondary,
+            Surface(shape = FantasiaShapes.round, color = when { dimmed -> Color.Transparent; open -> FantasiaChosenEffort; else -> FantasiaRaised },
+                border = BorderStroke(1.dp, when { dimmed -> FantasiaLine; open -> FantasiaAccent; else -> FantasiaLine })) {
+                Text(label, style = FantasiaType.meta, color = when { dimmed -> FantasiaCaption; open -> FantasiaPressed; else -> FantasiaSecondary },
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.widthIn(max = 168.dp).padding(horizontal = 10.dp, vertical = 4.dp))
             }

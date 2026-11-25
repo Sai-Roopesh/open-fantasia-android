@@ -604,8 +604,25 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
     /** Sets a job's second model, tried once when its own fails or runs too long (openspec presence: Nothing fails silently). */
     fun setJobBackup(job: ModelJob, choice: ModelChoice) = changeModels { link.setJobModel(job, SetJobModelRequest(model = choice, backup = true)) }
 
+    /** Turns the Editor on or off for every Story. */
+    fun setEditorEnabled(enabled: Boolean) = changeModels { link.setEditorEnabled(SetEditorEnabledRequest(enabled = enabled)) }
+
     /** Sets a Story's own Actor, or null for the one its Story File names. */
     fun setActor(storyID: String, choice: ModelChoice?) = changeModels { link.setActor(storyID, SetActorRequest(model = choice)) }
+
+    /** Stops an in-flight Reply cleanly; leaves the player's Move intact for Retry, Another model, or Edit. */
+    fun cancelReply() {
+        val state = mutable.value
+        val scene = state.scene ?: return
+        if (!state.replyComing || state.sending || !state.reachable || state.problem?.needsUpdate == true) return
+        mutable.update { it.copy(sending = true, problem = null) }
+        viewModelScope.launch {
+            try { link.cancelReply(scene.storyID) }
+            catch (e: CancellationException) { throw e }
+            catch (e: Exception) { showProblem(e) }
+            finally { mutable.update { it.copy(sending = false) } }
+        }
+    }
 
     private fun changeModels(change: suspend () -> ModelsView) {
         if (!mutable.value.reachable) return

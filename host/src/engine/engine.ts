@@ -14,6 +14,7 @@ import { editReply, playerPartIn } from "../agents/editor.js";
 import { playersPartBreak } from "../agents/deciding.js";
 import { LinkError } from "../errors.js";
 import type { Mac } from "../mac.js";
+import type { Catalog } from "../models/catalog.js";
 import { actorOf, backupModels, editsEveryReply, jobModels, secondModel, type Job } from "../models/jobs.js";
 import { nameIndex, storyName } from "../story/names.js";
 import { checkPerson, portraitExtension } from "./people.js";
@@ -56,6 +57,7 @@ interface Turn {
   /** Live prose streamed to watching phones during this turn (only when model Editor is off). */
   streamed: string;
   deltas: number;
+  cancelled: boolean;
   traceId: string;
   done: Promise<void>;
   abort: AbortController;
@@ -142,9 +144,25 @@ export class Engine {
   private readonly bus = new EventEmitter();
   private readonly drafts: Drafts;
 
-  constructor(private readonly mac: Mac, private readonly models: Models, private readonly onBusy: (busy: boolean) => void = () => {}) {
+  constructor(
+    private readonly mac: Mac,
+    private readonly models: Models,
+    private readonly onBusy: (busy: boolean) => void = () => {},
+    private readonly catalog?: Catalog
+  ) {
     this.bus.setMaxListeners(0);
     this.drafts = new Drafts(mac.db);
+  }
+
+  /** Stops an in-flight Reply cleanly; leaves the player's Move intact so Retry / Another model / Edit are ready. */
+  cancelReply(storyId: string, traceId: string): Accepted {
+    const path = this.path(storyId);
+    const turn = this.turns.get(storyId);
+    if (turn) {
+      turn.cancelled = true;
+      turn.abort.abort();
+    }
+    return { head_entry_id: path.headEntryId, trace_id: traceId };
   }
 
   move(storyId: string, text: string, after: string, traceId: string): TurnAccepted {
@@ -649,12 +667,13 @@ export class Engine {
   /** A job's model and its second model (openspec presence: Nothing fails silently). */
   private choices(job: Job | "actor", storyId?: string): ModelChoice[] {
     const backup = backupModels(this.mac.home)[job];
+    const offers = this.catalog?.view();
     if (job === "actor") {
       const own = (storyId ? actorOf(this.mac, storyId) : null) ?? (storyId ? this.mac.states.at(this.path(storyId).headEntryId).actor : null);
-      return own ? [own, secondModel(own, backup, job)] : [backup];
+      return own ? [own, secondModel(own, backup, job, offers)] : [backup];
     }
     const own = jobModels(this.mac.home)[job];
-    return [own, secondModel(own, backup, job)];
+    return [own, secondModel(own, backup, job, offers)];
   }
 
   /**
@@ -1045,7 +1064,7 @@ export class Engine {
     const path = this.mac.tree.path(pathId);
     const redone = path ? this.mac.tree.pathTo(path.headEntryId).slice(this.mac.tree.pathTo(move.id).length).findLast(entry => entry.payload.kind === "redo") : undefined;
     const redoModel = redone?.payload.kind === "redo" ? redone.payload.model : undefined;
-    const turn: Turn = { storyId, pathId, move, once: { ...(redoModel ? { actor: redoModel } : {}), ...once }, step: "writer", line: "looking_back", said: null, told: 0, streamed: "", deltas: 0, traceId, abort, done: Promise.resolve() };
+    const turn: Turn = { storyId, pathId, move, once: { ...(redoModel ? { actor: redoModel } : {}), ...once }, step: "writer", line: "looking_back", said: null, told: 0, streamed: "", deltas: 0, cancelled: false, traceId, abort, done: Promise.resolve() };
     this.turns.set(storyId, turn);
     this.onBusy(true);
     turn.done = this.runTurn(turn).finally(() => {
@@ -1072,7 +1091,7 @@ export class Engine {
       await this.actorStep(turn, head);
     } catch (error) {
       const stoppedAt = this.mac.tree.entry(this.mac.tree.path(turn.pathId)?.headEntryId ?? "") ?? turn.move;
-      const reason = `${TURN_FAILED[turn.step]}: ${error instanceof Error ? error.message : String(error)}`;
+      const reason = turn.cancelled ? "Stopped." : `${TURN_FAILED[turn.step]}: ${error instanceof Error ? error.message : String(error)}`;
       this.failures.set(turn.storyId, { headId: stoppedAt.id, reason, traceId: turn.traceId, job: turn.step });
       this.turns.delete(turn.storyId);
       this.emit(turn.storyId, this.failed(stoppedAt, reason, turn.traceId));

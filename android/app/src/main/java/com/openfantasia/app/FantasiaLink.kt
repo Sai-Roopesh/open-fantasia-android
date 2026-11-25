@@ -57,9 +57,12 @@ interface FantasiaLink {
     suspend fun react(storyID: String, request: ReactionRequest): Accepted = throw LinkFailure("Reactions are not on this link")
     /** Writes a failed Reply again, or goes on with a Scene's end from the step it stopped at. */
     suspend fun retry(storyID: String, request: RetryRequest): TurnAccepted
+    /** Stops an in-flight Reply cleanly without losing the player's Move. */
+    suspend fun cancelReply(storyID: String): Accepted = throw LinkFailure("Stopping a Reply is not on this link")
     // The Models screen (openspec outside-the-scene: One Models screen). A link that does not reach a Mac has none.
     suspend fun models(): ModelsView = throw LinkFailure("Models are not on this link")
     suspend fun setJobModel(job: ModelJob, request: SetJobModelRequest): ModelsView = throw LinkFailure("Models are not on this link")
+    suspend fun setEditorEnabled(request: SetEditorEnabledRequest): ModelsView = throw LinkFailure("Models are not on this link")
     suspend fun setActor(storyID: String, request: SetActorRequest): ModelsView = throw LinkFailure("Models are not on this link")
     suspend fun endScene(storyID: String, request: EndSceneRequest): Accepted
     suspend fun focus(storyID: String, request: FocusRequest): Accepted

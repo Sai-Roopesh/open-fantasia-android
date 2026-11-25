@@ -371,7 +371,7 @@ class SceneScrollState(val list: LazyListState) {
     }
 }
 
-@Composable fun MoveComposer(state: FantasiaState, write: (String) -> Unit, send: () -> Unit) {
+@Composable fun MoveComposer(state: FantasiaState, write: (String) -> Unit, send: () -> Unit, stop: () -> Unit = {}) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         if (!state.reachable) Text("Mac offline", color = FailureAmber, style = FantasiaType.small)
         state.waitingMove?.takeIf { it.storyID == state.scene?.storyID }?.let { move ->
@@ -392,11 +392,25 @@ class SceneScrollState(val list: LazyListState) {
                         field()
                     }
                 })
-            Button(onClick = send, modifier = Modifier.size(48.dp).testTag("send-move").semantics { contentDescription = if (state.replyComing) "Send when the Reply is done" else "Send" },
-                shape = FantasiaShapes.round, contentPadding = PaddingValues(0.dp),
-                colors = ButtonDefaults.buttonColors(disabledContainerColor = FantasiaRaised, disabledContentColor = FantasiaCaption),
-                enabled = state.canSendMove) {
-                FantasiaIcon(FantasiaIconKind.Send, Modifier.size(20.dp))
+            if (state.replyComing) {
+                val canStop = state.reachable && !state.sending && state.problem?.needsUpdate != true
+                OutlinedButton(onClick = stop, enabled = canStop,
+                    modifier = Modifier.size(48.dp).testTag("stop-reply").semantics { contentDescription = "Stop reply" },
+                    shape = FantasiaShapes.round, contentPadding = PaddingValues(0.dp),
+                    border = BorderStroke(1.dp, if (canStop) FailureAmber else FantasiaLine),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = FantasiaFailureSurface, contentColor = FailureAmber,
+                        disabledContainerColor = FantasiaRaised, disabledContentColor = FantasiaCaption
+                    )) {
+                    FantasiaIcon(FantasiaIconKind.Stop, Modifier.size(18.dp))
+                }
+            } else {
+                Button(onClick = send, modifier = Modifier.size(48.dp).testTag("send-move").semantics { contentDescription = "Send" },
+                    shape = FantasiaShapes.round, contentPadding = PaddingValues(0.dp),
+                    colors = ButtonDefaults.buttonColors(disabledContainerColor = FantasiaRaised, disabledContentColor = FantasiaCaption),
+                    enabled = state.canSendMove) {
+                    FantasiaIcon(FantasiaIconKind.Send, Modifier.size(20.dp))
+                }
             }
         }
         if (state.replyComing) Text("Queued for after this reply.", style = FantasiaType.small, color = FantasiaCaption)
@@ -405,9 +419,14 @@ class SceneScrollState(val list: LazyListState) {
 
 @Composable fun ReplyFailure(state: FantasiaState, retry: (ModelChoice?) -> Unit, loadModels: () -> Unit = {}) {
     val turn = state.scene?.turn ?: return
-    StoryFailure("The Reply could not be written", turn.reason.orEmpty(), turn.traceID, retry,
-        state.reachable && !state.sending && !state.waiting && state.problem?.needsUpdate != true,
-        another = "Write it with another model", models = state.models, loadModels = loadModels)
+    val stopped = turn.reason == "Stopped."
+    StoryFailure(
+        title = if (stopped) "Reply stopped" else "The Reply could not be written",
+        reason = if (stopped) "Your Move is kept — retry or try another model." else turn.reason.orEmpty(),
+        traceID = turn.traceID, retry = retry,
+        retryEnabled = state.reachable && !state.sending && !state.waiting && state.problem?.needsUpdate != true,
+        another = "Write it with another model", models = state.models, loadModels = loadModels
+    )
 }
 
 /**

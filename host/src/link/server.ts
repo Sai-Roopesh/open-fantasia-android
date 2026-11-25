@@ -9,7 +9,7 @@ import type { Engine } from "../engine/engine.js";
 import type { Mac } from "../mac.js";
 import type { ModelChoice } from "../story/state.js";
 import { CONTRACT_VERSION } from "../protocol/generated/contract.js";
-import type { ArcsRequest, ChooseRequest, ClockRequest, DropLandmarkRequest, LandmarkRequest, PlaceRequest, PremiseRequest, ReplyLengthRequest, RewordTasteRequest, StyleRequest, WorldRequest, EditRequest, GroupRequest, LeadRequest, PersonEdit, RetryRequest, SetActorRequest, BriefRequest, ReactionRequest, SetJobModelRequest, EndSceneRequest, ErrorBody, FocusRequest, LingerRequest, MoveRequest, PairRequest, RedoRequest, RemoveTasteRequest, RenamePathRequest, RewindRequest, SteeringNoteRequest, TryAnotherWayRequest } from "../protocol/generated/link.js";
+import type { ArcsRequest, ChooseRequest, ClockRequest, DropLandmarkRequest, LandmarkRequest, PlaceRequest, PremiseRequest, ReplyLengthRequest, RewordTasteRequest, StyleRequest, WorldRequest, EditRequest, GroupRequest, LeadRequest, PersonEdit, RetryRequest, SetActorRequest, SetEditorEnabledRequest, BriefRequest, ReactionRequest, SetJobModelRequest, EndSceneRequest, ErrorBody, FocusRequest, LingerRequest, MoveRequest, PairRequest, RedoRequest, RemoveTasteRequest, RenamePathRequest, RewindRequest, SteeringNoteRequest, TryAnotherWayRequest } from "../protocol/generated/link.js";
 import { dropNote, editNote, writeNote } from "../store/beside.js";
 import type { SteeringNoteEditRequest } from "../protocol/generated/link.js";
 import { newTraceId, Traces } from "../trace.js";
@@ -23,7 +23,7 @@ import { pastScene, sceneView } from "../views/scene.js";
 import { modelsView } from "../views/models.js";
 import { listStories } from "../views/stories.js";
 import type { Catalog } from "../models/catalog.js";
-import { JOBS, setBackupModel, setJobModel, setStoryActor, type Job } from "../models/jobs.js";
+import { JOBS, setBackupModel, setEditsEveryReply, setJobModel, setStoryActor, type Job } from "../models/jobs.js";
 import { MAX_PORTRAIT_BYTES } from "../engine/people.js";
 import { LinkError, STATUS } from "../errors.js";
 import type { Pairing } from "./pairing.js";
@@ -50,6 +50,7 @@ const validRename = ajv.compile<RenamePathRequest>({ $ref: "link#/$defs/RenamePa
 const validEdit = ajv.compile<EditRequest>({ $ref: "link#/$defs/EditRequest" });
 const validRemoveTaste = ajv.compile<RemoveTasteRequest>({ $ref: "link#/$defs/RemoveTasteRequest" });
 const validSetJobModel = ajv.compile<SetJobModelRequest>({ $ref: "link#/$defs/SetJobModelRequest" });
+const validSetEditorEnabled = ajv.compile<SetEditorEnabledRequest>({ $ref: "link#/$defs/SetEditorEnabledRequest" });
 const validSetActor = ajv.compile<SetActorRequest>({ $ref: "link#/$defs/SetActorRequest" });
 const validPersonEdit = ajv.compile<PersonEdit>({ $ref: "link#/$defs/PersonEdit" });
 const validLead = ajv.compile<LeadRequest>({ $ref: "link#/$defs/LeadRequest" });
@@ -157,6 +158,12 @@ export function buildLink(options: LinkOptions): FastifyInstance {
     return modelsView(mac, options.catalog, request.traceId);
   });
 
+  app.put("/models/editor-enabled", async request => {
+    if (!validSetEditorEnabled(request.body)) throw new LinkError("invalid", "Say whether the Editor should check every Reply.");
+    setEditsEveryReply(mac.home, request.body.enabled);
+    return modelsView(mac, options.catalog, request.traceId);
+  });
+
   app.put<{ Params: { id: string } }>("/stories/:id/actor", async request => {
     if (!mac.tree.currentPath(request.params.id)) throw new LinkError("not_found", "There is no such Story on this Mac.");
     if (!validSetActor(request.body)) throw new LinkError("invalid", "A Story's Actor needs its provider and the model's id, and an effort or null; or null for its Story File's.");
@@ -244,6 +251,9 @@ export function buildLink(options: LinkOptions): FastifyInstance {
 
   app.delete<{ Params: { id: string; path: string } }>("/stories/:id/paths/:path", async request =>
     engine.deletePath(request.params.id, request.params.path, request.traceId));
+
+  app.post<{ Params: { id: string } }>("/stories/:id/cancel", async request =>
+    engine.cancelReply(request.params.id, request.traceId));
 
   // Retry, or another model for this one try (openspec presence: Nothing fails silently). An empty body is a plain Retry.
   app.post<{ Params: { id: string } }>("/stories/:id/retry", async request => {

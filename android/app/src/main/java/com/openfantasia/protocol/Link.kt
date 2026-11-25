@@ -1890,12 +1890,27 @@ data class ModelsView (
     @SerialName("actor_backup")
     val actorBackup: ChosenModel,
 
+    /**
+     * Whether the Editor checks every Reply before showing it (off by default for live
+     * streaming and lower token cost).
+     */
+    @SerialName("edit_every_reply")
+    val editEveryReply: Boolean? = null,
+
     val jobs: List<JobModel>,
     val providers: List<ProviderModels>,
     val stories: List<StoryActor>,
 
     @SerialName("trace_id")
     val traceID: String
+)
+
+/**
+ * Turns the Editor on or off for every Story.
+ */
+@Serializable
+data class SetEditorEnabledRequest (
+    val enabled: Boolean
 )
 
 /**

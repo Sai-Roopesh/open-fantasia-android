@@ -5,7 +5,8 @@ import { CodexDirectRunner, codexBackendModels } from "../../src/models/codex-di
 import { antigravityToken, codexCredentials, opencodeApiKey, preferDirect, UseFallback } from "../../src/models/direct.js";
 import { NO_TOOLS, type ModelRequest, type ModelRunner, type ToolSpec, type Tools } from "../../src/models/model-call.js";
 import { OpencodeDirectRunner, opencodeGoModels } from "../../src/models/opencode-direct.js";
-import { antigravityBody, codexBody, conversationOf, geminiSchema, opencodeBody, schemaInWords } from "../../src/models/wire.js";
+import { antigravityBody, codexBody, conversationOf, geminiSchema, schemaInWords } from "../../src/models/wire.js";
+import { opencodeChatBody, opencodeGeminiBody, opencodeMessagesBody, opencodeResponsesBody } from "../../src/models/opencode-wire.js";
 
 const SYSTEM = "SYSTEM-SENTINEL: you write everyone but Ishaan.";
 const PROMPT = "PROMPT-SENTINEL: *I block the door.*";
@@ -357,7 +358,8 @@ describe("Antigravity, called directly", () => {
 });
 
 describe("OpenCode Go, called directly", () => {
-  it("sends custom User-Agent, x-opencode-session, Story Bible developer prefix, handles tools, and parses OpenCode usage", async () => {
+  it("routes OpenCode Go models to their native API families with Story Bible caching and x-opencode-session", async () => {
+    // 1. OpenAI Responses API (e.g. grok-4.7): developer prefix, tools, usage + allowance
     const { post, sent } = fetchOf([
       [{ type: "response.output_item.done", item: { id: "fc_1", type: "function_call", call_id: "call_1", name: "search_story", arguments: "{\"words\":\"Shimla\"}" } },
         { type: "response.completed", response: { usage: { opencode: { allowance: 0.004, tokens: { input: 100, cache_read: 900, output: 20, reasoning: 5 } } } } }],
@@ -369,7 +371,7 @@ describe("OpenCode Go, called directly", () => {
     const usage: unknown[] = [];
     const runner = new OpencodeDirectRunner(() => "oc_sk_test", post, async () => {});
     const answer = await runner.run(
-      request({ model: { provider: "opencode", model: "glm-5.3", effort: "high" }, storyId: "story-1" }),
+      request({ model: { provider: "opencode", model: "grok-4.7", effort: "high" }, storyId: "story-1" }),
       () => {}, new AbortController().signal, tools, u => usage.push(u)
     );
     expect(answer).toBe("She left for the telegram.");
@@ -378,13 +380,67 @@ describe("OpenCode Go, called directly", () => {
     expect(sent[0]!.headers["User-Agent"]).toBe("open-fantasia/1.0");
     expect(sent[0]!.headers["x-opencode-session"]).toBe(`ses_${String(sent[0]!.body.prompt_cache_key)}`);
     expect(sent[0]!.headers["session-id"]).toBe(String(sent[0]!.body.prompt_cache_key));
-    expect(sent[0]!.body.text).toBeUndefined();
     expect(usage.at(-1)).toEqual({ input_tokens: 2100, cached_tokens: 1850, output_tokens: 50, reasoning_tokens: 15, requests: 2, allowance: 0.005 });
 
-    // Wire purity: opencodeBody carries only host-authored strings and protocol constants.
-    const body = opencodeBody(conversationOf(request({ model: { provider: "opencode", model: "glm-5.3", effort: "high" }, schema: SCHEMA })), "glm-5.3", { story: [SEARCH] });
-    expect(body.instructions).toBe("");
-    expect((body.text as { format?: { type: string } }).format?.type).toBe("json_schema");
+    // 2. OpenAI Chat Completions API (e.g. glm-5.3): skips reasoning_content, streams delta.content, parses cached_tokens
+    const chatFetch = fetchOf([
+      [{ choices: [{ delta: { reasoning_content: "internal thinking", content: "Quiet rain." } }] },
+        { choices: [], usage: { prompt_tokens: 2000, prompt_tokens_details: { cached_tokens: 1800 }, completion_tokens: 40, opencode: { allowance: 0.002 } } }]
+    ]);
+    const chatDeltas: string[] = [];
+    const chatUsage: unknown[] = [];
+    const chatRunner = new OpencodeDirectRunner(() => "oc_sk_test", chatFetch.post, async () => {});
+    const chatAnswer = await chatRunner.run(
+      request({ model: { provider: "opencode", model: "glm-5.3", effort: "high" }, storyId: "story-1" }),
+      d => chatDeltas.push(d), new AbortController().signal, undefined, u => chatUsage.push(u)
+    );
+    expect(chatAnswer).toBe("Quiet rain.");
+    expect(chatDeltas).toEqual(["Quiet rain."]);
+    expect(chatFetch.sent[0]!.url).toBe("https://opencode.ai/inference/go/openai/v1/chat/completions");
+    expect(chatFetch.sent[0]!.headers["x-opencode-session"]).toMatch(/^ses_/);
+    expect(chatUsage.at(-1)).toEqual({ input_tokens: 2000, cached_tokens: 1800, output_tokens: 40, reasoning_tokens: 0, requests: 1, allowance: 0.002 });
+
+    // 3. Anthropic Messages API (e.g. qwen4-max, minimax-m3, claude-haiku-5-5): 4 cache_control breakpoints + anthropic-version
+    const msgFetch = fetchOf([
+      [{ type: "message_start", message: { usage: { input_tokens: 120, cache_read_input_tokens: 3000, cache_creation_input_tokens: 80 } } },
+        { type: "content_block_start", index: 0, content_block: { type: "text" } },
+        { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "She nods once." } },
+        { type: "message_delta", usage: { output_tokens: 18, opencode: { allowance: 0.001 } } }]
+    ]);
+    const msgUsage: unknown[] = [];
+    const msgRunner = new OpencodeDirectRunner(() => "oc_sk_test", msgFetch.post, async () => {});
+    const msgAnswer = await msgRunner.run(
+      request({
+        model: { provider: "opencode", model: "qwen4-max", effort: "high" },
+        system: "<story>\nBible\n</people>\n\nRules",
+        conversation: [{ role: "user", text: "Opening" }, { role: "assistant", text: "Reply 1" }, { role: "user", text: "Move 2" }],
+        storyId: "story-1"
+      }),
+      () => {}, new AbortController().signal, lookupTools(), u => msgUsage.push(u)
+    );
+    expect(msgAnswer).toBe("She nods once.");
+    expect(msgFetch.sent[0]!.url).toBe("https://opencode.ai/inference/go/anthropic/v1/messages");
+    expect(msgFetch.sent[0]!.headers["anthropic-version"]).toBe("2023-06-01");
+    expect(msgUsage.at(-1)).toEqual({ input_tokens: 3200, cached_tokens: 3000, output_tokens: 18, reasoning_tokens: 0, requests: 1, allowance: 0.001 });
+    const msgBody = opencodeMessagesBody(conversationOf(request({
+      system: "<story>\nBible\n</people>\n\nRules",
+      conversation: [{ role: "user", text: "Opening" }, { role: "assistant", text: "Reply 1" }, { role: "user", text: "Move 2" }]
+    })), "qwen4-max", { story: [SEARCH] });
+    expect((msgBody.system as { cache_control?: unknown }[]).map(b => b.cache_control)).toEqual([{ type: "ephemeral" }, { type: "ephemeral" }]);
+    expect((msgBody.tools as { cache_control?: unknown }[])[0]!.cache_control).toEqual({ type: "ephemeral" });
+    expect(((msgBody.messages as { content: unknown }[])[1]!.content as { cache_control?: unknown }[])[0]!.cache_control).toEqual({ type: "ephemeral" });
+
+    // 4. Gemini generate-content API (e.g. gemini-4-argon): implicit prefix caching + cachedContentTokenCount
+    const gemBody = opencodeGeminiBody(conversationOf(request({ system: "<story>\nBible\n</people>\n\nRules", model: { provider: "opencode", model: "gemini-4-argon", effort: "medium" } })), { story: [SEARCH] });
+    expect((gemBody.systemInstruction as { parts: unknown[] }).parts).toHaveLength(2);
+    expect((gemBody.generationConfig as { thinkingConfig?: { thinkingLevel: string } }).thinkingConfig?.thinkingLevel).toBe("MEDIUM");
+
+    // Wire purity for Responses + Chat bodies
+    const respBody = opencodeResponsesBody(conversationOf(request({ model: { provider: "opencode", model: "grok-4.7", effort: "high" }, schema: SCHEMA })), "grok-4.7", { story: [SEARCH] });
+    expect(respBody.instructions).toBe("");
+    expect((respBody.text as { format?: { type: string } }).format?.type).toBe("json_schema");
+    const chatBody = opencodeChatBody(conversationOf(request({ model: { provider: "opencode", model: "glm-5.3", effort: "high" }, schema: SCHEMA })), "glm-5.3", { story: [SEARCH] });
+    expect((chatBody.response_format as { type: string }).type).toBe("json_schema");
   });
 
   it("filters out free-only models from OpenCode Go catalog, sorts featured and highest allowance first, and resolves keys from keychain or auth.json", async () => {
@@ -412,7 +468,7 @@ describe("OpenCode Go, called directly", () => {
       { type: "response.completed", response: { usage: { input_tokens: 10, output_tokens: 5 } } }];
     const { post, sent } = fetchOf([unsupported(), answer]);
     const runner = new OpencodeDirectRunner(() => "oc_sk_test", post, async () => {});
-    const out = await runner.run(request({ model: { provider: "opencode", model: "glm-5.3", effort: "high" }, schema: SCHEMA }), () => {}, new AbortController().signal);
+    const out = await runner.run(request({ model: { provider: "opencode", model: "grok-4.7", effort: "high" }, schema: SCHEMA }), () => {}, new AbortController().signal);
     expect(out).toBe("{\"reply\":\"Yes.\",\"moves_to\":null}");
     expect(sent[0]!.body.text).toBeDefined();
     expect(sent[1]!.body.text).toBeUndefined();

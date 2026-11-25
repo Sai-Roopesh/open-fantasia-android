@@ -83,16 +83,34 @@ export function backupModels(home: string): Record<Job | "actor", ModelChoice> {
 
 const same = (a: ModelChoice, b: ModelChoice) => a.provider === b.provider && a.model === b.model;
 
+export interface ReachableOffer {
+  provider: ModelChoice["provider"];
+  reachable: boolean;
+  models: { id: string; defaultEffort: string | null }[];
+}
+
 /**
  * The second model a job really gets with [own] as its model and [backup] as its second: [backup], unless it is the
- * same model, when a second try on it would be no second try. Then it is the job's default, or Opus 5.5 when that is the
- * same model too, or GPT 6.1 Sol when even Opus is.
+ * same model or its provider is unreachable while another reachable provider is available in [offers].
  */
-export function secondModel(own: ModelChoice, backup: ModelChoice, job: Job | "actor"): ModelChoice {
-  if (!same(own, backup)) return backup;
+export function secondModel(own: ModelChoice, backup: ModelChoice, job: Job | "actor", offers?: readonly ReachableOffer[]): ModelChoice {
+  const reachable = offers?.filter(offer => offer.reachable && offer.models.length > 0) ?? [];
+  const isReachable = (choice: ModelChoice) => !reachable.length || reachable.some(offer => offer.provider === choice.provider);
+  if (!same(own, backup) && isReachable(backup)) return backup;
   const fallback = job === "actor" ? OPUS : DEFAULT_JOB_MODELS[job];
-  if (!same(own, fallback)) return fallback;
-  return same(own, OPUS) ? SOL : OPUS;
+  if (!same(own, fallback) && isReachable(fallback)) return fallback;
+  const alt = same(own, OPUS) ? SOL : OPUS;
+  if (!same(own, alt) && isReachable(alt)) return alt;
+  const otherProvider = reachable.find(offer => offer.provider !== own.provider);
+  const picked = otherProvider?.models[0] ?? reachable.flatMap(offer => offer.models.map(model => ({ provider: offer.provider, model }))).find(item => item.provider !== own.provider || item.model.id !== own.model);
+  if (otherProvider && otherProvider.models[0]) {
+    const first = otherProvider.models[0];
+    return { provider: otherProvider.provider, model: first.id, ...(first.defaultEffort ? { effort: first.defaultEffort } : {}) };
+  }
+  if (picked && "provider" in picked) {
+    return { provider: picked.provider, model: picked.model.id, ...(picked.model.defaultEffort ? { effort: picked.model.defaultEffort } : {}) };
+  }
+  return alt;
 }
 
 export function setBackupModel(home: string, job: Job | "actor", choice: ModelChoice): void {
