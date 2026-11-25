@@ -98,8 +98,12 @@ export function endedScene(mac: Mac, head: string, state: State): Entry[] {
 
 /** What was on between [from] and [until] that he was not at: Engagements, the plan's Scenes, and what was on. */
 function missed(state: State, from: string, until: string, there: { place: string; from: string; until: string }[], chosen: string | null): Missed[] {
-  const minutes = (at: string) => minutesOf(parseStoryTime(at) ?? { day: 1, minuteOfDay: 0 });
-  const inSpan = (at: string) => minutes(at) >= minutes(from) && minutes(at) < minutes(until);
+  const fromTime = parseStoryTime(from);
+  const untilTime = parseStoryTime(until);
+  const inSpan = (at: string) => {
+    const parsed = parseStoryTime(at);
+    return parsed !== null && fromTime !== null && untilTime !== null && minutesOf(parsed) >= minutesOf(fromTime) && minutesOf(parsed) < minutesOf(untilTime);
+  };
   return [
     ...missedBetween(state, from, until, there).map(({ engagement, at }) => ({ at, place: engagement.place, what: engagement.what, who: engagement.who, expected: engagement.expected })),
     ...(state.plan?.scenes ?? []).filter(scene => !state.played.includes(scene.id) && scene.id !== chosen && inSpan(scene.at)).map(scene => ({ at: scene.at, place: scene.place, what: scene.headline, who: scene.who, expected: false })),
@@ -116,14 +120,18 @@ function before(left: string, right: string): boolean {
 
 /**
  * The Weaver's ask at a Scene's end: from when it ended to when he is next free, over everything he missed in it. When
- * time passed before the Scene that the World never moved over (the clock moved on by hand, or a Move at the Day View
- * that went on ahead), the World catches up from where it stood.
+ * time passed before the Scene that the World never moved over, OR when the Scene itself jumped forward across hours
+ * or days (e.g., an in-scene time skip), the World catches up from `min(worldAt, scene.at)` so Landmarks and off-screen
+ * lives during the skip are never silently erased.
  */
 export function sceneEndWeave(mac: Mac, head: string, state: State): WeaveAsk {
   const scene = state.scene;
   const ended = scene?.endedAt ?? state.clock;
   const behind = scene !== null && before(state.worldAt, scene.at);
-  const from = behind ? state.worldAt : ended;
+  const startTime = scene ? parseStoryTime(scene.at) : null;
+  const endTime = parseStoryTime(ended);
+  const longInSceneSpan = startTime !== null && endTime !== null && (endTime.day > startTime.day || minutesOf(endTime) - minutesOf(startTime) >= 240);
+  const from = behind ? state.worldAt : longInSceneSpan && scene ? scene.at : ended;
   const there = scene ? [{ place: scene.place, from: scene.at, until: ended }] : [];
   const storyId = mac.tree.entry(head)?.storyId;
   return { state, ...(storyId ? { beside: besideOf(mac, storyId, head) } : {}), from, until: state.clock, gap: false, scene: endedScene(mac, head, state), missed: missed(state, behind ? state.worldAt : scene?.at ?? from, state.clock, there, null) };

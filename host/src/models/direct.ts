@@ -121,13 +121,21 @@ function jwtExpiry(token: string): number | null {
   }
 }
 
+interface AntigravityStored {
+  token?: { access_token?: string; refresh_token?: string; expiry?: string };
+}
+
+function parseAntigravityStored(raw: string): AntigravityStored {
+  const trimmed = raw.trim();
+  const encoded = trimmed.startsWith("go-keyring-base64:") ? trimmed.slice("go-keyring-base64:".length) : trimmed;
+  return JSON.parse(trimmed.startsWith("{") ? trimmed : Buffer.from(encoded, "base64").toString("utf8")) as AntigravityStored;
+}
+
 /** The Google sign-in Antigravity keeps in the Mac keychain, while its token is still good. */
 export function antigravityToken(read: () => string = readAntigravityKeychain, now = Date.now()): string {
-  let stored: { token?: { access_token?: string; expiry?: string } };
+  let stored: AntigravityStored;
   try {
-    const raw = read().trim();
-    const encoded = raw.startsWith("go-keyring-base64:") ? raw.slice("go-keyring-base64:".length) : raw;
-    stored = JSON.parse(raw.startsWith("{") ? raw : Buffer.from(encoded, "base64").toString("utf8")) as typeof stored;
+    stored = parseAntigravityStored(read());
   } catch {
     throw new UseFallback("Antigravity is not signed in on this Mac");
   }
@@ -136,6 +144,67 @@ export function antigravityToken(read: () => string = readAntigravityKeychain, n
   const expiry = stored.token?.expiry ? Date.parse(stored.token.expiry) : NaN;
   if (!Number.isNaN(expiry) && expiry - SOON < now) throw new UseFallback("The Antigravity sign-in has expired");
   return token;
+}
+
+let cachedAgToken: { token: string; expiresAt: number } | null = null;
+let cachedAgOAuth: { ids: string[]; secrets: string[] } | null = null;
+
+function discoverAntigravityOAuth(): { ids: string[]; secrets: string[] } {
+  if (cachedAgOAuth) return cachedAgOAuth;
+  try {
+    const bin = execFileSync("/usr/bin/strings", ["/Applications/Antigravity.app/Contents/Resources/bin/language_server"], { maxBuffer: 64 * 1024 * 1024, encoding: "utf8" });
+    cachedAgOAuth = {
+      ids: [...new Set(bin.match(/[0-9]+-[a-z0-9]+\.apps\.googleusercontent\.com/g) ?? [])],
+      secrets: [...new Set(bin.match(/GOCSPX-[A-Za-z0-9_-]{28}/g) ?? [])]
+    };
+  } catch {
+    cachedAgOAuth = { ids: [], secrets: [] };
+  }
+  return cachedAgOAuth;
+}
+
+/**
+ * Returns a fresh Antigravity OAuth access token: uses the valid keychain token or cached refresh first, and when
+ * expired refreshes automatically via `refresh_token` so direct calls never degrade to `agy` after 60 minutes.
+ */
+export async function resolveAntigravityToken(
+  read: () => string = readAntigravityKeychain,
+  post: typeof fetch = fetch,
+  now = Date.now()
+): Promise<string> {
+  if (cachedAgToken && cachedAgToken.expiresAt - SOON > now) return cachedAgToken.token;
+  let stored: AntigravityStored;
+  try {
+    stored = parseAntigravityStored(read());
+  } catch {
+    throw new UseFallback("Antigravity is not signed in on this Mac");
+  }
+  const access = stored.token?.access_token;
+  const expiry = stored.token?.expiry ? Date.parse(stored.token.expiry) : NaN;
+  if (access && (Number.isNaN(expiry) || expiry - SOON > now)) return access;
+  const refresh = stored.token?.refresh_token;
+  if (!refresh) throw new UseFallback("The Antigravity sign-in has expired");
+  const { ids, secrets } = discoverAntigravityOAuth();
+  for (const client_id of ids) {
+    for (const client_secret of secrets) {
+      try {
+        const res = await post("https://oauth2.googleapis.com/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ client_id, client_secret, refresh_token: refresh, grant_type: "refresh_token" })
+        });
+        if (!res.ok) continue;
+        const data = await res.json() as { access_token?: string; expires_in?: number };
+        if (data.access_token) {
+          cachedAgToken = { token: data.access_token, expiresAt: now + (data.expires_in ?? 3500) * 1000 };
+          return data.access_token;
+        }
+      } catch {
+        // Try next candidate pair or fall back cleanly.
+      }
+    }
+  }
+  throw new UseFallback("The Antigravity sign-in has expired");
 }
 
 function readAntigravityKeychain(): string {

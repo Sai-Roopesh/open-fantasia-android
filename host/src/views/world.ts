@@ -1,4 +1,4 @@
-import { LinkError } from "../link/errors.js";
+import { LinkError } from "../errors.js";
 import type { Mac } from "../mac.js";
 import type { Between, CalendarItem, WorldPerson, WorldPlace, WorldView } from "../protocol/generated/link.js";
 import { engagementsAhead } from "../story/day.js";

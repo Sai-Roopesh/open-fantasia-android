@@ -88,10 +88,19 @@ describe("one request, delivered the same way to every provider", () => {
       { role: "model", parts: [{ text: "She looks up." }] },
       { role: "user", parts: [{ text: "I step inside." }] }
     ]);
-    // Distinct Stories get distinct prompt_cache_key shards so switching Stories does not evict KV cache.
-    const shardA = codexBody(conversationOf(request({ storyId: "story-a" })), "gpt-6.1-sol", { story: [], web: false });
-    const shardB = codexBody(conversationOf(request({ storyId: "story-b" })), "gpt-6.1-sol", { story: [], web: false });
+    // Distinct Stories get distinct prompt_cache_key shards, while different agents on the SAME Story share one shard
+    // so Chronicler/Director/Weaver reuse Composer's warmed Story Bible KV cache.
+    const shardA = codexBody(conversationOf(request({ storyId: "story-a", system: "Story A\n\nComposer" })), "gpt-6.1-sol", { story: [], web: false });
+    const shardAChronicler = codexBody(conversationOf(request({ storyId: "story-a", system: "Story A\n\nChronicler" })), "gpt-6.1-sol", { story: [], web: false });
+    const shardB = codexBody(conversationOf(request({ storyId: "story-b", system: "Story B\n\nComposer" })), "gpt-6.1-sol", { story: [], web: false });
+    expect(shardA.prompt_cache_key).toBe(shardAChronicler.prompt_cache_key);
     expect(shardA.prompt_cache_key).not.toBe(shardB.prompt_cache_key);
+    // Layered Story system prompts split at </people> into two developer messages so input[0] is byte-identical across agents.
+    const bible = "<story>\nTitle: T\n</story>\n\n<people>\n- A\n</people>";
+    const cComposer = codexBody(conversationOf(request({ storyId: "s", system: `${bible}\n\n# Composer` })), "gpt-6.2-sol", { story: [], web: false });
+    const cChron = codexBody(conversationOf(request({ storyId: "s", system: `${bible}\n\n# Chronicler` })), "gpt-6.2-sol", { story: [], web: false });
+    expect((cComposer.input as unknown[])[0]).toEqual((cChron.input as unknown[])[0]);
+    expect((cComposer.input as unknown[])[1]).not.toEqual((cChron.input as unknown[])[1]);
   });
 
   it("turns a JSON Schema into the subset Gemini's responseSchema takes", () => {

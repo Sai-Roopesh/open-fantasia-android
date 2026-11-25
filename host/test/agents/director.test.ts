@@ -396,8 +396,9 @@ describe("the Director's call", () => {
     story.chronicle({ paragraph: "Draconia mocked Roopesh in front of the whole pub." });
     const beside = { ...nothingBeside(), brief: { more: ["more danger"], less: ["the library"] }, playerTaste: ["don't decide what my character feels"] };
     const { system, prompt } = directorPrompt(story.state(), beside, "There is no plan yet: this is the Story's first.");
-    // Layer 1, cached: how the Director works, then the Story with its Arcs.
-    expect(system.startsWith("You are the Story's Director.")).toBe(true);
+    // Layer 1, cached: the shared Story Bible first, then how the Director works.
+    expect(system.startsWith("<story>\nTitle:")).toBe(true);
+    expect(system).toContain("You are the Story's Director.");
     expect(system).toContain("Premise: An enemies-to-lovers romance with Draconia Malfoy");
     expect(system).toContain(`- ${ARC}`);
     // Layer 2, where things stand: The Story So Far first, the Outline, the player's wishes, who matters now.

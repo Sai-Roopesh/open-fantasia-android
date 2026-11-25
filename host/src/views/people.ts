@@ -1,7 +1,7 @@
-import { LinkError } from "../link/errors.js";
+import { LinkError } from "../errors.js";
 import type { Mac } from "../mac.js";
 import type { PeopleView, PersonDetail } from "../protocol/generated/link.js";
-import { nameIndex, storyName } from "../agents/names.js";
+import { nameIndex, storyName } from "../story/names.js";
 import { portraitUrl } from "./scene.js";
 import { betweenOf } from "./world.js";
 

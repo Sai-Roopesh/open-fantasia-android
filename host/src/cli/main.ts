@@ -7,7 +7,6 @@ import { subscriptionRunners } from "../models/runners.js";
 import { Models } from "../models/model-call.js";
 import { arc, bench, claudeToken, clock, doctor, edit, editor, group, importCommand, install, known, landmark, lead, length, models, moments, pair, person, place, portrait, premise, prompts, record, show, stories, style, taste, trace, world, worldIs, type LandmarkOptions, type PersonOptions } from "./commands.js";
 import { serve } from "./serve.js";
-import { carryBeside } from "../store/carry.js";
 
 /**
  * `fantasia`: everything done on the Mac rather than on the phone (openspec first-playable-scene design). It is
@@ -129,12 +128,6 @@ program.command("rebuild").argument("<story>", "a Story's id")
       for (const item of rebuilt.replaced) out(`No longer happened: ${item.what}${item.mentionedIn.length ? ` (Replies in Scene ${item.mentionedIn.join(", ")} may speak of it)` : ""}`);
     } finally { runners.close(); }
     exitWith(true);
-  });
-program.command("carry-beside").argument("<story>", "a Story's id")
-  .description("Carry the Taste lessons, brief and reactions a Story kept on its Paths, from every branch, beside the Story")
-  .action((story: string) => {
-    const carried = carryBeside(mac(), story);
-    out(`Carried ${carried.lessons} lesson(s), ${carried.brief ? "the brief" : "no brief"}, ${carried.reactions} reaction(s).`);
   });
 program.command("taste").argument("<story>", "a Story's id").argument("[change...]", "reword <n> <words>, or drop <n>")
   .description("List the Story's Taste numbered, or reword or delete a lesson; Taste holds on every Path")

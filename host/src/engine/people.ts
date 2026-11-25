@@ -1,5 +1,5 @@
-import { LinkError } from "../link/errors.js";
-import { nameIndex } from "../agents/names.js";
+import { LinkError } from "../errors.js";
+import { nameIndex } from "../story/names.js";
 import type { Person, State } from "../story/state.js";
 
 type Edited = Omit<Person, "portrait" | "broughtIn">;

@@ -82,7 +82,7 @@ export function withWriter(actor: ModelRunner, writer: ModelRunner = new Scripte
     if ((request.facts as { composing?: boolean } | undefined)?.composing) {
       const plan = JSON.parse(await writer.run({ ...request, agent: "writer" }, () => {}, signal, tools)) as object;
       const reply = await actor.run(request, onText, signal, tools);
-      return JSON.stringify({ ...plan, reply });
+      return /<scene_state>/i.test(reply) ? reply : `${reply}\n\n<scene_state>\n${JSON.stringify(plan)}\n</scene_state>`;
     }
     return (runners[request.agent] ?? actor).run(request, onText, signal, tools);
   } };

@@ -5,7 +5,7 @@ import type { OfferedModel } from "./catalog.js";
 import { NO_TOOLS, type ModelRequest, type ModelRunner, type ModelUsage, type Tools } from "./model-call.js";
 import { agyModel, foldAntigravityModels } from "./antigravity.js";
 import { antigravityBody, cacheKey, conversationOf } from "./wire.js";
-import { antigravityToken, readEvents, refusal, Refused, Used } from "./direct.js";
+import { resolveAntigravityToken, readEvents, refusal, Refused, Used } from "./direct.js";
 
 const HOST = "https://daily-cloudcode-pa.googleapis.com";
 
@@ -124,21 +124,21 @@ function readLocalAntigravityDaemons(dir = join(homedir(), ".gemini", "antigravi
  */
 export class AntigravityDirectRunner implements ModelRunner {
   readonly canLookUp = { story: true, web: false };
-  private project: Promise<string> | null = null;
+  private project: { token: string; promise: Promise<string> } | null = null;
   /** Schemas the gateway refused to hold a model to, by their `(model, schema)` hash: asked for in words from then on. */
   private readonly tooLarge = new Set<string>();
 
   constructor(
     private readonly version: string = "2.32.2",
-    private readonly token: () => string = () => antigravityToken(),
+    private readonly token: () => string | Promise<string> = () => resolveAntigravityToken(),
     private readonly post: typeof fetch = fetch,
     private readonly wait: (ms: number) => Promise<void> = ms => new Promise(resolve => setTimeout(resolve, ms)),
     private readonly daemons: () => AntigravityDaemonInfo[] = () => readLocalAntigravityDaemons()
   ) {}
 
   async run(request: ModelRequest, onText: (delta: string) => void, signal: AbortSignal, tools: Tools = NO_TOOLS, onUsage?: (usage: ModelUsage) => void, onWire?: (body: unknown) => void): Promise<string> {
-    const token = this.token();
-    const project = await this.projectFor(token, signal);
+    const token = await this.token();
+    const project = await this.projectFor(token);
     const conversation = conversationOf(request);
     const modelId = agyModel(request.model);
     const schemaKey = conversation.schema ? cacheKey(modelId, JSON.stringify(conversation.schema)) : null;
@@ -148,8 +148,9 @@ export class AntigravityDirectRunner implements ModelRunner {
       const body = antigravityBody(conversation, modelId, project, tools, inText);
       const inner = body.request as { contents: { role: string; parts: Part[] }[] };
       const contents = [...inner.contents];
+      let round = 0;
       try {
-        for (let round = 0; ; round++) {
+        for (; ; round++) {
           const sent = { ...body, request: { ...inner, contents } };
           onWire?.(sent);
           const { parts, usage } = await this.stream(sent, token, signal, onText);
@@ -168,8 +169,8 @@ export class AntigravityDirectRunner implements ModelRunner {
         }
       } catch (error) {
         // Checked live: Gemini refuses large schemas ("too many states for serving"), and Claude-on-Antigravity
-        // refuses forced `tool_choice` generated for `responseSchema`. Fall back to asking for the schema in words.
-        if (schemaKey !== null && !inText && error instanceof Refused && error.status === 400 && /too many states|schema|tool_choice/i.test(error.message)) {
+        // refuses forced `tool_choice` generated for `responseSchema`. Fall back to schema-in-words on round 0 only.
+        if (round === 0 && schemaKey !== null && !inText && error instanceof Refused && error.status === 400 && /too many states|schema|tool_choice/i.test(error.message)) {
           this.tooLarge.add(schemaKey);
           continue;
         }
@@ -185,8 +186,8 @@ export class AntigravityDirectRunner implements ModelRunner {
   async listModels(signal?: AbortSignal): Promise<OfferedModel[]> {
     let gatewayError: unknown = null;
     try {
-      const token = this.token();
-      const project = await this.projectFor(token, signal ?? new AbortController().signal);
+      const token = await this.token();
+      const project = await this.projectFor(token);
       const response = await this.post(`${HOST}/v1internal:fetchAvailableModels`, {
         method: "POST",
         ...(signal ? { signal } : {}),
@@ -233,28 +234,31 @@ export class AntigravityDirectRunner implements ModelRunner {
     };
   }
 
-  /** The Google Cloud project the account's requests run under, found once. */
-  private projectFor(token: string, signal: AbortSignal): Promise<string> {
-    this.project ??= (async () => {
-      const response = await this.post(`${HOST}/v1internal:loadCodeAssist`, { method: "POST", signal, headers: this.headers(token), body: JSON.stringify({ metadata: { ideType: "ANTIGRAVITY" } }) });
+  /** The Google Cloud project the account's requests run under, cached per token and decoupled from caller aborts. */
+  private projectFor(token: string): Promise<string> {
+    if (this.project?.token === token) return this.project.promise;
+    const promise = (async () => {
+      const response = await this.post(`${HOST}/v1internal:loadCodeAssist`, {
+        method: "POST", signal: AbortSignal.timeout(15_000), headers: this.headers(token), body: JSON.stringify({ metadata: { ideType: "ANTIGRAVITY" } })
+      });
       if (!response.ok) throw await refusal("Antigravity", response);
       const loaded = await response.json() as { cloudaicompanionProject?: string | { id?: string } };
       const project = typeof loaded.cloudaicompanionProject === "string" ? loaded.cloudaicompanionProject : loaded.cloudaicompanionProject?.id;
       if (!project) throw new Error("Antigravity did not say which project this account uses");
       return project;
     })();
-    this.project.catch(() => { this.project = null; });
-    return this.project;
+    this.project = { token, promise };
+    promise.catch(() => { if (this.project?.promise === promise) this.project = null; });
+    return promise;
   }
 
   private async stream(body: unknown, token: string, signal: AbortSignal, onText: (delta: string) => void) {
     let response: Response;
-    // "No capacity available for model … on the server" comes and goes within seconds (seen twice on 17 November 2026).
     for (let attempt = 0; ; attempt++) {
       response = await this.post(`${HOST}/v1internal:streamGenerateContent?alt=sse`, {
         method: "POST", signal, headers: { ...this.headers(token), Accept: "text/event-stream" }, body: JSON.stringify(body)
       });
-      if (response.status !== 503 || attempt >= BUSY_WAITS.length) break;
+      if ((response.status !== 503 && response.status !== 429) || attempt >= BUSY_WAITS.length) break;
       await this.wait(BUSY_WAITS[attempt] ?? 0);
       if (signal.aborted) throw new Error("Antigravity: stopped");
     }

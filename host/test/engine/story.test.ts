@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { REPLY_LENGTH_GUIDE } from "../../src/agents/actor.js";
+import { REPLY_LENGTH_GUIDE } from "../../src/agents/composer.js";
 import type { WorldMoved } from "../../src/story/entries.js";
 import type { State } from "../../src/story/state.js";
 import { besideOf, learnLesson, tasteOf } from "../../src/store/beside.js";

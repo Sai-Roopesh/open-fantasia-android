@@ -157,7 +157,7 @@ describe("an agent's step with lookups (docs/adr/0018; the-storys-mind design de
       then: answers => numbers(answers[0]!.includes("Hagrid has a dragon egg") && answers[1]!.includes("I ask Hermione") ? 2 : 3)
     }]);
     const given = new Models(story.mac.db, { claude });
-    const result = await ask(given, [SONNET], { tools, budget: BUDGETS.writer }) as Awaited<ReturnType<typeof runAgent<number[]>>>;
+    const result = await ask(given, [SONNET], { tools, budget: BUDGETS.composer }) as Awaited<ReturnType<typeof runAgent<number[]>>>;
     expect(result.value).toEqual([2]);
     expect(result.lookups).toEqual([
       "searched the Story for “dragon egg”: 1 passage",
@@ -168,7 +168,7 @@ describe("an agent's step with lookups (docs/adr/0018; the-storys-mind design de
     expect(given.lookedUp(result.callId)).toEqual(result.lookups);
     const row = story.mac.db.prepare("SELECT request, lookups FROM calls WHERE id = ?").get(result.callId) as { request: string; lookups: string };
     expect(JSON.parse(row.lookups)).toEqual(result.lookups);
-    expect(JSON.parse(row.request)).toMatchObject({ tools, turns: BUDGETS.writer.turns });
+    expect(JSON.parse(row.request)).toMatchObject({ tools, turns: BUDGETS.composer.turns });
   });
 
   it("says each lookup as it is made, in order, so the player can be told it is looking back", async () => {
@@ -223,7 +223,7 @@ describe("an agent's step with lookups (docs/adr/0018; the-storys-mind design de
     try {
       const given = new Models(story.mac.db, { antigravity: agy });
       const request = { agent: "writer" as const, system: "You plan each Reply.", prompt: "Plan the Reply.", schema: { type: "object" }, traceId: "t", storyId: story.storyId, tools };
-      const result = await runAgent(given, [GEMINI], request, answer => ({ ok: true, value: answer }), BUDGETS.writer, new AbortController().signal);
+      const result = await runAgent(given, [GEMINI], request, answer => ({ ok: true, value: answer }), BUDGETS.composer, new AbortController().signal);
       expect(result).toMatchObject({ value: { note: "Meera looks up." }, model: GEMINI, lookups: [expect.stringContaining("prepared evidence:")] });
       // The call kept is the one made: without tools, which the model was never told of.
       const row = story.mac.db.prepare("SELECT request, lookups FROM calls WHERE id = ?").get(result.callId) as { request: string; lookups: string | null };
@@ -239,7 +239,7 @@ describe("an agent's step with lookups (docs/adr/0018; the-storys-mind design de
   it("gives a scripted model that has no tools none to use", async () => {
     const { story, tools } = played();
     const bare = new ScriptedRunner([{ lookUp: [{ tool: "search_story", args: { words: "egg" } }, { tool: "web_search", args: { query: "eggs" } }], then: numbers(2) }], undefined, { story: false, web: false });
-    const result = await ask(new Models(story.mac.db, { claude: bare }), [SONNET], { tools, budget: BUDGETS.writer });
+    const result = await ask(new Models(story.mac.db, { claude: bare }), [SONNET], { tools, budget: BUDGETS.composer });
     expect(result).toMatchObject({ value: [2], lookups: [] });
     expect(bare.looked.map(lookup => lookup.answer)).toEqual(["There is no tool called search_story.", "There is no tool called web_search."]);
   });
@@ -247,7 +247,7 @@ describe("an agent's step with lookups (docs/adr/0018; the-storys-mind design de
   it("gives Codex the web and not the Story's tools", async () => {
     const { story, tools } = played();
     const codex = new ScriptedRunner([{ lookUp: [{ tool: "read_scene", args: { number: 1 } }, { tool: "web_search", args: { query: "Hogwarts as a university" } }], then: numbers(2) }], undefined, { story: false, web: true });
-    const result = await ask(new Models(story.mac.db, { codex }), [SOL], { tools, budget: BUDGETS.writer });
+    const result = await ask(new Models(story.mac.db, { codex }), [SOL], { tools, budget: BUDGETS.composer });
     expect(result).toMatchObject({ value: [2], lookups: ["searched the web for “Hogwarts as a university”"] });
     expect(codex.requests[0]!.tools).toEqual({ story: null, web: true });
   });

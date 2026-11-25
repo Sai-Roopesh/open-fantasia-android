@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { storyTools } from "../../src/agents/tools/story.js";
+import { storyTools } from "../../src/store/story-tools.js";
 import { emptyUpdate, type TruthUpdate } from "../../src/story/truth.js";
 import { ledger, SONNET, type Ledger } from "./ledger.js";
 

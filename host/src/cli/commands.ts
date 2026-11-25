@@ -2,13 +2,13 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { extname, join, resolve } from "node:path";
-import { nameIndex, storyName } from "../agents/names.js";
+import { nameIndex, storyName } from "../story/names.js";
 import qrcode from "qrcode-terminal";
 import { localAddresses } from "../link/bonjour.js";
 import { Pairing, PAIRING_MINUTES } from "../link/pairing.js";
 import { ensureCertificate } from "../link/tls.js";
 import type { Engine } from "../engine/engine.js";
-import { LinkError } from "../link/errors.js";
+import { LinkError } from "../errors.js";
 import type { Mac } from "../mac.js";
 import { pathsView } from "../views/paths.js";
 import { randomUUID } from "node:crypto";
@@ -95,7 +95,7 @@ function describe(payload: Payload): string {
     case "move":
     case "reply": return payload.text;
     case "redo": return payload.direction ? `Redo: ${payload.direction}${payload.remember ? " (remember)" : ""}` : "Redo";
-    case "beat_note": return `[${payload.call}, ${payload.intensity}${payload.arcMoved ? ", an Arc moved" : ""}] ${payload.clock} ${payload.note}`;
+    case "beat_note": return `[${payload.call}, ${payload.intensity}] ${payload.clock} ${payload.note}`;
     case "scene_closed": return `closed by the ${payload.by}`;
     case "focus_set": return payload.on ? `Focus on ${payload.on}` : "Focus cleared";
     case "linger_set": return payload.on ? "Linger on" : "Linger off";
@@ -149,7 +149,7 @@ export function models(mac: Mac, args: string[], out: Out): boolean {
       const isDefault = JSON.stringify(choice) === JSON.stringify(DEFAULT_JOB_MODELS[name]);
       out(`${name}  ${choice.provider}  ${choice.model}${choice.effort ? `  effort ${choice.effort}` : ""}${isDefault ? "  (default)" : ""}`);
     }
-    const stories = mac.db.prepare("SELECT id, title FROM stories WHERE before_ledger = 0 ORDER BY created_at").all() as { id: string; title: string }[];
+    const stories = mac.db.prepare("SELECT id, title FROM stories ORDER BY created_at").all() as { id: string; title: string }[];
     for (const story of stories) {
       const actor = actorOf(mac, story.id);
       if (!actor) continue;
@@ -163,7 +163,7 @@ export function models(mac: Mac, args: string[], out: Out): boolean {
   }
   if (job === "actor") {
     const [story, ...setting] = rest;
-    const found = (mac.db.prepare("SELECT id, title FROM stories WHERE before_ledger = 0 AND (id = ? OR title = ?)").get(story ?? "", story ?? "") as { id: string; title: string } | undefined);
+    const found = (mac.db.prepare("SELECT id, title FROM stories WHERE id = ? OR title = ?").get(story ?? "", story ?? "") as { id: string; title: string } | undefined);
     if (!found) return (out(`No Story "${story ?? ""}" on this Mac.`), false);
     if (setting[0] === "reset") {
       setStoryActor(mac.home, found.id, null);
@@ -399,7 +399,7 @@ export function install(mac: Mac, out: Out): void {
 /** What is right and wrong with this Mac's setup, one line each. */
 export function doctor(mac: Mac, out: Out): boolean {
   const checks: [string, boolean, string][] = [];
-  const stories = (mac.db.prepare("SELECT COUNT(*) AS n FROM stories WHERE before_ledger = 0").get() as { n: number }).n;
+  const stories = (mac.db.prepare("SELECT COUNT(*) AS n FROM stories").get() as { n: number }).n;
   checks.push(["Story store", true, `${join(mac.home, "fantasia.db")}, ${stories} ${stories === 1 ? "Story" : "Stories"}`]);
   const token = readSecret(CLAUDE_TOKEN);
   checks.push(["Claude token", token !== null, token ? "stored" : "missing: run `fantasia claude-token`"]);

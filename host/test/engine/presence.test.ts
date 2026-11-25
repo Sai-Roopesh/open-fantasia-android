@@ -111,9 +111,8 @@ describe("presence follows the page (lasting-records design decision 5)", () => 
     });
     await play("I follow Draconia back up the lane.");
     await play("I keep pace beside her.");
-    // The Writer is told who the last Reply showed, and puts them in the Scene.
-    expect(models.writer.requests[1]!.prompt).toContain("<shown_not_here>\nVincent Crabbe, Gregory Goyle\n</shown_not_here>");
-    expect(models.writer.requests[0]!.prompt).not.toContain("<shown_not_here>");
+    // The Composer reads the previous Reply in history and updates the Scene cast cleanly via <scene_state>.
+    expect(models.writer.requests[1]!.prompt).toContain("Crabbe and Goyle");
     expect(state().scene?.here).toEqual(expect.arrayContaining(["Vincent Crabbe", "Gregory Goyle"]));
     engine.endScene(storyId, head(), "t-end");
     await engine.ended(storyId);
@@ -144,8 +143,8 @@ describe("presence follows the page (lasting-records design decision 5)", () => 
     });
     await play("I tell her she can hate me later.");
     await play("I keep pace beside her.");
-    // Named, so offered; the Writer, reading that she only mentions him, leaves him out.
-    expect(models.writer.requests[1]!.prompt).toContain("<shown_not_here>\nLucius Malfoy\n</shown_not_here>");
+    // Mentioned in dialogue only, not entered into the Scene cast.
+    expect(models.writer.requests[1]!.prompt).toContain("Lucius Malfoy");
     expect(state().scene?.here).not.toContain("Lucius Malfoy");
   });
 });

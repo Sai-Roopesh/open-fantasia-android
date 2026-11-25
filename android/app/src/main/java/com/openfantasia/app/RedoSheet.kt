@@ -22,6 +22,7 @@ import com.openfantasia.protocol.ProviderModels
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable internal fun RedoSheet(storyID: String, models: ModelsView?, onDismiss: () -> Unit, onRedo: (String?, Boolean, ModelChoice?) -> Unit) {
     var direction by rememberSaveable { mutableStateOf("") }
+    var remember by rememberSaveable { mutableStateOf(false) }
     // Null is the Story's own Actor; anything else is a model for just this Reply (openspec scenes: Redo on another model).
     var writtenBy by remember { mutableStateOf<ModelChoice?>(null) }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -42,12 +43,22 @@ import com.openfantasia.protocol.ProviderModels
                         .background(FantasiaBackground, FantasiaShapes.field).border(1.dp, FantasiaAccent, FantasiaShapes.field)
                         .padding(horizontal = 15.dp, vertical = 13.dp))
             }
-            Text("Directions are saved for future replies. Edit or archive them in Backstage.", style = FantasiaType.small, color = FantasiaCaption)
+            Row(
+                Modifier.fillMaxWidth().toggleable(value = remember, enabled = direction.isNotBlank(), role = Role.Checkbox, onValueChange = { remember = it }).testTag("redo-remember"),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Checkbox(checked = remember && direction.isNotBlank(), onCheckedChange = null, enabled = direction.isNotBlank())
+                Column {
+                    Text("Remember for future replies", style = FantasiaType.plain, color = if (direction.isNotBlank()) FantasiaText else FantasiaCaption)
+                    Text("Off applies only to this Redo. Saved Directions can be edited in Backstage.", style = FantasiaType.small, color = FantasiaCaption)
+                }
+            }
             WrittenBy(models?.stories?.firstOrNull { it.storyID == storyID }?.actor, models?.providers.orEmpty(), writtenBy) { writtenBy = it }
             Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End)) {
                 TextButton(onClick = onDismiss, modifier = Modifier.height(48.dp), shape = FantasiaShapes.round,
                     contentPadding = PaddingValues(horizontal = 20.dp)) { Text("Cancel", style = FantasiaType.plain, color = FantasiaSecondary) }
-                Button(onClick = { onRedo(direction.takeIf { it.isNotBlank() }, false, writtenBy) },
+                Button(onClick = { val clean = direction.takeIf { it.isNotBlank() }; onRedo(clean, clean != null && remember, writtenBy) },
                     modifier = Modifier.height(48.dp).testTag("confirm-redo"), shape = FantasiaShapes.round,
                     contentPadding = PaddingValues(horizontal = 24.dp)) { Text("Redo", style = FantasiaType.button) }
             }

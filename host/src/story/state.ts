@@ -1,5 +1,6 @@
 import type { Outline } from "./outline.js";
-import type { TruthState } from "./truth.js";
+import type { Quote, TruthState } from "./truth.js";
+export type { Quote };
 /** Which model does a job: the provider and the id it lists the model under. */
 export interface ModelChoice {
   provider: "claude" | "codex" | "antigravity";
@@ -88,12 +89,6 @@ export interface CurrentScene {
 export interface PendingDirection {
   text: string | null;
   remember: boolean;
-}
-
-/** Words taken exactly from one entry. */
-export interface Quote {
-  entry: string;
-  text: string;
 }
 
 /**

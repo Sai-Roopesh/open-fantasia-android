@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { storyTools } from "../agents/tools/story.js";
+import { storyTools, type ToolSpec } from "../store/story-tools.js";
 import type { Db } from "../store/db.js";
 import type { ModelChoice } from "../story/state.js";
+export type { ToolSpec };
 
 /** Which job a call is for (CONTEXT.md: Who writes the Story). */
 export type Agent = "actor" | "writer" | "editor" | "chronicler" | "weaver" | "director" | "folder" | "judge";
@@ -56,13 +57,6 @@ export interface ModelAnswer {
 
 /** Provider-reported usage, retained without estimating subscription charges from prompt size. */
 export type ModelUsage = Record<string, unknown>;
-
-/** One of the Story's tools, as a model is told of it: its name, what it is for, and what it takes. */
-export interface ToolSpec {
-  name: string;
-  description: string;
-  params: Record<string, { type: "string" | "integer"; description: string; optional?: boolean }>;
-}
 
 /**
  * A call's tools, ready to use (docs/adr/0018): the Story's, which run here, and whether the provider may use its own
@@ -178,9 +172,10 @@ export class Models {
       sent.system += "\nInteractive Story tools are unavailable on this provider. Use the supplied Story and host-retrieved evidence; do not claim to have looked up anything else or invent a missing memory.";
     }
     if (request.tools?.web && !kit?.web) sent.system += "\nLive web tools are unavailable on this provider. Do not claim live research or invent citations.";
+    const storedRequest = sent.conversation ? { ...sent, conversation: undefined } : sent;
     this.db
       .prepare("INSERT INTO calls (id, trace_id, story_id, agent, provider, model, request, started_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-      .run(callId, request.traceId, request.storyId, request.agent, request.model.provider, request.model.model, JSON.stringify(sent), new Date().toISOString());
+      .run(callId, request.traceId, request.storyId, request.agent, request.model.provider, request.model.model, JSON.stringify(storedRequest), new Date().toISOString());
     const lookups: string[] = [...prepared];
     const wire: unknown[] = [];
     try {
@@ -207,9 +202,9 @@ export class Models {
     } catch (error) {
       if (error instanceof ModelCallFailed) throw error;
       const message = error instanceof Error ? error.message : String(error);
-      // Persistent authentication failures do not become a new failed generation before every fallback.
+      // Persistent authentication failures cool down briefly (60s) so fixing credentials self-heals promptly.
       if (/disabled.*subscription|no Claude token|invalid.*(?:token|api.key)|authentication.*(?:failed|required)|not authenticated/i.test(message)) {
-        this.unavailable.set(request.model.provider, { reason: message, until: Date.now() + 15 * 60_000 });
+        this.unavailable.set(request.model.provider, { reason: message, until: Date.now() + 60_000 });
       }
       this.finish(callId, null, message, lookups);
       throw new ModelCallFailed(message, callId);

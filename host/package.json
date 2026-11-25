@@ -10,6 +10,8 @@
     "fantasia": "./bin/fantasia.mjs"
   },
   "scripts": {
+    "check": "node scripts/check.mjs",
+    "check:gate": "node scripts/check.mjs --gate-only",
     "test": "vitest run",
     "test:real": "FANTASIA_REAL_MODELS=1 vitest run --project real",
     "typecheck": "tsc --noEmit",

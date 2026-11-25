@@ -110,6 +110,8 @@ function portraitProblems(story: StoryFile, folder: string): Problem[] {
       problems.push({ where: at, message: `${person.name}'s Portrait "${person.portrait}" is not a PNG, JPEG or WebP image` });
     } else if (!existsSync(join(folder, relative)) || !statSync(join(folder, relative)).isFile()) {
       problems.push({ where: at, message: `${person.name}'s Portrait "${person.portrait}" is not in the Story File's folder` });
+    } else if (statSync(join(folder, relative)).size > 10 * 1024 * 1024) {
+      problems.push({ where: at, message: `${person.name}'s Portrait "${person.portrait}" is larger than 10 MB` });
     }
   });
   return problems;

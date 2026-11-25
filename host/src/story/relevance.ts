@@ -1,4 +1,4 @@
-import { nameIndex, storyName } from "../agents/names.js";
+import { nameIndex, storyName } from "../story/names.js";
 import { currentAct } from "./outline.js";
 import type { Person, State } from "./state.js";
 import { betweenKey } from "./truth.js";

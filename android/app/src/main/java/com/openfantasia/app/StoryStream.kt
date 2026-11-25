@@ -42,7 +42,9 @@ class StoryStream(
                     if (view != before) emit(view)
                 }
             } catch (e: CancellationException) { throw e
-            } catch (e: LinkFailure) { throw e
+            } catch (e: LinkFailure) {
+                // Retry transient Mac-unreachable failures instead of permanently terminating the SSE stream.
+                if (e.reason == UNREACHABLE) onConnection(false) else throw e
             } catch (_: IOException) {
                 onConnection(false)
                 // The cursor advances only after applying a change, so interrupted streams can resume safely.

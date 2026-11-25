@@ -62,7 +62,10 @@ export class ClaudeRunner implements ModelRunner {
         onText(delta);
       }
       if (message.type === "result") {
-        onUsage?.({ modelUsage: message.modelUsage, usage: message.usage, totalCostUSD: message.total_cost_usd });
+        const u = (message.usage ?? {}) as { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number };
+        const cached = u.cache_read_input_tokens ?? 0;
+        const input = (u.input_tokens ?? 0) + cached + (u.cache_creation_input_tokens ?? 0);
+        onUsage?.({ input_tokens: input, cached_tokens: cached, output_tokens: u.output_tokens ?? 0, reasoning_tokens: 0, requests: 1, totalCostUSD: message.total_cost_usd });
         if (message.subtype !== "success" || message.is_error) throw new Error(failureOf(message));
         // Asked for a schema, Claude answers through a tool the SDK checks against it; that answer is the result.
         result = request.schema ? JSON.stringify(message.structured_output ?? null) : message.result;

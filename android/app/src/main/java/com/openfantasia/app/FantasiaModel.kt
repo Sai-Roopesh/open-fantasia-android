@@ -87,6 +87,7 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
     val state = mutable.asStateFlow()
     private var stream: Job? = null
     private var pastSceneJob: Job? = null
+    private var outsideJob: Job? = null
     private var pendingMoveID: String? = null
     private var afterSeq = 0L
 
@@ -142,6 +143,7 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
             try {
                 val scene = link.scene(storyID)
                 pendingMoveID = null
+                afterSeq = 0L
                 mutable.update { it.copy(scene = visibleScene(scene), loading = false, waiting = false) }
                 if (mutable.value.reachable) sendWaitingMove()
                 link.watch(scene).collect { updated ->
@@ -214,7 +216,7 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
     fun closePaths() { mutable.update { it.copy(showingPaths = false, paths = null) } }
 
     fun openWorld() = openOutside({ it.copy(showingWorld = true, world = null) }) { id -> link.world(id).let { view -> { s: FantasiaState -> s.copy(world = view) } } }
-    fun closeWorld() { mutable.update { it.copy(showingWorld = false, world = null, showingEveryone = false, people = null, personPage = null, editing = null) } }
+    fun closeWorld() { outsideJob?.cancel(); mutable.update { it.copy(showingWorld = false, world = null, showingEveryone = false, people = null, personPage = null, editing = null) } }
 
     fun openEveryone() {
         mutable.update { it.copy(showingEveryone = true, problem = null) }
@@ -319,7 +321,7 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
         if (state.showingBackstage) link.backstage(storyID).let { backstage -> mutable.update { it.copy(backstage = backstage) } }
     }
     fun openStoryScreen() = openOutside({ it.copy(showingStory = true, story = null) }) { id -> link.story(id).let { view -> { s: FantasiaState -> s.copy(story = view) } } }
-    fun closeStoryScreen() { mutable.update { it.copy(showingStory = false, story = null, storyEditing = null) } }
+    fun closeStoryScreen() { outsideJob?.cancel(); mutable.update { it.copy(showingStory = false, story = null, storyEditing = null) } }
     fun openStoryEditor(target: StoryEdit) { mutable.update { it.copy(storyEditing = StoryEditing(target)) } }
     fun closeStoryEditor() { mutable.update { it.copy(storyEditing = null) } }
 
@@ -403,15 +405,16 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
     }
 
     fun openJournal() = openOutside({ it.copy(showingJournal = true, journal = null) }) { id -> link.journal(id).let { view -> { s: FantasiaState -> s.copy(journal = view) } } }
-    fun closeJournal() { mutable.update { it.copy(showingJournal = false, journal = null) } }
+    fun closeJournal() { outsideJob?.cancel(); mutable.update { it.copy(showingJournal = false, journal = null) } }
     fun openBackstage() = openOutside({ it.copy(showingBackstage = true, backstage = null) }) { id -> link.backstage(id).let { view -> { s: FantasiaState -> s.copy(backstage = view) } } }
-    fun closeBackstage() { mutable.update { it.copy(showingBackstage = false, backstage = null) } }
+    fun closeBackstage() { outsideJob?.cancel(); mutable.update { it.copy(showingBackstage = false, backstage = null) } }
 
     /** Opens a screen outside the Scene and reads it from the Mac, only now that it is visited. */
     private fun openOutside(open: (FantasiaState) -> FantasiaState, read: suspend (String) -> (FantasiaState) -> FantasiaState) {
         val scene = mutable.value.scene ?: return
+        outsideJob?.cancel()
         mutable.update { open(it).copy(problem = null) }
-        viewModelScope.launch {
+        outsideJob = viewModelScope.launch {
             try { val apply = read(scene.storyID); mutable.update(apply)
             } catch (e: CancellationException) { throw e
             } catch (e: Exception) { showProblem(e) }
@@ -707,7 +710,9 @@ class FantasiaModel(private val link: FantasiaLink, private val previouslyStore:
         viewModelScope.launch {
             try {
                 command(scene)
-                openStory(scene.storyID)
+                // Keep the active SSE stream alive instead of tearing it down and reconnecting; refresh snapshot in place.
+                val fresh = link.scene(scene.storyID)
+                mutable.update { it.copy(scene = visibleScene(fresh)) }
             } catch (e: CancellationException) { throw e
             } catch (e: Exception) {
                 showProblem(e)

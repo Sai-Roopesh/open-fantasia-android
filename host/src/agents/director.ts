@@ -8,7 +8,7 @@ import { formatDate, formatStoryTime, minutesOf, parseStoryTime, sayDate } from 
 import { engagementsAhead } from "../story/day.js";
 import { say, section } from "../context/lens.js";
 import { matches, namer, nullable, oneOf, peopleEnum, text } from "./format.js";
-import { nameIndex, storyName } from "./names.js";
+import { nameIndex, storyName } from "../story/names.js";
 import { directorCall, landmarksAhead } from "./outline.js";
 import { BUDGETS, runAgent, type Checked } from "./step.js";
 

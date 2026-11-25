@@ -17,7 +17,7 @@ const JOB_LINES: Record<Job, { title: string; does: string }> = {
 /** The Models screen (openspec outside-the-scene: One Models screen). */
 export function modelsView(mac: Mac, catalog: Catalog, traceId: string): ModelsView {
   const chosen = (choice: ModelChoice): ChosenModel => ({ choice: { ...choice, effort: choice.effort ?? null }, label: catalog.label(choice) });
-  const stories = mac.db.prepare("SELECT id, title FROM stories WHERE before_ledger = 0 ORDER BY created_at").all() as { id: string; title: string }[];
+  const stories = mac.db.prepare("SELECT id, title FROM stories ORDER BY created_at").all() as { id: string; title: string }[];
   const jobs = jobModels(mac.home);
   const backups = backupModels(mac.home);
   return {

@@ -1,4 +1,4 @@
-import type { Person } from "../story/state.js";
+import type { Person } from "./state.js";
 
 /**
  * Every name a person answers to, mapped to the name the Story keeps: full names, aliases, first names and surnames.
@@ -34,12 +34,6 @@ const TITLE = /^(professor|prof|madam|madame|mr|mrs|ms|miss|mister|dr|doctor|sir
 export function storyName(index: Map<string, string>, name: string): string | null {
   const key = name.trim().toLocaleLowerCase();
   return index.get(key) ?? index.get(key.replace(TITLE, "")) ?? null;
-}
-
-/** Whether [text] names [person]: by full name, an alias, or any word of their name. */
-export function names(text: string, person: Person): boolean {
-  const words = [person.name, ...person.aliases, ...person.name.split(/\s+/).filter(word => word.length >= 3)];
-  return words.some(word => new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(text));
 }
 
 /**

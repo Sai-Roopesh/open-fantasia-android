@@ -1,4 +1,4 @@
-import { LinkError } from "../link/errors.js";
+import { LinkError } from "../errors.js";
 import type { Mac } from "../mac.js";
 import type { Entry, Payload } from "../story/entries.js";
 import type { StoryPath } from "../store/tree.js";

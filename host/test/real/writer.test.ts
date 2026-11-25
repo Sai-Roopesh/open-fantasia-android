@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { composeReply } from "../../src/agents/composer.js";
-import type { WriterAsk } from "../../src/agents/writer.js";
+import { composeReply, type ComposerAsk } from "../../src/agents/composer.js";
 import { nothingBeside } from "../../src/story/beside.js";
 import { Engine } from "../../src/engine/engine.js";
 import { ClaudeRunner } from "../../src/models/claude.js";
@@ -34,7 +33,7 @@ function onClaude(storyFile: StoryFile) {
 async function writerAnswers(storyFile: StoryFile, move: string) {
   const { mac, runner, models, head } = onClaude(storyFile);
   const state = mac.states.at(head());
-  const ask: WriterAsk = { state, scene: sceneEntries(mac, head()).entries, move, choice: null, beside: nothingBeside() };
+  const ask: ComposerAsk = { state, scene: sceneEntries(mac, head()).entries, move, choice: null, beside: nothingBeside() };
   try {
     const { value, callId, model, lookups } = await composeReply(models, [DEFAULT_JOB_MODELS.writer], ask, "real", "real-writer", new AbortController().signal);
     return { plan: value.plan, callId, model, lookups };

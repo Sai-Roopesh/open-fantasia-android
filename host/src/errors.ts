@@ -1,4 +1,4 @@
-import type { ErrorCode } from "../protocol/generated/link.js";
+import type { ErrorCode } from "./protocol/generated/link.js";
 
 /** The HTTP status each refusal is sent with. */
 export const STATUS: Record<ErrorCode, number> = {

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { KEEP_WIRE, ModelCallFailed, Models, type ModelRequest, type ModelRunner } from "../../src/models/model-call.js";
 import { ScriptedRunner } from "../../src/models/scripted.js";
 import { ledger } from "../agents/ledger.js";
-import { freshHome, openHome } from "../support/host.js";
+import { freshHome } from "../support/host.js";
 
 const request: ModelRequest = {
   agent: "actor",
@@ -86,15 +86,6 @@ describe("model calls", () => {
     const rows = story.mac.db.prepare("SELECT lookups, error FROM calls ORDER BY rowid").all() as { lookups: string | null; error: string | null }[];
     expect(rows).toEqual([{ lookups: "[\"read Hermione Granger's history\"]", error: null }, { lookups: "[\"searched the web for “dragon eggs”\"]", error: "Claude is overloaded" }]);
     expect(models.lookedUp((failure as ModelCallFailed).callId)).toEqual(["searched the web for “dragon eggs”"]);
-  });
-
-  it("gives a store from before lookups the column for them", () => {
-    const { home, db } = freshHome();
-    db.exec("ALTER TABLE calls DROP COLUMN lookups");
-    db.close();
-    const reopened = openHome(home);
-    const columns = (reopened.db.prepare("PRAGMA table_info(calls)").all() as { name: string }[]).map(column => column.name);
-    expect(columns).toContain("lookups");
   });
 
   it("fails a provider it has no way to reach", async () => {

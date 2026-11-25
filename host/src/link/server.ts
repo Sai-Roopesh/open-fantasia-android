@@ -25,7 +25,7 @@ import { listStories } from "../views/stories.js";
 import type { Catalog } from "../models/catalog.js";
 import { JOBS, setBackupModel, setJobModel, setStoryActor, type Job } from "../models/jobs.js";
 import { MAX_PORTRAIT_BYTES } from "../engine/people.js";
-import { LinkError, STATUS } from "./errors.js";
+import { LinkError, STATUS } from "../errors.js";
 import type { Pairing } from "./pairing.js";
 
 export const CONTRACT_HEADER = "fantasia-contract";
@@ -120,7 +120,9 @@ export function buildLink(options: LinkOptions): FastifyInstance {
     const token = request.headers.authorization?.replace(/^Bearer\s+/i, "") ?? null;
     if (!pairing.device(token)) throw new LinkError("unpaired", "This phone is not paired with this Mac. Run `fantasia pair` on the Mac and scan the code.");
   });
+  const startedTraces = new WeakSet<FastifyRequest>();
   app.addHook("preHandler", async request => {
+    startedTraces.add(request);
     traces.begin(request.traceId, request.method, request.url, request.body);
   });
   app.addHook("onResponse", async (request, reply) => {
@@ -129,7 +131,7 @@ export function buildLink(options: LinkOptions): FastifyInstance {
   app.setErrorHandler((error: unknown, request: FastifyRequest, reply: FastifyReply) => {
     const linkError = error instanceof LinkError ? error : new LinkError("internal", "Something went wrong on the Mac. Look the trace id up with `fantasia trace`.");
     const body: ErrorBody = { error: { code: linkError.code, message: linkError.message, trace_id: request.traceId } };
-    traces.begin(request.traceId, request.method, request.url, request.body);
+    if (!startedTraces.has(request)) traces.begin(request.traceId, request.method, request.url, request.body);
     traces.end(request.traceId, STATUS[linkError.code], `${linkError.code}: ${error instanceof Error ? error.message : String(error)}`);
     void reply.status(STATUS[linkError.code]).send(body);
   });
@@ -384,14 +386,13 @@ export function buildLink(options: LinkOptions): FastifyInstance {
     reply.hijack();
     const raw = reply.raw;
     raw.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive", [TRACE_HEADER]: request.traceId, [CONTRACT_HEADER]: String(CONTRACT_VERSION) });
-    const send = (id: string, data: unknown) => raw.write(`id: ${id}\ndata: ${JSON.stringify(data)}\n\n`);
+    const send = (id: string, data: unknown) => { if (!raw.destroyed && !raw.writableEnded) raw.write(`id: ${id}\ndata: ${JSON.stringify(data)}\n\n`); };
     for (const event of missed) send(event.id, event.event);
     const unsubscribe = engine.subscribe(storyId, event => send(event.id, event.event));
-    const keepalive = setInterval(() => raw.write(": keepalive\n\n"), KEEPALIVE_MS);
-    request.raw.on("close", () => {
-      clearInterval(keepalive);
-      unsubscribe();
-    });
+    const keepalive = setInterval(() => { if (!raw.destroyed && !raw.writableEnded) raw.write(": keepalive\n\n"); }, KEEPALIVE_MS);
+    const cleanup = () => { clearInterval(keepalive); unsubscribe(); };
+    request.raw.on("close", cleanup);
+    raw.on("error", cleanup);
   });
 
   return app;

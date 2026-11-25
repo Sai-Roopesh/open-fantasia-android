@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { actorPrompt } from "../../src/agents/actor.js";
+import { composerCall } from "../../src/agents/composer.js";
 import { nothingBeside } from "../../src/story/beside.js";
 import { ClaudeRunner } from "../../src/models/claude.js";
 import { Models } from "../../src/models/model-call.js";
@@ -50,7 +50,7 @@ async function replyTo(move: string, changed: boolean): Promise<string> {
   let head = mac.tree.currentPath(storyId)!.headEntryId;
   if (changed) head = mac.tree.append(storyId, head, { kind: "style_set", style: `${commonRoom.style} ${ADDED}` }).id;
   const moved = mac.tree.append(storyId, head, { kind: "move", text: move });
-  const { system, prompt } = actorPrompt({ state: mac.states.at(moved.id), beside: nothingBeside(), scene: mac.tree.pathTo(moved.id).slice(1), gathered: [] });
+  const { system, prompt } = composerCall({ state: mac.states.at(moved.id), beside: nothingBeside(), scene: mac.tree.pathTo(moved.id).slice(1), move, choice: null });
   expect(system.includes(ADDED)).toBe(changed);
   const answer = await models.call({ agent: "actor", model: { provider: "claude", model: "claude-opus-5-5" }, system, prompt, traceId: "real", storyId });
   runner.close();

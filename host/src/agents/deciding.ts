@@ -120,7 +120,7 @@ const YOU_DECIDING_VERBS = [
   "admit", "confess", "cry", "sob", "feel", "want", "think", "wonder", "realise", "realize",
   "wish", "hope", "regret", "kiss", "hug", "embrace", "forgive", "accept", "reject",
   "promise", "snap", "apologise", "apologize", "explain", "insist", "shout", "yell",
-  "whisper", "mutter", "murmur", "breathe", "stammer", "manage", "choke\\s+out", "sigh",
+  "whisper", "mutter", "murmur", "stammer", "manage", "choke\\s+out", "sigh",
   "laugh", "smile", "grin", "nod", "shake\\s+your\\s+head", "shrug",
   "pull\\s+(?:away|back|free|her|him|them)", "push\\s+(?:her|him|them|away|back)",
   "back\\s+away", "step\\s+(?:back|away|forward|closer|out|inside)",
@@ -130,12 +130,16 @@ const YOU_DECIDING_VERBS = [
   "give\\s+in", `go\\s+${REACTION}`, `stay\\s+(?:${REACTION}|with\\s+(?:her|him|them))`
 ].join("|");
 
+/** Physical sensations landing on the player ("you feel the sting", "you feel her grip") are allowed by playersPart(). */
+const PHYSICAL_FEEL = /\byou\s+(?:barely\s+|just\s+|still\s+|only\s+)?feel\s+(?:(?:the|a|an|her|his|their|its|cold|warm|hot|sharp|hard|heavy|sudden|damp|cool|rough|soft)\s+){1,3}(?:sting|heat|cold|chill|burn|weight|pressure|wall|stone|floor|wood|jolt|impact|pulse|grip|hand|hands|fingers|palm|arm|shoulder|knee|elbow|breath|wind|rain|air|draft|warmth|blade|edge|bite|pull|shove|tug|slap|bruise|ache|thump|shiver|contact|touch|fabric|metal|glass|door|ledge)\b/gi;
+
 const YOU_SUBJECT = new RegExp(`(?:^|[.!?\\n]\\s*|,\\s*(?:and|but|so)\\s+|;\\s*)you\\s+${OPT_ADVERB}(?:${YOU_DECIDING_VERBS})\\b[^.;\\n]{0,60}`, "i");
 const MAKES_YOU = new RegExp(`\\b(?:makes?|forces?)\\s+you\\s+(?:${AFTER_MAKES})\\b[^.;\\n]{0,40}`, "i");
 
-/** Catches unambiguous second-person narrator control of `you` outside dialogue without false-positiving on references. */
+/** Catches unambiguous second-person narrator control of `you` outside dialogue without false-positiving on references or physical impact. */
 export function decidesForYou(text: string): string | null {
-  const found = YOU_SUBJECT.exec(text) ?? MAKES_YOU.exec(text);
+  const withoutPhysical = text.replace(PHYSICAL_FEEL, "the sensation lands");
+  const found = YOU_SUBJECT.exec(withoutPhysical) ?? MAKES_YOU.exec(withoutPhysical);
   return found ? found[0].replace(/^[.!?;,\n\s]+/, "").trim() : null;
 }
 

@@ -9,9 +9,7 @@ import kotlinx.coroutines.flow.callbackFlow
 import okhttp3.Response
 import okhttp3.sse.EventSource
 import okhttp3.sse.EventSourceListener
-import okhttp3.sse.EventSources
 import java.io.IOException
-import java.util.concurrent.TimeUnit
 
 data class StoryEventEnvelope(val id: String?, val event: StoryEvent)
 
@@ -26,8 +24,7 @@ fun LinkClient.events(storyID: String, lastEventID: String, pathID: String? = nu
     }.build())
         .header("Accept", "text/event-stream")
         .header("Last-Event-ID", lastEventID).build()
-    val client = http.newBuilder().readTimeout(0, TimeUnit.MILLISECONDS).build()
-    val source = EventSources.createFactory(client).newEventSource(request, object : EventSourceListener() {
+    val source = eventSources.newEventSource(request, object : EventSourceListener() {
         override fun onOpen(eventSource: EventSource, response: Response) {
             try { requireContract(response); onConnection(true)
             } catch (e: LinkFailure) { close(e); eventSource.cancel() }

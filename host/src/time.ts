@@ -76,6 +76,17 @@ const DATED = /^(\d{4}-\d{2}-\d{2})[ T]([01][0-9]|2[0-3]):([0-5][0-9])$/;
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/** The Story time [minutes] after Day 1 00:00. */
+export function fromMinutes(minutes: number): string {
+  return formatStoryTime({ day: Math.floor(minutes / 1440) + 1, minuteOfDay: minutes % 1440 });
+}
+
+/** The Story time [minutes] after [at]. */
+export function addMinutes(at: string, minutes: number): string {
+  const time = parseStoryTime(at);
+  return time ? fromMinutes(minutesOf(time) + Math.max(0, Math.round(minutes))) : at;
+}
+
 /** A calendar date "YYYY-MM-DD" as midnight UTC, or null when it is not one. */
 function dateAt(date: string): Date | null {
   const match = DATE.exec(date.trim());

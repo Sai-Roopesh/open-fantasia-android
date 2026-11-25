@@ -3,8 +3,7 @@ import { emptyUpdate } from "../story/truth.js";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
-import { writeReply } from "../agents/actor.js";
-import { composeReply, parseComposedAnswer, rewriteComposedReply } from "../agents/composer.js";
+import { composeReply, recordDue, rewriteComposedReply } from "../agents/composer.js";
 import { Drafts, type Draft } from "../store/drafts.js";
 import { writeChronicle } from "../agents/chronicler.js";
 import { directionDue, writePlan } from "../agents/director.js";
@@ -13,11 +12,10 @@ import { foldDue, writeFold } from "../agents/folder.js";
 import { writeWeave } from "../agents/weaver.js";
 import { editReply, playerPartIn } from "../agents/editor.js";
 import { playersPartBreak } from "../agents/deciding.js";
-import { recordDue } from "../agents/writer.js";
-import { LinkError } from "../link/errors.js";
+import { LinkError } from "../errors.js";
 import type { Mac } from "../mac.js";
 import { actorOf, backupModels, editsEveryReply, jobModels, secondModel, type Job } from "../models/jobs.js";
-import { nameIndex, storyName } from "../agents/names.js";
+import { nameIndex, storyName } from "../story/names.js";
 import { checkPerson, portraitExtension } from "./people.js";
 import { arcsSet, clockSet, landmarkDropped, landmarkSet, placeSet, premiseSet, replyLengthSet, styleSet, worldSet, worldStands } from "./story.js";
 import type { Models } from "../models/model-call.js";
@@ -27,7 +25,8 @@ import type { StoryPath } from "../store/tree.js";
 import { SCENE_END_KINDS, type Entry, type EntryKind, type OutlineSet, type Payload, type WorldMoved } from "../story/entries.js";
 import type { Beside } from "../story/beside.js";
 import type { ModelChoice, Person, SceneEndStep, State } from "../story/state.js";
-import { entryEvent, sceneEntries } from "../views/scene.js";
+import { entryEvent } from "./events.js";
+import { sceneEntries } from "../store/scene-entries.js";
 import { chosen } from "./choosing.js";
 import { clearable, rewind, tryAnotherWay } from "./paths.js";
 import { editEarlier, editInPlace, isLatest, passageOnPath, wordsOf } from "./editing.js";
@@ -546,10 +545,10 @@ export class Engine {
   private async runSceneEnd(storyId: string, run: SceneEndRun): Promise<void> {
     if (this.stopped.has(storyId)) return;
     let said: SceneEndStep | null | undefined;
-    // The World moves on side by side with the Director (quicker-scene-ends design decision 3) when no new Stretch is
-    // due: the Weaver's call starts with the Director's step, from the record, and its entry is written once the
-    // Director's are. A Stretch the Director plans after all is lived out by the World: the Weaver is asked again.
-    let weaving: { traceId: string; plan: number; result: Promise<{ payload: Payload; answered: boolean }> } | null = null;
+    // The World moves on side by side with the Director when no new Stretch or deep re-plan is due. If the Director
+    // ends up writing a new Stretch OR revising the Outline, the speculative weave is discarded so the Weaver never
+    // commits against a stale Outline or Stretch.
+    let weaving: { traceId: string; plan: number; outline: number; result: Promise<{ payload: Payload; answered: boolean }> } | null = null;
     for (;;) {
       const path = this.mac.tree.path(run.pathId);
       if (!path) return;
@@ -559,10 +558,12 @@ export class Engine {
       run.step = step;
       run.preparing = step !== null && !state.scene?.closed;
       if (step === "director" && !weaving && state.scene?.closed && !state.scene.ended.includes("weaver") && directionDue(state) === null) {
-        const traceId = `weaver-${randomUUID().slice(0, 8)}`;
-        weaving = { traceId, plan: state.plan?.number ?? 0, result: this.sceneEndStep(storyId, path.headEntryId, state, "weaver", traceId, run) };
-        // A failure is reported when the World's turn to be written comes, if the Director's step gets that far.
-        weaving.result.catch(() => {});
+        const due = outlineDue(state, besideOf(this.mac, storyId, path.headEntryId));
+        if (due?.depth !== "deep") {
+          const traceId = `weaver-${randomUUID().slice(0, 8)}`;
+          weaving = { traceId, plan: state.plan?.number ?? 0, outline: state.outline?.version ?? 0, result: this.sceneEndStep(storyId, path.headEntryId, state, "weaver", traceId, run) };
+          weaving.result.catch(() => {});
+        }
       }
       // The Act being rethought stays on the line through the Director's step, until the World moves on.
       if (step !== "director") run.rethinking = null;
@@ -570,7 +571,7 @@ export class Engine {
       if (isCurrent && step !== said) this.sayStep(storyId, step);
       said = step;
       if (!step) return isCurrent ? this.goOnFromLeaving(storyId) : undefined;
-      const woven = step === "weaver" && weaving?.plan === (state.plan?.number ?? 0) ? weaving : null;
+      const woven = step === "weaver" && weaving?.plan === (state.plan?.number ?? 0) && weaving?.outline === (state.outline?.version ?? 0) ? weaving : null;
       const traceId = woven?.traceId ?? `${step}-${randomUUID().slice(0, 8)}`;
       try {
         const { payload, answered } = await (woven?.result ?? this.sceneEndStep(storyId, path.headEntryId, state, step, traceId, run));
@@ -700,7 +701,7 @@ export class Engine {
 
   /** The Stories that can be played. */
   private storyIds(): string[] {
-    return (this.mac.db.prepare("SELECT id FROM stories WHERE before_ledger = 0").all() as { id: string }[]).map(story => story.id);
+    return (this.mac.db.prepare("SELECT id FROM stories").all() as { id: string }[]).map(story => story.id);
   }
 
   /**
@@ -1190,21 +1191,19 @@ export class Engine {
     const { state, entries } = sceneEntries(this.mac, note.id);
     const checkpoint = this.drafts.get(note.id);
     const beside = checkpoint?.beside ?? besideOf(this.mac, turn.storyId, note.id);
-    const gathered = note.payload.kind === "beat_note" ? note.payload.gathered ?? [] : [];
     const write = async (again?: { draft: string; notes: string[] }) => {
       turn.step = "actor";
       this.say(turn, "writing");
-      if (again && checkpoint?.beforeId) {
-        const beforeState = this.mac.states.at(checkpoint.beforeId);
-        const beforeScene = sceneEntries(this.mac, checkpoint.beforeId).entries;
-        const moveAt = beforeScene.findIndex(entry => entry.id === turn.move.id);
-        const text = turn.move.payload.kind === "move" ? turn.move.payload.text : "";
-        const choice = turn.move.payload.kind === "move" ? turn.move.payload.choice ?? null : null;
-        const ask = { state: beforeState, scene: moveAt >= 0 ? beforeScene.slice(0, moveAt) : beforeScene, move: text, choice, beside, path: this.mac.tree.pathTo(checkpoint.beforeId) };
-        return rewriteComposedReply(this.models, this.turnChoices(turn, "actor"), ask, again, turn.storyId, turn.traceId, turn.abort.signal);
-      }
-      const written = await writeReply(this.models, this.turnChoices(turn, "actor"), { state, beside, scene: entries, gathered, ...(again ? { again } : {}) }, turn.storyId, turn.traceId, turn.abort.signal);
-      return { ...written, text: parseComposedAnswer(written.text).reply || written.text };
+      const baseId = checkpoint?.beforeId ?? note.parentId ?? note.id;
+      const beforeState = this.mac.states.at(baseId);
+      const beforeScene = sceneEntries(this.mac, baseId).entries;
+      const moveAt = beforeScene.findIndex(entry => entry.id === turn.move.id);
+      const text = turn.move.payload.kind === "move" ? turn.move.payload.text : "";
+      const choice = turn.move.payload.kind === "move" ? turn.move.payload.choice ?? null : null;
+      const ask = { state: beforeState, scene: moveAt >= 0 ? beforeScene.slice(0, moveAt) : beforeScene, move: text, choice, beside, path: this.mac.tree.pathTo(baseId) };
+      if (again) return rewriteComposedReply(this.models, this.turnChoices(turn, "actor"), ask, again, turn.storyId, turn.traceId, turn.abort.signal);
+      const composed = await composeReply(this.models, this.turnChoices(turn, "actor"), ask, turn.storyId, turn.traceId, turn.abort.signal);
+      return { text: composed.value.reply, callId: composed.callId, model: composed.model };
     };
     const pc = state.playerCharacter;
     const editing = editsEveryReply(this.mac.home);

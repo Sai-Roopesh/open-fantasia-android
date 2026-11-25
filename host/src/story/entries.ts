@@ -81,8 +81,6 @@ export interface BeatNote {
   note: string;
   call: SceneCall;
   intensity: number;
-  /** Only on Beat Notes written before 17 November 2026: it fed a pacing count nothing read (docs/adr/0025). */
-  arcMoved?: boolean;
   clock: string;
   inPlay: string[];
   place?: string;

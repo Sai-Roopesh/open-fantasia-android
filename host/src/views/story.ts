@@ -1,4 +1,4 @@
-import { LinkError } from "../link/errors.js";
+import { LinkError } from "../errors.js";
 import type { Mac } from "../mac.js";
 import type { StoryLandmark, StoryView } from "../protocol/generated/link.js";
 import { passed, worldStands } from "../engine/story.js";

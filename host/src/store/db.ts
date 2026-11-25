@@ -12,8 +12,7 @@ CREATE TABLE IF NOT EXISTS stories (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
   folder TEXT NOT NULL,
-  created_at TEXT NOT NULL,
-  before_ledger INTEGER NOT NULL DEFAULT 0
+  created_at TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS entries (
@@ -66,7 +65,9 @@ CREATE TABLE IF NOT EXISTS calls (
   error TEXT,
   started_at TEXT NOT NULL,
   finished_at TEXT,
-  lookups TEXT
+  lookups TEXT,
+  usage TEXT,
+  wire TEXT
 );
 CREATE INDEX IF NOT EXISTS calls_trace ON calls(trace_id);
 CREATE INDEX IF NOT EXISTS calls_entry ON calls(entry_id);
@@ -101,52 +102,11 @@ CREATE TABLE IF NOT EXISTS pairing_codes (
  */
 export const STATE_SHAPE = 10;
 
-/**
- * What a Path card needs (openspec paths): how the Path began, the entry it branched from, whether the player has
- * been on it, and whether they named it. A store from before Paths could branch gains them in place, as Main.
- */
-const PATH_COLUMNS: [string, string][] = [
-  ["origin", "TEXT NOT NULL DEFAULT 'main'"],
-  ["forked_at", "TEXT"],
-  ["opened", "INTEGER NOT NULL DEFAULT 1"],
-  ["named", "INTEGER NOT NULL DEFAULT 0"]
-];
-
-/**
- * A Story made before everything was on the Path (docs/adr/0015) cannot be read: it is kept as it was, unlisted, and
- * made again from its Story File.
- */
-function setStoriesBeforeLedgerAside(db: Db): void {
-  const has = new Set((db.prepare("PRAGMA table_info(stories)").all() as { name: string }[]).map(column => column.name));
-  if (has.has("before_ledger")) return;
-  db.exec("ALTER TABLE stories ADD COLUMN before_ledger INTEGER NOT NULL DEFAULT 0");
-  db.exec("UPDATE stories SET before_ledger = 1");
-}
-
-function addPathColumns(db: Db): void {
-  const has = new Set((db.prepare("PRAGMA table_info(paths)").all() as { name: string }[]).map(column => column.name));
-  for (const [name, type] of PATH_COLUMNS) if (!has.has(name)) db.exec(`ALTER TABLE paths ADD COLUMN ${name} ${type}`);
-}
-
-/**
- * What a call looked up, a line each, as JSON (docs/adr/0018). A store from before agents could look things up gains
- * it in place.
- */
-const CALL_COLUMNS: [string, string][] = [["lookups", "TEXT"], ["usage", "TEXT"], ["wire", "TEXT"]];
-
-function addCallColumns(db: Db): void {
-  const has = new Set((db.prepare("PRAGMA table_info(calls)").all() as { name: string }[]).map(column => column.name));
-  for (const [name, type] of CALL_COLUMNS) if (!has.has(name)) db.exec(`ALTER TABLE calls ADD COLUMN ${name} ${type}`);
-}
-
 export function openDb(file: string): Db {
   const db = new Database(file);
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
   db.exec(SCHEMA);
-  addPathColumns(db);
-  addCallColumns(db);
-  setStoriesBeforeLedgerAside(db);
   if (db.pragma("user_version", { simple: true }) !== STATE_SHAPE) {
     db.exec("DELETE FROM states");
     db.pragma(`user_version = ${STATE_SHAPE}`);

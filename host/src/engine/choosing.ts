@@ -1,4 +1,4 @@
-import { LinkError } from "../link/errors.js";
+import { LinkError } from "../errors.js";
 import type { Mac } from "../mac.js";
 import type { ChooseRequest } from "../protocol/generated/link.js";
 import { dayChoicesOf, offersOn, todayOn } from "../story/day.js";

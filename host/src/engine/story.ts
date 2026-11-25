@@ -1,4 +1,4 @@
-import { LinkError } from "../link/errors.js";
+import { LinkError } from "../errors.js";
 import type { ArcsSet, ClockSet, LandmarkDropped, LandmarkSet, PlaceSet, PremiseSet, ReplyLengthSet, StyleSet, WorldSet } from "../story/entries.js";
 import type { State } from "../story/state.js";
 import { formatStoryTime, isDate, minutesOf, parseStoryTime } from "../time.js";

@@ -21,6 +21,8 @@ export function identity(home: string, port?: number): Identity {
     hostName: hostname().replace(/\.local$/, ""),
     port: port ?? stored.port ?? DEFAULT_PORT
   };
-  writeFileSync(file, JSON.stringify(result, null, 2));
+  if (stored.hostId !== result.hostId || stored.hostName !== result.hostName || stored.port !== result.port) {
+    writeFileSync(file, JSON.stringify(result, null, 2));
+  }
   return result;
 }

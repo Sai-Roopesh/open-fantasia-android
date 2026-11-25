@@ -32,9 +32,12 @@ export function conversationOf(request: ModelRequest): Conversation {
   };
 }
 
-/** A stable UUID-formatted key for the system prompt (and Story shard when set), matching Codex CLI's session-id format. */
+/**
+ * A stable UUID-formatted cache key. When [scope] (a Story id) is given, the key shards by `(model, scope)` so
+ * Composer, Chronicler, Director, and Weaver share the same warmed Story Bible KV-cache prefix on the backend.
+ */
 export function cacheKey(model: string, system: string, scope?: string): string {
-  const hex = createHash("sha256").update(scope ? `${model}\n${scope}\n${system}` : `${model}\n${system}`).digest("hex").slice(0, 32);
+  const hex = createHash("sha256").update(scope ? `${model}\n${scope}` : `${model}\n${system}`).digest("hex").slice(0, 32);
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
 
@@ -47,13 +50,31 @@ function parameters(spec: ToolSpec): Schema {
   };
 }
 
+/** Splits a layered Story system prompt into `[sharedStoryBible, jobSuffix]` at `</people>` so Codex caches the shared Bible across all agents. */
+function codexDeveloperMessages(system: string): Schema[] {
+  const marker = "\n</people>";
+  const at = system.indexOf(marker);
+  if (at >= 0) {
+    const split = at + marker.length;
+    const bible = system.slice(0, split);
+    const tail = system.slice(split).trim();
+    if (tail) {
+      return [
+        { type: "message", role: "developer", content: [{ type: "input_text", text: bible }] },
+        { type: "message", role: "developer", content: [{ type: "input_text", text: tail }] }
+      ];
+    }
+  }
+  return [{ type: "message", role: "developer", content: [{ type: "input_text", text: system }] }];
+}
+
 /**
  * The body the ChatGPT Codex backend takes (`/backend-api/codex/responses`), as the Codex CLI itself sends it.
  *
- * The system prompt is placed in `input[0]` as a `developer` message with `instructions: ""` rather than top-level
- * `instructions`: empirically verified live on 25 Nov 2026 that `gpt-6.2-sol` and `gpt-6.2-astra` do not prefix-cache
- * large top-level `instructions` across multi-turn appends (dropping to ~20–29% cache hit), whereas sending the
- * system prompt as `input[0]` (`role: "developer"`) hits 92%+ KV cache on `gpt-6.2-*` and 92–98% on `gpt-6.1-sol`.
+ * The system prompt is placed in `input` as `developer` message(s) with `instructions: ""` rather than top-level
+ * `instructions` (`gpt-6.2-*` does not prefix-cache large top-level `instructions` across turns). When a Story Bible
+ * (`<story><world><people>`) is present, it is placed in its own leading `developer` message so Composer, Chronicler,
+ * Director, and Weaver reuse the warmed Story Bible KV-cache prefix across agents (measured 66%+ Turn 1 cache hit).
  */
 export function codexBody(conversation: Conversation, model: string, tools: { story: ToolSpec[]; web: boolean }): Schema {
   const text: Schema = { verbosity: conversation.verbosity };
@@ -66,7 +87,7 @@ export function codexBody(conversation: Conversation, model: string, tools: { st
     model,
     instructions: "",
     input: [
-      { type: "message", role: "developer", content: [{ type: "input_text", text: conversation.system }] },
+      ...codexDeveloperMessages(conversation.system),
       ...conversation.turns.map(turn => ({
         type: "message",
         role: turn.role,

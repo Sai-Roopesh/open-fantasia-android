@@ -9,10 +9,12 @@ const MAX_ON = 4;
 const SAME_TIME_MINUTES = 60;
 const WEEK = 7 * 24 * 60;
 
-const minutesAt = (at: string) => {
+const minutesOrNull = (at: string): number | null => {
   const time = parseStoryTime(at);
-  return time ? minutesOf(time) : 0;
+  return time ? minutesOf(time) : null;
 };
+
+const minutesAt = (at: string) => minutesOrNull(at) ?? Infinity;
 
 /** The first time [engagement] is on at or after [clock]: its own time, or a weekly one's that hour a week on. */
 export function nextTime(engagement: Engagement, clock: string): string | null {
@@ -64,7 +66,12 @@ export function missedBetween(state: State, from: string, until: string, scenes:
 
 /** The plan's Scenes that matter still ahead of [clock] and not yet played, in order. */
 export function plannedAhead(state: State, clock: string = state.clock): PlannedScene[] {
-  return (state.plan?.scenes ?? []).filter(scene => !state.played.includes(scene.id) && minutesAt(scene.at) >= minutesAt(clock));
+  const now = minutesOrNull(clock);
+  if (now === null) return [];
+  return (state.plan?.scenes ?? []).filter(scene => {
+    const at = minutesOrNull(scene.at);
+    return at !== null && !state.played.includes(scene.id) && at >= now;
+  });
 }
 
 /** One offer on the Day View, before it is said for the phone. */
@@ -94,9 +101,10 @@ export function offersOn(state: State): Offer[] {
     who: engagement.who, expected: engagement.expected, pick: false, scene: null, engagement: engagement.id, every: engagement.every
   }));
   const next = plannedAhead(state)[0];
+  const nowMin = minutesOrNull(now);
   const others: Offer[] = [
     ...(next ? [{ id: `p-${next.id}`, at: next.at, place: next.place, what: next.offer, who: next.who, expected: false, pick: true, scene: next.id, engagement: null, every: null }] : []),
-    ...state.on.filter(item => minutesAt(item.at) >= minutesAt(now)).map(item => ({ ...item, expected: false, pick: false, scene: null, engagement: null, every: null }))
+    ...state.on.filter(item => { const at = minutesOrNull(item.at); return at !== null && nowMin !== null && at >= nowMin; }).map(item => ({ ...item, expected: false, pick: false, scene: null, engagement: null, every: null }))
   ];
   const kept: Offer[] = [];
   for (const offer of others) {

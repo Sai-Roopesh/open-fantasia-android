@@ -1,7 +1,8 @@
 import { Ajv2020 } from "ajv/dist/2020.js";
-import { formatStoryTime, minutesOf, parseAnyTime, parseStoryTime } from "../time.js";
+import { addMinutes, formatStoryTime, fromMinutes, minutesOf, parseAnyTime, parseStoryTime } from "../time.js";
 import type { State } from "../story/state.js";
-import { nameIndex, storyName } from "./names.js";
+import { nameIndex, storyName } from "../story/names.js";
+export { addMinutes, fromMinutes };
 
 /**
  * Answer formats built for one Story (one-truth design decision 5): the Story's people as a fixed list, so a model
@@ -82,17 +83,6 @@ export function clampTime(value: string, from: string, until: string, dayOne: st
   const end = parseStoryTime(until);
   if (!time || !start || !end) return null;
   return fromMinutes(Math.min(Math.max(minutesOf(time), minutesOf(start)), minutesOf(end)));
-}
-
-/** The Story time [minutes] after Day 1 00:00. */
-export function fromMinutes(minutes: number): string {
-  return formatStoryTime({ day: Math.floor(minutes / 1440) + 1, minuteOfDay: minutes % 1440 });
-}
-
-/** The Story time [minutes] after [at]. */
-export function addMinutes(at: string, minutes: number): string {
-  const time = parseStoryTime(at);
-  return time ? fromMinutes(minutesOf(time) + Math.max(0, Math.round(minutes))) : at;
 }
 
 export const wordCount = (value: string) => value.trim().split(/\s+/).filter(Boolean).length;

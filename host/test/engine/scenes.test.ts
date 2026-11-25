@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { nothingTrue } from "../../src/agents/truth-record.js";
 import { emptyUpdate, type TruthUpdate } from "../../src/story/truth.js";
-import { LinkError } from "../../src/link/errors.js";
+import { LinkError } from "../../src/errors.js";
 import type { OutgoingEvent } from "../../src/engine/engine.js";
 import type { ModelRequest } from "../../src/models/model-call.js";
 import type { Script } from "../../src/models/scripted.js";
@@ -86,7 +86,7 @@ describe("a turn with the Writer", () => {
     expect(path().filter(payload => payload.kind === "scene_opened")).toHaveLength(1);
     expect(view().scene).toMatchObject({ number: 1, title: "Wednesday", place: "The library" });
     expect(events.filter(event => event.event.kind === "scene_opened")).toHaveLength(0);
-    expect(models.writer.requests[1]!.prompt).toContain("Only the player's End Scene action closes this Scene.");
+    expect(models.writer.requests[1]!.system).toContain("Only the player's End Scene closes a Scene.");
   });
 
   // GIVEN a Scene whose purpose has turned: Draconia has said what she came to say
@@ -186,10 +186,9 @@ describe("a turn with the Writer", () => {
     });
     engine.setLinger(storyId, head(), true, "trace-linger");
     for (let exchange = 1; exchange <= 8; exchange++) await play(`I stay where I am, by the fire (${exchange}).`);
-    const tasks = models.writer.requests.map(request => request.prompt.slice(request.prompt.lastIndexOf("<task>")));
-    expect(tasks).toHaveLength(8);
-    expect(tasks.every(task => /Linger is on/.test(task))).toBe(true);
-    expect(tasks.some(task => /make it happen now|No Arc has moved/.test(task))).toBe(false);
+    expect(models.writer.requests).toHaveLength(8);
+    expect(models.writer.requests.every(request => /Linger is on/.test(request.prompt))).toBe(true);
+    expect(models.writer.requests.some(request => /make it happen now|No Arc has moved/.test(request.prompt))).toBe(false);
     expect(path().some(payload => payload.kind === "scene_closed")).toBe(false);
     expect(state().scene).toMatchObject({ closed: null, linger: true });
     expect(state().scene!.beats).toEqual(beats(0));
@@ -210,7 +209,7 @@ describe("a turn with the Writer", () => {
     expect(path().filter(payload => payload.kind === "scene_opened")).toHaveLength(1);
     expect(state().scene).toMatchObject({ number: 1, closed: null, linger: true, place: "The lake shore" });
     expect(models.chronicler.requests).toHaveLength(0);
-    expect(models.writer.requests.at(-1)!.prompt).toContain("Wherever the Move goes and however long it takes, the Scene goes on");
+    expect(models.writer.requests.at(-1)!.prompt).toContain("Linger is on: hold the moment without forcing a payoff.");
   });
 
   it("fails the turn when the Writer fails twice, keeping the Move, and runs the Writer again on Retry", async () => {
@@ -608,7 +607,7 @@ function exchanges(story: ReturnType<typeof playable>, moves: { move: string; re
   const model = { provider: "claude" as const, model: "claude-opus-5-5" };
   for (const [index, { move, reply }] of moves.entries()) {
     story.write({ kind: "move", text: move });
-    story.write({ kind: "beat_note", plan: index === 0 ? { purpose: "Something between them turns.", exit: "It turns, or it does not." } : null, here: story.state().scene!.here, goes: [], beats: beats(0), note: "n", call: "continue", intensity: 2, arcMoved: true, clock: story.state().clock, inPlay: [], callId: "c", model });
+    story.write({ kind: "beat_note", plan: index === 0 ? { purpose: "Something between them turns.", exit: "It turns, or it does not." } : null, here: story.state().scene!.here, goes: [], beats: beats(0), note: "n", call: "continue", intensity: 2, clock: story.state().clock, inPlay: [], callId: "c", model });
     story.write({ kind: "reply", text: reply, callId: "c", model });
   }
 }
@@ -695,7 +694,7 @@ describe("a long Scene (the-storys-mind design decision 8)", () => {
     ]);
     await story.play("I ask Draconia why she came.");
 
-    expect(story.models.writer.requests[0]!.prompt).toContain("This Scene has run 31 exchanges and was recorded so far.");
+    expect(story.models.writer.requests[0]!.prompt).toContain("<recorded_so_far>");
     const kinds = story.path().map(payload => payload.kind);
     const from = kinds.lastIndexOf("move");
     expect(kinds.slice(from)).toEqual(["move", "scene_recorded", "beat_note", "reply"]);

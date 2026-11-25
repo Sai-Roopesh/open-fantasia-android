@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { actorPrompt } from "../../src/agents/actor.js";
+import { composerCall } from "../../src/agents/composer.js";
 import { nothingBeside } from "../../src/story/beside.js";
 import { ClaudeRunner } from "../../src/models/claude.js";
 import { Models } from "../../src/models/model-call.js";
@@ -61,7 +61,7 @@ async function replyTo(move: string, note?: string) {
   if (note) head = mac.tree.append(storyId, head.id, { kind: "beat_note", plan: null, here: ["Hermione Granger"], goes: [], beats: [], note, call: "continue",
     intensity: 2, clock: "Day 2 23:40", inPlay: [], callId: "scripted", model: { provider: "claude", model: "scripted" } });
   const state = mac.states.at(head.id);
-  const { system, prompt } = actorPrompt({ state, beside: nothingBeside(), scene: mac.tree.pathTo(head.id).slice(1), gathered: [] });
+  const { system, prompt } = composerCall({ state, beside: nothingBeside(), scene: mac.tree.pathTo(head.id).slice(1), move, choice: null });
   const words: string[] = [];
   const answer = await models.call({ agent: "actor", model: { provider: "claude", model: "claude-opus-5-5" }, system, prompt, traceId: "real", storyId }, word => words.push(word));
   runner.close();

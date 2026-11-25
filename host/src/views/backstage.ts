@@ -1,4 +1,4 @@
-import { LinkError } from "../link/errors.js";
+import { LinkError } from "../errors.js";
 import type { Mac } from "../mac.js";
 import type { BackstageDay, BackstageView, DirectorLine, HowItsGoing, JobHealth, LifeRow, LivesByTier, NewThingRow, OutlineView, SourceRow, StretchLead, StretchScene, StretchView, TruthView } from "../protocol/generated/link.js";
 import { besideOf } from "../store/beside.js";
@@ -241,19 +241,26 @@ interface CallRow {
 
 const count = (reactions: Reaction[], reaction: Reaction["reaction"]) => reactions.filter(item => item.reaction === reaction).length;
 
-/** How long each Reply on the Path took the player to get: from the start of the Writer's call to the Reply written. */
+/** How long each Reply on the Path took the player to get: single batched lookup instead of N+1 queries. */
 function replySeconds(mac: Mac, path: Entry[]): number[] {
-  const started = mac.db.prepare("SELECT started_at FROM calls WHERE id = ?");
-  const seconds: number[] = [];
+  const pairs: { callId: string; replyAt: string }[] = [];
   let planned: string | null = null;
   for (const entry of path) {
     if (entry.payload.kind === "beat_note") planned = entry.payload.callId;
     if (entry.payload.kind !== "reply" || !planned) continue;
-    const call = started.get(planned) as { started_at: string } | undefined;
-    if (call) seconds.push(Math.max(0, Math.round((Date.parse(entry.createdAt) - Date.parse(call.started_at)) / 1000)));
+    pairs.push({ callId: planned, replyAt: entry.createdAt });
     planned = null;
   }
-  return seconds;
+  const recent = pairs.slice(-LOOK_BACK);
+  if (recent.length === 0) return [];
+  const ids = [...new Set(recent.map(pair => pair.callId))];
+  const placeholders = ids.map(() => "?").join(", ");
+  const rows = mac.db.prepare(`SELECT id, started_at FROM calls WHERE id IN (${placeholders})`).all(...ids) as { id: string; started_at: string }[];
+  const startedById = new Map(rows.map(row => [row.id, row.started_at]));
+  return recent.flatMap(pair => {
+    const startedAt = startedById.get(pair.callId);
+    return startedAt ? [Math.max(0, Math.round((Date.parse(pair.replyAt) - Date.parse(startedAt)) / 1000))] : [];
+  });
 }
 
 /**

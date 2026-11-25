@@ -79,12 +79,13 @@ const PART_LIMITS: Record<string, number> = {
 };
 
 describe("prompts in four layers (the-storys-mind design decision 7)", () => {
-  it("gives every reader the Story, then where things stand, then the Scene, then the moment, in prose", () => {
+  it("gives every reader the shared Story Bible first, then job instructions, then where things stand, Scene, and moment", () => {
     const story = nineteenIn();
-    for (const reader of READERS) {
-      const four = layered(story, reader);
-      const { system, prompt } = asCall({ ...four, story: `You are the ${reader}.\n\n${four.story}` });
-      expect(system.startsWith(`You are the ${reader}.\n\n<story>\nTitle: The Malfoy Problem\nPremise: Roopesh's years at Hogwarts`), reader).toBe(true);
+    const bibles = READERS.map(reader => {
+      const four = layers(story.state(), nothingBeside(), reader, story.state().scene?.here ?? [], story.scene().slice(0, -1), MOVE, `You are the ${reader}.`);
+      const { system, prompt } = asCall(four);
+      expect(system.startsWith("<story>\nTitle: The Malfoy Problem\nPremise: Roopesh's years at Hogwarts"), reader).toBe(true);
+      expect(system.endsWith(`You are the ${reader}.`), reader).toBe(true);
       expect(system, reader).toContain("Everyone at Hogwarts, students and staff, is eighteen or older.");
       // Slowest-changing first: the Story So Far, the Scene, then the moment, which ends on the Move.
       expect(prompt.indexOf("<story_so_far>"), reader).toBe(0);
@@ -93,7 +94,10 @@ describe("prompts in four layers (the-storys-mind design decision 7)", () => {
       expect(prompt.endsWith(MOVE[0]!), reader).toBe(true);
       // Prose, never JSON.
       expect(`${system}${prompt}`, reader).not.toMatch(/[{[]"/);
-    }
+      return system.slice(0, system.indexOf("\n\n<rules>"));
+    });
+    // Cross-agent KV-cache invariant: <story>, <world>, and <people> are 100% byte-identical across ALL agents.
+    for (const bible of bibles) expect(bible).toBe(bibles[0]);
   });
 
   it("keeps layers 1 and 2 the same for every Reply in a Scene, and moves the time only in layer 4", () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Engine, type OutgoingEvent } from "../../src/engine/engine.js";
-import { LinkError } from "../../src/link/errors.js";
+import { LinkError } from "../../src/errors.js";
 import { Models } from "../../src/models/model-call.js";
 import { fakeWriterAnswer } from "../../src/models/fake.js";
 import { ScriptedRunner } from "../../src/models/scripted.js";

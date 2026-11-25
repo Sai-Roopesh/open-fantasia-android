@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LinkError } from "../../src/link/errors.js";
+import { LinkError } from "../../src/errors.js";
 import { playable } from "../support/play.js";
 import { hogwartsStoryFile } from "../support/story-files.js";
 

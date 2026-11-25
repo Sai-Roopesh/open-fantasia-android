@@ -2,7 +2,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { PairingInvite } from "../protocol/generated/link.js";
 import { CONTRACT_VERSION } from "../protocol/generated/contract.js";
 import type { Db } from "../store/db.js";
-import { LinkError } from "./errors.js";
+import { LinkError } from "../errors.js";
 
 /** How long a pairing code shown as a QR code can be used. */
 export const PAIRING_MINUTES = 10;

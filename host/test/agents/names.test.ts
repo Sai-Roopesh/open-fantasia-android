@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nameIndex, storyName } from "../../src/agents/names.js";
+import { nameIndex, storyName } from "../../src/story/names.js";
 import type { Person } from "../../src/story/state.js";
 
 const person = (name: string, aliases: string[] = []): Person => ({ name, aliases, whoTheyAre: "", known: null, appearance: "", after: "", knows: [], voice: [], portrait: null, group: null, broughtIn: null });

@@ -145,9 +145,9 @@ class MacConnection(
     override suspend fun setBrief(storyID: String, request: BriefRequest): Accepted = command { it.setBrief(storyID, request) }
     override suspend fun react(storyID: String, request: ReactionRequest): Accepted = command { it.react(storyID, request) }
     override fun watch(initial: SceneView): Flow<SceneView> = StoryStream(
-        onConnection = { connected.value = it }, loadScene = { scene(it) }
+        onConnection = { connected.value = it; if (!it) current = null }, loadScene = { scene(it) }
     ) {
-        read { it.scene(initial.storyID); it }
+        current ?: read { it.stories(); it }
     }.follow(initial)
 
     override fun portrait(url: String): PortraitSource? {
@@ -163,4 +163,4 @@ class MacConnection(
     }
 }
 
-private const val UNREACHABLE = "The Mac is unreachable"
+internal const val UNREACHABLE = "The Mac is unreachable"

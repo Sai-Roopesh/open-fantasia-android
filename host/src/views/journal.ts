@@ -1,4 +1,4 @@
-import { LinkError } from "../link/errors.js";
+import { LinkError } from "../errors.js";
 import type { Mac } from "../mac.js";
 import type { JournalDay, JournalRow, JournalView } from "../protocol/generated/link.js";
 import { sceneSpans } from "../story/spans.js";

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { emptyUpdate } from "../../src/story/truth.js";
-import { writerPrompt } from "../../src/agents/writer.js";
+import { composerCall } from "../../src/agents/composer.js";
 import { nothingBeside } from "../../src/story/beside.js";
 import type { BeatNote, Chronicle, DirectorPlan, Entry, Payload, StoryFolded, WorldMoved } from "../../src/story/entries.js";
 import { apply, RECENT_PLANS } from "../../src/story/reducer.js";
@@ -17,7 +17,7 @@ function entry(payload: Payload): Entry {
 const beats = (inPlay: number): Beat[] => [0, 1, 2].map(index => ({ text: `beat ${index + 1}`, status: index < inPlay ? "done" : index === inPlay ? "in_play" : "pending" }));
 
 function note(changes: Partial<BeatNote> = {}): Payload {
-  return { kind: "beat_note", plan: null, here: ["Meera Kulkarni", "Uncle Bhalla"], goes: [], beats: beats(0), note: "Meera sits.", call: "continue", intensity: 2, arcMoved: true, clock: "Day 1 22:45", inPlay: [], callId: "c", model: { provider: "claude", model: "claude-sonnet-5-5" }, ...changes };
+  return { kind: "beat_note", plan: null, here: ["Meera Kulkarni", "Uncle Bhalla"], goes: [], beats: beats(0), note: "Meera sits.", call: "continue", intensity: 2, clock: "Day 1 22:45", inPlay: [], callId: "c", model: { provider: "claude", model: "claude-sonnet-5-5" }, ...changes };
 }
 
 const play = (state: State, ...payloads: Payload[]) => payloads.reduce((current, payload) => apply(current, entry(payload)), state);
@@ -94,9 +94,9 @@ describe("pacing", () => {
   it("sets no reply deadline on a beat, however long it has been in play", () => {
     const { state } = nightTrain();
     const stalled = play(state, ...Array.from({ length: 5 }, () => note({ plan: { purpose: "p", exit: "e" }, beats: beats(0) })));
-    const task = writerPrompt({ state: stalled, scene: [], move: "I say nothing.", choice: null, beside: nothingBeside() }, [], "").prompt;
-    expect(task).toContain("There is no turn limit or deadline for a beat.");
-    expect(task).not.toMatch(/in play for \d+ Replies|No Arc has moved/);
+    const call = composerCall({ state: stalled, scene: [], move: "I say nothing.", choice: null, beside: nothingBeside() });
+    expect(call.system).toContain("Only the player's End Scene closes a Scene.");
+    expect(call.prompt).not.toMatch(/in play for \d+ Replies|No Arc has moved/);
   });
 });
 

@@ -6,12 +6,6 @@ import { currentAct, waiting, type Act } from "../story/outline.js";
 import type { Fact, Person, State, Told } from "../story/state.js";
 import { betweenKey, open, type Truth, type TruthKind } from "../story/truth.js";
 
-/**
- * Who sees what (one-truth design decision 3): the Director and the Weaver see everything; the Writer sees everything
- * with who knows each thing; the Actor plays each person from what they know; the phone shows what he knows.
- */
-export type Lens = "omniscient" | "author" | "character";
-
 /** How much of each section an agent is given: the budgets that keep a long Story's context short. */
 export const BUDGET = { facts: 14, moments: 5, calendar: 8, nearby: 12, perPerson: 6, recentScenes: 8 } as const;
 
@@ -45,26 +39,8 @@ export function stripSceneState(text: string): string {
     .trim();
 }
 
-/**
- * Splits an inline out-of-character author/director note (`director note: ...`, `OOC: ...`, `[OOC: ...]`) from a
- * player's Move so the model obeys it as a one-shot directive without treating it as spoken dialogue or leaking it
- * into later turns and Chronicler records.
- */
-export function splitMoveNote(text: string): { move: string; note: string | null } {
-  const labeled = /(?:^|\n)\s*(?:director(?:'s)?\s+note|author(?:'s)?\s+note|ooc)\s*:\s*([\s\S]+)$/i.exec(text);
-  if (labeled && labeled.index !== undefined) {
-    const move = text.slice(0, labeled.index).trim();
-    const note = (labeled[1] ?? "").trim();
-    if (note) return { move, note };
-  }
-  const bracketed = /\s*[\[(]\s*(?:director(?:'s)?\s+note|ooc)\s*:\s*([\s\S]+?)[\])]\s*$/i.exec(text);
-  if (bracketed && bracketed.index !== undefined) {
-    const move = text.slice(0, bracketed.index).trim();
-    const note = (bracketed[1] ?? "").trim();
-    if (note) return { move, note };
-  }
-  return { move: text.trim(), note: null };
-}
+import { splitMoveNote } from "../story/move.js";
+export { splitMoveNote };
 
 /** [body] in a tag, closed by the tag's name alone; null when there is nothing in it. */
 export function section(tag: string, body: string): string | null {
@@ -91,77 +67,6 @@ const minutesAt = (at: string) => {
   const time = parseStoryTime(at);
   return time ? minutesOf(time) : 0;
 };
-
-/**
- * The Story as it was set up and edited: the same on every call until the player edits it, so it is the part of the
- * prompt the provider caches (docs/adr/0005).
- */
-export function storyPart(state: State): string {
-  const pc = state.playerCharacter;
-  const person = (who: Person) => `- ${who.name}${who.aliases.length ? ` (also ${who.aliases.join(", ")})` : ""}${who.group ? `, of ${who.group}` : ""}: ${who.whoTheyAre}${who.after ? ` After: ${who.after}` : ""}`;
-  return join([
-    section("story", [
-      `Title: ${state.title}`,
-      `Premise: ${state.premise}`,
-      state.arcs.length ? `Arcs:\n${state.arcs.map(arc => `- ${arc}`).join("\n")}` : "",
-      state.landmarks.length ? `Landmarks:\n${state.landmarks.map(landmark => `- ${landmark.name}, ${say(state, landmark.at)}: ${landmark.what}`).join("\n")}` : "",
-      `Style: ${state.style}`,
-      state.world.summary ? `World: ${state.world.summary}` : "",
-      state.world.history ? `History: ${state.world.history}` : ""
-    ].filter(Boolean).join("\n")),
-    section("places", [...state.world.places, ...state.world.institutions].map(place => `- ${place.name}${place.description ? `: ${place.description}` : ""}`).join("\n")),
-    section("groups", state.groups.map(group => `- ${group.name}: ${group.description}`).join("\n")),
-    section(`player_character name="${pc}"`, state.people[pc]?.whoTheyAre ?? ""),
-    section("people", Object.values(state.people).filter(who => who.name !== pc && who.broughtIn === null).map(person).join("\n")),
-    section("leads", state.leads.join(", "))
-  ]);
-}
-
-/** Who matters now: present, then the Leads, then people in the plan, the calendar or what happened lately. */
-export function salience(state: State, present: string[]): { full: string[]; nearby: string[]; resting: number } {
-  const pc = state.playerCharacter;
-  const full = [...new Set([...present, ...state.leads])].filter(name => name !== pc && state.people[name]);
-  const lately = state.facts.slice(-BUDGET.facts).flatMap(fact => fact.knownTo);
-  const plan = plannedAhead(state).flatMap(scene => scene.who);
-  const calendar = engagementsAhead(state).flatMap(item => item.engagement.who);
-  const brought = Object.values(state.people).filter(who => who.broughtIn !== null).map(who => who.name);
-  const nearby = [...new Set([...brought, ...plan, ...calendar, ...lately])]
-    .filter(name => name !== pc && !full.includes(name) && state.people[name])
-    .slice(0, BUDGET.nearby);
-  return { full, nearby, resting: Object.keys(state.people).length - full.length - nearby.length - 1 };
-}
-
-/** Who someone the Director brought in is: they are not in the Story's cached part. */
-function broughtIn(state: State, name: string): string {
-  const who = state.people[name];
-  return who && who.broughtIn !== null ? ` (new to the Story: ${who.whoTheyAre})` : "";
-}
-
-function personNow(state: State, name: string, lens: Lens): string {
-  const life = state.lives[name];
-  const bond = state.bonds[name];
-  const known = state.known[name];
-  return [
-    `${name}${broughtIn(state, name)}`,
-    lens !== "character" && life ? `  Now: ${[life.where ? `at ${life.where}` : "", life.doing ?? ""].filter(Boolean).join(", ")}${life.after ? `; after ${life.after}` : ""}` : "",
-    bond ? `  Between them and ${state.playerCharacter}: ${bond.standing}${bond.turns.length ? ` (latest: ${bond.turns.slice(-2).map(turn => `${turn.scene ? `Scene ${turn.scene.number}: ` : ""}${turn.text}`).join("; ")})` : ""}` : "",
-    known ? `  What ${state.playerCharacter} knows of them: ${known.text}` : ""
-  ].filter(Boolean).join("\n");
-}
-
-/** The cast now, by salience: who matters in full, who is nearby in a line, and how many rest. */
-export function castPart(state: State, present: string[], lens: Lens): string | null {
-  const { full, nearby, resting } = salience(state, present);
-  const line = (name: string) => {
-    const life = state.lives[name];
-    return `- ${name}${broughtIn(state, name)}${life ? `: ${[life.where ? `at ${life.where}` : "", life.doing ?? ""].filter(Boolean).join(", ")}` : ""}`;
-  };
-  return section("cast_now", [
-    full.map(name => personNow(state, name, lens)).join("\n"),
-    nearby.length && lens !== "character" ? `Nearby:\n${nearby.map(line).join("\n")}` : "",
-    resting > 0 ? `${resting} others are about their own lives.` : ""
-  ].filter(Boolean).join("\n\n"));
-}
 
 /** One part of The Story So Far as agents read it: a Scene's paragraph, a week's recap, or an Act's account. */
 function toldLine(state: State, part: Told): string {
@@ -192,34 +97,6 @@ export function storySoFarPart(state: State, framing = "", limit: number = LIMIT
   ].filter(Boolean).join("\n\n"));
 }
 
-/** What he arranged and what is planned, as each lens may see it. */
-export function calendarPart(state: State, lens: Lens): string | null {
-  const engagements = engagementsAhead(state).slice(0, BUDGET.calendar).map(({ engagement, next }, index) =>
-    `- E${index + 1} ${say(state, next)}${engagement.every === "week" ? ", every week" : ""}, ${engagement.place}: ${engagement.what}${engagement.who.length ? ` With ${engagement.who.join(", ")}.` : ""}${engagement.expected ? " He is expected." : ""}`);
-  const landmarks = state.landmarks.filter(landmark => minutesAt(landmark.at) >= minutesAt(state.clock)).sort((left, right) => minutesAt(left.at) - minutesAt(right.at)).slice(0, 2).map(landmark => `- ${landmark.name}, ${say(state, landmark.at)}`);
-  // What the World last had on, still ahead: the Weaver's `on` replaces it, so it carries forward what it keeps.
-  const on = lens === "character" ? [] : state.on.filter(item => minutesAt(item.at) >= minutesAt(state.clock)).sort((left, right) => minutesAt(left.at) - minutesAt(right.at))
-    .map(item => `- ${say(state, item.at)}, ${item.place}: ${item.what}${item.who.length ? ` (with ${item.who.join(", ")})` : ""}`);
-  return section("calendar", [
-    state.routine.length ? `Routine:\n${state.routine.map(line => `- ${line}`).join("\n")}` : "",
-    engagements.length ? `What he has arranged:\n${engagements.join("\n")}` : "",
-    on.length ? `What is on ahead:\n${on.join("\n")}` : "",
-    landmarks.length ? `Landmarks next:\n${landmarks.join("\n")}` : "",
-    lens !== "character" && plannedAhead(state).length ? `The plan's Scenes that matter ahead:\n${plannedAhead(state).map(scene => `- ${scene.id} ${say(state, scene.at)}, ${scene.place}, with ${scene.who.join(", ") || "nobody else"}: ${scene.for}`).join("\n")}` : ""
-  ].filter(Boolean).join("\n\n"));
-}
-
-/**
- * What happened lately, each with who knows it; the character lens sees only what someone present knows, and not what
- * only the Player Character knows until he tells them on the page.
- */
-export function factsPart(state: State, lens: Lens, present: string[]): string | null {
-  const pc = state.playerCharacter;
-  const visible = (fact: Fact) => lens !== "character" || fact.knownTo.some(name => name !== pc && present.includes(name));
-  const lately = state.facts.filter(fact => fact.source === "world" && visible(fact)).slice(-BUDGET.facts);
-  return section("lately", lately.map(fact => `- ${fact.id} ${say(state, fact.at)}${fact.where ? `, ${fact.where}` : ""}: ${fact.what} Known to: ${fact.knownTo.join(", ") || "nobody"}.`).join("\n"));
-}
-
 /**
  * The Moments the people present remember, in their own words, labelled M1 …: by who was there, then weight, then
  * how recent. Each says who knows it, so nobody acts on one they do not.
@@ -239,21 +116,6 @@ export function momentsPart(state: State, moments: Fact[]): string | null {
     `M${index + 1} (Scene ${fact.scene}; known to ${fact.knownTo.join(", ")}): ${fact.what}`,
     ...fact.quotes.map(quote => `  "${quote.text}"`)
   ].join("\n")).join("\n"));
-}
-
-/**
- * The player's brief, reactions and Taste, kept beside the Story (docs/adr/0020): what the Director and the Writer
- * serve. Taste is the player's own, which every Story starts with, and then the Story's.
- */
-export function steeringPart(beside: Beside): string | null {
-  const reactions = beside.reactions.slice(-6);
-  const taste = tasteLines(beside);
-  return section("the_players_wishes", [
-    beside.brief.more.length ? `More of:\n${beside.brief.more.map(line => `- ${line}`).join("\n")}` : "",
-    beside.brief.less.length ? `Less of:\n${beside.brief.less.map(line => `- ${line}`).join("\n")}` : "",
-    reactions.length ? `Reactions to recent Scenes:\n${reactions.map(item => `- Scene ${item.scene}, ${item.title}: ${item.reaction === "more" ? "more like this" : "less like this"}${item.note ? ` (${item.note})` : ""}`).join("\n")}` : "",
-    taste.length ? `Taste:\n${taste.map(line => `- ${line}`).join("\n")}` : ""
-  ].filter(Boolean).join("\n\n"));
 }
 
 /** Every lesson of Taste a Story is written to: the player's own first, then the Story's (openspec long-run). */
@@ -316,7 +178,9 @@ const LATEST_EXCHANGES = 8;
 export function layers(state: State, beside: Beside, reader: Reader, present: string[], scene: Entry[], moment: (string | null)[], instructions = ""): Layers {
   const here = [...new Set(present)].filter(name => name !== state.playerCharacter);
   return {
-    story: join([instructions.trim() || null, storyLayer(state, reader)]),
+    // Story Bible FIRST, job-specific instructions AFTER, so Composer, Chronicler, Director, and Weaver share the
+    // exact same cached leading Story Bible prefix across every call on the Story.
+    story: join([storyLayer(state, reader), instructions.trim() || null]),
     standing: join([standingLayer(state, beside, reader, here, scene), reader === "chronicler" ? null : directionsPart(beside),
       reader === "actor" || reader === "writer" ? voicesPart(state, here) : null]),
     scene: sceneLayer(state, reader, scene),
@@ -407,39 +271,37 @@ function briefLine(text: string, max = 140): string {
   return `${firstSentence.slice(0, max - 1).replace(/\s+\S*$/, "")}…`;
 }
 
-/** Layer 1, the Story: as it was set up and edited, its Rules, and the names given on the page. */
+/**
+ * Layer 1, the Story: as it was set up and edited, its Rules, and the names given on the page.
+ * `<story>`, `<world>`, and `<people>` are formatted identically across ALL readers (Composer, Chronicler, Director,
+ * Weaver, Editor) so every agent shares the exact same leading KV-cache prefix on a Story. Minor off-screen cast and
+ * places stay compact (agents with tools look up full history via `read_person`/`read_name`).
+ */
 function storyLayer(state: State, reader: Reader): string {
   const pc = state.playerCharacter;
   const limits = LIMITS.parts;
-  const steers = STEERS.has(reader);
   const lookUp = LOOKS_UP.has(reader);
   const ids = RECORDS.has(reader);
-  const writes = reader === "actor" || reader === "writer" || reader === "editor";
-  const prose = reader === "actor" || reader === "writer";
   const lead = (name: string) => state.leads.includes(name);
-  const fullPerson = (who: Person, role: string) => `- ${who.name}${role}${who.aliases.length ? `, also ${who.aliases.join(", ")}` : ""}${who.group ? `, of ${who.group}` : ""}: ${sentence(who.whoTheyAre)}${writes && who.appearance ? ` Looks: ${sentence(who.appearance)}` : ""}${who.after ? ` After: ${sentence(who.after)}` : ""}`;
-  // For prose calls, keep full character sheets for the Player Character and Leads, and compact off-screen minor cast
-  // to a 1-line index (full history is fetched on demand via read_person). Cuts Layer 1 token cost ~50% while staying
-  // 100% static across the entire Story for maximum prompt cache hits.
-  const person = (who: Person, role: string) => (prose && !lead(who.name) && who.name !== pc
+  const fullPerson = (who: Person, role: string) => `- ${who.name}${role}${who.aliases.length ? `, also ${who.aliases.join(", ")}` : ""}${who.group ? `, of ${who.group}` : ""}: ${sentence(who.whoTheyAre)}${who.appearance ? ` Looks: ${sentence(who.appearance)}` : ""}${who.after ? ` After: ${sentence(who.after)}` : ""}`;
+  const person = (who: Person, role: string) => (!lead(who.name) && who.name !== pc
     ? `- ${who.name}${who.aliases.length ? ` (${who.aliases.join(", ")})` : ""}${who.group ? `, ${who.group}` : ""}: ${briefLine(who.whoTheyAre, 120)}`
     : fullPerson(who, role));
   const pcPerson = state.people[pc];
   // The Leads first, so a Story too big for its limit loses the least.
   const people = Object.values(state.people).filter(who => who.name !== pc && who.broughtIn === null).sort((left, right) => Number(lead(right.name)) - Number(lead(left.name)));
   const places = (heading: string, items: { name: string; description: string }[]) => (items.length
-    ? [heading, ...items.map(item => `- ${item.name}${item.description ? `: ${prose ? briefLine(item.description, 100) : sentence(item.description)}` : ""}`)]
+    ? [heading, ...items.map(item => `- ${item.name}${item.description ? `: ${briefLine(item.description, 100)}` : ""}`)]
     : []);
   return join([
     part("story", `Title: ${state.title}`, [
       `Premise: ${state.premise}`,
       `Style: ${state.style}`,
-      ...(steers && state.arcs.length ? ["Arcs:", ...state.arcs.map(arc => `- ${arc}`)] : []),
-      ...(steers && !prose && state.landmarks.length ? ["Landmarks:", ...state.landmarks.map(landmark => `- ${landmark.name}, ${say(state, landmark.at)}: ${sentence(landmark.what)}`)] : [])
+      ...(state.arcs.length ? ["Arcs:", ...state.arcs.map(arc => `- ${arc}`)] : [])
     ], limits.story, "first", lookUp),
     part("world", "The World.", [
       ...(state.world.summary ? [state.world.summary] : []),
-      ...(state.world.history && !prose ? [`History: ${state.world.history}`] : state.world.history ? [`History: ${briefLine(state.world.history, 240)}`] : []),
+      ...(state.world.history ? [`History: ${briefLine(state.world.history, 240)}`] : []),
       ...places("Places:", state.world.places),
       ...places("Institutions:", state.world.institutions),
       ...places("Groups, each followed as one:", state.groups)
@@ -465,7 +327,8 @@ function standingLayer(state: State, beside: Beside, reader: Reader, here: strin
     storySoFarPart(state),
     steers ? outlinePart(state, reader, here) : null,
     steers ? part("threads", "What is developing in the World on its own.", state.threads.map(thread => `- ${thread.name}: ${sentence(thread.now)}`), LIMITS.parts.threads, "first", true) : null,
-    calendarOf(state, reader, at),
+    // Chronicler already receives the full untruncated <engagements_on> list with E1..En labels in its moment layer.
+    reader === "chronicler" ? null : calendarOf(state, reader, at),
     wishesPart(beside, reader),
     livesPart(state, reader, here, scene),
     betweenPart(state, reader, here),
@@ -841,17 +704,16 @@ function sceneParts(state: State, reader: Reader, entries: Entry[]): {
 
 /**
  * Real alternating `user`/`assistant` conversation turns for prose generation (direct Codex & Antigravity transports).
- * Strictly append-only across consecutive turns (empirically verified against Codex Responses API: mutating the last
- * turn between calls drops KV cache to ~30%, while keeping `turns[0..2N]` byte-identical and only appending
- * `assistant(reply)` + `user(nextMove)` hits 97%+ real KV cache):
+ * Strictly append-only across consecutive turns:
  * - Turn 0 (`user`): stable standing context, active Directions, Voice examples, static per-Scene blocks (`<long_run>`,
- *   `<remembered>`), static Scene header, and active Focus/Linger.
+ *   `<remembered>`), and static Scene opening header. Focus/Linger and mid-scene changes NEVER live in Turn 0 so
+ *   toggling controls or moving locations never busts the KV cache.
  * - Turns 1..2N-1: exact alternating `assistant`/`user` history of the Scene so far.
- * - Final Turn 2N (`user`): bare `moveText` (so on Turn N+1 it stays byte-identical as a historical Move!), plus any
- *   one-shot cue only when genuinely present (e.g., `<mentioned>` newcomer, `<direction>`, `<revision>`, `<sent_back>`).
- * When opening a new Scene from Day View (`state.scene?.closed`), closed-Scene raw passages are NOT replayed as active
- * conversation turns; instead Turn 0 sends the fresh standing context plus the full Day View moment (`<now>`,
- * `<long_run>`, `<scene_that_matters>`, `<remembered>`, `<move>`, `<task>`).
+ * - Final Turn 2N (`user`): bare `moveText` on ordinary turns (byte-identical when replayed on Turn N+1!), plus only
+ *   genuinely active/changed one-shot cues (`<scene_now>`, `<scene_controls>`, `<mentioned>`, `<director_note>`,
+ *   `<direction>`, `<revision>`, `<sent_back>`).
+ * When opening a new Scene from Day View (`state.scene?.closed`), Turn 0 carries the same `[standing, staticStanding]`
+ * prefix as Turn 2 (never replaying closed-Scene raw passages), and Turn 1 carries the opening Move + Day View cues.
  */
 export function asTurns(
   state: State,
@@ -866,15 +728,15 @@ export function asTurns(
   const layered = layers(state, beside, reader, present, scene, moment, instructions);
   const flat = asCall(layered);
   const parts = sceneParts(state, reader, scene);
-  if (!parts || parts.passages.length === 0 || state.scene?.closed) {
+  if (!parts || state.scene?.closed) {
+    if (currentMove) {
+      // Single user message starting with [standing, staticStanding] so Turn 1 stays valid alternating roles for
+      // Gemini and shares the exact leading standing prefix with Scene Turn 2's Turn 0.
+      const text = join([layered.standing, ...(currentMove.staticStanding ?? []), currentMove.text, ...(currentMove.extra ?? [])]);
+      return { ...flat, turns: [{ role: "user", text: text || flat.prompt }] };
+    }
     return { ...flat, turns: [{ role: "user", text: state.scene?.closed ? join([layered.standing, layered.moment]) : flat.prompt }] };
   }
-  const controls = state.scene && !state.scene.closed
-    ? section("scene_controls", [
-        state.scene.focus ? `Focus is on ${state.scene.focus}.` : "",
-        state.scene.linger ? "Linger is on: hold the moment without forcing a payoff." : ""
-      ].filter(Boolean).join("\n"))
-    : null;
   const turns: { role: "user" | "assistant"; text: string }[] = [];
   const push = (role: "user" | "assistant", text: string) => {
     const body = text.trim();
@@ -883,7 +745,7 @@ export function asTurns(
     if (prev && prev.role === role) prev.text = `${prev.text}\n\n${body}`;
     else turns.push({ role, text: body });
   };
-  push("user", join([layered.standing, ...(currentMove?.staticStanding ?? []), parts.header, parts.record, parts.omittedNote, controls]));
+  push("user", join([layered.standing, ...(currentMove?.staticStanding ?? []), parts.header, parts.record, parts.omittedNote]));
   for (const item of parts.passages) push(item.role, item.turn);
   if (currentMove) {
     push("user", join([currentMove.text, ...(currentMove.extra ?? [])]));

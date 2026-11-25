@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { calendarPart, steeringPart } from "../../src/context/lens.js";
+import { layers } from "../../src/context/lens.js";
 import { besideOf } from "../../src/store/beside.js";
 import { open } from "../../src/story/truth.js";
 import { checkStoryFile } from "../../src/storyfile/check.js";
@@ -123,9 +123,10 @@ describe("story-file", () => {
     expect(state().routine).toEqual(["Lectures run on weekday mornings, nine to noon.", "Friday nights are at the Three Broomsticks."]);
     // The brief is the player's, kept beside the Story from the import on (docs/adr/0020).
     expect(besideOf(mac, storyId).brief).toEqual({ more: ["Draconia's temper"], less: ["Quidditch"] });
-    const routine = "Routine:\n- Lectures run on weekday mornings, nine to noon.\n- Friday nights are at the Three Broomsticks.";
-    expect(calendarPart(state(), "omniscient")).toContain(routine);
-    expect(steeringPart(besideOf(mac, storyId))).toContain("More of:\n- Draconia's temper");
+    const standing = layers(state(), besideOf(mac, storyId), "director", [], [], []).standing;
+    const routine = "His routine:\n- Lectures run on weekday mornings, nine to noon.\n- Friday nights are at the Three Broomsticks.";
+    expect(standing).toContain(routine);
+    expect(standing).toContain("More of:\n- Draconia's temper");
 
     await play("I say goodnight to Hermione.");
     engine.endScene(storyId, head(), "trace-end");

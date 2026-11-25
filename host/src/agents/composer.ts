@@ -1,200 +1,163 @@
 import { readFileSync } from "node:fs";
 import type { Models } from "../models/model-call.js";
-import type { ModelChoice } from "../story/state.js";
-import { section, stripSceneState } from "../context/lens.js";
-import { minutesOf, parseAnyTime, parseStoryTime } from "../time.js";
-import { REPLY_LENGTH_GUIDE, REPLY_VERBOSITY } from "./actor.js";
+import type { Choice, Entry } from "../story/entries.js";
+import type { ModelChoice, State } from "../story/state.js";
+import { asTurns, momentsPart, recallFacts, say, section, splitMoveNote } from "../context/lens.js";
+import { nameIndex, namedIn } from "../story/names.js";
+import { minutesOf, parseStoryTime, sayDate, sayTime } from "../time.js";
 import { playersPart } from "./deciding.js";
-import { addMinutes } from "./format.js";
-import { checkWriter, writerCall, writerFacts, type WriterAsk, type WriterPlan } from "./writer.js";
+import { LONG_SCENE, openingOf, parseComposedAnswer, planFromMeta, recordDue, type ComposerAsk, type ScenePlan } from "./scene-state.js";
 import { BUDGETS, runAgent } from "./step.js";
+
+export { LONG_SCENE, parseComposedAnswer, planFromMeta, recordDue, type ComposerAsk, type ScenePlan };
 
 const PROMPT = readFileSync(new URL("./COMPOSER.md", import.meta.url), "utf8");
 
-/** Strips a stray leading markdown heading or bold date/place banner (`**Friday, 27 Nov — ...**`) from prose. */
-function cleanProse(text: string): string {
-  const stripped = stripSceneState(text);
-  const withoutBanner = stripped.replace(/^(?:#{1,3}\s+[^\n]+|\*\*[^*\n]{4,140}\*\*)\s*\n+/, "");
-  return withoutBanner.trim() || stripped;
+/** Natural, target-based length guidance paired 1-to-1 with provider verbosity. */
+export const REPLY_LENGTH_GUIDE = {
+  short: "Write around 140–200 words (1–2 paragraphs). Keep the beat crisp and grounded, then stop where the player's next choice belongs.",
+  medium: "Write around 240–340 words (2–4 paragraphs). Give the moment room for subtext and physical detail without padding, then stop where the player's next choice belongs.",
+  full: "Write around 380–520 words. Give the beat room for atmosphere, physical detail, and real emotional movement without padding or rushing past the player's next choice."
+} as const;
+
+export const REPLY_VERBOSITY = {
+  short: "low",
+  medium: "medium",
+  full: "high"
+} as const;
+
+/**
+ * Who Layer 2 (standing) covers: pinned to Leads + the Scene's opening cast so Turn 0 never mutates mid-Scene when a
+ * supporting character walks in or is mentioned — preserving 92%+ KV-cache hits across the entire Scene.
+ */
+function presentFor(ask: ComposerAsk): string[] {
+  const opening = openingOf(ask.state);
+  if (opening === "day_view") return [...new Set([...ask.state.leads, ...(ask.choice?.who ?? ask.state.scene?.here ?? [])])];
+  const opened = ask.scene.find(entry => entry.payload.kind === "scene_opened");
+  const initialWho = opened?.payload.kind === "scene_opened" ? opened.payload.who : ask.state.scene?.here ?? [];
+  return [...new Set([...ask.state.leads, ...initialWho])];
 }
 
-/** Extracts the first balanced JSON object from [text] and parses it, or null. */
-function parseJsonObject(text: string): Record<string, unknown> | null {
-  const cleaned = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
-  const tryParse = (candidate: string): Record<string, unknown> | null => {
-    try {
-      const parsed = JSON.parse(candidate) as unknown;
-      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : null;
-    } catch {
-      return null;
-    }
-  };
-  const direct = tryParse(cleaned);
-  if (direct) return direct;
-  const start = cleaned.indexOf("{");
-  if (start < 0) return null;
-  let depth = 0;
-  let inString = false;
-  let escaped = false;
-  for (let index = start; index < cleaned.length; index++) {
-    const ch = cleaned[index];
-    if (inString) {
-      if (escaped) escaped = false;
-      else if (ch === "\\") escaped = true;
-      else if (ch === "\"") inString = false;
-      continue;
-    }
-    if (ch === "\"") inString = true;
-    else if (ch === "{") depth++;
-    else if (ch === "}" && --depth === 0) return tryParse(cleaned.slice(start, index + 1));
-  }
-  return null;
+/** People currently present (who entered mid-Scene) or named in the Move who are not already in Layer 2's static cast. */
+function mentionedPart(ask: ComposerAsk, standing: string[]): string | null {
+  const pc = ask.state.playerCharacter;
+  const known = new Set([pc, ...standing]);
+  const midSceneHere = openingOf(ask.state) === "day_view" ? [] : ask.state.scene?.here ?? [];
+  const extra = [...new Set([...midSceneHere, ...namedIn(ask.move, nameIndex(Object.values(ask.state.people)))])].filter(name => !known.has(name));
+  if (!extra.length) return null;
+  const lines = extra.map(name => {
+    const now = ask.state.truth.now[name];
+    const life = ask.state.lives[name];
+    const detail = [
+      now ? now.now : ask.state.people[name]?.whoTheyAre ?? "",
+      life && (life.where || life.doing) ? `Lately: ${[life.where ? `at ${life.where}` : "", life.doing ?? ""].filter(Boolean).join(", ")}.` : ""
+    ].filter(Boolean).join(" ");
+    return `- ${name}: ${detail}`;
+  });
+  return section("mentioned", lines.join("\n"));
+}
+
+function longRunPart(state: State): string | null {
+  return state.plan ? section("long_run", [
+    `Toward ${state.plan.toward}, a ${state.plan.phase} Stretch.`,
+    ...state.plan.arcs.map(arc => `- ${arc.arc}: now ${arc.now}; may move to ${arc.next}; not yet ${arc.notYet}`),
+    `Premise: ${state.plan.premise}`
+  ].join("\n")) : null;
+}
+
+function describeChoice(state: State, choice: Choice): string {
+  const parts = [choice.kind === "follow" ? `follow ${choice.who.join(", ")}` : choice.kind === "somewhere" ? `go to ${choice.place}` : choice.kind === "skip" ? "skip ahead" : `go to ${choice.place ?? "what is on"}`];
+  const at = choice.at ? parseStoryTime(choice.at) : null;
+  if (at) parts.push(`on ${sayDate(at, state.dayOne, true)} at ${sayTime(at)}`);
+  if (choice.who.length && choice.kind !== "follow") parts.push(`with ${choice.who.join(", ")}`);
+  return parts.join(" ");
 }
 
 /**
- * Parses a free-text Reply with an optional trailing `<scene_state>` JSON block (closed or unclosed) or a legacy
- * pure-JSON `{ reply, ... }` answer. Raw `<scene_state>` markup is always stripped so it can never reach the player.
+ * Compact mid-scene delta emitted on the current Move turn ONLY when location, departed cast, or a material time jump
+ * happened on the immediately preceding beat (or after `scene_recorded` trimmed history) — keeping ordinary steady
+ * turns 100% bare (max KV-cache) while preventing state drift after transitions.
  */
-export function parseComposedAnswer(rawText: string): { reply: string; meta: Record<string, unknown> | null } {
-  const trimmed = rawText.trim();
-  if (!trimmed) return { reply: "", meta: null };
-
-  let meta: Record<string, unknown> | null = null;
-  const closed = [...trimmed.matchAll(/<scene_state>\s*([\s\S]*?)\s*<\/scene_state>/gi)];
-  for (const match of closed) {
-    const parsed = parseJsonObject(match[1] ?? "");
-    if (parsed) meta = parsed;
-  }
-
-  const withoutClosed = trimmed.replace(/<scene_state>[\s\S]*?<\/scene_state>/gi, "").trim();
-  const unclosed = /<scene_state>([\s\S]*)$/i.exec(withoutClosed);
-  if (unclosed) {
-    const parsed = parseJsonObject(unclosed[1] ?? "");
-    if (parsed) meta = parsed;
-    return { reply: cleanProse(trimmed), meta };
-  }
-
-  if (closed.length > 0) {
-    return { reply: cleanProse(trimmed), meta };
-  }
-
-  // Backwards compatibility with pure JSON `{ reply, ... }` answers from legacy fixtures or models.
-  if (trimmed.startsWith("{")) {
-    try {
-      const parsed = JSON.parse(trimmed) as unknown;
-      if (parsed && typeof parsed === "object" && !Array.isArray(parsed) && typeof (parsed as { reply?: unknown }).reply === "string") {
-        const { reply, ...rest } = parsed as Record<string, unknown> & { reply: string };
-        return { reply: cleanProse(reply), meta: rest };
-      }
-    } catch { /* Treat as plain prose below. */ }
-  }
-
-  return { reply: cleanProse(trimmed), meta: null };
+function sceneDeltaPart(state: State, scene: Entry[]): string | null {
+  const current = state.scene;
+  if (!current || current.closed) return null;
+  const notes = scene.filter((entry): entry is Entry & { payload: Extract<Entry["payload"], { kind: "beat_note" }> } => entry.payload.kind === "beat_note");
+  const last = notes.at(-1);
+  if (!last) return null;
+  const prev = notes.at(-2);
+  const movedNow = Boolean(last.payload.place);
+  const leftNow = last.payload.goes;
+  const prevClock = parseStoryTime(prev?.payload.clock ?? current.at);
+  const nowClock = parseStoryTime(last.payload.clock);
+  const jumpedNow = prevClock && nowClock && (nowClock.day !== prevClock.day || minutesOf(nowClock) - minutesOf(prevClock) >= 30);
+  const lines = [
+    movedNow ? `Now at: ${current.place}.` : "",
+    leftNow.length ? `Left the scene: ${leftNow.join(", ")}.` : "",
+    jumpedNow ? `Current time: ${say(state, state.clock)}.` : ""
+  ].filter(Boolean);
+  return lines.length ? section("scene_now", lines.join(" ")) : null;
 }
 
-function defaultFrame(ask: WriterAsk): { title: string; place: string; purpose: string; exit: string } | null {
-  const scene = ask.state.scene;
-  const opening = !scene || scene.closed ? "day_view" : scene.purpose === null ? "unplanned" : null;
-  if (!opening) return null;
-  if (opening === "day_view") {
-    return {
-      title: ask.choice?.place ? `At ${ask.choice.place}` : `Scene ${(scene?.number ?? 0) + 1}`,
-      place: ask.choice?.place?.trim() || scene?.place || "Here",
-      purpose: "The scene unfolds from the player's move.",
-      exit: "The player moves on."
-    };
-  }
-  return {
-    title: scene?.title ?? "Scene 1",
-    place: scene?.place ?? "Here",
-    purpose: "The scene unfolds from the player's move.",
-    exit: "The player moves on."
-  };
+/**
+ * Emits `<scene_controls>` on the active Move turn ONLY when `focus` or `linger` changed since the last Reply (or on
+ * Turn 1 when Linger is on) — so steady-state turns stay 100% bare (max KV-cache) and mid-scene toggles never bust
+ * Turn 0.
+ */
+function sceneControlsPart(state: State, scene: Entry[]): string | null {
+  const current = state.scene;
+  if (!current || current.closed) return null;
+  const lastReplyAt = scene.findLastIndex(entry => entry.payload.kind === "reply");
+  const sinceReply = lastReplyAt >= 0 ? scene.slice(lastReplyAt + 1) : scene;
+  const focusChanged = sinceReply.some(entry => entry.payload.kind === "focus_set");
+  const lingerChanged = sinceReply.some(entry => entry.payload.kind === "linger_set");
+  const lines = [
+    focusChanged && current.focus ? `Focus is on ${current.focus}.` : focusChanged && !current.focus ? "Focus cleared." : "",
+    (lingerChanged || lastReplyAt < 0) && current.linger ? "Linger is on: hold the moment without forcing a payoff." : lingerChanged && !current.linger ? "Linger is off." : ""
+  ].filter(Boolean);
+  return lines.length ? section("scene_controls", lines.join("\n")) : null;
 }
 
-function fallbackPlan(ask: WriterAsk): WriterPlan {
-  const { state } = ask;
-  const scene = state.scene;
-  const opening = !scene || scene.closed ? "day_view" : scene.purpose === null ? "unplanned" : null;
-  const frame = defaultFrame(ask);
-  const chosenWho = opening === "day_view" ? (ask.choice?.who ?? []).filter(name => name !== state.playerCharacter && state.people[name]) : [];
+function composerFacts(ask: ComposerAsk) {
   return {
-    opens: opening === "day_view" ? frame : null,
-    plans: opening === "unplanned" && frame ? { purpose: frame.purpose, exit: frame.exit } : null,
-    here: opening === "day_view" ? chosenWho : [...(scene?.here ?? [])],
-    goes: [],
-    beats: opening === "day_view" ? [] : [...(scene?.beats ?? [])],
-    note: "",
-    call: "continue",
-    intensity: 2,
-    clock: addMinutes(state.clock, 2),
-    inPlay: [],
-    movesTo: null,
-    gathered: []
-  };
-}
-
-function normalizedMeta(ask: WriterAsk, meta: Record<string, unknown>): Record<string, unknown> {
-  const scene = ask.state.scene;
-  const opening = !scene || scene.closed ? "day_view" : scene.purpose === null ? "unplanned" : null;
-  // Support both the lean `<scene_state>` delta (`title`, `place`, `entered`, `left`, `minutes`, `intensity`) and full legacy fields.
-  const place = typeof meta.moves_to === "string" ? meta.moves_to : typeof meta.place === "string" ? meta.place : null;
-  const title = typeof meta.title === "string" && meta.title.trim() ? meta.title.trim() : null;
-  const frame = meta.frame !== undefined
-    ? meta.frame
-    : opening
-      ? {
-          ...(defaultFrame(ask) ?? { title: "Scene", place: "Here", purpose: "The scene unfolds.", exit: "The player moves on." }),
-          ...(opening === "day_view" && title ? { title } : {}),
-          ...(opening === "day_view" && place ? { place } : {})
-        }
-      : null;
-  const comesIn = Array.isArray(meta.comes_in) ? meta.comes_in : Array.isArray(meta.entered) ? meta.entered : [];
-  const goes = Array.isArray(meta.goes) ? meta.goes : Array.isArray(meta.left) ? meta.left : [];
-  let minutes: unknown = 2;
-  const now = parseStoryTime(ask.state.clock);
-  if (typeof meta.at === "string" && now) {
-    const target = parseAnyTime(meta.at, ask.state.dayOne);
-    if (target && minutesOf(target) > minutesOf(now)) minutes = minutesOf(target) - minutesOf(now);
-  } else if (typeof meta.days === "number" && Number.isFinite(meta.days) && meta.days > 0 && now) {
-    const timeMatch = typeof meta.time === "string" ? /^(\d{1,2}):(\d{2})$/.exec(meta.time.trim()) : null;
-    const targetMinute = timeMatch ? Math.min(23, Number(timeMatch[1])) * 60 + Math.min(59, Number(timeMatch[2])) : now.minuteOfDay;
-    const delta = minutesOf({ day: now.day + Math.round(meta.days), minuteOfDay: targetMinute }) - minutesOf(now);
-    if (delta > 0) minutes = delta;
-  } else if (typeof meta.minutes === "number" && Number.isFinite(meta.minutes)) {
-    minutes = meta.minutes < 0 ? meta.minutes : Math.round(meta.minutes);
-  } else if (typeof meta.minutes === "string" && /^-?\d+(?:\.\d+)?$/.test(meta.minutes.trim())) {
-    const num = Number(meta.minutes.trim());
-    minutes = num < 0 ? num : Math.round(num);
-  }
-  return {
-    frame,
-    comes_in: comesIn,
-    goes,
-    beats: Array.isArray(meta.beats) ? meta.beats : (scene && !scene.closed ? scene.beats : []),
-    note: typeof meta.note === "string" && meta.note.trim() ? meta.note : "The scene continues.",
-    call: meta.call === "land" || meta.call === "continue" ? meta.call : "continue",
-    intensity: typeof meta.intensity === "number" && Number.isInteger(meta.intensity) && meta.intensity >= 1 && meta.intensity <= 5 ? meta.intensity : 2,
-    minutes,
-    in_play: Array.isArray(meta.in_play) ? meta.in_play : [],
-    moves_to: opening === "day_view" ? null : place,
-    gathered: Array.isArray(meta.gathered) ? meta.gathered : []
+    opening: openingOf(ask.state),
+    clock: ask.state.clock,
+    title: ask.state.scene?.title ?? null,
+    place: ask.state.scene?.place ?? null,
+    here: ask.state.scene?.here ?? [],
+    beats: ask.state.scene && !ask.state.scene.closed ? ask.state.scene.beats : [],
+    direction: ask.state.pendingDirection,
+    choice: ask.choice
   };
 }
 
 /** The exact combined writing request, shared by the engine and CLI prompt inspection. */
-export function composerCall(ask: WriterAsk, again?: { draft: string; notes: string[] }) {
-  const instructions = [PROMPT.trim(), playersPart(ask.state.playerCharacter), REPLY_LENGTH_GUIDE[ask.state.replyLength]].join("\n\n");
-  const call = writerCall(ask, instructions);
+export function composerCall(ask: ComposerAsk, again?: { draft: string; notes: string[] }) {
+  const { state } = ask;
+  const standing = presentFor(ask);
+  const moments = recallFacts(state, standing);
+  const opening = openingOf(state);
+  const { move: moveBody, note: inlineNote } = splitMoveNote(ask.move);
+  const instructions = [PROMPT.trim(), playersPart(state.playerCharacter), REPLY_LENGTH_GUIDE[state.replyLength]].join("\n\n");
+
+  const chosen = opening === "day_view" && ask.choice?.scene ? state.plan?.scenes.find(item => item.id === ask.choice?.scene) : undefined;
+  const sceneThatMatters = chosen
+    ? section("scene_that_matters", [
+        `${chosen.for}${chosen.lead ? ` It is about ${chosen.lead}.` : ""}`,
+        ...(state.plan?.leads ?? []).filter(lead => lead.scene === chosen.id).map(lead => `${lead.who}'s move in it: ${lead.move}`)
+      ].join("\n"))
+    : null;
+  const dayViewTask = opening === "day_view"
+    ? section("task", ask.choice ? `The player chose at the Day View: ${describeChoice(state, ask.choice)}. Open the Scene it begins.` : "The last Scene has closed: this Move opens a new Scene.")
+    : null;
+
   const moveAt = ask.path?.findLastIndex(entry => entry.payload.kind === "move") ?? -1;
   const redo = ask.path?.slice(moveAt + 1).findLast(entry => entry.payload.kind === "redo");
-  const rejected = ask.state.pendingDirection && redo?.payload.kind === "redo" ? redo.payload.rejected : undefined;
-  const head = ask.path?.at(-1);
+  const rejected = state.pendingDirection && redo?.payload.kind === "redo" ? redo.payload.rejected : undefined;
   const revision = rejected
-    ? "\n\n" + section("revision", `The player is revising this rejected draft. It is not canon. Apply the current correction in context, preserving what fits. Without a new correction, try a different handling of the same Move while honoring active Directions.\n\n${rejected.text}`)
-    : "";
+    ? section("revision", `The player is revising this rejected draft. It is not canon. Apply the current correction in context, preserving what fits. Without a new correction, try a different handling of the same Move while honoring active Directions.\n\n${rejected.text}`)
+    : null;
   const sentBack = again
-    ? "\n\n" + section("sent_back", [
+    ? section("sent_back", [
         "Your Reply was read before the player saw it, and sent back to be written again. What breaks it:",
         ...again.notes.map(note => `- ${note}`),
         "",
@@ -203,21 +166,43 @@ export function composerCall(ask: WriterAsk, again?: { draft: string; notes: str
         "It read:",
         again.draft
       ].join("\n"))
-    : "";
-  const tail = revision + sentBack;
-  const prompt = call.prompt + tail;
-  const conversation = tail
-    ? call.turns.map((turn, index, list) => (index === list.length - 1 ? { ...turn, text: turn.text + tail } : turn))
-    : call.turns;
+    : null;
+
+  const extra: (string | null)[] = [
+    dayViewTask,
+    sceneThatMatters,
+    opening === "day_view" ? section("now", `It is ${say(state, state.clock)}.`) : null,
+    sceneDeltaPart(state, ask.scene),
+    sceneControlsPart(state, ask.scene),
+    mentionedPart(ask, standing),
+    inlineNote ? section("director_note", `Author direction for this Reply (obey fully in the scene; never speak aloud or treat as dialogue):\n${inlineNote}`) : null,
+    state.pendingDirection?.text ? section("direction", `Redo direction: ${state.pendingDirection.text}`) : null,
+    revision,
+    sentBack
+  ];
+  const staticStanding: (string | null)[] = [longRunPart(state), momentsPart(state, moments)];
+  const flatMoment: (string | null)[] = [
+    ...staticStanding,
+    dayViewTask,
+    sceneThatMatters,
+    mentionedPart(ask, standing),
+    state.scene && !state.scene.closed && state.scene.linger ? section("scene_controls", "Linger is on: hold the moment without forcing a payoff.") : sceneControlsPart(state, ask.scene),
+    section(`move by="${state.playerCharacter}"`, moveBody || ask.move),
+    inlineNote ? section("director_note", `Author direction for this Reply (obey fully in the scene; never speak aloud or treat as dialogue):\n${inlineNote}`) : null,
+    state.pendingDirection?.text ? section("direction", `Redo direction: ${state.pendingDirection.text}`) : null,
+    revision,
+    sentBack
+  ];
+  const call = asTurns(state, ask.beside, "writer", standing, ask.scene, flatMoment, instructions, { text: moveBody || ask.move, extra, staticStanding });
+  const head = ask.path?.at(-1);
   return {
     system: call.system,
-    prompt,
-    conversation,
-    verbosity: REPLY_VERBOSITY[ask.state.replyLength],
-    facts: { ...writerFacts(ask), ...(again ? { rewriting: true } : { composing: true }) },
-    // Keep Story lookup tools for memory callbacks; omit live web search from per-turn dialogue to cut hidden tool-prompt overhead and keep immersion.
+    prompt: call.prompt,
+    conversation: call.turns,
+    verbosity: REPLY_VERBOSITY[state.replyLength],
+    facts: { ...composerFacts(ask), ...(again ? { rewriting: true } : { composing: true }) },
     tools: { story: head ? { storyId: head.storyId, head: head.id } : null, web: false },
-    moments: call.moments
+    moments
   };
 }
 
@@ -225,26 +210,18 @@ export function composerCall(ask: WriterAsk, again?: { draft: string; notes: str
  * One unconstrained free-text generation owns the prose first and appends compact `<scene_state>` bookkeeping at the
  * tail (no strict JSON schema constraint choking creative prose); the Editor / code check remains independent.
  */
-export async function composeReply(models: Models, choices: ModelChoice[], ask: WriterAsk, storyId: string, traceId: string, signal: AbortSignal, onLookup?: (line: string) => void) {
-  const { moments, ...call } = composerCall(ask);
-  return runAgent<{ plan: WriterPlan; reply: string }>(models, choices, {
-    ...call, agent: "actor", traceId, storyId
+export async function composeReply(models: Models, choices: ModelChoice[], ask: ComposerAsk, storyId: string, traceId: string, signal: AbortSignal, onLookup?: (line: string) => void) {
+  const call = composerCall(ask);
+  return runAgent<{ plan: ScenePlan; reply: string }>(models, choices, {
+    system: call.system, prompt: call.prompt, conversation: call.conversation, verbosity: call.verbosity, facts: call.facts, tools: call.tools, agent: "actor", traceId, storyId
   }, answer => {
     if (typeof answer !== "string" || !answer.trim()) return { ok: false, problems: ["reply: write the complete Reply"] };
     const { reply, meta } = parseComposedAnswer(answer);
     if (!reply) return { ok: false, problems: ["reply: write the complete Reply"] };
-    if (!meta) return { ok: true, value: { plan: fallbackPlan(ask), reply }, dropped: ["scene_state: omitted or unreadable, kept prose with default scene state"] };
-    const checked = checkWriter(ask, moments, normalizedMeta(ask, meta));
-    if (checked.ok) return { ...checked, value: { plan: checked.value, reply } };
-    // Refuse only when active planning explicitly returned by the model violates the player boundary or moves the clock backward;
-    // never discard good prose over inherited legacy beats or minor metadata glitches.
-    const fatal = checked.problems.filter(problem =>
-      problem.includes("minutes")
-      || (problem.includes("decides for the player's character") && (Array.isArray(meta.beats) || !problem.startsWith("beats[")))
-    );
-    if (fatal.length) return { ok: false, problems: fatal };
-    return { ok: true, value: { plan: fallbackPlan(ask), reply }, dropped: checked.problems };
-  }, { turns: 6, ms: 240_000 }, signal, onLookup);
+    const planned = planFromMeta(ask, meta);
+    if (!planned.ok) return planned;
+    return { ok: true, value: { plan: planned.plan, reply }, dropped: planned.dropped };
+  }, BUDGETS.composer, signal, onLookup);
 }
 
 /**
@@ -254,7 +231,7 @@ export async function composeReply(models: Models, choices: ModelChoice[], ask: 
 export async function rewriteComposedReply(
   models: Models,
   choices: ModelChoice[],
-  ask: WriterAsk,
+  ask: ComposerAsk,
   again: { draft: string; notes: string[] },
   storyId: string,
   traceId: string,
@@ -267,6 +244,6 @@ export async function rewriteComposedReply(
     if (typeof answer !== "string" || !answer.trim()) return { ok: false, problems: ["reply: write the complete Reply"] };
     const { reply } = parseComposedAnswer(answer);
     return reply ? { ok: true, value: reply } : { ok: false, problems: ["reply: write the complete Reply"] };
-  }, { turns: 2, ms: BUDGETS.actor.ms }, signal);
+  }, { turns: 2, ms: BUDGETS.composer.ms }, signal);
   return { text: value, callId, model };
 }

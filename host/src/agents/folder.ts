@@ -3,7 +3,7 @@ import { nothingBeside } from "../story/beside.js";
 import type { ModelChoice, State, Told } from "../story/state.js";
 import { join, layers, say, section, tokens, type Reader } from "../context/lens.js";
 import { matches, text } from "./format.js";
-import { nameIndex, namedIn } from "./names.js";
+import { nameIndex, namedIn } from "../story/names.js";
 import { BUDGETS, runAgent, type Checked } from "./step.js";
 
 /**

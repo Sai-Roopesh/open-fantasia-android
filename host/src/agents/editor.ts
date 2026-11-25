@@ -3,7 +3,7 @@ import type { Models } from "../models/model-call.js";
 import type { Beside } from "../story/beside.js";
 import type { Entry } from "../story/entries.js";
 import type { ModelChoice, State } from "../story/state.js";
-import { asCall, layers, section } from "../context/lens.js";
+import { asCall, layers, section, splitMoveNote } from "../context/lens.js";
 import { decidesForPlayer, decidesForYou, decidesPlayerDialogue, playerNames, playersPartBreak } from "./deciding.js";
 import { matches, namer, nullable, peopleEnum, text } from "./format.js";
 import { BUDGETS, runAgent, type Checked } from "./step.js";
@@ -94,7 +94,7 @@ export function editorPrompt(ask: EditorAsk): { system: string; prompt: string }
   const at = ask.scene.findLastIndex(entry => entry.payload.kind === "move");
   const move = ask.scene[at];
   return asCall(layers(ask.state, ask.beside, "editor", ask.present, at < 0 ? ask.scene : ask.scene.slice(0, at), [
-    move?.payload.kind === "move" ? section(`move by="${pc}"`, move.payload.text) : null,
+    move?.payload.kind === "move" ? section(`move by="${pc}"`, splitMoveNote(move.payload.text).move || move.payload.text) : null,
     section("reply", ask.reply),
     section("task", `Check the Reply against what the story has established. ${pc} is the player's character. Set its slips right in fixes; name what breaks it in breaks.`)
   ], PROMPT.replace("{{players_part}}", `${playersPartBreak(pc)} Someone remembering something ${pc} said or did that the story never showed breaks it too.`)));
@@ -114,10 +114,17 @@ const found = (words: string, text: string) => {
 
 /**
  * The Reply with every quoted speech span replaced by a `«Q»` placeholder, and subordinate clauses waiting on the
- * player ("before you say a word", "when you asked") neutralized so they never false-positive.
+ * player ("before you say a word", "when you asked") neutralized so they never false-positive. Processed
+ * paragraph-by-paragraph so standard multi-paragraph speech (an opening quote without a closing quote at paragraph
+ * end) never inverts narration and dialogue across the rest of the Reply.
  */
 function narrationWithQuotePlaceholders(reply: string, names: string[]): string {
-  const masked = reply.replace(/"[^"]*"|“[^”]*”|‘[^’]*’/g, "«Q»");
+  const maskParagraph = (paragraph: string) => {
+    const closed = paragraph.replace(/"[^"\n]*"|“[^”\n]*”|‘[^’\n]*’/g, "«Q»");
+    // Unclosed opening quote in a multi-paragraph speech extends to end of this paragraph only.
+    return closed.replace(/(?:^|\s)["“][^"”\n]*$/, " «Q»");
+  };
+  const masked = reply.split("\n").map(maskParagraph).join("\n");
   const his = ["you", ...names].map(name => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
   return masked.replace(new RegExp(`\\b(before|until|unless|if|whether|when|after|while|as|once|because|since|what|how|that)\\s+(?:${his})\\b`, "gi"), "$1 he");
 }

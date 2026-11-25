@@ -22,9 +22,8 @@ export interface Budget {
 }
 
 /** Each job's tight lookup & time budget (lean turns prevent runaway token loops while preserving tool lookups). */
-export const BUDGETS: Record<"writer" | "actor" | "editor" | "chronicler" | "weaver" | "directorFocused" | "directorDeep" | "folder", Budget> = {
-  writer: { turns: 4, ms: 150_000 },
-  actor: { turns: 1, ms: 180_000 },
+export const BUDGETS: Record<"composer" | "editor" | "chronicler" | "weaver" | "directorFocused" | "directorDeep" | "folder", Budget> = {
+  composer: { turns: 4, ms: 240_000 },
   editor: { turns: 1, ms: 90_000 },
   chronicler: { turns: 4, ms: 300_000 },
   weaver: { turns: 4, ms: 300_000 },

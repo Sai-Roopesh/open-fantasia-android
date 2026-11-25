@@ -1,32 +1,29 @@
-import type { ToolSpec } from "../../models/model-call.js";
-import type { Db } from "../../store/db.js";
-import { States } from "../../store/states.js";
-import { Tree } from "../../store/tree.js";
-import type { Entry, Payload } from "../../story/entries.js";
-import type { Person, Quote, State } from "../../story/state.js";
-import { betweenKey, type Belief, type Held, type Truth, type TruthUpdate } from "../../story/truth.js";
-import { parseAnyTime, sayFull } from "../../time.js";
-import { nameIndex, storyName } from "../names.js";
+import type { Db } from "./db.js";
+import { States } from "./states.js";
+import { Tree } from "./tree.js";
+import type { Entry, Payload } from "../story/entries.js";
+import type { Person, Quote, State } from "../story/state.js";
+import { betweenKey, type Belief, type Held, type Truth, type TruthUpdate } from "../story/truth.js";
+import { parseAnyTime, sayFull } from "../time.js";
+import { splitMoveNote } from "../story/move.js";
+import { nameIndex, storyName } from "../story/names.js";
 
-/**
- * The Story's tools (docs/adr/0018): what an agent can look up in the Story on one Path, as of its head, while it
- * works. Each answers in prose, never as data, and within a bound, so a lookup never floods the step; a long Scene
- * is read in parts. Nothing here changes the Story.
- */
+/** Story lookup tools over one Path at [head]: read-only, prose-formatted, bounded. */
+export interface ToolSpec {
+  name: string;
+  description: string;
+  params: Record<string, { type: "string" | "integer"; description: string; optional?: boolean }>;
+}
+
 export interface StoryTool extends ToolSpec {
-  /** The answer, and the lookup said in a line for the call's record. */
   run(args: Record<string, unknown>): { answer: string; line: string };
 }
 
-/** The most an answer may say; a Scene is read in parts of this size. */
 const MOST = 8_000;
 const PART = 12_000;
-/** How many passages a search answers with. */
 const HITS = 8;
-/** How many items of one kind a person's history lists, newest kept. */
 const ITEMS = 12;
 
-/** The Story's tools over the Path at [head]. The Path and its State are read once, when a tool first needs them. */
 export function storyTools(db: Db, storyId: string, head: string): StoryTool[] {
   const story = new StoryAt(db, storyId, head);
   return [
@@ -197,8 +194,8 @@ class StoryAt {
         case "move": return `${where}, ${pc}'s Move`;
         case "reply": return `${where}, a Reply`;
         case "opening": return `${where}, its opening`;
-        case "offpage": return `Off the page, after Scene ${after}`;
-        default: return `The record of Scene ${after}`;
+        case "offpage": return after !== undefined ? `Off the page, after Scene ${after}` : "Off the page";
+        default: return after !== undefined ? `The record of Scene ${after}` : "A Scene record";
       }
     };
     const lines = hits.map((hit, at) => `${at + 1}. ${label(hit)}: ${hit.words}`);
@@ -221,7 +218,10 @@ class StoryAt {
     const said = scene.entries.flatMap(entry => {
       const payload = entry.payload;
       if (payload.kind === "scene_opened") return payload.prose ? [payload.prose] : [];
-      if (payload.kind === "move") return [`${pc} (the player's Move): ${payload.text}`];
+      if (payload.kind === "move") {
+        const clean = splitMoveNote(payload.text).move;
+        return clean ? [`${pc} (the player's Move): ${clean}`] : [];
+      }
       if (payload.kind === "reply") return [payload.text];
       if (payload.kind === "scene_closed") return ["(The Scene ended.)"];
       if (payload.kind === "chronicle" && payload.scene === number) return [`The Scene's record: ${payload.paragraph}`];
@@ -340,7 +340,10 @@ class StoryAt {
 /** What of an entry can be searched, each with the kind of passage it is. */
 function searchable(payload: Payload): [string, string][] {
   switch (payload.kind) {
-    case "move": return [["move", payload.text]];
+    case "move": {
+      const clean = splitMoveNote(payload.text).move;
+      return clean ? [["move", clean]] : [];
+    }
     case "reply": return [["reply", payload.text]];
     case "scene_opened": return payload.prose ? [["opening", payload.prose]] : [];
     case "chronicle":

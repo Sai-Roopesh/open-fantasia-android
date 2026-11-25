@@ -1,4 +1,8 @@
-import type { Quote } from "./state.js";
+/** A passage on the page that established a fact, belief, or keepsake, in its own words. */
+export interface Quote {
+  entry: string;
+  text: string;
+}
 
 /**
  * The truth (openspec the-truth): everything the Story keeps of what is true now and how it came to be, folded from

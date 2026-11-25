@@ -9,7 +9,10 @@ import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.sse.EventSource
+import okhttp3.sse.EventSources
 import java.io.IOException
+import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -21,6 +24,9 @@ class LinkFailure(val reason: String, val traceID: String? = null, val versionMi
 
 class LinkClient(val address: HttpUrl, fingerprint: String, private val deviceToken: String?) {
     val http = CertificatePin(fingerprint).client()
+    internal val eventSources: EventSource.Factory by lazy {
+        EventSources.createFactory(http.newBuilder().readTimeout(0, TimeUnit.MILLISECONDS).build())
+    }
 
     init { require(address.isHttps) { "The Mac link requires HTTPS" } }
 
