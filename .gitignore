@@ -1,27 +1,22 @@
-*.iml
+# Dependencies and builds
+node_modules/
+dist/
+build/
+.gradle/
+*.apk
+local.properties
+.idea/
 .DS_Store
 
-# Android Studio / Gradle machine state
-.gradle/
-.kotlin/
-.idea/
-local.properties
-**/build/
-**/.externalNativeBuild/
-**/.cxx/
-captures/
+# Runtime data: the Mac's Story store lives outside the repo
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
 
-# Local signing and environment secrets
-*.jks
-*.keystore
-.env
-.env.*
-!.env.example
+# Unrelated local game extraction and APK modification workspace
+/nadia-mod/
 
-# Device data and local continuity-host runtime state
-/.device-backups/
-/backups/
-/tools/continuity-worker/.runtime/
-/tools/continuity-worker/node_modules/
-/tools/continuity-worker/.portrait-work/
-/tools/continuity-worker/.portrait-spike.*/
+# Gradle home for sandboxed builds
+android/.gradle-user/
+.check-shots/

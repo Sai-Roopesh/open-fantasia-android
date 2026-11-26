@@ -1,0 +1,99 @@
+package com.openfantasia.app
+
+import androidx.compose.ui.test.*
+import com.openfantasia.protocol.*
+import org.junit.Assert.*
+
+/** The World screen and a person's page, as drawn in World.dc.html and Person.dc.html. */
+open class WorldScreenUiChecks : WorldUiChecks() {
+    private fun openWorld() {
+        openScene()
+        compose.onNodeWithContentDescription("World").performClick()
+        compose.onNodeWithText("The World").assertIsDisplayed()
+    }
+
+    // GIVEN Quirrell serves Voldemort, and the Player Character does not know it
+    // THEN Quirrell's entry on the World screen says nothing of it
+    fun aSecretStaysOut() {
+        openWorld()
+        compose.onNodeWithText("LEADS").assertIsDisplayed()
+        compose.onNodeWithText("EVERYONE ELSE").assertIsDisplayed()
+        compose.onNodeWithTag("world-people").performScrollToNode(hasText("Quirinus Quirrell"))
+        compose.onNodeWithText("Quirinus Quirrell").performClick()
+        compose.onNodeWithText("WHAT YOU KNOW").assertIsDisplayed()
+        compose.onNodeWithText("The nervous Defence teacher. He stammers, and smells of garlic.").assertIsDisplayed()
+        compose.onAllNodesWithText("Voldemort", substring = true).assertCountEquals(0)
+    }
+
+    // GIVEN all Roopesh knows of Hermione is that she is a Gryffindor first-year
+    // WHEN a Scene ends in which she noticed the inkwell and asked him for a reason
+    // THEN her entry on the World screen says she noticed the inkwell, from that Scene
+    fun whatHeKnowsGrows() {
+        openWorld()
+        compose.onNodeWithText("Gryffindor. Noticed the inkwell. Wants a reason, not circumstances.").assertIsDisplayed()
+        compose.preview("World")
+        compose.onNodeWithText("Hermione Granger").performClick()
+        compose.onNodeWithText("Gryffindor. Noticed the inkwell. Wants a reason, not circumstances.").assertIsDisplayed()
+        compose.onNodeWithText("From Scene 14 · After curfew").assertIsDisplayed()
+        compose.onNodeWithText("WHAT YOU'VE HEARD").assertIsDisplayed()
+        compose.onNodeWithText("RUMOUR").assertIsDisplayed()
+        compose.onNodeWithText("Lavender says she cried in the girls' bathroom after Charms.").assertIsDisplayed()
+        compose.onNodeWithText("Lead").assertIsDisplayed()
+        compose.preview("Person")
+        compose.onNodeWithContentDescription("Back to the World").performClick()
+        compose.onNodeWithText("LEADS").assertIsDisplayed()
+    }
+
+    // WHEN the player opens Draconia's page
+    // THEN it shows where things stand between them, and the turns that brought it there, the newest first
+    fun betweenYou() {
+        openWorld()
+        compose.onNodeWithText("Draconia Malfoy").performClick()
+        compose.onNodeWithTag("person-page").performScrollToNode(hasText("BETWEEN YOU"))
+        compose.onNodeWithText("BETWEEN YOU").assertIsDisplayed()
+        compose.onNodeWithTag("person-page").performScrollToNode(hasText("Scene 6 · Saturday lunch"))
+        val newest = compose.onNodeWithText("She floated in your arms, went scarlet, and ordered you to put her down.").fetchSemanticsNode().boundsInRoot.top
+        val oldest = compose.onNodeWithText("She slapped you in front of the Hall and said you were nothing to her.").fetchSemanticsNode().boundsInRoot.top
+        assertTrue("the newest turn comes first", newest < oldest)
+        compose.onNodeWithText("Scene 11 · Twenty-nine minutes").assertExists()
+        compose.onNodeWithText("She owes you her life and treats you as hers to order about.", substring = true).assertExists()
+        compose.preview("Person · Between you")
+        // Someone he has no history with has no Between you.
+        compose.onNodeWithContentDescription("Back to the World").performClick()
+        compose.onNodeWithText("Hermione Granger").performClick()
+        compose.onAllNodesWithText("BETWEEN YOU").assertCountEquals(0)
+    }
+
+    // The header's screens are icons, as Scene.dc.html draws them, each named for TalkBack, leaving the title its room.
+    fun theHeaderIsIcons() {
+        openScene()
+        for (screen in listOf("World", "Journal", "Paths", "Backstage")) {
+            compose.onNodeWithContentDescription(screen).assertIsDisplayed()
+            compose.onAllNodesWithText(screen).assertCountEquals(0)
+        }
+        compose.onNodeWithContentDescription("Backstage").performClick()
+        compose.onNodeWithTag("backstage").assertIsDisplayed()
+    }
+
+    // A Path that branched before the Player Character knew anyone: the People tab says so, and Add a person is still there.
+    fun nobodyKnownYet() {
+        link.worldView = link.worldView.copy(people = emptyList())
+        openWorld()
+        compose.onNodeWithText("Nobody yet that you know of.").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Add a person").assertIsDisplayed()
+    }
+
+    fun placesAndTheCalendar() {
+        openWorld()
+        compose.onNodeWithText("Places").performClick()
+        compose.onNodeWithText("The Gryffindor common room").assertIsDisplayed()
+        compose.onNodeWithText("Red and gold, a fire that never goes out.").assertIsDisplayed()
+        compose.onNodeWithText("You've been here").assertIsDisplayed()
+        compose.onNodeWithText("Calendar").performClick()
+        compose.onNodeWithText("Draconia's flying test").assertIsDisplayed()
+        compose.onNodeWithText("Wednesday 10:00 am · 3 days").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Back to the Scene").performClick()
+        compose.onNodeWithTag("scene-passages").assertIsDisplayed()
+        compose.runOnIdle { assertEquals(1, link.worldRequests) }
+    }
+}

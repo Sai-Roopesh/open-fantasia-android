@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Redo, with a Direction</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,400;7..72,500;7..72,600&amp;family=Manrope:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#B9A4FF;text-decoration:none}a:hover{color:#D6C9FF}
+button{font:inherit;cursor:pointer}
+</style>
+</helmet>
+<div style="position:relative;width:390px;height:844px;box-sizing:border-box;background:#141218;color:#EEEAF4;font-family:Manrope,system-ui,sans-serif;overflow:hidden">
+  <div aria-hidden="true" style="display:flex;flex-direction:column;gap:14px;padding:72px 16px 0">
+    <p style="margin:0;font-family:Literata,Georgia,serif;font-size:16px;line-height:1.6;color:#E2DDEA">Ron comes down the stairs in his pyjamas, sees the two of them on the sofa and announces that the Cannons are going to win the league this year. He sits on the arm of the sofa. He explains why, at length, with diagrams drawn in the air.</p>
+    <p style="margin:0;font-family:Literata,Georgia,serif;font-size:16px;line-height:1.6;color:#E2DDEA">"Their Seeker's been practising," Ron says. "Properly practising."</p>
+  </div>
+  <div aria-hidden="true" style="position:absolute;inset:0;background:rgba(8,6,12,0.66)"></div>
+
+  <section role="dialog" aria-labelledby="redo-title" style="position:absolute;left:0;right:0;bottom:0;display:flex;flex-direction:column;gap:16px;padding:12px 20px 24px;border-radius:24px 24px 0 0;background:#1E1B24;border-top:1px solid #34303D">
+    <span aria-hidden="true" style="align-self:center;width:36px;height:4px;border-radius:2px;background:#3A3544"></span>
+    <div style="display:flex;flex-direction:column;gap:4px">
+      <h2 id="redo-title" style="margin:0;font-family:Literata,Georgia,serif;font-size:21px;font-weight:600">Redo this Reply</h2>
+      <span style="font-size:13px;line-height:1.5;color:#B3ACC0">A Direction steers the new Reply. It never appears in the Story.</span>
+    </div>
+    <label style="display:flex;flex-direction:column;gap:6px">
+      <span style="font-size:13px;font-weight:600;color:#B3ACC0">Direction (optional)</span>
+      <textarea rows="3" style="resize:none;box-sizing:border-box;padding:12px 14px;border-radius:14px;border:1px solid #7552DD;background:#141218;color:#EEEAF4;font-family:Manrope,system-ui,sans-serif;font-size:15px;line-height:1.45">You're leaning too much into Ron. Move on.</textarea>
+    </label>
+    <label style="display:flex;align-items:center;gap:12px;min-height:44px">
+      <input type="checkbox" style="width:20px;height:20px;accent-color:#7552DD">
+      <span style="display:flex;flex-direction:column;gap:2px">
+        <span style="font-size:15px">Remember this</span>
+        <span style="font-size:12px;color:#8E879C">Keep it as a line of Taste for every Scene after.</span>
+      </span>
+    </label>
+    <label style="display:flex;flex-direction:column;gap:6px">
+      <span style="font-size:13px;font-weight:600;color:#B3ACC0">Written by</span>
+      <select style="height:48px;padding:0 12px;border-radius:14px;border:1px solid #3A3544;background:#141218;color:#EEEAF4;font-family:Manrope,system-ui,sans-serif;font-size:15px">
+        <option>Opus 5.5 · this Story's Actor</option>
+        <option>GPT 6.1 Sol · just this Reply</option>
+        <option>Gemini 3.8 Flash · just this Reply</option>
+      </select>
+    </label>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:4px">
+      <a href="Scene.dc.html" style="display:flex;align-items:center;height:48px;padding:0 20px;border-radius:24px;color:#B3ACC0;font-size:15px">Cancel</a>
+      <a href="SceneWriting.dc.html" style="display:flex;align-items:center;height:48px;padding:0 24px;border-radius:24px;background:#7552DD;color:#FFFFFF;font-weight:600;font-size:15px">Redo</a>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

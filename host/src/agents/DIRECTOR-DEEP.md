@@ -1,0 +1,1 @@
+Deep planning: think carefully, use lookups only when needed (a few at most), and ensure every Close person and Mover has an active, earned agenda that respects Rules, Landmarks, waiting setups, and the player's steering notes. Answer with one complete JSON object.

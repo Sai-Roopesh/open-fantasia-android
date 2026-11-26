@@ -1,0 +1,231 @@
+import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { OPENCODE_KEY, readSecret } from "../secrets.js";
+import type { ModelRunner, ModelUsage } from "./model-call.js";
+
+/**
+ * The direct transport cannot be used for this call, for a reason the provider's own tool can mend: its sign-in has
+ * expired, or was never made. The call goes to that tool instead, which renews the sign-in as it works.
+ */
+export class UseFallback extends Error {}
+
+/**
+ * The direct transport first, and the provider's own tool when the direct one cannot be signed in (docs/adr/0023).
+ * Only a sign-in problem falls back: any other failure is the call's, and is reported as it is, so a broken direct
+ * path is seen rather than hidden behind a quieter one.
+ */
+export function preferDirect(direct: ModelRunner, fallback: ModelRunner): ModelRunner {
+  return {
+    ...(direct.canLookUp ? { canLookUp: direct.canLookUp } : {}),
+    run: async (request, onText, signal, tools, onUsage, onWire) => {
+      try {
+        return await direct.run(request, onText, signal, tools, onUsage, onWire);
+      } catch (error) {
+        if (!(error instanceof UseFallback)) throw error;
+        return fallback.run(request, onText, signal, tools, onUsage);
+      }
+    }
+  };
+}
+
+/** Reads a server-sent event stream, handing each `data:` line's JSON to [onEvent] as it arrives. */
+export async function readEvents(response: Response, onEvent: (event: Record<string, unknown>) => void): Promise<void> {
+  if (!response.body) return;
+  const decoder = new TextDecoder();
+  let pending = "";
+  const take = (line: string) => {
+    if (!line.startsWith("data:")) return;
+    const data = line.slice(5).trim();
+    if (!data || data === "[DONE]") return;
+    try { onEvent(JSON.parse(data) as Record<string, unknown>); } catch { /* A line that is not JSON carries nothing we read. */ }
+  };
+  for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>) {
+    pending += decoder.decode(chunk, { stream: true });
+    const lines = pending.split("\n");
+    pending = lines.pop() ?? "";
+    lines.forEach(take);
+  }
+  take(pending + decoder.decode());
+}
+
+/** A provider's refusal of a call that is not about its sign-in, with the HTTP status it came with. */
+export class Refused extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+  }
+}
+
+/** Why a provider refused a call, in the provider's own words where it gave some. */
+export async function refusal(provider: string, response: Response): Promise<Error> {
+  const body = await response.text().catch(() => "");
+  let said = body.slice(0, 300);
+  try {
+    const parsed = JSON.parse(body) as { error?: { message?: string } | string; detail?: string };
+    said = (typeof parsed.error === "string" ? parsed.error : parsed.error?.message) ?? parsed.detail ?? said;
+  } catch { /* Not JSON: the raw words are the best there is. */ }
+  if (response.status === 401 || response.status === 403) return new UseFallback(`${provider} sign-in was refused (${response.status}): ${said}`);
+  if (response.status === 429) return new Refused(`${provider} usage limit reached: ${said}`, 429);
+  return new Refused(`${provider} answered ${response.status}: ${said}`, response.status);
+}
+
+const SOON = 60_000;
+
+/**
+ * What a call used, summed over every request it made: a call that looks things up makes several, and each is billed.
+ * The same four numbers for every provider, as each reported them; nothing is estimated.
+ */
+export class Used {
+  private total = { input_tokens: 0, cached_tokens: 0, output_tokens: 0, reasoning_tokens: 0, requests: 0 };
+
+  add(input: unknown, cached: unknown, output: unknown, reasoning: unknown): ModelUsage {
+    const number = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : 0);
+    this.total = {
+      input_tokens: this.total.input_tokens + number(input),
+      cached_tokens: this.total.cached_tokens + number(cached),
+      output_tokens: this.total.output_tokens + number(output),
+      reasoning_tokens: this.total.reasoning_tokens + number(reasoning),
+      requests: this.total.requests + 1
+    };
+    return { ...this.total };
+  }
+}
+
+export interface CodexCredentials {
+  token: string;
+  accountId: string;
+}
+
+/** The ChatGPT sign-in the Codex CLI keeps in `~/.codex/auth.json`, while its token is still good. */
+export function codexCredentials(file = join(homedir(), ".codex", "auth.json"), now = Date.now()): CodexCredentials {
+  let auth: { tokens?: { access_token?: string; account_id?: string } };
+  try {
+    auth = JSON.parse(readFileSync(file, "utf8")) as typeof auth;
+  } catch {
+    throw new UseFallback("Codex is not signed in with ChatGPT on this Mac");
+  }
+  const token = auth.tokens?.access_token;
+  const accountId = auth.tokens?.account_id;
+  if (!token || !accountId) throw new UseFallback("Codex is not signed in with ChatGPT on this Mac");
+  const expires = jwtExpiry(token);
+  if (expires !== null && expires - SOON < now) throw new UseFallback("The Codex sign-in has expired");
+  return { token, accountId };
+}
+
+function jwtExpiry(token: string): number | null {
+  try {
+    const claims = JSON.parse(Buffer.from(token.split(".")[1] ?? "", "base64url").toString("utf8")) as { exp?: number };
+    return typeof claims.exp === "number" ? claims.exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
+interface AntigravityStored {
+  token?: { access_token?: string; refresh_token?: string; expiry?: string };
+}
+
+function parseAntigravityStored(raw: string): AntigravityStored {
+  const trimmed = raw.trim();
+  const encoded = trimmed.startsWith("go-keyring-base64:") ? trimmed.slice("go-keyring-base64:".length) : trimmed;
+  return JSON.parse(trimmed.startsWith("{") ? trimmed : Buffer.from(encoded, "base64").toString("utf8")) as AntigravityStored;
+}
+
+/** The Google sign-in Antigravity keeps in the Mac keychain, while its token is still good. */
+export function antigravityToken(read: () => string = readAntigravityKeychain, now = Date.now()): string {
+  let stored: AntigravityStored;
+  try {
+    stored = parseAntigravityStored(read());
+  } catch {
+    throw new UseFallback("Antigravity is not signed in on this Mac");
+  }
+  const token = stored.token?.access_token;
+  if (!token) throw new UseFallback("Antigravity is not signed in on this Mac");
+  const expiry = stored.token?.expiry ? Date.parse(stored.token.expiry) : NaN;
+  if (!Number.isNaN(expiry) && expiry - SOON < now) throw new UseFallback("The Antigravity sign-in has expired");
+  return token;
+}
+
+let cachedAgToken: { token: string; expiresAt: number } | null = null;
+let cachedAgOAuth: { ids: string[]; secrets: string[] } | null = null;
+
+function discoverAntigravityOAuth(): { ids: string[]; secrets: string[] } {
+  if (cachedAgOAuth) return cachedAgOAuth;
+  try {
+    const bin = execFileSync("/usr/bin/strings", ["/Applications/Antigravity.app/Contents/Resources/bin/language_server"], { maxBuffer: 64 * 1024 * 1024, encoding: "utf8" });
+    cachedAgOAuth = {
+      ids: [...new Set(bin.match(/[0-9]+-[a-z0-9]+\.apps\.googleusercontent\.com/g) ?? [])],
+      secrets: [...new Set(bin.match(/GOCSPX-[A-Za-z0-9_-]{28}/g) ?? [])]
+    };
+  } catch {
+    cachedAgOAuth = { ids: [], secrets: [] };
+  }
+  return cachedAgOAuth;
+}
+
+/**
+ * Returns a fresh Antigravity OAuth access token: uses the valid keychain token or cached refresh first, and when
+ * expired refreshes automatically via `refresh_token` so direct calls never degrade to `agy` after 60 minutes.
+ */
+export async function resolveAntigravityToken(
+  read: () => string = readAntigravityKeychain,
+  post: typeof fetch = fetch,
+  now = Date.now()
+): Promise<string> {
+  if (cachedAgToken && cachedAgToken.expiresAt - SOON > now) return cachedAgToken.token;
+  let stored: AntigravityStored;
+  try {
+    stored = parseAntigravityStored(read());
+  } catch {
+    throw new UseFallback("Antigravity is not signed in on this Mac");
+  }
+  const access = stored.token?.access_token;
+  const expiry = stored.token?.expiry ? Date.parse(stored.token.expiry) : NaN;
+  if (access && (Number.isNaN(expiry) || expiry - SOON > now)) return access;
+  const refresh = stored.token?.refresh_token;
+  if (!refresh) throw new UseFallback("The Antigravity sign-in has expired");
+  const { ids, secrets } = discoverAntigravityOAuth();
+  for (const client_id of ids) {
+    for (const client_secret of secrets) {
+      try {
+        const res = await post("https://oauth2.googleapis.com/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ client_id, client_secret, refresh_token: refresh, grant_type: "refresh_token" })
+        });
+        if (!res.ok) continue;
+        const data = await res.json() as { access_token?: string; expires_in?: number };
+        if (data.access_token) {
+          cachedAgToken = { token: data.access_token, expiresAt: now + (data.expires_in ?? 3500) * 1000 };
+          return data.access_token;
+        }
+      } catch {
+        // Try next candidate pair or fall back cleanly.
+      }
+    }
+  }
+  throw new UseFallback("The Antigravity sign-in has expired");
+}
+
+function readAntigravityKeychain(): string {
+  return execFileSync("/usr/bin/security", ["find-generic-password", "-s", "gemini", "-a", "antigravity", "-w"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+}
+
+/**
+ * Resolves the OpenCode Go API key from (1) `OPENCODE_API_KEY` env / macOS keychain (`fantasia opencode-key`) or
+ * (2) OpenCode's own `~/.local/share/opencode/auth.json` (`opencode-go` / `opencode` entry from `/connect`).
+ */
+export function opencodeApiKey(
+  readStored: () => string | null = () => readSecret(OPENCODE_KEY),
+  authFile = join(homedir(), ".local", "share", "opencode", "auth.json")
+): string {
+  const stored = readStored()?.trim();
+  if (stored) return stored;
+  try {
+    const auth = JSON.parse(readFileSync(authFile, "utf8")) as Record<string, { key?: string; access?: string } | undefined>;
+    const key = auth["opencode-go"]?.key ?? auth["opencode-go"]?.access ?? auth.opencode?.key ?? auth.opencode?.access;
+    if (key?.trim()) return key.trim();
+  } catch { /* No OpenCode CLI auth file or unreadable. */ }
+  throw new Error("OpenCode Go is not set up on this Mac. Run `fantasia opencode-key` or connect OpenCode Go in `opencode`.");
+}

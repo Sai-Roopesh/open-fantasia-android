@@ -1,0 +1,11 @@
+{
+  "name": "@open-fantasia/protocol",
+  "private": true,
+  "type": "module",
+  "description": "The contract between the phone and the Mac, and the Story File format, defined once as JSON Schema.",
+  "scripts": { "generate": "node generate.mjs" },
+  "devDependencies": {
+    "json-schema-to-typescript": "16.0.0",
+    "quicktype": "26.0.0"
+  }
+}

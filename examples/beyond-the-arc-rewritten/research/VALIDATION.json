@@ -1,0 +1,53 @@
+{
+  "checkedAt": "2026-11-08T16:27:49.841Z",
+  "title": "Beyond the Arc — Rewritten",
+  "activeCast": 39,
+  "registeredRealPlayers": 524,
+  "rosterTeams": 30,
+  "opening": "The away end",
+  "clock": "Day 1 16:55",
+  "prompts": {
+    "writer": {
+      "systemChars": 67311,
+      "promptChars": 11792,
+      "missingRoster": [],
+      "missingRules": [],
+      "missingCast": []
+    },
+    "actor": {
+      "systemChars": 48602,
+      "promptChars": 8225,
+      "missingRoster": [],
+      "missingRules": [],
+      "missingCast": []
+    }
+  },
+  "formats": {
+    "writer": {
+      "enumValues": 85,
+      "jsonChars": 3941
+    },
+    "editor": {
+      "enumValues": 42,
+      "jsonChars": 1668
+    },
+    "director": {
+      "enumValues": 128,
+      "jsonChars": 7028
+    },
+    "outline": {
+      "enumValues": 156,
+      "jsonChars": 4745
+    },
+    "chronicler": {
+      "enumValues": 508,
+      "jsonChars": 15490
+    },
+    "weaver": {
+      "enumValues": 543,
+      "jsonChars": 14244
+    }
+  },
+  "issues": [],
+  "liveModelCalls": 0
+}

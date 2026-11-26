@@ -1,0 +1,407 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://open-fantasia.local/story-file.schema.json",
+  "title": "StoryFile",
+  "description": "The setup document of a Story File (openspec/specs/story-file): story.yaml in a folder beside the Portrait images it names. People are referred to by name everywhere.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "title",
+    "premise",
+    "style",
+    "people",
+    "player_character",
+    "opening"
+  ],
+  "properties": {
+    "format": {
+      "description": "The Story File format version this document was written for.",
+      "type": "integer"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "premise": {
+      "description": "What the player came to experience, in a line or two.",
+      "type": "string",
+      "minLength": 1
+    },
+    "style": {
+      "description": "How the Story is written, in the player's own words.",
+      "type": "string",
+      "minLength": 1
+    },
+    "reply_length": {
+      "type": "string",
+      "enum": [
+        "short",
+        "medium",
+        "full"
+      ],
+      "default": "full"
+    },
+    "actor": {
+      "$ref": "#/$defs/ModelChoice"
+    },
+    "clock": {
+      "$ref": "#/$defs/ClockSetup"
+    },
+    "world": {
+      "$ref": "#/$defs/WorldSetup"
+    },
+    "rules": {
+      "description": "How the World works from the start, a line each (openspec story-file: Rules to start from).",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "people": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/PersonSetup"
+      }
+    },
+    "groups": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/GroupSetup"
+      }
+    },
+    "leads": {
+      "description": "Names of the Leads.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "player_character": {
+      "description": "The name of the person the player plays.",
+      "type": "string",
+      "minLength": 1
+    },
+    "arcs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "landmarks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/LandmarkSetup"
+      }
+    },
+    "threads": {
+      "description": "Situations developing in the World on their own, each with where it stands when the Story begins.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ThreadSetup"
+      }
+    },
+    "opening": {
+      "$ref": "#/$defs/OpeningSetup"
+    },
+    "routine": {
+      "description": "The Story's daily routine, a line each: when lectures, meals and the like are, for the Director and the World to build on and break.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "brief": {
+      "description": "What the player wants more of and less of in the Story; the Director plans every Stretch from it.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "more": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "less": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "StoryTime": {
+      "description": "A moment on the Story Clock, written \"Day N HH:MM\".",
+      "type": "string",
+      "pattern": "^Day [1-9][0-9]{0,4} ([01][0-9]|2[0-3]):[0-5][0-9]$"
+    },
+    "ModelChoice": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "model"
+      ],
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": [
+            "claude",
+            "codex",
+            "antigravity",
+            "opencode"
+          ]
+        },
+        "model": {
+          "description": "The id the provider lists the model under.",
+          "type": "string",
+          "minLength": 1
+        },
+        "effort": {
+          "type": "string"
+        }
+      }
+    },
+    "ClockSetup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "starts"
+      ],
+      "properties": {
+        "starts": {
+          "$ref": "#/$defs/StoryTime"
+        },
+        "day_one": {
+          "description": "The date of the Story's first day, Day 1, as YYYY-MM-DD: every day after it is a date, and its weekday follows.",
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        }
+      }
+    },
+    "WorldSetup": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "summary": {
+          "description": "What the World is, in a paragraph.",
+          "type": "string"
+        },
+        "history": {
+          "type": "string"
+        },
+        "places": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PlaceSetup"
+          }
+        },
+        "institutions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/InstitutionSetup"
+          }
+        }
+      }
+    },
+    "PlaceSetup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "InstitutionSetup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "PersonSetup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "who_they_are"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "aliases": {
+          "description": "Other names they answer to.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "who_they_are": {
+          "description": "Who they are and the backstory they come with.",
+          "type": "string",
+          "minLength": 1
+        },
+        "known": {
+          "description": "What the Player Character knows of them when the Story begins: what he, not the Story, would say of them. Who they are may hold what nobody knows; this never does.",
+          "type": "string",
+          "minLength": 1
+        },
+        "bond": {
+          "description": "Where things stand between them and the Player Character when the Story begins, when they already have history: as he has seen it, in forty words or fewer. Never for the Player Character himself.",
+          "type": "string",
+          "minLength": 1
+        },
+        "appearance": {
+          "type": "string"
+        },
+        "after": {
+          "description": "What they are after.",
+          "type": "string"
+        },
+        "knows": {
+          "description": "What they know when the Story begins, beyond their own backstory.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "voice": {
+          "description": "Lines they have said, in their own words.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "portrait": {
+          "description": "The Portrait image's path within the Story File's folder.",
+          "type": "string"
+        },
+        "group": {
+          "description": "The name of the Group they are in, if any.",
+          "type": "string"
+        }
+      }
+    },
+    "GroupSetup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "LandmarkSetup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "at",
+        "what"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "at": {
+          "$ref": "#/$defs/StoryTime"
+        },
+        "what": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "ThreadSetup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "now"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "now": {
+          "description": "Where it stands.",
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "OpeningSetup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title",
+        "place",
+        "at",
+        "who",
+        "prose"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "place": {
+          "type": "string",
+          "minLength": 1
+        },
+        "at": {
+          "$ref": "#/$defs/StoryTime"
+        },
+        "who": {
+          "description": "The names of everyone there besides the Player Character.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "prose": {
+          "description": "How the Scene opens, ending where the Player Character would act.",
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

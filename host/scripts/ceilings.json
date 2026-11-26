@@ -1,0 +1,28 @@
+{
+  "maxCycles": 0,
+  "maxTotalLines": 14700,
+  "defaultMaxFileLines": 350,
+  "fileCeilings": {
+    "engine/engine.ts": 1270,
+    "context/lens.ts": 790,
+    "cli/commands.ts": 745,
+    "agents/outline.ts": 475,
+    "store/story-tools.ts": 415,
+    "link/server.ts": 420,
+    "story/reducer.ts": 365
+  },
+  "allowedLayerViolations": [],
+  "forbiddenFiles": [
+    "store/carry.ts",
+    "agents/names.ts",
+    "agents/tools/story.ts",
+    "agents/actor.ts",
+    "agents/writer.ts",
+    "link/errors.ts"
+  ],
+  "forbiddenPatterns": [
+    { "name": "legacy-before-ledger", "pattern": "\\bbefore_ledger\\b" },
+    { "name": "legacy-arc-moved", "pattern": "\\barcMoved\\b" },
+    { "name": "legacy-v1-lens-helpers", "pattern": "\\bfunction (storyPart|castPart|calendarPart|factsPart|steeringPart)\\b" }
+  ]
+}

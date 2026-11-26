@@ -1,0 +1,4011 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://open-fantasia.local/link.schema.json",
+  "title": "Link",
+  "description": "Everything the phone and the Mac say to each other (openspec/specs/mac-link). Every request carries the Fantasia-Contract header with the contract version; every response carries a trace id. Unions are flat objects with a kind field, so the Kotlin side stays plain data classes.",
+  "$defs": {
+    "ErrorCode": {
+      "type": "string",
+      "enum": [
+        "unpaired",
+        "version_mismatch",
+        "busy",
+        "stale_head",
+        "not_found",
+        "invalid",
+        "model_failed",
+        "internal"
+      ]
+    },
+    "ErrorBody": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "error"
+      ],
+      "properties": {
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "code",
+            "message",
+            "trace_id"
+          ],
+          "properties": {
+            "code": {
+              "$ref": "#/$defs/ErrorCode"
+            },
+            "message": {
+              "description": "Why, in words the player can read.",
+              "type": "string"
+            },
+            "trace_id": {
+              "type": "string"
+            }
+          },
+          "title": "ErrorDetail"
+        }
+      }
+    },
+    "PairingInvite": {
+      "description": "What the Mac's pairing QR code holds.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "host_id",
+        "host_name",
+        "addresses",
+        "port",
+        "code",
+        "fingerprint",
+        "contract"
+      ],
+      "properties": {
+        "host_id": {
+          "type": "string"
+        },
+        "host_name": {
+          "type": "string"
+        },
+        "addresses": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "port": {
+          "type": "integer"
+        },
+        "code": {
+          "description": "One-time pairing code, valid for ten minutes.",
+          "type": "string"
+        },
+        "fingerprint": {
+          "description": "SHA-256 of the Mac's certificate, which the phone pins.",
+          "type": "string"
+        },
+        "contract": {
+          "type": "integer"
+        }
+      }
+    },
+    "PairRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "device_name"
+      ],
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "device_name": {
+          "type": "string"
+        }
+      }
+    },
+    "PairResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "device_token",
+        "host_id",
+        "host_name",
+        "trace_id"
+      ],
+      "properties": {
+        "device_token": {
+          "type": "string"
+        },
+        "host_id": {
+          "type": "string"
+        },
+        "host_name": {
+          "type": "string"
+        },
+        "trace_id": {
+          "type": "string"
+        }
+      }
+    },
+    "StoryList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stories",
+        "trace_id"
+      ],
+      "properties": {
+        "stories": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StorySummary"
+          }
+        },
+        "trace_id": {
+          "type": "string"
+        }
+      }
+    },
+    "StorySummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "standing",
+        "updated_at",
+        "detail"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "standing": {
+          "description": "Where the Story stands on its current Path, as one line: \"Scene 14 \u00b7 After curfew\" mid-Scene, \"Sunday 7:40 am \u00b7 choosing where to go\" at the Day View.",
+          "type": "string"
+        },
+        "updated_at": {
+          "type": "string"
+        },
+        "detail": {
+          "description": "The line under the standing: \"Friday 9:52 pm \u00b7 with Hermione\" mid-Scene, \"3 Scenes played\" at the Day View.",
+          "type": "string"
+        }
+      }
+    },
+    "PersonCard": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "portrait_url"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "portrait_url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "SceneCard": {
+      "description": "A Scene's title card.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "number",
+        "title",
+        "place",
+        "at",
+        "at_label",
+        "people"
+      ],
+      "properties": {
+        "number": {
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        },
+        "place": {
+          "type": "string"
+        },
+        "at": {
+          "description": "Story time, \"Day N HH:MM\".",
+          "type": "string"
+        },
+        "at_label": {
+          "description": "Story time as people say it: \"Friday 9:40 pm\".",
+          "type": "string"
+        },
+        "people": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PersonCard"
+          },
+          "description": "Who is in the Scene now besides the Player Character, with their Portraits; someone a Move or the Story brings in is added."
+        }
+      }
+    },
+    "Passage": {
+      "description": "One Move or Reply, as it stands on the tree.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entry_id",
+        "text"
+      ],
+      "properties": {
+        "entry_id": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "note": {
+          "description": "On a Reply only: the Editor's note when the Reply still breaks what is established after it was written again (docs/adr/0019); null otherwise.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "Exchange": {
+      "description": "A Move and the Reply that answered it. The opening Scene's first Reply has no Move.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "move",
+        "reply"
+      ],
+      "properties": {
+        "move": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Passage"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reply": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Passage"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "TurnState": {
+      "description": "Whether a Reply is under way (looking back, being written, being checked), has failed, or nothing is under way (openspec presence: A Reply arrives checked and whole).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "idle",
+            "looking_back",
+            "writing",
+            "checking",
+            "failed"
+          ]
+        },
+        "reason": {
+          "description": "When failed: why, in words the player can read.",
+          "type": "string"
+        },
+        "trace_id": {
+          "description": "When writing or failed: the turn's trace id.",
+          "type": "string"
+        },
+        "job": {
+          "$ref": "#/$defs/ModelJob",
+          "description": "When failed: the job that failed."
+        }
+      }
+    },
+    "SceneView": {
+      "description": "The Scene screen as the Mac sees it on the Story's current Path.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "story_id",
+        "path_id",
+        "seq",
+        "head_entry_id",
+        "scene",
+        "player_character",
+        "earlier_scenes",
+        "exchanges",
+        "turn",
+        "trace_id",
+        "last_event_id",
+        "focus",
+        "linger",
+        "day_view",
+        "previously",
+        "opening",
+        "brief"
+      ],
+      "properties": {
+        "story_id": {
+          "type": "string"
+        },
+        "path_id": {
+          "type": "string"
+        },
+        "seq": {
+          "description": "The newest entry in the Story when this view was taken.",
+          "type": "integer"
+        },
+        "head_entry_id": {
+          "description": "The entry a Move must follow.",
+          "type": "string"
+        },
+        "scene": {
+          "$ref": "#/$defs/SceneCard"
+        },
+        "player_character": {
+          "description": "The name of the person the player plays, for labelling their Moves.",
+          "type": "string"
+        },
+        "earlier_scenes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SceneSummaryLine"
+          }
+        },
+        "exchanges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Exchange"
+          }
+        },
+        "turn": {
+          "$ref": "#/$defs/TurnState"
+        },
+        "trace_id": {
+          "type": "string"
+        },
+        "last_event_id": {
+          "description": "The id of the newest event this view reflects, including the words of a Reply under way; the live stream resumes after it.",
+          "type": "string"
+        },
+        "focus": {
+          "description": "Who the Scene is focused on, or null.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "linger": {
+          "description": "Whether Linger is on.",
+          "type": "boolean"
+        },
+        "day_view": {
+          "description": "Present once the Scene has closed, by the Story or by End scene: the Day View, whose composer takes the next Move.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/DayView"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "previously": {
+          "description": "Present when the player last played this Story more than a day ago and the Scene they are in, or the Scene that closed at the Day View, has a summary: the Previously card.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Previously"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "opening": {
+          "description": "Present while a Move at the Day View is opening the next Scene and the Scene has not opened yet (openspec presence: Between Scenes is quiet, and shows progress). Then there is no Day View, the exchanges are that Move's, the Scene that closed is among the earlier Scenes, and the phone shows this card in place of the Scene's.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/NextScene"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "brief": {
+          "$ref": "#/$defs/Brief"
+        }
+      }
+    },
+    "NextScene": {
+      "description": "The next Scene, being written: when it is, when the choice set a time.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "at",
+        "at_label"
+      ],
+      "properties": {
+        "at": {
+          "description": "Story time, \"Day N HH:MM\", or null when the choice set none.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "at_label": {
+          "description": "As people say it: \"Friday 6:00 pm\", or null.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "SceneSummaryLine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "number",
+        "title",
+        "summary"
+      ],
+      "properties": {
+        "number": {
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string",
+          "description": "The Chronicler's one line for the Scene, or empty until it has written one."
+        }
+      }
+    },
+    "Previously": {
+      "description": "The Previously card: where the Story stands, from the Chronicler's records, and when the player last played.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "summary",
+        "since"
+      ],
+      "properties": {
+        "summary": {
+          "description": "The latest summary of the Scene the player is in (so far), or of the Scene that closed.",
+          "type": "string"
+        },
+        "since": {
+          "description": "When the player last played: the time the Path's head entry was written, ISO 8601.",
+          "type": "string"
+        }
+      }
+    },
+    "MoveRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text",
+        "after"
+      ],
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "after": {
+          "description": "The entry the phone saw as the head; a Move after any other is refused as stale.",
+          "type": "string"
+        }
+      }
+    },
+    "TurnAccepted": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "move_entry_id",
+        "trace_id"
+      ],
+      "properties": {
+        "move_entry_id": {
+          "type": "string"
+        },
+        "trace_id": {
+          "type": "string"
+        }
+      }
+    },
+    "StoryEvent": {
+      "description": "One event on a Story's live stream. Entry events (scene_opened, move, reply, scene_closed, focus_set, linger_set, redo, world_moved) are replayed after a reconnect; reply_started, turn_step and reply_failed describe the turn under way; a Reply's words arrive whole, in its reply event; scene_end_step says which step of a Scene's end is under way, null when it is done, and scene_end_failed where it stopped and why (docs/adr/0016). path_changed says the Story is now on another Path, or its Path was moved back, or a Move or Reply on it was edited. After scene_opened, scene_closed, redo, world_moved, scene_end_step, scene_end_failed and path_changed, and after a move that opens the next Scene, the phone reads the Scene again, because they change more than one part of it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "seq"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "scene_opened",
+            "move",
+            "reply",
+            "scene_closed",
+            "focus_set",
+            "linger_set",
+            "redo",
+            "reply_started",
+            "reply_delta",
+            "turn_step",
+            "reply_failed",
+            "world_moved",
+            "path_changed",
+            "scene_end_step",
+            "scene_end_failed"
+          ]
+        },
+        "seq": {
+          "description": "The newest entry this event follows.",
+          "type": "integer"
+        },
+        "scene": {
+          "$ref": "#/$defs/SceneCard",
+          "description": "scene_opened and reply: the Scene's card as it stands."
+        },
+        "passage": {
+          "$ref": "#/$defs/Passage"
+        },
+        "delta": {
+          "description": "reply_delta: live streamed prose chunk while the Reply is being written.",
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "trace_id": {
+          "type": "string"
+        },
+        "day_view": {
+          "description": "scene_closed: the Day View.",
+          "$ref": "#/$defs/DayView"
+        },
+        "focus": {
+          "description": "scene_opened and focus_set: who the Scene is focused on, or null.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "linger": {
+          "description": "linger_set: whether Linger is on.",
+          "type": "boolean"
+        },
+        "opening": {
+          "description": "move: present when the Move is written at the Day View, the next Scene it opens. The Scene is then that Move's, under this card, until scene_opened.",
+          "$ref": "#/$defs/NextScene"
+        },
+        "step": {
+          "description": "For scene_end_step and scene_end_failed: the step; null when the Scene's end is done.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/SceneEndStep"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "turn_step": {
+          "description": "turn_step: what the Reply under way is doing.",
+          "type": "string",
+          "enum": [
+            "looking_back",
+            "writing",
+            "checking"
+          ]
+        }
+      }
+    },
+    "DayView": {
+      "description": "Where and when the Player Character is between Scenes, and what he learned meanwhile (openspec day-view).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "at",
+        "at_label",
+        "day",
+        "time",
+        "place",
+        "countdowns",
+        "scene_span",
+        "meanwhile",
+        "happenings",
+        "choices",
+        "scene_end",
+        "reaction"
+      ],
+      "properties": {
+        "at": {
+          "description": "Story time, \"Day N HH:MM\".",
+          "type": "string"
+        },
+        "at_label": {
+          "description": "Story time as people say it: \"Sunday 7:40 am\".",
+          "type": "string"
+        },
+        "day": {
+          "description": "The day as people say it: \"Sunday\", or \"Day 3\" when the Story has no weekdays.",
+          "type": "string"
+        },
+        "time": {
+          "description": "The time as people say it: \"7:40 am\".",
+          "type": "string"
+        },
+        "place": {
+          "description": "Where the Player Character is.",
+          "type": "string"
+        },
+        "countdowns": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Countdown"
+          }
+        },
+        "scene_span": {
+          "description": "When the Scene that ended ran, as people say it: \"Friday 9:40 pm \u2013 11:05 pm\".",
+          "type": "string"
+        },
+        "meanwhile": {
+          "description": "What the Player Character learned while elsewhere, once the World has moved on; empty before.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MeanwhileItem"
+          }
+        },
+        "happenings": {
+          "description": "What is on today that the Player Character could go to: at most four, the Story's pick first, once the World has moved on; empty before.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Happening"
+          }
+        },
+        "choices": {
+          "$ref": "#/$defs/DayChoices"
+        },
+        "scene_end": {
+          "$ref": "#/$defs/SceneEnd"
+        },
+        "reaction": {
+          "description": "The player's reaction to the Scene that ended, or null.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "more",
+            "less",
+            null
+          ]
+        }
+      }
+    },
+    "Countdown": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "landmark",
+        "when",
+        "label"
+      ],
+      "properties": {
+        "landmark": {
+          "type": "string"
+        },
+        "when": {
+          "description": "How long to go: \"3 days\", \"Tomorrow\", \"Today at 8:30 pm\".",
+          "type": "string"
+        },
+        "label": {
+          "description": "\"3 days to Draconia's flying test\", \"Tomorrow: the first match\", \"Today at 6:00 pm: the feast\".",
+          "type": "string"
+        }
+      }
+    },
+    "MeanwhileItem": {
+      "description": "One line of Meanwhile, marked by how the Player Character learned it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text",
+        "how"
+      ],
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "how": {
+          "type": "string",
+          "enum": [
+            "seen",
+            "told",
+            "rumour"
+          ]
+        }
+      }
+    },
+    "Happening": {
+      "description": "Something going on in the World at a time and place the Player Character could be at (openspec day-view: Up to four Happenings).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "at",
+        "time",
+        "place",
+        "what",
+        "who",
+        "expected",
+        "pick",
+        "days_away",
+        "scene",
+        "every"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "at": {
+          "description": "Story time, \"Day N HH:MM\".",
+          "type": "string"
+        },
+        "time": {
+          "description": "When, as people say it: \"9:00 am\", or \"Tomorrow 9:00 am\".",
+          "type": "string"
+        },
+        "place": {
+          "type": "string"
+        },
+        "what": {
+          "description": "What is going on, and why it matters now.",
+          "type": "string"
+        },
+        "who": {
+          "description": "Who will be there, by name.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "expected": {
+          "description": "The Player Character is expected there: shown \"You're expected\".",
+          "type": "boolean"
+        },
+        "pick": {
+          "description": "The Story's own pick, which Let the Story choose goes to.",
+          "type": "boolean"
+        },
+        "days_away": {
+          "description": "How many days off it is: 0 today, 1 tomorrow; the Day View says \"in 5 days\" beyond that.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "scene": {
+          "description": "The Stretch's Scene that matters it is, when it is one; null otherwise.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "every": {
+          "description": "For a weekly Engagement, the day it repeats (\"Wednesday\"), and time is then the hour alone: shown \"Every Wednesday \u00b7 7:30 pm\". Null otherwise.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "DayChoices": {
+      "description": "What the Day View's other choices offer: people to follow, places to go, and times to skip to.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "follow",
+        "places",
+        "skips"
+      ],
+      "properties": {
+        "follow": {
+          "description": "People the Player Character could follow: the Leads and whoever was in the Scene that ended.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "places": {
+          "description": "The Story's places to go to.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "skips": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Skip"
+          }
+        }
+      }
+    },
+    "Skip": {
+      "description": "A later time to skip to: this evening, tomorrow, the weekend, the next Landmark.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "label",
+        "in_sentence",
+        "at",
+        "time",
+        "days_away"
+      ],
+      "properties": {
+        "label": {
+          "description": "\"This evening\", \"Tomorrow\", \"The weekend\", or the Landmark's name.",
+          "type": "string"
+        },
+        "in_sentence": {
+          "description": "The label as it reads inside a sentence: \"this evening\", \"tomorrow\", \"the weekend\", or the Landmark's name as named.",
+          "type": "string"
+        },
+        "at": {
+          "type": "string"
+        },
+        "time": {
+          "description": "As people say it: \"6:00 pm\" on the Day View's own day, \"Saturday 7:30 am\" on another.",
+          "type": "string"
+        },
+        "days_away": {
+          "description": "How many days off it is: 0 today, 1 tomorrow; the skip says \"in 48 days\" a week or more away.",
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "ChooseRequest": {
+      "description": "A choice at the Day View (openspec day-view: The player chooses where to be). The Mac writes it as the player's Move, the Gap first.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after",
+        "kind",
+        "gap"
+      ],
+      "properties": {
+        "after": {
+          "description": "The entry the choice follows: the Day View's head.",
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "go",
+            "follow",
+            "somewhere",
+            "skip",
+            "story"
+          ]
+        },
+        "happening": {
+          "description": "go: the Happening's id; left out or null for the other kinds.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "who": {
+          "description": "follow: who; left out or null for the other kinds.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "place": {
+          "description": "somewhere: the place; left out or null for the other kinds.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "at": {
+          "description": "skip: the time skipped to; left out or null for the other kinds.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "gap": {
+          "description": "What the Player Character did in the Gap, in the player's words, or null: left blank, he spent it quietly where he was.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "PathsView": {
+      "description": "The Paths screen (openspec paths: The Paths screen): the Story as a tree, laid out by the Mac in reading order.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "story_id",
+        "rows",
+        "clearable",
+        "trace_id"
+      ],
+      "properties": {
+        "story_id": {
+          "type": "string"
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PathRow"
+          }
+        },
+        "clearable": {
+          "description": "How many Paths Clear would remove: those Rewind set aside and the player never opened.",
+          "type": "integer"
+        },
+        "trace_id": {
+          "type": "string"
+        }
+      }
+    },
+    "PathRow": {
+      "description": "One row of the tree: a run of Scenes the Paths below share, folded; the Scene where they part; or a Path's card. Depth says how far in it is drawn.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "depth",
+        "label",
+        "title",
+        "path"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "scenes",
+            "fork",
+            "path"
+          ]
+        },
+        "depth": {
+          "type": "integer"
+        },
+        "label": {
+          "description": "scenes: \"Scenes 1 \u2013 12 \u00b7 Friday 6:10 pm\"; fork: \"Scene 13 \u00b7 Friday 8:05 pm\"; path: its card's label.",
+          "type": "string"
+        },
+        "title": {
+          "description": "fork: the Scene's title, \"The troll\"; otherwise null.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path": {
+          "description": "path: the card.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/PathCard"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "PathCard": {
+      "description": "A Path on the Paths screen.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "title",
+        "detail",
+        "current",
+        "played_at",
+        "can_delete"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "description": "\"MAIN \u00b7 YOU ARE HERE\", \"FROM SCENE 13 \u00b7 TRIED ANOTHER WAY\", \"SET ASIDE AT SCENE 14\", \"FROM THE BEGINNING\".",
+          "type": "string"
+        },
+        "title": {
+          "description": "The player's name for it, or its newest Scene: \"Scene 14 \u00b7 After curfew\".",
+          "type": "string"
+        },
+        "detail": {
+          "description": "\"3 Scenes \u00b7 Saturday 1:15 am\".",
+          "type": "string"
+        },
+        "current": {
+          "description": "Whether the player is on it.",
+          "type": "boolean"
+        },
+        "played_at": {
+          "description": "When it was last played, ISO 8601; the phone says how long ago.",
+          "type": "string"
+        },
+        "can_delete": {
+          "description": "False for the Path the player is on.",
+          "type": "boolean"
+        }
+      }
+    },
+    "TryAnotherWayRequest": {
+      "description": "Try another way from a Reply, or, with from null, start again from the beginning (openspec paths).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "from",
+        "after"
+      ],
+      "properties": {
+        "from": {
+          "description": "The Reply's entry, or null for the Story's opening.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "after": {
+          "description": "The head the phone saw; refused as stale if the Story has moved on.",
+          "type": "string"
+        }
+      }
+    },
+    "RewindRequest": {
+      "description": "Rewind the Path the player is on to a Reply; what came after is set aside as a Path of its own.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "to",
+        "after"
+      ],
+      "properties": {
+        "to": {
+          "description": "The Reply's entry.",
+          "type": "string"
+        },
+        "after": {
+          "description": "The head the phone saw; refused as stale if the Story has moved on.",
+          "type": "string"
+        }
+      }
+    },
+    "RenamePathRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "description": "The Path's new name; empty to go back to its newest Scene.",
+          "type": "string"
+        }
+      }
+    },
+    "EditRequest": {
+      "description": "Edit a Move or a Reply in the player's words (openspec scenes: Editing). The latest changes in place; anything earlier carries the Story on from the edit on a new Path.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entry",
+        "text",
+        "after"
+      ],
+      "properties": {
+        "entry": {
+          "description": "The Move's or the Reply's entry, or a Scene's opening prose.",
+          "type": "string"
+        },
+        "text": {
+          "description": "The words it should read.",
+          "type": "string"
+        },
+        "after": {
+          "description": "The head the phone saw; refused as stale if the Story has moved on.",
+          "type": "string"
+        }
+      }
+    },
+    "JournalView": {
+      "description": "The Journal (openspec outside-the-scene: The Journal reads the Story back): the Scenes on the current Path by day, and what the Player Character heard Meanwhile between them, in order.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "story_id",
+        "days",
+        "trace_id"
+      ],
+      "properties": {
+        "story_id": {
+          "type": "string"
+        },
+        "days": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/JournalDay"
+          }
+        },
+        "trace_id": {
+          "type": "string"
+        }
+      }
+    },
+    "JournalDay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "day",
+        "rows"
+      ],
+      "properties": {
+        "day": {
+          "description": "\"Friday\".",
+          "type": "string"
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/JournalRow"
+          }
+        }
+      }
+    },
+    "JournalRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "scene",
+        "meanwhile"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "scene",
+            "meanwhile"
+          ]
+        },
+        "scene": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/JournalScene"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "meanwhile": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/MeanwhileItem"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "JournalScene": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "number",
+        "label",
+        "title",
+        "summary",
+        "now"
+      ],
+      "properties": {
+        "number": {
+          "type": "integer"
+        },
+        "label": {
+          "description": "\"Scene 12 \u00b7 6:10 pm \u00b7 The Three Broomsticks\", or with \"now\" for the Scene the player is in.",
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "summary": {
+          "description": "The Chronicler's line, or empty until it has written one.",
+          "type": "string"
+        },
+        "now": {
+          "description": "Whether it is the Scene the player is in.",
+          "type": "boolean"
+        }
+      }
+    },
+    "BackstageView": {
+      "description": "Backstage (openspec outside-the-scene: Backstage shows everything else, only when visited): what the Player Character does not know.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "story_id",
+        "offscreen",
+        "threads",
+        "lives",
+        "writer",
+        "taste",
+        "trace_id",
+        "director",
+        "record",
+        "how_its_going",
+        "new_things",
+        "outline",
+        "lives_by_tier",
+        "notes",
+        "truth",
+        "player_taste"
+      ],
+      "properties": {
+        "story_id": {
+          "type": "string"
+        },
+        "offscreen": {
+          "description": "What happened off-screen, by day, newest first, the last seven days.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BackstageDay"
+          }
+        },
+        "threads": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BackstageThread"
+          }
+        },
+        "lives": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BackstageLife"
+          }
+        },
+        "writer": {
+          "description": "The Writer's plan for the Scene the player is in; null between Scenes.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/WriterPlan"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "taste": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "trace_id": {
+          "type": "string"
+        },
+        "director": {
+          "description": "What the Director is building toward; null until the Director has planned on this Path.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/DirectorLine"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "record": {
+          "description": "The record: each Scene not yet recorded, and each recorded with parts left out, newest first; empty when nothing is missing.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RecordRow"
+          }
+        },
+        "how_its_going": {
+          "$ref": "#/$defs/HowItsGoing"
+        },
+        "new_things": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/NewThingRow"
+          }
+        },
+        "outline": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/OutlineView"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lives_by_tier": {
+          "$ref": "#/$defs/LivesByTier"
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SteeringNote"
+          }
+        },
+        "truth": {
+          "$ref": "#/$defs/TruthView"
+        },
+        "player_taste": {
+          "description": "The player's own Taste, which every Story starts with (openspec long-run: Taste is short, readable and the player's).",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "BackstageDay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "day",
+        "items"
+      ],
+      "properties": {
+        "day": {
+          "description": "\"Saturday\".",
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BackstageItem"
+          }
+        }
+      }
+    },
+    "BackstageItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "time",
+        "what",
+        "known_to"
+      ],
+      "properties": {
+        "time": {
+          "description": "\"11:50 pm\".",
+          "type": "string"
+        },
+        "what": {
+          "type": "string"
+        },
+        "known_to": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "BackstageThread": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "now"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "now": {
+          "description": "Where it stands.",
+          "type": "string"
+        }
+      }
+    },
+    "BackstageLife": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "who",
+        "where",
+        "doing"
+      ],
+      "properties": {
+        "who": {
+          "type": "string"
+        },
+        "where": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "doing": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "WriterPlan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "call",
+        "purpose",
+        "beats",
+        "exit"
+      ],
+      "properties": {
+        "call": {
+          "description": "What the Writer says the next Reply does with the Scene, or null before its first plan.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/SceneCall"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "purpose": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "beats": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WriterBeat"
+          }
+        },
+        "exit": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "SceneCall": {
+      "description": "Go on, or bring the Scene to its turn; only the player, or a Move that leaves it, closes a Scene.",
+      "type": "string",
+      "enum": [
+        "continue",
+        "land"
+      ]
+    },
+    "BeatStatus": {
+      "description": "Where a beat stands: to come, under way, done, or passed over.",
+      "type": "string",
+      "enum": [
+        "pending",
+        "in_play",
+        "done",
+        "skipped"
+      ]
+    },
+    "WriterBeat": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text",
+        "status"
+      ],
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/BeatStatus"
+        }
+      }
+    },
+    "RemoveTasteRequest": {
+      "description": "Delete a lesson from a Taste (openspec long-run: Taste is short, readable and the player's).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "line",
+        "scope"
+      ],
+      "properties": {
+        "line": {
+          "description": "The lesson to delete, as Taste reads it.",
+          "type": "string"
+        },
+        "scope": {
+          "description": "Whose Taste: the Story's own, or the player's own across every Story.",
+          "type": "string",
+          "enum": [
+            "story",
+            "player"
+          ]
+        }
+      }
+    },
+    "EndSceneRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after"
+      ],
+      "properties": {
+        "after": {
+          "description": "The head the phone saw; refused as stale if the Story has moved on.",
+          "type": "string"
+        }
+      }
+    },
+    "FocusRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after",
+        "on"
+      ],
+      "properties": {
+        "after": {
+          "type": "string"
+        },
+        "on": {
+          "description": "The person to focus on, by name, or null to clear Focus.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "LingerRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after",
+        "on"
+      ],
+      "properties": {
+        "after": {
+          "type": "string"
+        },
+        "on": {
+          "type": "boolean"
+        }
+      }
+    },
+    "RedoRequest": {
+      "description": "Write the latest Reply again. The Direction reaches the Writer only, never the Story.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after",
+        "direction",
+        "remember"
+      ],
+      "properties": {
+        "after": {
+          "description": "The head the phone saw: the latest Reply, or the end of the Scene that Reply closed.",
+          "type": "string"
+        },
+        "direction": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "remember": {
+          "description": "Keep the Direction as a line of Taste.",
+          "type": "boolean"
+        },
+        "model": {
+          "description": "The model for just this Reply; null or absent for the Story's Actor.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/ModelChoice"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "Accepted": {
+      "description": "A change to the Story that is done when it is answered.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "head_entry_id",
+        "trace_id"
+      ],
+      "properties": {
+        "head_entry_id": {
+          "type": "string"
+        },
+        "trace_id": {
+          "type": "string"
+        }
+      }
+    },
+    "PastScene": {
+      "description": "An earlier Scene on the current Path, in full, for reading back (openspec scenes: Scrolling back).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "number",
+        "title",
+        "place",
+        "at_label",
+        "summary",
+        "exchanges",
+        "trace_id"
+      ],
+      "properties": {
+        "number": {
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        },
+        "place": {
+          "type": "string"
+        },
+        "at_label": {
+          "description": "When the Scene began, as people say it.",
+          "type": "string"
+        },
+        "summary": {
+          "description": "The Chronicler's one line, or empty until it has written one.",
+          "type": "string"
+        },
+        "exchanges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Exchange"
+          }
+        },
+        "trace_id": {
+          "type": "string"
+        }
+      }
+    },
+    "ModelProvider": {
+      "description": "Who offers a model: each is reached through the player's own subscription (docs/adr/0005).",
+      "type": "string",
+      "enum": [
+        "claude",
+        "codex",
+        "antigravity",
+        "opencode"
+      ]
+    },
+    "ModelJob": {
+      "description": "A job a model does (CONTEXT.md: Who writes the Story).",
+      "type": "string",
+      "enum": [
+        "actor",
+        "writer",
+        "editor",
+        "chronicler",
+        "weaver",
+        "director",
+        "folder"
+      ]
+    },
+    "ModelChoice": {
+      "description": "Which model does a job: the provider, the id it lists the model under, and the effort when the model has one.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "model"
+      ],
+      "properties": {
+        "provider": {
+          "$ref": "#/$defs/ModelProvider"
+        },
+        "model": {
+          "type": "string"
+        },
+        "effort": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "ChosenModel": {
+      "description": "A model as the Models screen shows it: the choice, and its name with the effort (\"GPT 6.1 Sol \u00b7 high\").",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "choice",
+        "label"
+      ],
+      "properties": {
+        "choice": {
+          "$ref": "#/$defs/ModelChoice"
+        },
+        "label": {
+          "type": "string"
+        }
+      }
+    },
+    "StoryActor": {
+      "description": "One Story's Actor on the Models screen.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "story_id",
+        "title",
+        "actor",
+        "own"
+      ],
+      "properties": {
+        "story_id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "actor": {
+          "$ref": "#/$defs/ChosenModel"
+        },
+        "own": {
+          "description": "Set by the player for this Story; otherwise the one its Story File names.",
+          "type": "boolean"
+        }
+      }
+    },
+    "JobModel": {
+      "description": "One job on the Models screen, for every Story.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "job",
+        "title",
+        "does",
+        "model",
+        "backup"
+      ],
+      "properties": {
+        "job": {
+          "$ref": "#/$defs/ModelJob"
+        },
+        "title": {
+          "type": "string"
+        },
+        "does": {
+          "description": "What the job does, in one line: \"Plans each Reply before it starts\".",
+          "type": "string"
+        },
+        "model": {
+          "$ref": "#/$defs/ChosenModel"
+        },
+        "backup": {
+          "description": "The job's second model, tried once when its own fails or runs too long.",
+          "$ref": "#/$defs/ChosenModel"
+        }
+      }
+    },
+    "ModelOption": {
+      "description": "A model a provider offers.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "efforts",
+        "default_effort"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "description": "As the phone shows it: \"GPT 6.1 Sol\".",
+          "type": "string"
+        },
+        "efforts": {
+          "description": "The efforts it supports, lowest first; empty when it has none.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "default_effort": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "ProviderModels": {
+      "description": "What one provider offers, as last asked.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "label",
+        "reachable",
+        "reason",
+        "models"
+      ],
+      "properties": {
+        "provider": {
+          "$ref": "#/$defs/ModelProvider"
+        },
+        "label": {
+          "description": "\"CLAUDE\", \"CODEX\", \"ANTIGRAVITY\".",
+          "type": "string"
+        },
+        "reachable": {
+          "description": "Whether the provider answered the last time it was asked.",
+          "type": "boolean"
+        },
+        "reason": {
+          "description": "When not reachable: why, in words the player can read.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "models": {
+          "description": "What it offers; when not reachable, what it last offered.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ModelOption"
+          }
+        }
+      }
+    },
+    "ModelsView": {
+      "description": "The Models screen (openspec outside-the-scene: One Models screen).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stories",
+        "actor_backup",
+        "jobs",
+        "providers",
+        "trace_id"
+      ],
+      "properties": {
+        "stories": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StoryActor"
+          }
+        },
+        "actor_backup": {
+          "description": "The Actor's second model, for every Story, tried once before any word of a Reply is written.",
+          "$ref": "#/$defs/ChosenModel"
+        },
+        "jobs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/JobModel"
+          }
+        },
+        "providers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProviderModels"
+          }
+        },
+        "edit_every_reply": {
+          "description": "Whether the Editor checks every Reply before showing it (off by default for live streaming and lower token cost).",
+          "type": "boolean"
+        },
+        "trace_id": {
+          "type": "string"
+        }
+      }
+    },
+    "SetEditorEnabledRequest": {
+      "description": "Turns the Editor on or off for every Story.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        }
+      }
+    },
+    "SetJobModelRequest": {
+      "description": "Sets the model for a job, from its next work.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model"
+      ],
+      "properties": {
+        "model": {
+          "$ref": "#/$defs/ModelChoice"
+        },
+        "backup": {
+          "description": "Sets the job's second model instead of its own.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "SetActorRequest": {
+      "description": "Sets a Story's own Actor; null goes back to the one its Story File names.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model"
+      ],
+      "properties": {
+        "model": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/ModelChoice"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "RetryRequest": {
+      "description": "Writes the failed Reply again; with a model, the job that failed runs on it for this one try.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "model": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/ModelChoice"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "DirectorPhase": {
+      "description": "Where a stretch of the Story is: building, at its peak, or resting after one.",
+      "type": "string",
+      "enum": [
+        "build",
+        "peak",
+        "rest"
+      ]
+    },
+    "DirectorLine": {
+      "description": "The Director's plan as Backstage shows it (Backstage.dc.html: THE DIRECTOR).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "toward",
+        "phase",
+        "line",
+        "stretch"
+      ],
+      "properties": {
+        "toward": {
+          "description": "What the stretch builds toward: \"the flying test on Wednesday\".",
+          "type": "string"
+        },
+        "phase": {
+          "$ref": "#/$defs/DirectorPhase"
+        },
+        "line": {
+          "description": "Said for Backstage: \"Building toward the flying test on Wednesday. This stretch builds; rest comes after it.\"",
+          "type": "string"
+        },
+        "stretch": {
+          "description": "The Stretch the Director planned (Backstage.dc.html: THE DIRECTOR); null for a plan from before Stretches.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/StretchView"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "SceneRef": {
+      "description": "A Scene by its number and title.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "number",
+        "title"
+      ],
+      "properties": {
+        "number": {
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        }
+      }
+    },
+    "WorldPerson": {
+      "description": "Someone on the World screen, as the Player Character knows them (openspec outside-the-scene: The World screen shows what the Player Character knows).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "aliases",
+        "portrait_url",
+        "lead",
+        "group",
+        "is_group",
+        "known",
+        "known_from",
+        "heard",
+        "between"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "portrait_url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lead": {
+          "type": "boolean"
+        },
+        "group": {
+          "description": "The Group they are in, if any.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "is_group": {
+          "description": "This entry is a Group, standing for members not known on their own.",
+          "type": "boolean"
+        },
+        "known": {
+          "description": "What the Player Character knows of them; null when it is only what he has heard.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "known_from": {
+          "description": "The Scene that last added to what he knows; null for what he knew from the start, or was set on the Mac.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/SceneRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "heard": {
+          "description": "What he has heard of them, newest first.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MeanwhileItem"
+          }
+        },
+        "between": {
+          "description": "Between you: their Bond; null when he has no history with them.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Between"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "WorldPlace": {
+      "description": "A place in the Story, as anyone there would know it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "description",
+        "been"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "been": {
+          "description": "A Scene on this Path was there.",
+          "type": "boolean"
+        }
+      }
+    },
+    "CalendarKind": {
+      "type": "string",
+      "enum": [
+        "landmark",
+        "happening"
+      ]
+    },
+    "CalendarItem": {
+      "description": "A Landmark, or a Happening he knows of, still ahead.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "name",
+        "what",
+        "at_label",
+        "when"
+      ],
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/CalendarKind"
+        },
+        "name": {
+          "type": "string"
+        },
+        "what": {
+          "type": "string"
+        },
+        "at_label": {
+          "description": "When, as people say it: \"Wednesday 9:00 am\".",
+          "type": "string"
+        },
+        "when": {
+          "description": "How long to go: \"3 days\", \"Tomorrow\", \"Today at 8:30 pm\".",
+          "type": "string"
+        }
+      }
+    },
+    "WorldView": {
+      "description": "The World screen: People, Places and the Calendar, only as the Player Character knows them.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "story_id",
+        "people",
+        "places",
+        "calendar",
+        "trace_id"
+      ],
+      "properties": {
+        "story_id": {
+          "type": "string"
+        },
+        "people": {
+          "description": "The Leads first, in the Story's order, then everyone else he knows of, by name.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldPerson"
+          }
+        },
+        "places": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldPlace"
+          }
+        },
+        "calendar": {
+          "description": "Ordered by time.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CalendarItem"
+          }
+        },
+        "trace_id": {
+          "type": "string"
+        }
+      }
+    },
+    "GroupInfo": {
+      "description": "A Group and what it is, as anyone would know it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "description"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "PersonSummary": {
+      "description": "Someone in Everyone in the Story: no one's description, only who they are to the Story.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "lead",
+        "group",
+        "portrait_url",
+        "player_character"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "lead": {
+          "type": "boolean"
+        },
+        "group": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "portrait_url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "player_character": {
+          "type": "boolean"
+        }
+      }
+    },
+    "PeopleView": {
+      "description": "Everyone in the Story, for editing (editing-people design decision 5): the Leads first, then by name.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "story_id",
+        "people",
+        "groups",
+        "trace_id"
+      ],
+      "properties": {
+        "story_id": {
+          "type": "string"
+        },
+        "people": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PersonSummary"
+          }
+        },
+        "groups": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GroupInfo"
+          }
+        },
+        "trace_id": {
+          "type": "string"
+        }
+      }
+    },
+    "PersonDetail": {
+      "description": "A person as the Story keeps them, for the person editor: shown only on Edit.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "story_id",
+        "name",
+        "lead",
+        "portrait_url",
+        "player_character",
+        "groups",
+        "trace_id",
+        "aliases",
+        "who_they_are",
+        "known",
+        "appearance",
+        "wants",
+        "voice",
+        "knows",
+        "group",
+        "between"
+      ],
+      "properties": {
+        "story_id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "aliases": {
+          "description": "Other names they answer to.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "who_they_are": {
+          "type": "string",
+          "description": "Who they are and the backstory they come with, what nobody knows included."
+        },
+        "known": {
+          "description": "What the Player Character knows of them.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "appearance": {
+          "type": "string"
+        },
+        "wants": {
+          "type": "string",
+          "description": "What they are after."
+        },
+        "voice": {
+          "description": "Lines they have said, in their own words.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "knows": {
+          "description": "What they know, beyond their own backstory.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "group": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lead": {
+          "type": "boolean"
+        },
+        "portrait_url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "player_character": {
+          "type": "boolean"
+        },
+        "groups": {
+          "description": "Every Group, for the picker.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GroupInfo"
+          }
+        },
+        "trace_id": {
+          "type": "string"
+        },
+        "between": {
+          "description": "Between you: their Bond; null when he has no history with them.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Between"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "PersonEdit": {
+      "description": "A person created or changed whole, from that moment onward on the current Path.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after",
+        "create",
+        "aliases",
+        "who_they_are",
+        "known",
+        "appearance",
+        "wants",
+        "voice",
+        "knows",
+        "group"
+      ],
+      "properties": {
+        "after": {
+          "type": "string",
+          "description": "The head the phone saw."
+        },
+        "create": {
+          "description": "A new person; false changes someone already in the Story.",
+          "type": "boolean"
+        },
+        "aliases": {
+          "description": "Other names they answer to.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "who_they_are": {
+          "type": "string",
+          "description": "Who they are and the backstory they come with, what nobody knows included."
+        },
+        "known": {
+          "description": "What the Player Character knows of them.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "appearance": {
+          "type": "string"
+        },
+        "wants": {
+          "type": "string",
+          "description": "What they are after."
+        },
+        "voice": {
+          "description": "Lines they have said, in their own words.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "knows": {
+          "description": "What they know, beyond their own backstory.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "group": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "LeadRequest": {
+      "description": "Makes someone a Lead, or stops them being one.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after",
+        "lead"
+      ],
+      "properties": {
+        "after": {
+          "type": "string",
+          "description": "The head the phone saw."
+        },
+        "lead": {
+          "type": "boolean"
+        }
+      }
+    },
+    "GroupRequest": {
+      "description": "Creates a Group, or changes its description.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after",
+        "description"
+      ],
+      "properties": {
+        "after": {
+          "type": "string",
+          "description": "The head the phone saw."
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "StoryPlace": {
+      "description": "A place or an institution: its name and what it is.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "description"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "StoryLandmark": {
+      "description": "A Landmark as The Story screen shows it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "at",
+        "at_label",
+        "what",
+        "passed"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "at": {
+          "type": "string",
+          "description": "Its time on the Story Clock, \"Day N HH:MM\"."
+        },
+        "at_label": {
+          "type": "string",
+          "description": "Its time as the player reads it: \"Wednesday 10:00 am \u00b7 Day 66\"."
+        },
+        "when": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "How far off it is, as the Day View's countdowns say it; null once it has passed."
+        },
+        "what": {
+          "type": "string"
+        },
+        "passed": {
+          "type": "boolean",
+          "description": "True when the World has reached its time on this Path: it has happened, and stays as it was."
+        }
+      }
+    },
+    "StoryClock": {
+      "description": "The time on the current Path.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "at",
+        "at_label",
+        "day_one"
+      ],
+      "properties": {
+        "at": {
+          "type": "string",
+          "description": "\"Day N HH:MM\"."
+        },
+        "at_label": {
+          "type": "string",
+          "description": "\"Saturday 7 September, 9:40 pm\"."
+        },
+        "day_one": {
+          "description": "The date of Day 1, YYYY-MM-DD, or null when the Story has no calendar.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        }
+      }
+    },
+    "StoryView": {
+      "description": "Everything The Story screen shows, as it stands on the current Path (editing-the-story design decision 4).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "story_id",
+        "title",
+        "premise",
+        "style",
+        "reply_length",
+        "arcs",
+        "landmarks",
+        "world_summary",
+        "world_history",
+        "places",
+        "institutions",
+        "clock",
+        "world_stands",
+        "head_entry_id",
+        "trace_id"
+      ],
+      "properties": {
+        "story_id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "premise": {
+          "type": "string"
+        },
+        "style": {
+          "type": "string"
+        },
+        "reply_length": {
+          "type": "string",
+          "enum": [
+            "short",
+            "medium",
+            "full"
+          ]
+        },
+        "arcs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "landmarks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StoryLandmark"
+          },
+          "description": "In the order of their times."
+        },
+        "world_summary": {
+          "type": "string"
+        },
+        "world_history": {
+          "type": "string"
+        },
+        "places": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StoryPlace"
+          }
+        },
+        "institutions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StoryPlace"
+          }
+        },
+        "clock": {
+          "$ref": "#/$defs/StoryClock"
+        },
+        "world_stands": {
+          "type": "string",
+          "description": "Where the World stands, \"Day N HH:MM\": a Landmark may only be set after it, and the clock only moved past the clock."
+        },
+        "head_entry_id": {
+          "type": "string"
+        },
+        "trace_id": {
+          "type": "string"
+        }
+      }
+    },
+    "PremiseRequest": {
+      "description": "Sets the Premise.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after",
+        "premise"
+      ],
+      "properties": {
+        "after": {
+          "type": "string",
+          "description": "The head the phone saw."
+        },
+        "premise": {
+          "type": "string"
+        }
+      }
+    },
+    "StyleRequest": {
+      "description": "Sets the Style.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after",
+        "style"
+      ],
+      "properties": {
+        "after": {
+          "type": "string",
+          "description": "The head the phone saw."
+        },
+        "style": {
+          "type": "string"
+        }
+      }
+    },
+    "ReplyLengthRequest": {
+      "description": "Sets the reply length.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after",
+        "length"
+      ],
+      "properties": {
+        "after": {
+          "type": "string",
+          "description": "The head the phone saw."
+        },
+        "length": {
+          "type": "string",
+          "enum": [
+            "short",
+            "medium",
+            "full"
+          ]
+        }
+      }
+    },
+    "ArcsRequest": {
+      "description": "Sets the Arcs whole: adding, rewording and dropping are each a new list.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after",
+        "arcs"
+      ],
+      "properties": {
+        "after": {
+          "type": "string",
+          "description": "The head the phone saw."
+        },
+        "arcs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "LandmarkRequest": {
+      "description": "Creates, moves or rewrites a Landmark, named in the path.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after",
+        "at",
+        "what",
+        "create"
+      ],
+      "properties": {
+        "after": {
+          "type": "string",
+          "description": "The head the phone saw."
+        },
+        "at": {
+          "type": "string",
+          "description": "\"Day N HH:MM\"."
+        },
+        "what": {
+          "type": "string"
+        },
+        "create": {
+          "type": "boolean",
+          "description": "True for a new Landmark; refused if one has the name."
+        }
+      }
+    },
+    "DropLandmarkRequest": {
+      "description": "Drops a Landmark, named in the path.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after"
+      ],
+      "properties": {
+        "after": {
+          "type": "string",
+          "description": "The head the phone saw."
+        }
+      }
+    },
+    "PlaceRequest": {
+      "description": "Creates or rewrites a place or an institution, named in the path.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after",
+        "description",
+        "institution",
+        "create"
+      ],
+      "properties": {
+        "after": {
+          "type": "string",
+          "description": "The head the phone saw."
+        },
+        "description": {
+          "type": "string"
+        },
+        "institution": {
+          "type": "boolean"
+        },
+        "create": {
+          "type": "boolean"
+        }
+      }
+    },
+    "WorldRequest": {
+      "description": "Sets what the World is, and its history.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after",
+        "summary",
+        "history"
+      ],
+      "properties": {
+        "after": {
+          "type": "string",
+          "description": "The head the phone saw."
+        },
+        "summary": {
+          "type": "string"
+        },
+        "history": {
+          "type": "string"
+        }
+      }
+    },
+    "ClockRequest": {
+      "description": "Moves the clock on, and says the date of Day 1.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after",
+        "at",
+        "day_one"
+      ],
+      "properties": {
+        "after": {
+          "type": "string",
+          "description": "The head the phone saw."
+        },
+        "at": {
+          "type": "string",
+          "description": "\"Day N HH:MM\", later than the clock."
+        },
+        "day_one": {
+          "description": "The date of Day 1, YYYY-MM-DD, or null for no calendar.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        }
+      }
+    },
+    "RewordTasteRequest": {
+      "description": "Rewords a lesson in Taste, in its place.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "line",
+        "text",
+        "scope"
+      ],
+      "properties": {
+        "line": {
+          "type": "string",
+          "description": "The lesson as Taste reads it now."
+        },
+        "text": {
+          "type": "string"
+        },
+        "scope": {
+          "description": "Whose Taste: the Story's own, or the player's own across every Story.",
+          "type": "string",
+          "enum": [
+            "story",
+            "player"
+          ]
+        }
+      }
+    },
+    "Between": {
+      "description": "Where things stand between the Player Character and someone, and the turns that brought it there, newest first (lasting-records: their Bond).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "standing",
+        "turns"
+      ],
+      "properties": {
+        "standing": {
+          "type": "string"
+        },
+        "turns": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BetweenTurn"
+          }
+        }
+      }
+    },
+    "BetweenTurn": {
+      "description": "One turn in a Bond, with the Scene it came in; the Scene is null for a turn from before the Story.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text",
+        "scene_number",
+        "scene_title"
+      ],
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "scene_number": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "scene_title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "RecordRow": {
+      "description": "A Scene in The record that was kept with parts left out.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scene_number",
+        "scene_title",
+        "dropped"
+      ],
+      "properties": {
+        "scene_number": {
+          "type": "integer"
+        },
+        "scene_title": {
+          "type": "string"
+        },
+        "dropped": {
+          "description": "The parts of its record that were left out, and why.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "StretchView": {
+      "description": "A Stretch as Backstage shows it: its days, its Scenes that matter, and each Lead's move.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "from_label",
+        "until_label",
+        "scenes",
+        "leads"
+      ],
+      "properties": {
+        "from_label": {
+          "description": "Its first day, \"Saturday\".",
+          "type": "string"
+        },
+        "until_label": {
+          "description": "Its last day, \"Friday\".",
+          "type": "string"
+        },
+        "scenes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StretchScene"
+          }
+        },
+        "leads": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StretchLead"
+          }
+        }
+      }
+    },
+    "StretchScene": {
+      "description": "A Scene that matters in the Stretch.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "time",
+        "place",
+        "purpose",
+        "who",
+        "state"
+      ],
+      "properties": {
+        "place": {
+          "type": "string"
+        },
+        "who": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "state": {
+          "$ref": "#/$defs/StretchSceneState"
+        },
+        "time": {
+          "description": "When, as Backstage says it: \"Mon 2:00 pm\".",
+          "type": "string"
+        },
+        "purpose": {
+          "description": "What it is for, as the plan says it.",
+          "type": "string"
+        }
+      }
+    },
+    "StretchLead": {
+      "description": "What a Lead does about the Player Character this Stretch.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "who",
+        "move",
+        "on_screen",
+        "label"
+      ],
+      "properties": {
+        "who": {
+          "type": "string"
+        },
+        "move": {
+          "type": "string"
+        },
+        "on_screen": {
+          "type": "boolean"
+        },
+        "label": {
+          "description": "Where and when: \"On screen \u00b7 Charms, Monday\", \"Off-screen, Sunday \u00b7 he heard it from Neville Longbottom\", \"Off-screen \u00b7 still to come\".",
+          "type": "string"
+        }
+      }
+    },
+    "SceneEndStep": {
+      "description": "A step of a Scene's end, in order (docs/adr/0016).",
+      "type": "string",
+      "enum": [
+        "chronicler",
+        "director",
+        "weaver",
+        "folder"
+      ]
+    },
+    "SceneEndFailure": {
+      "description": "Why a Scene's end stopped, and at which step.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "step",
+        "reason",
+        "trace_id"
+      ],
+      "properties": {
+        "step": {
+          "$ref": "#/$defs/SceneEndStep"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "trace_id": {
+          "type": "string"
+        }
+      }
+    },
+    "SceneEnd": {
+      "description": "How the Scene's end stands: the step under way, or the one it stopped at; both null when it is done.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "step",
+        "failed",
+        "rethinking"
+      ],
+      "properties": {
+        "step": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/SceneEndStep"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "failed": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/SceneEndFailure"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rethinking": {
+          "description": "While the Director re-plans an Act deeply: its title, such as \"Year One\"; null otherwise.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "Brief": {
+      "description": "What the player wants more of and less of (openspec long-run: The player steers with a brief and reactions).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "more",
+        "less"
+      ],
+      "properties": {
+        "more": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "less": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "BriefRequest": {
+      "description": "Sets the brief, kept beside the Story.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "more",
+        "less"
+      ],
+      "properties": {
+        "more": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "less": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "ReactionRequest": {
+      "description": "Reacts to a played Scene, or clears the reaction with null.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scene_number",
+        "reaction"
+      ],
+      "properties": {
+        "scene_number": {
+          "type": "integer"
+        },
+        "reaction": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "more",
+            "less",
+            null
+          ]
+        },
+        "note": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "JobHealth": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "job",
+        "calls",
+        "second_model",
+        "failed"
+      ],
+      "properties": {
+        "job": {
+          "$ref": "#/$defs/ModelJob"
+        },
+        "calls": {
+          "type": "integer"
+        },
+        "second_model": {
+          "description": "How often its second model had to step in.",
+          "type": "integer"
+        },
+        "failed": {
+          "description": "How often it failed on both.",
+          "type": "integer"
+        }
+      }
+    },
+    "PaceRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scene_number",
+        "title",
+        "intensity"
+      ],
+      "properties": {
+        "scene_number": {
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        },
+        "intensity": {
+          "type": "integer"
+        }
+      }
+    },
+    "HowItsGoing": {
+      "description": "How the Story's machinery is doing (openspec outside-the-scene: Backstage).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scene_end_seconds",
+        "jobs",
+        "pace",
+        "picks_offered",
+        "picks_taken",
+        "more",
+        "less",
+        "reply_seconds",
+        "editor_fixed",
+        "editor_rewrote"
+      ],
+      "properties": {
+        "scene_end_seconds": {
+          "description": "How long the last Scene ends took, newest last.",
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "jobs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/JobHealth"
+          }
+        },
+        "pace": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PaceRow"
+          }
+        },
+        "picks_offered": {
+          "type": "integer"
+        },
+        "picks_taken": {
+          "type": "integer"
+        },
+        "more": {
+          "type": "integer"
+        },
+        "less": {
+          "type": "integer"
+        },
+        "reply_seconds": {
+          "description": "How long the last Replies took, newest last.",
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "editor_fixed": {
+          "description": "How many Replies the Editor set right in place.",
+          "type": "integer"
+        },
+        "editor_rewrote": {
+          "description": "How many Replies the Editor sent back to be written again.",
+          "type": "integer"
+        }
+      }
+    },
+    "NewThingRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "what",
+        "stretch"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "what": {
+          "type": "string"
+        },
+        "stretch": {
+          "description": "Which Stretch brought it: \"This Stretch\", or \"Stretch 3\".",
+          "type": "string"
+        }
+      }
+    },
+    "StretchSceneState": {
+      "description": "played: the player chose it; passed: its time went by without it; ahead: still to come.",
+      "type": "string",
+      "enum": [
+        "played",
+        "passed",
+        "ahead"
+      ]
+    },
+    "SourceRow": {
+      "description": "Where something kept came from: the Scene and the words (openspec the-truth: Nothing is deleted).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scene_number",
+        "text"
+      ],
+      "properties": {
+        "scene_number": {
+          "oneOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        }
+      }
+    },
+    "TurnRow": {
+      "description": "One turn of an Act.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "when",
+        "what",
+        "done"
+      ],
+      "properties": {
+        "when": {
+          "type": "string"
+        },
+        "what": {
+          "type": "string"
+        },
+        "done": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ActView": {
+      "description": "The current Act in detail.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "number",
+        "title",
+        "question",
+        "builds_to",
+        "turns",
+        "relationships",
+        "movers",
+        "intentions"
+      ],
+      "properties": {
+        "number": {
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        },
+        "question": {
+          "type": "string"
+        },
+        "builds_to": {
+          "type": "string"
+        },
+        "turns": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TurnRow"
+          }
+        },
+        "relationships": {
+          "type": "array",
+          "items": {
+            "description": "Where a relationship should stand by the Act's end.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "people",
+              "by_end"
+            ],
+            "properties": {
+              "people": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "by_end": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "movers": {
+          "type": "array",
+          "items": {
+            "description": "What someone who drives the World is doing this Act.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "who",
+              "doing"
+            ],
+            "properties": {
+              "who": {
+                "type": "string"
+              },
+              "doing": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "intentions": {
+          "type": "array",
+          "items": {
+            "description": "A person's own direction this Act.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "who",
+              "pursues",
+              "heading"
+            ],
+            "properties": {
+              "who": {
+                "type": "string"
+              },
+              "pursues": {
+                "type": "string"
+              },
+              "heading": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "ActSketch": {
+      "description": "An Act after the current one, outlined or sketched.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "number",
+        "title",
+        "question",
+        "builds_to",
+        "detail"
+      ],
+      "properties": {
+        "number": {
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        },
+        "question": {
+          "type": "string"
+        },
+        "builds_to": {
+          "type": "string"
+        },
+        "detail": {
+          "type": "string",
+          "enum": [
+            "outlined",
+            "sketched"
+          ]
+        }
+      }
+    },
+    "SetupRow": {
+      "description": "Something planted that the Outline means to pay off.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "what",
+        "payoff",
+        "state",
+        "planted"
+      ],
+      "properties": {
+        "what": {
+          "type": "string"
+        },
+        "payoff": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "waiting",
+            "paid",
+            "dropped"
+          ]
+        },
+        "planted": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "OutlineView": {
+      "description": "The Outline (openspec the-outline: The player sees and steers the Outline).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "current",
+        "later",
+        "ending",
+        "setups",
+        "looked_up",
+        "revised"
+      ],
+      "properties": {
+        "current": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/ActView"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "later": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ActSketch"
+          }
+        },
+        "ending": {
+          "type": "string"
+        },
+        "setups": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SetupRow"
+          }
+        },
+        "looked_up": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "revised": {
+          "description": "When it was last revised and how: \"after Scene 19, deeply\".",
+          "type": "string"
+        }
+      }
+    },
+    "LifeRow": {
+      "description": "A person's Life as Backstage shows it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "who",
+        "now",
+        "wants",
+        "heading"
+      ],
+      "properties": {
+        "who": {
+          "type": "string"
+        },
+        "now": {
+          "type": "string"
+        },
+        "wants": {
+          "type": "string"
+        },
+        "heading": {
+          "type": "string"
+        }
+      }
+    },
+    "LivesByTier": {
+      "description": "Lives by how much each person matters (openspec living-world: Everyone has a Life).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "close",
+        "movers",
+        "others"
+      ],
+      "properties": {
+        "close": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LifeRow"
+          }
+        },
+        "movers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LifeRow"
+          }
+        },
+        "others": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "SteeringNote": {
+      "description": "A note the player wrote to steer the Outline.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "text",
+        "written_at",
+        "answered"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "written_at": {
+          "type": "string"
+        },
+        "answered": {
+          "type": "boolean"
+        },
+        "active": {
+          "type": "boolean",
+          "description": "Whether this Direction guides subsequent Replies. Missing means active."
+        }
+      }
+    },
+    "TruthView": {
+      "description": "What the Story keeps (openspec the-truth), each item with where it came from.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "people",
+        "between",
+        "truths",
+        "rules",
+        "names"
+      ],
+      "properties": {
+        "people": {
+          "type": "array",
+          "items": {
+            "description": "Who someone is now.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "who",
+              "now",
+              "sources"
+            ],
+            "properties": {
+              "who": {
+                "type": "string"
+              },
+              "now": {
+                "type": "string"
+              },
+              "sources": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/SourceRow"
+                }
+              }
+            }
+          }
+        },
+        "between": {
+          "type": "array",
+          "items": {
+            "description": "Where things stand between two people.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "people",
+              "stands",
+              "keepsakes",
+              "sources"
+            ],
+            "properties": {
+              "people": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "stands": {
+                "type": "string"
+              },
+              "keepsakes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "sources": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/SourceRow"
+                }
+              }
+            }
+          }
+        },
+        "truths": {
+          "type": "array",
+          "items": {
+            "description": "Something true, or true until a Scene ended it.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "what",
+              "terms",
+              "due_label",
+              "known_to",
+              "ended",
+              "sources"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "agreement",
+                  "promise",
+                  "debt",
+                  "threat",
+                  "secret",
+                  "status"
+                ]
+              },
+              "what": {
+                "type": "string"
+              },
+              "terms": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "due_label": {
+                "oneOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "known_to": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "ended": {
+                "oneOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "sources": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/SourceRow"
+                }
+              }
+            }
+          }
+        },
+        "rules": {
+          "type": "array",
+          "items": {
+            "description": "How the World works.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "what",
+              "sources"
+            ],
+            "properties": {
+              "what": {
+                "type": "string"
+              },
+              "sources": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/SourceRow"
+                }
+              }
+            }
+          }
+        },
+        "names": {
+          "type": "array",
+          "items": {
+            "description": "A name made on the page.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "kind",
+              "what",
+              "first_scene"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "person",
+                  "place",
+                  "thing"
+                ]
+              },
+              "what": {
+                "type": "string"
+              },
+              "first_scene": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      }
+    },
+    "SteeringNoteRequest": {
+      "description": "Adds a standing Direction used by subsequent Replies and planning.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text"
+      ],
+      "properties": {
+        "text": {
+          "type": "string"
+        }
+      }
+    },
+    "SteeringNoteEditRequest": {
+      "description": "Edits a standing Direction or changes whether it is active, preserving its history.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text",
+        "active"
+      ],
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "active": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

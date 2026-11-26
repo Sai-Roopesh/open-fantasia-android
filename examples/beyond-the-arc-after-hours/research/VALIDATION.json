@@ -1,0 +1,87 @@
+{
+  "title": "Beyond the Arc — After Hours",
+  "schemaValid": true,
+  "openingPeople": [
+    "Natalie Whitmore",
+    "Julian Reed"
+  ],
+  "actor": {
+    "provider": "codex",
+    "model": "gpt-6.1-sol",
+    "effort": "high"
+  },
+  "biographies": {
+    "Sai Roopesh": {
+      "words": 672,
+      "characters": 4432,
+      "inWriting": true,
+      "writingFullBiography": true,
+      "editingFullBiography": true,
+      "outliningFullBiography": true
+    },
+    "Natalie Whitmore": {
+      "words": 1374,
+      "characters": 8601,
+      "inWriting": true,
+      "writingFullBiography": true,
+      "editingFullBiography": true,
+      "outliningFullBiography": true
+    },
+    "Julian Reed": {
+      "words": 829,
+      "characters": 5032,
+      "inWriting": true,
+      "writingFullBiography": true,
+      "editingFullBiography": true,
+      "outliningFullBiography": true
+    },
+    "Claire Whitmore": {
+      "words": 73,
+      "characters": 493,
+      "inWriting": true
+    },
+    "Daniel Whitmore": {
+      "words": 71,
+      "characters": 483,
+      "inWriting": true
+    },
+    "Adrian Whitmore": {
+      "words": 69,
+      "characters": 469,
+      "inWriting": true
+    },
+    "Leah Chen": {
+      "words": 68,
+      "characters": 439,
+      "inWriting": true
+    },
+    "Mara Ellis": {
+      "words": 69,
+      "characters": 480,
+      "inWriting": true
+    },
+    "Stephen Curry": {
+      "words": 74,
+      "characters": 510,
+      "inWriting": true
+    },
+    "Draymond Green": {
+      "words": 72,
+      "characters": 468,
+      "inWriting": true
+    },
+    "Professor Anika Rao": {
+      "words": 72,
+      "characters": 488,
+      "inWriting": true
+    }
+  },
+  "sectionOmissions": {
+    "writing": [],
+    "editing": [],
+    "outlining": []
+  },
+  "writingApproxTokens": 13810,
+  "modelCalls": 0,
+  "allMainBiographiesDelivered": true
+}

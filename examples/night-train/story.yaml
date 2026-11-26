@@ -1,0 +1,71 @@
+# A short Story for checking the whole app end to end, and a worked example of the Story File format
+# (protocol/schemas/story-file.schema.json). Import it with: fantasia import examples/night-train
+format: 1
+title: The Night Train to Kalka
+premise: >-
+  A chance meeting on an overnight train that might be the start of something, or nothing.
+style: >-
+  Literary but plain. Close third person on whoever the Player Character is with. Indian English, present day,
+  monsoon. Small gestures over speeches; let silences sit. Nobody explains their feelings out loud.
+reply_length: medium
+actor:
+  provider: claude
+  model: claude-opus-5-5
+clock:
+  starts: Day 1 22:40
+  day_one: "2026-07-16"
+world:
+  summary: >-
+    The Howrah–Kalka Mail, second-class sleeper, somewhere in the dark between Delhi and Ambala. Rain on the
+    windows, chai sellers at every stop, a carriage of strangers settling in for the night.
+  places:
+    - name: The sleeper bay
+      description: Two lower berths facing each other, two uppers above; a curtain that does not quite close.
+    - name: The vestibule
+      description: The rattling space between carriages, where people go to smoke or to be alone.
+people:
+  - name: Ishaan Mehra
+    who_they_are: >-
+      Twenty-six, an architect from Delhi going to Shimla for a job interview he does not want. Polite to a fault,
+      funny once he relaxes, bad at saying what he means.
+    appearance: Tall, glasses he keeps pushing up, a grey hoodie over a shirt he ironed for tomorrow.
+  - name: Meera Kulkarni
+    who_they_are: >-
+      Twenty-five, a field biologist from Pune going to Kalka to count birds in the hills for a month. Blunt,
+      curious about everything, unbothered by strangers, privately homesick.
+    appearance: Hair in a loose braid, a faded field jacket with too many pockets, binoculars around her neck.
+    known: >-
+      A stranger in a faded field jacket, binoculars round her neck, who wanted the window berth he is sitting on.
+    after: A quiet night and a window seat, which she has not got.
+    voice:
+      - "You're in my seat. Well, you're in the seat I wanted. Different thing."
+      - "Nobody sleeps on these trains. People just lie very still and pretend."
+  - name: Uncle Bhalla
+    who_they_are: >-
+      Sixty, a retired railway clerk from Ambala who knows this line by heart and has opinions about everyone on it.
+    appearance: White kurta, a thermos of tea, reading glasses on a string.
+    known: An old man across the bay, in a white kurta, watching over his newspaper.
+    after: Company, and someone to hear about how the trains used to be.
+leads: [Meera Kulkarni]
+player_character: Ishaan Mehra
+arcs:
+  - Ishaan and Meera go from strangers sharing a bay to two people who do not want the night to end.
+landmarks:
+  - name: Arrival at Kalka
+    at: Day 2 07:15
+    what: The train reaches Kalka and everyone gets off.
+opening:
+  title: The wrong berth
+  place: The sleeper bay
+  at: Day 1 22:40
+  who: [Meera Kulkarni, Uncle Bhalla]
+  prose: >-
+    The train lurches out of Delhi an hour late. Rain runs sideways across the window. A young woman in a field
+    jacket is standing in the aisle with her bag on her shoulder, looking at the lower berth by the window, and then
+    at you, sitting on it.
+
+
+    "You're in my seat," she says. "Well. You're in the seat I wanted. Different thing."
+
+
+    Across the bay an old man in a white kurta lowers his newspaper to watch.

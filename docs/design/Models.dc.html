@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Models</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,400;7..72,500;7..72,600&amp;family=Manrope:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#B9A4FF;text-decoration:none}a:hover{color:#D6C9FF}
+button{font:inherit;cursor:pointer}
+</style>
+</helmet>
+<div style="width:390px;height:1240px;box-sizing:border-box;background:#141218;color:#EEEAF4;font-family:Manrope,system-ui,sans-serif;display:flex;flex-direction:column">
+  <header style="display:flex;align-items:center;gap:2px;padding:6px 4px;border-bottom:1px solid #26222D">
+    <a href="Main.dc.html" aria-label="Back to Stories" style="display:flex;align-items:center;justify-content:center;width:44px;height:44px;color:#EEEAF4"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></a>
+    <h1 style="flex:1;margin:0;font-family:Literata,Georgia,serif;font-size:20px;font-weight:600">Models</h1>
+  </header>
+
+  <main style="display:flex;flex-direction:column;gap:22px;padding:16px 16px 24px">
+    <!-- The defaults, before the player sets anything (the-storys-mind: One Models screen, The defaults): the Director on
+         Fable 5.1 at high effort, the Editor on Sonnet 5.5, every other job and each Story's Actor on Opus 5.5, and GPT
+         6.1 Sol as every second model. -->
+    <section style="display:flex;flex-direction:column;gap:8px">
+      <h2 style="margin:0;font-size:12px;font-weight:700;letter-spacing:0.1em;color:#8E879C">THE ACTOR · EACH STORY ITS OWN</h2>
+      <div style="display:flex;flex-direction:column;border-radius:16px;background:#1E1B24;border:1px solid #2E2A36">
+        <button style="display:flex;align-items:center;gap:12px;min-height:60px;padding:0 16px;border:0;background:none;color:#EEEAF4;text-align:left">
+          <span style="flex:1;font-size:15px">The Malfoy Problem</span><span style="font-size:14px;color:#B3ACC0">Opus 5.5</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8E879C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg></button>
+        <div style="height:1px;background:#2E2A36;margin:0 16px"></div>
+        <button style="display:flex;align-items:center;gap:12px;min-height:60px;padding:0 16px;border:0;background:none;color:#EEEAF4;text-align:left">
+          <span style="flex:1;font-size:15px">The Night Train to Kalka</span><span style="font-size:14px;color:#B3ACC0">Opus 5.5</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8E879C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg></button>
+        <div style="height:1px;background:#2E2A36;margin:0 16px"></div>
+        <button style="display:flex;align-items:center;gap:12px;min-height:60px;padding:0 16px;border:0;background:none;color:#EEEAF4;text-align:left">
+          <span style="flex:1;display:flex;flex-direction:column;gap:2px"><span style="font-size:15px">If it fails, try</span><span style="font-size:12px;color:#8E879C">For every Story's Actor</span></span><span style="font-size:14px;color:#B3ACC0">GPT 6.1 Sol · low</span></button>
+      </div>
+    </section>
+
+    <section style="display:flex;flex-direction:column;gap:8px">
+      <h2 style="margin:0;font-size:12px;font-weight:700;letter-spacing:0.1em;color:#8E879C">EVERY STORY</h2>
+      <div style="display:flex;flex-direction:column;border-radius:16px;background:#1E1B24;border:1px solid #2E2A36">
+        <button style="display:flex;align-items:center;gap:12px;min-height:60px;padding:0 16px;border:0;background:none;color:#EEEAF4;text-align:left">
+          <span style="flex:1;display:flex;flex-direction:column;gap:2px"><span style="font-size:15px">Writer</span><span style="font-size:12px;color:#8E879C">Plans each Reply before it starts</span></span><span style="font-size:14px;color:#B3ACC0">Opus 5.5</span></button>
+        <div style="height:1px;background:#2E2A36;margin:0 16px"></div>
+        <!-- The Editor checks each Reply against what is established before the player reads it (docs/adr/0019). Open: its
+             model, its effort (none lit: the model's own), and its second model. -->
+        <div style="display:flex;flex-direction:column;gap:12px;padding:14px 16px;background:#221D30">
+          <div style="display:flex;align-items:center;gap:12px">
+            <span style="flex:1;display:flex;flex-direction:column;gap:2px"><span style="font-size:15px;font-weight:600">Editor</span><span style="font-size:12px;color:#8E879C">Checks each Reply before you read it</span></span>
+            <span style="font-size:14px;color:#D6C9FF">Sonnet 5.5</span>
+          </div>
+          <div role="radiogroup" aria-label="Editor's model" style="display:flex;flex-direction:column;gap:6px">
+            <span style="font-size:11px;font-weight:700;letter-spacing:0.08em;color:#8E879C">CLAUDE</span>
+            <div style="display:flex;flex-wrap:wrap;gap:6px">
+              <button role="radio" aria-checked="false" style="height:34px;padding:0 12px;border-radius:17px;border:1px solid #3A3544;background:none;color:#EEEAF4;font-size:13px">Opus 5.5</button>
+              <button role="radio" aria-checked="true" style="height:34px;padding:0 12px;border-radius:17px;border:1px solid #7552DD;background:#7552DD;color:#FFFFFF;font-size:13px;font-weight:600">Sonnet 5.5</button>
+              <button role="radio" aria-checked="false" style="height:34px;padding:0 12px;border-radius:17px;border:1px solid #3A3544;background:none;color:#EEEAF4;font-size:13px">Fable 5.1</button>
+              <button role="radio" aria-checked="false" style="height:34px;padding:0 12px;border-radius:17px;border:1px solid #3A3544;background:none;color:#EEEAF4;font-size:13px">Haiku 4.5</button>
+            </div>
+            <span style="margin-top:4px;font-size:11px;font-weight:700;letter-spacing:0.08em;color:#8E879C">CODEX</span>
+            <div style="display:flex;flex-wrap:wrap;gap:6px">
+              <button role="radio" aria-checked="false" style="height:34px;padding:0 12px;border-radius:17px;border:1px solid #3A3544;background:none;color:#EEEAF4;font-size:13px">GPT 6.1 Sol</button>
+              <button role="radio" aria-checked="false" style="height:34px;padding:0 12px;border-radius:17px;border:1px solid #3A3544;background:none;color:#EEEAF4;font-size:13px">GPT 6 Astra</button>
+              <button role="radio" aria-checked="false" style="height:34px;padding:0 12px;border-radius:17px;border:1px solid #3A3544;background:none;color:#EEEAF4;font-size:13px">GPT 6 Luna</button>
+            </div>
+            <span style="margin-top:4px;font-size:11px;font-weight:700;letter-spacing:0.08em;color:#8E879C">ANTIGRAVITY</span>
+            <div style="display:flex;flex-wrap:wrap;gap:6px">
+              <button role="radio" aria-checked="false" style="height:34px;padding:0 12px;border-radius:17px;border:1px solid #3A3544;background:none;color:#EEEAF4;font-size:13px">Gemini 3.8 Flash</button>
+              <button role="radio" aria-checked="false" style="height:34px;padding:0 12px;border-radius:17px;border:1px solid #3A3544;background:none;color:#EEEAF4;font-size:13px">Gemini 3.1 Pro</button>
+            </div>
+            <span style="margin-top:4px;font-size:11px;font-weight:700;letter-spacing:0.08em;color:#8E879C">EFFORT</span>
+            <div style="display:flex;gap:6px">
+              <button style="height:34px;padding:0 12px;border-radius:17px;border:1px solid #3A3544;background:none;color:#EEEAF4;font-size:13px">Low</button>
+              <button style="height:34px;padding:0 12px;border-radius:17px;border:1px solid #3A3544;background:none;color:#EEEAF4;font-size:13px">Medium</button>
+              <button style="height:34px;padding:0 12px;border-radius:17px;border:1px solid #3A3544;background:none;color:#EEEAF4;font-size:13px">High</button>
+              <button style="height:34px;padding:0 12px;border-radius:17px;border:1px solid #3A3544;background:none;color:#EEEAF4;font-size:13px">Max</button>
+            </div>
+            <!-- Each job's second model, tried once when its own fails or runs too long (presence: Nothing fails silently). -->
+            <span style="margin-top:4px;font-size:11px;font-weight:700;letter-spacing:0.08em;color:#8E879C">IF IT FAILS, TRY</span>
+            <div role="radiogroup" aria-label="Editor's second model" style="display:flex;flex-wrap:wrap;gap:6px">
+              <button role="radio" aria-checked="false" style="height:34px;padding:0 12px;border-radius:17px;border:1px solid #3A3544;background:none;color:#EEEAF4;font-size:13px">Sonnet 5.5</button>
+              <button role="radio" aria-checked="true" style="height:34px;padding:0 12px;border-radius:17px;border:1px solid #7552DD;background:#2B2245;color:#D6C9FF;font-size:13px">GPT 6.1 Sol</button>
+              <button role="radio" aria-checked="false" style="height:34px;padding:0 12px;border-radius:17px;border:1px solid #3A3544;background:none;color:#EEEAF4;font-size:13px">Gemini 3.8 Flash</button>
+              <button style="height:34px;padding:0 12px;border-radius:17px;border:1px solid #3A3544;background:none;color:#B3ACC0;font-size:13px">More…</button>
+            </div>
+          </div>
+        </div>
+        <button style="display:flex;align-items:center;gap:12px;min-height:60px;padding:0 16px;border:0;background:none;color:#EEEAF4;text-align:left">
+          <span style="flex:1;display:flex;flex-direction:column;gap:2px"><span style="font-size:15px">Chronicler</span><span style="font-size:12px;color:#8E879C">Records what happened</span></span><span style="font-size:14px;color:#B3ACC0">Opus 5.5</span></button>
+        <div style="height:1px;background:#2E2A36;margin:0 16px"></div>
+        <button style="display:flex;align-items:center;gap:12px;min-height:60px;padding:0 16px;border:0;background:none;color:#EEEAF4;text-align:left">
+          <span style="flex:1;display:flex;flex-direction:column;gap:2px"><span style="font-size:15px">Director</span><span style="font-size:12px;color:#8E879C">Keeps the Outline and plans the days ahead</span></span><span style="font-size:14px;color:#B3ACC0">Fable 5.1 · high</span></button>
+        <div style="height:1px;background:#2E2A36;margin:0 16px"></div>
+        <button style="display:flex;align-items:center;gap:12px;min-height:60px;padding:0 16px;border:0;background:none;color:#EEEAF4;text-align:left">
+          <span style="flex:1;display:flex;flex-direction:column;gap:2px"><span style="font-size:15px">Weaver</span><span style="font-size:12px;color:#8E879C">Moves the World on</span></span><span style="font-size:14px;color:#B3ACC0">Opus 5.5</span></button>
+        <!-- The Folder writes The Story So Far and an Act's account when an Act ends (outside-the-scene: The Folder on Haiku). -->
+        <div style="height:1px;background:#2E2A36;margin:0 16px"></div>
+        <button style="display:flex;align-items:center;gap:12px;min-height:60px;padding:0 16px;border:0;background:none;color:#EEEAF4;text-align:left">
+          <span style="flex:1;display:flex;flex-direction:column;gap:2px"><span style="font-size:15px">Folder</span><span style="font-size:12px;color:#8E879C">Keeps The Story So Far short</span></span><span style="font-size:14px;color:#B3ACC0">Opus 5.5</span></button>
+      </div>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1240}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

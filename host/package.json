@@ -1,0 +1,43 @@
+{
+  "name": "@open-fantasia/host",
+  "private": true,
+  "type": "module",
+  "description": "The Mac server: it owns every Story and runs the agents that write it (docs/adr/0001).",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "bin": {
+    "fantasia": "./bin/fantasia.mjs"
+  },
+  "scripts": {
+    "check": "node scripts/check.mjs",
+    "check:gate": "node scripts/check.mjs --gate-only",
+    "test": "vitest run",
+    "test:real": "FANTASIA_REAL_MODELS=1 vitest run --project real",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "fantasia": "tsx src/cli/main.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.3.289",
+    "ajv": "^8.20.0",
+    "better-sqlite3": "13.0.3",
+    "bonjour-service": "1.4.4",
+    "commander": "15.0.0",
+    "fastify": "5.12.5",
+    "qrcode-terminal": "0.12.0",
+    "selfsigned": "5.5.0",
+    "tsx": "4.23.15",
+    "yaml": "2.9.1",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "9.6.0",
+    "@types/node": "26.6.4",
+    "@types/qrcode-terminal": "^0.12.2",
+    "eslint": "10.12.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.71.0",
+    "vitest": "5.0.3"
+  }
+}

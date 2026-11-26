@@ -1,209 +1,282 @@
-# Open Fantasia Roleplay
+# Open Fantasia
 
-Open Fantasia provides ongoing character roleplay while preserving the facts and narrative state needed for continuity across a long conversation.
+A roleplay app where the player lives a second life inside a story world, as their own character, beside the
+characters they came for.
 
 ## Language
 
-**Roleplay Exchange**:
-A user message together with the assistant reply it produces. An exchange is complete when the assistant reply has been committed. Persisted as `chat_turns`, and referenced as `fork_turn_id` and `head_turn_id`: those names are the stored spelling of this same concept, deliberately left unrenamed, and carry no separate meaning.
-_Avoid_: Turn, message
+### The Story
 
-**Primary Character**:
-The character whose Character Sheet anchors a roleplay thread and supplies its default Active Speaker.
-_Avoid_: Main bot, original bot
+**Story**:
+One life the player lives in a World: its World, its Premise, its Leads and the Player Character.
+_Avoid_: Thread, chat, campaign, game
 
-**Cast Member**:
-A named, established story character eligible to author assistant dialogue and action. The player-controlled Persona is never a Cast Member.
-_Avoid_: Side character, Supporting Cast, NPC card
+**World**:
+Where a Story happens: its places, people, institutions and history, which go on living whether or not the
+player is there.
+_Avoid_: Setting, universe, scenario
 
-**Cast Profile**:
-The branch-valid identity, aliases, personality, voice, appearance, goals, boundaries, and provenance that keep a Cast Member consistent when speaking.
-_Avoid_: Character description, cast blob
+**Rule**:
+Something established about how this World works, such as what Roopesh's power can do and who has seen it, a room
+behind the Gryffindor dorms, or the Duelling Statute of 1792. Once established, in the Story File or in play, it holds
+for the rest of the Story unless the Story changes it on the page.
+_Avoid_: Lore, canon, fact, world-building
 
-**Cast Roster**:
-The complete set of Cast Members valid on a branch lineage, including its Primary Character, manual Cast Seeds, and characters established by Continuity Updates.
-_Avoid_: Global character list, Supporting Cast JSON
+**Premise**:
+What the player came to the Story to experience, such as an enemies-to-lovers romance or being a superhero. The
+Story serves it without fixating on it.
+_Avoid_: Brief, element, goal, theme
 
-**Cast Seed**:
-A manually authored Cast Profile available from a thread's beginning and inherited by its branches.
-_Avoid_: Initial NPC, hardcoded side character
+**Style**:
+How the Story is written, in the player's own words: genre, tone, era, language, how dark, how explicit, how
+slow the slow burns are. Everything that writes for the Story reads the same Style.
+_Avoid_: Notes, director style, tone, prompt
 
-**Discovered Cast Member**:
-A Cast Member established from story evidence during a Continuity Update rather than supplied as a Cast Seed.
-_Avoid_: Auto NPC, hallucinated character
+**Arc**:
+A journey the player wants the Story to build toward, with no fixed end, such as "Draconia comes round to Roopesh,
+slowly, against everything she was raised to be". Every Scene moves at least one Arc a little, and none is
+resolved on a schedule.
+_Avoid_: Milestone, goal, destination, brief item, plotline
 
-**Active Speaker**:
-The Cast Member explicitly selected to own dialogue, action, reaction, and interiority in assistant replies on a branch until another selection is made.
-_Avoid_: Point of view, target bot
+**Landmark**:
+An event with a time that the World brings about whether or not the Arcs are ready, such as the Triwizard
+Tournament in Year 3.
+_Avoid_: Milestone, spine event, calendar entry, deadline
 
-**Reply Length**:
-How much prose an assistant reply should contain, chosen per roleplay thread and named rather than counted: Terse, Measured, Full, Expansive, or Unbounded. It states an intention about visible story text only, and is given to a Roleplay Model as a word target calibrated for that model. The transport ceiling a provider needs is derived from it by an adapter, never stored and never authored.
-_Avoid_: Max tokens, token budget, output cap, paragraphs
+**Lead**:
+A character the player most wants to spend time with. The player makes anyone a Lead, or stops them being one, at
+any time, including someone who arrives during the Story.
+_Avoid_: Primary character, main character, love interest
 
-**Roleplay Model**:
-The model selected for a roleplay thread to author assistant dialogue and action for each Roleplay Exchange. It is independent of the Continuity Engine that creates Continuity Snapshots.
-_Avoid_: Chat model, HCE model, brain model
+**Player Character**:
+The character the player plays, and the only one whose words, choices, thoughts and feelings are the player's.
+What other people do to him is theirs, and lands (docs/adr/0024).
+_Avoid_: Persona, protagonist, user, you
 
-**Roleplay Generation Request**:
-The immutable, provider-neutral model input frozen for one reply attempt: the authoritative system prompt containing the reachable Continuity Snapshot, the Roleplay Transcript Window, the current user message and reply controls, Active Speaker selection, generation preferences, and output contract. Provider, transport, queue, request-identity, and timing metadata are never part of its model-visible content.
-_Avoid_: API payload, agent task, prompt file
+**Cast**:
+Everyone in the World who is neither a Lead nor the Player Character.
+_Avoid_: NPCs, extras, background characters
 
-**Roleplay Context**:
-The complete, provider-neutral account of everything a Roleplay Model is given for one reply: Character Sheet, Persona, director notes, the reachable Continuity Snapshot, the complete branch-valid Cast Roster, pins, timeline beats, the Roleplay Transcript Window, the player's prose, and the reply controls. It is total — every part is required — so context cannot be omitted by being forgotten. Which action asked for the reply never changes what it contains.
-_Avoid_: Prompt, payload, system prompt
+**Portrait**:
+The one picture of a person: a real image curated when the Story is made, or one the player uploads later.
+Never drawn by the app.
+_Avoid_: Avatar, generated image, character art
 
-**Roleplay Transcript Window**:
-The latest fifteen complete retained Roleplay Exchanges reachable from the selected branch head, serialized chronologically as raw user prose and committed assistant prose. The current incomplete exchange follows it separately. A Continuity Snapshot, speaker control, regeneration direction, or other model instruction never appears inside a historical transcript exchange.
-_Avoid_: Full chat dump, rendered-message history, context tail
+**Group**:
+Several of the Cast whose life the World follows together, as one, such as Crabbe and Goyle. The player decides
+who is in which Group; everyone else in the Cast is followed one by one.
+_Avoid_: Crowd, extras, faction
 
-**Roleplay Generation Job**:
-A recorded attempt to execute one frozen Roleplay Generation Request through the selected Roleplay Model. Its delivery may stream directly or complete through durable Mac Host polling, but Android accepts the result only while its originating thread branch and pending reply still match.
-_Avoid_: Live session, streaming session, hidden conversation, Mac-only job
+**Story File**:
+A portable document that sets a Story up: its World, people and Groups, Leads, Player Character, Premise, Arcs,
+Landmarks, Style and opening. Stories are written as Story Files outside the app (see `docs/story-authoring.md`) and taken in whole.
+_Avoid_: Export, prompt pack, template, preset
 
-**Character Portrait**:
-The canonical generated visual identity of a Primary Character or branch-valid Cast Member. A replacement does not supersede the current portrait until the new image has been accepted successfully.
-_Avoid_: Avatar, profile photo, temporary render
+### Playing
 
-**Chat Backdrop**:
-The edge-to-edge Character Portrait shown behind a roleplay thread. It follows the Active Speaker when that speaker has a portrait and otherwise falls back to the Primary Character.
-_Avoid_: Wallpaper, card background, thumbnail
+**Move**:
+What the player writes on their turn: anything at all, from their own character's words and thoughts to what
+others do, what happens, a time skip or going somewhere else. What a Move says has happened.
+_Avoid_: Message, prompt, input, user turn
 
-**Portrait Engine**:
-The trusted external producer responsible for creating Character Portraits. It is independent of both the Roleplay Model and Continuity Engine.
-_Avoid_: Image API, portrait worker, Pollinations
+**Reply**:
+What the Story writes back after a Move: the people there and the world around them, never the Player
+Character's words, choices or feelings.
+_Avoid_: Response, generation, bot message, AI turn
 
-**Portrait Brief**:
-The stable visual specification used to generate one Character Portrait. Known Character Sheet or Cast Profile details are binding; artistic completion of unspecified details remains visual-only and never becomes continuity truth.
-_Avoid_: Image prompt, appearance canon, transcript excerpt
+**Scene**:
+One thing happening between its people, played Move by Reply. It may move from place to place while that thing goes
+on, as when Draconia and the Player Character argue all the way up the lane. Only the player's End Scene action
+ends it. A change of place, activity or time keeps it open, with the place, people and clock updated.
+_Avoid_: Chapter, session, segment
 
-**Ensemble**:
-An explicit reply mode allowing multiple present Cast Members to speak and act in one assistant reply.
-_Avoid_: Auto speaker, group character
+**Outline**:
+Where the whole Story is going, from now to its end, in Acts: what each Act is about, what it builds toward, the turns
+along the way, and where each Arc and main relationship should stand by its end. It is reconsidered after every Scene,
+so it follows wherever the player takes the Story; nothing new enters the Story except as a setup it means to pay off.
+_Avoid_: Spine, roadmap, master plan, script
 
-**Continuity Entity**:
-Any person, creature, object, group, or other story subject tracked for continuity. A Continuity Entity is not necessarily a Cast Member or eligible speaker.
-_Avoid_: Cast Member
+**Act**:
+One part of the Outline, such as a school year: the question it asks, the Landmark it builds to, and how it hands on
+to the next.
+_Avoid_: Season, book, chapter, arc
 
-**Continuity Snapshot**:
-An independently valid, complete account of the current world, Cast Roster, entities, relationships, locations, and narrative state at a particular completed exchange. Each accepted snapshot supersedes the previous snapshot as the branch's continuity truth.
-_Avoid_: HCE, memory blob, world-state blob
+**Stretch**:
+About a week of story time, planned as a whole: the few Scenes in it that matter, each with its day, place, people
+and what it is for, and what each Lead does about the Player Character that week, on screen or off. Between the
+Scenes that matter, the days pass as Meanwhile.
+_Avoid_: Chapter, episode, arc, week
 
-**Continuity Checkpoint**:
-A mandatory, non-bypassable pause after every fifteenth completed Roleplay Exchange on a branch since its Continuity Baseline, or when an early update is explicitly requested. The triggering reply remains visible, but the affected lineage becomes read-only until a valid Continuity Snapshot has been accepted; update failures leave the checkpoint in force. The pause follows the checkpointed exchange into descendant branches without blocking unrelated branch lineages or roleplay threads.
-_Avoid_: App stop, crash, shutdown
+**Happening**:
+Something going on in the World at a time and place that the Player Character could be at, such as McGonagall
+taking accounts at 9:00 or the twins' round at the Three Broomsticks. Some the Player Character is expected at,
+and their absence is noticed; any Happening they are not at goes on without them.
+_Avoid_: Opportunity, event, quest, storylet, option
 
-**Revision**:
-A reply attempt that replaces a rejected one, carrying the rejected prose together with what the player wants changed about it. The rejected prose is marked as never having happened, and everything the direction does not name is preserved: a Revision alters a reply rather than replacing the idea behind it. A direction with no prose to revise is a brief for a fresh attempt, which is a different thing and is said differently.
-_Avoid_: Regeneration direction, steering, guidance, retry
+**Engagement**:
+Something the Player Character knows is on at a time and place, because it was arranged in front of him or reached
+him: a summons, a lesson, an invitation, a session he agreed to, once or every week. It is on the Day View until it
+is kept, missed, called off or past. He is expected at one he agreed to or was summoned to; missing it is noticed.
+_Avoid_: Appointment, plan, event, reminder
 
-**Scene Report**:
-What a Roleplay Model states about the scene its reply leaves behind: who is present, and whether the scene ended. Named in prose, never by identifier, and always optional — a missing or unreadable report costs freshness and never the reply, because presence then falls back to the Continuity Snapshot. It is stripped from the prose before the exchange is committed, so it never becomes story.
-_Avoid_: Metadata, tail, structured output, function call
+**Gap**:
+The time between where the Player Character is and the Happening the player chose next. The Player Character
+spends it however the player says, or quietly if they say nothing, and everything else in it goes on without
+them.
+_Avoid_: Time skip, downtime, idle time
 
-**Story Direction**:
-What the player wants to happen next in a roleplay thread, written by them and never by a model, and ticked off as each lands. It is direction rather than suggestion because they chose it, but it never outranks the player's prose in the current exchange, never survives a Scene Intent that holds the scene still, and says where the story should get to rather than when.
-_Avoid_: Plot thread, objective, goal, active_threads, roadmap
+**Calendar**:
+The date of a Story's first day, from which every day of the Story is a date with its weekday. Agents and the player
+read Story time as dates; day numbers are only the Story's bookkeeping.
+_Avoid_: Day N, timestamp, epoch
 
-**Scene Intent**:
-What the current scene is for, chosen by the player per reply and carried until changed: Dwell, Develop, Escalate, or Close. It selects exactly one turn policy for the assistant reply, and the policies are mutually exclusive, so a scene can never be told both to hold still and to introduce an interruption. It is held on the branch beside the Active Speaker.
-_Avoid_: Director note, guidance, steering, mood, tone
+**Day View**:
+Where the player chooses what to do next after a Scene they ended: what their character
+knows has happened meanwhile, and what is happening that they could go to. A Move that goes somewhere else
+skips it.
+_Avoid_: Menu, hub, map, interlude screen
 
-**Stage**:
-The projection of a Continuity Snapshot that one reply is written against, derived deterministically and never stored. Resolution varies by presence and salience: what is in the scene arrives as a complete record, the rest of the Cast Roster and anyone the scene can reach arrive as a name and kind, and everyone else the story knows arrives as a name. Nothing is omitted, so a Roleplay Model can always call for a character it cannot currently see and can never invent a second one who already exists.
-_Avoid_: Trimmed context, summary, truncated state, context window
+**Focus**:
+The one person a Scene's Replies stay close beside, in their words, actions and thoughts, while nobody new enters
+unless a Move brings them in. A Scene that opens with one other person starts focused on them, and Focus
+clears when the Scene ends.
+_Avoid_: Active speaker, speaker picker, single mode
 
-**Salient**:
-Said of an entity, relationship, or thread the story has referred to recently. Recorded by the Continuity Compiler as the snapshot version at which each record was last touched, so its age is the distance from the current version. Cast Members are always salient. Salience decides how much of a record reaches a Roleplay Model, never whether it remains true.
-_Avoid_: Recent, active, hot, cached, relevant
+**Linger**:
+The player's hold on a particular beat: while it is on, the Story lets the moment breathe. It is optional;
+Scenes stay open without it. It clears when the Scene ends.
+_Avoid_: Stay here, pace, dwell
 
-**Continuity Baseline**:
-The latest accepted Continuity Snapshot reachable through a branch's current history. Replaced or discarded exchanges do not contribute to the next checkpoint, while a new branch inherits the baseline and subsequent exchanges reachable from its fork point.
-_Avoid_: Global counter, lifetime reply count
+**Redo**:
+Writing the latest Reply again, optionally with a Direction.
+_Avoid_: Regenerate, reroll, retry
 
-**Branch-valid Side State**:
-Pins, timeline events, Cast Profile overrides, and Cast Portraits inherited through a branch's ancestry and filtered by the Roleplay Exchanges reachable from its current head. State attached to a Rewind-discarded or replaced exchange is invisible even when that exchange remains physically stored for a sibling branch.
-_Avoid_: Exact-branch rows, global thread state, copied branch metadata
+**Direction**:
+An out-of-character instruction, saved exactly when the player gives it with a Redo or in Backstage. Every later
+Reply and planning pass reads all active Directions, across Paths and restarts. A Direction applies within its
+original scope; a correction to one encounter does not restage it everywhere. The player can edit, archive and
+restore Directions in Backstage. They never enter the Story as events or character knowledge.
+_Avoid_: Feedback, guidance, instruction, OOC note
 
-**Device Test Sandbox**:
-The separate Android package `com.example.open_fantasia.sandbox` targeted by connected instrumentation. Test installation, storage clearing, and uninstall are confined to this package; the personal app's characters, threads, Continuity state, credentials, and portrait files are never test-owned.
-_Avoid_: Personal app test target, connected Debug test
+**Brief**:
+What the player wants more of and less of in a Story, which the Director plans by.
+_Avoid_: Preferences, settings, prompt
 
-**Continuity Evidence Transcript**:
-The retained Roleplay Exchanges the Continuity Baseline does not already account for: everything from the Baseline's own exchange through the exchange that triggered the checkpoint, normally fifteen. Earlier prose is not sent, because the Baseline is what it became. A thread with no accepted Baseline yet supplies its whole retained lineage. Rewind-discarded prose is absent and unknowable.
-_Avoid_: Partial context, discarded transcript
+**Reaction**:
+The player's word on a Scene that ended: more like this, or less.
+_Avoid_: Rating, feedback, like
+
+**Routine**:
+The Player Character's ordinary week (classes, meals, practice) that the Director builds on.
+_Avoid_: Schedule, timetable, calendar
+
+**Taste**:
+Lasting preferences explicitly maintained by the player: a Story's own Taste belongs to the Story rather than
+one Path, and the player's Taste is shared across Stories. Exact Directions are kept separately; writing a Reply
+does not turn them into model-inferred global rules. Earlier automatic paraphrases remain archived as history
+when their original Directions are recovered.
+_Avoid_: Preferences, profile, memory
+
+### Paths
+
+**Path**:
+One way the Story has gone, from its opening to its latest moment. A Story is a tree of Paths; the clock, the
+World, what everyone knows and the Arcs all belong to the Path the player is on.
+_Avoid_: Branch, timeline, fork, save
+
+**Try another way**:
+Starting a new Path from any Reply, leaving the Path the player was on exactly as it was.
+_Avoid_: Fork, branch off
 
 **Rewind**:
-Moving a branch head to an earlier retained Roleplay Exchange and permanently discarding every later exchange on that lineage. Discarded content is no longer story truth. Continuity after a Rewind is whichever Continuity Snapshot is still reachable from the new head together with the exchanges retained after it, so a Rewind never requires a Continuity Update of its own; it can only reduce the distance to the Continuity Baseline, never increase it.
-_Avoid_: Undo, temporary rollback
+Going back to an earlier moment on a Path. What came after is set aside as a Path of its own, never destroyed.
+_Avoid_: Undo, revert, delete
 
-**Continuity Update**:
-The act of producing and accepting a new Continuity Snapshot for the exchange at a Continuity Checkpoint. Acceptance establishes a new Continuity Baseline and restarts the fifteen-exchange cadence.
-_Avoid_: HCE call, scan
+### Who writes the Story
 
-**Mac Host**:
-The trusted external Mac service reached through Tailscale. It durably executes Continuity Updates and Antigravity Roleplay Generation Jobs while keeping provider credentials off Android. Its availability never weakens or bypasses checkpoint enforcement.
-_Avoid_: Continuity Host, Mac worker, HCE worker, Codex machine
+**Actor**:
+Plays everyone in a Scene and writes the Replies. Chosen per Story, with the same selected model and effort
+handling both the creative choice and the complete prose in one generation. A Reply goes straight to the player;
+the Editor reads it first only when the Mac is set to.
+_Avoid_: Roleplay model, bot, character AI
 
-**Continuity Engine**:
-The user-selected model-backed producer the Mac Host uses to create a Continuity Snapshot. Changing engines never changes checkpoint enforcement or snapshot acceptance rules.
-_Avoid_: HCE model, provider, worker
+**Writer**:
+The responsibility for shaping a Scene: what it is for and what happens next in it. This metadata is produced
+in the same call that writes the Reply, rather than passed through a separate model and short instruction.
+Only the player ends a Scene, and no reply count forces a beat or an Arc to move.
+_Avoid_: Scene planner, screenwriter, director
 
-**Continuity Draft**:
-The provider-neutral semantic state transition a Continuity Engine authors for one Continuity Update: replacement prose, the complete present scene, the operations that add, amend, or remove durable state, and new timeline events. It carries no stored identifier, no envelope identity, and no copy of authoritative input, and it never crosses the wire to Android.
-_Avoid_: Model response, patch, diff, delta blob
+**Chronicler**:
+Records what happened in a Scene, inventing nothing. Long Scenes are recorded repeatedly as they grow: each
+checkpoint extends the cumulative account and extracts new Moments only from passages not already recorded.
+_Avoid_: Continuity engine, memory, summarizer
 
-**Continuity Compiler**:
-The deterministic Mac Host module that applies a Continuity Draft to the Continuity Baseline to produce a complete Continuity Snapshot. It preserves authoritative records, assigns every identifier, resolves every reference, performs the cascades referential integrity forces, and reports what it could not apply as typed defects. It contains no model and is exercised directly by fixtures.
-_Avoid_: Post-processor, canonicalization pass, repair step
+**Weaver**:
+Moves the World forward off-screen by living out everyone's Lives and the Outline while the Player Character is
+elsewhere: what each person does about what they want, how their feelings move, and what is happening that he could
+go to.
+_Avoid_: World agent, simulator, world turn
 
-**Model-facing Handle**:
-The short readable slug through which a Continuity Draft refers to a story object. Handles are derived fresh from the baseline for one Continuity Update and are meaningful only inside it; a `new:` prefix declares that the object does not exist yet and asks the Continuity Compiler to assign its identity.
-_Avoid_: Entity ID, temporary ID, reference key
+**Editor**:
+When the Mac is set to (`fantasia editor on`), reads each Reply before the player does, against what the Story has
+established: its Rules, what each person knows and believes, the clock, and what only the player may decide; sets
+right or sends back what breaks them. Off by default (docs/adr/0024). Checks the records and recaps of what happened
+against what they cover.
+_Avoid_: Checker, validator, critic, continuity
 
-**Engine Preflight**:
-The smallest schema-constrained job the Mac Host runs through a Continuity Engine's exact execution path before advertising it. It proves the executable, account, model, headless permissions, and structured output; an engine that fails is not offered and a checkpoint naming it is refused with the reason.
-_Avoid_: Health check, version check, ping
+**Director**:
+Keeps the Story's Outline, woven from the world's direction and everyone's Lives, and plans each Stretch as the next
+step of the current Act, arranging where Lives cross the Player Character. After every Scene it reconsiders the
+Outline in the light of how the Scene went.
+_Avoid_: Planner, showrunner, plot manager
 
-**Continuity Defect**:
-A named reason the Continuity Compiler could not apply part of a Continuity Draft. A recoverable defect drops the offending operation and is reported; a fatal defect means the draft is incoherent and the Continuity Update fails.
-_Avoid_: Validation error, warning, parse failure
+**Folder**:
+Folds each finished Act of The Story So Far into one account of it, keeping every turning point and name, so it
+stays short however long the Story runs.
+_Avoid_: Summarizer, compressor
 
-**Story Summary**:
-A causally ordered synthesis of the important story so far, using as much detail as continuity quality requires up to a 20,000-character safety ceiling. It is rewritten at every Continuity Update from the prior story knowledge and complete retained transcript; it is never an append-only transcript or event log.
-_Avoid_: Running log, appended recap
+### The living World
 
-**Scene Summary**:
-A replaceable description of the immediate situation at the snapshot: current place and time, present participants, active tension, and what is poised to happen next, using up to an 8,000-character safety ceiling.
-_Avoid_: Story Summary, recent transcript
+**Life**:
+A person's own story, lived for its own sake and not only for the Player Character's: who they are now, what they want
+this Act and what they are doing about it, how they feel about the people around them, and where they are heading.
+The Outline is woven from Lives; the Player Character's story is where they cross his. The Weaver lives them out
+while he is elsewhere.
+_Avoid_: Agenda, schedule, routine, status, NPC behaviour
 
-**Latest Beat**:
-A focused account of how the newest Roleplay Exchange changed the scene, using up to a 4,000-character safety ceiling. It replaces the prior Latest Beat at every Continuity Update.
-_Avoid_: Scene Summary, latest reply
+**Thread**:
+A situation developing in the World on its own, such as who broke Selwyn or a smuggled dragon egg: the World's
+counterpart to the player's Arcs.
+_Avoid_: Pressure, plotline, subplot, quest
 
-**Voice Samples**:
-Things a speaker has actually said, in their own words, kept on a Character, Cast Profile or Persona. Six to ten lines, uneven on purpose. They are what a Roleplay Model imitates most and reach it three times per reply: in the Voice Card, in the Dossier, and quoted in the Whisper. A Continuity Update may copy a Cast Member's real lines from the transcript into theirs; nothing ever invents one. The Continuity Compiler keeps the newest ten.
-_Avoid_: Example dialogue, catchphrases, style guide
+**Meanwhile**:
+What the Player Character learns happened while they were elsewhere: what they saw, were told or heard as
+rumour, never more.
+_Avoid_: Recap, news feed, world events
 
-**Voice Card**:
-The system-prompt block that says who the Primary Character is and how they sound: their persona, how they sound, their Voice Samples, their hard limits stated as facts, their appearance. It replaces `character_persona` and every rule block that used to sit beside it.
-_Avoid_: Character persona block, style rules
+**Moment**:
+A part of the Story that matters, especially one shared with the Player Character, recorded once in its original
+words with who was there and who knows of it. Everyone who was there remembers it from that one record.
+_Avoid_: Memory, memory entry, recollection, note
 
-**Voice Anchor**:
-The Primary Character's sample exchanges delivered as real user/assistant turns ahead of the Roleplay Transcript Window. Capped at four exchanges and 1,200 characters of reply text; static per thread so it stays inside a provider prefix cache; never counted as story.
-_Avoid_: Few-shot examples, example_conversations block
+**Bond**:
+Where things stand between the Player Character and one person he has history with, as he has seen it, and the turns
+that brought it there, each one line from the Scene it happened in. Kept once, beside the Moments; nobody's secret
+feelings are in it.
+_Avoid_: Relationship meter, affinity, affection score, relationship memory
 
-**Dossier**:
-The Continuity Snapshot as the Roleplay Model reads it: the Stage rendered as prose by a deterministic module with no model in it. Where things are, who is here and how they are, what each knows and wants, what is between them, the story so far. Identifiers, version numbers, edge flags and the integer behind an emotion never appear; presence is stated by section and only when it was actually read.
-_Avoid_: durable_state, world-state JSON, state dump
+**The Story So Far**:
+What has happened in the Story: a paragraph for each Scene of the current Act, and an account of each Act before it.
+Every agent is given it.
+_Avoid_: Summary, recap, history, context
 
-**Whisper**:
-The one per-reply instruction, about a hundred words, placed after the player's prose as the last thing a Roleplay Model reads: who speaks, what this scene is for, where the player wants it to go, any Revision, two or three of the speaker's Voice Samples, how long, and the Scene Report shape. Written in the register the reply should have. It replaces reply_control, style_override, this_turn, story_direction, variation_rules, length_target and scene_report.
-_Avoid_: Reply control, style override, output contract, instructions block
+### What the player sees
 
-**Voice Metrics**:
-How an accepted reply's dialogue measured — contraction rate, hedge rate, restarts, median line length and its variance, question rate, epigram endings, antithesis and stock-phrase density — computed on the text inside quotation marks and stored beside the Roleplay Generation Job that produced it. A prompt change is judged by what it did to these.
-_Avoid_: Quality score, style check
+**Journal**:
+The Story read back Scene by Scene, with what the Player Character heard Meanwhile, as far as they know it.
+_Avoid_: History, log, transcript, timeline
 
-**Voice Lint**:
-The after-the-fact scan for the tells of machine prose: the "not X, but Y" family, stock phrases, dash density. It never rejects a reply and is never shown to a model, because naming a thing to avoid raises its frequency.
-_Avoid_: Slop filter, banned words, content filter
+**Backstage**:
+The place outside the roleplay where the player can see everything the Player Character does not know: what
+happened off-screen, everyone's Lives, the Threads, and what the Director and the Writer are building toward.
+_Avoid_: Narrator's view, god mode, spoilers

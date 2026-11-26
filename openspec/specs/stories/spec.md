@@ -1,0 +1,220 @@
+# Stories
+
+## Purpose
+
+A **Story** is made with Claude outside the app as a **Story File** (docs/adr/0002) and lived in the app, where
+everything in it stays editable. This capability covers taking a Story in, editing it, and finding it again.
+
+## Requirements
+
+### Requirement: A Story File becomes a Story whole
+
+Importing a **Story File** SHALL create a Story with everything the file sets up: its **World** (places,
+institutions, history), its people and **Groups**, each person's **Portrait**, the **Leads**, the **Player
+Character**, the **Premise**, the **Arcs**, the **Landmarks**, the **Style**, the reply length, the **Actor**'s
+model and the opening **Scene**. A file that is incomplete or contradicts itself SHALL be refused whole, with every
+problem named, and no part of it created.
+
+#### Scenario: The Harry Potter Story is imported
+- **GIVEN** a Story File for "The Malfoy Problem" with 46 people, three Leads and an opening at a party
+- **WHEN** it is imported on the Mac
+- **THEN** the Story appears on the phone's home screen
+- **AND** opening it lands in the opening Scene with its title card
+
+#### Scenario: A file names a Lead who is not in it
+- **GIVEN** a Story File whose Leads include "Ginny Weasley" but whose people do not
+- **WHEN** it is imported
+- **THEN** nothing is created
+- **AND** the refusal names Ginny Weasley as a Lead with no person
+
+### Requirement: Claude can edit a Story as the player can
+
+Every edit the app offers SHALL also be possible through commands on the Mac, and SHALL land the same way: from
+that moment onward on the **Path** the player is on. A phone showing the **Story** SHALL show an edit made through
+the Mac's commands as it shows its own.
+
+#### Scenario: Claude adds a person mid-Story
+- **GIVEN** the player is in Scene 20 of a Story
+- **WHEN** Claude adds Luna Lovegood with a Portrait through the Mac's commands
+- **THEN** she is among the Story's people on the phone from Scene 20 onward on that Path
+- **AND** she is absent from earlier moments and from other Paths
+
+#### Scenario: Claude fixes a typo through the Mac
+- **GIVEN** the phone is showing a Scene whose latest Reply reads "Hermoine"
+- **WHEN** Claude edits that Reply to read "Hermione" through the Mac's commands
+- **THEN** the phone shows the Reply reading "Hermione" without the player doing anything, and no new Path exists
+
+### Requirement: Anything can be edited or created in the app
+
+The player SHALL be able to edit, and create new, any part of a running Story from the app: people (who they are, how
+they talk, what they are after, Portrait), places, Groups and who is in them, Leads, the Player Character, Arcs,
+Landmarks, the Premise, the Style, the reply length, **Taste** and the time. An edit SHALL apply from that moment
+onward on the current Path, and SHALL leave earlier moments and other Paths unchanged. Everyone in the Story SHALL be
+reachable for editing from the World screen without the World screen itself showing anyone the Player Character does
+not know, and editing a person SHALL show them as the Story keeps them, what nobody knows included.
+
+The **Player Character** SHALL be edited as the person they are; who the player plays SHALL never change mid-Story.
+The time SHALL only be moved on, never back, and the **World** SHALL catch up over the time passed as it does over a
+**Gap**. A **Landmark** whose time the World has already passed on a Path SHALL stay as it was on that Path, and a
+Landmark SHALL only be set to a time after where the World stands.
+
+#### Scenario: A Landmark is moved on one Path
+- **GIVEN** the betrothal Landmark is set for Year 3 on two Paths
+- **WHEN** the player moves it to the end of Year 2 on one of them
+- **THEN** that Path brings it about at the end of Year 2
+- **AND** the other Path still has it in Year 3
+
+#### Scenario: A new person is created in the app
+- **WHEN** the player creates Theodore Nott in the app, with a description and an uploaded Portrait
+- **THEN** he is in the Story's people from that moment on the current Path, and can appear in Scenes
+
+#### Scenario: Fixing someone mid-Story
+- **GIVEN** Meera's description says she is from Mumbai, and the player meant Pune
+- **WHEN** the player changes it in the app during Scene 9
+- **THEN** the Scenes from then on on that Path write her as from Pune
+- **AND** Scene 8, read back, is as it was
+
+#### Scenario: Moving the clock on
+- **GIVEN** the Day View is waiting on Saturday at 7:40 am
+- **WHEN** the player moves the clock on to Sunday at 9:00 am
+- **THEN** the Day View is waiting on Sunday at 9:00 am, with nothing on before then among its choices
+- **AND** once the player has chosen, what happened in the World between Saturday and Sunday is in Backstage
+
+#### Scenario: The clock never goes back
+- **GIVEN** the Scene is on Friday at 9:40 pm
+- **WHEN** the player tries to set the clock to Friday at 8:00 pm
+- **THEN** nothing changes, and the app says the clock only moves on
+
+#### Scenario: A Landmark the World has passed
+- **GIVEN** the Halloween feast Landmark happened on this Path in Scene 6
+- **WHEN** the player tries to move it to the following week
+- **THEN** nothing changes, and the app says it has already happened on this Path
+
+#### Scenario: A place is added mid-Story
+- **WHEN** the player adds the Room of Requirement, with a description, during Scene 12
+- **THEN** it is among the World screen's places from then on on that Path, and Scenes can be set there
+- **AND** another Path has no such place
+
+### Requirement: Leads are the player's to choose
+
+Any person SHALL be able to be made a **Lead**, or stop being one, with one toggle at any time, including someone
+who arrives during the Story. The Story SHALL never suggest or change Leads on its own.
+
+#### Scenario: A newcomer becomes a Lead
+- **GIVEN** a person who first appeared in Scene 30
+- **WHEN** the player toggles them to Lead
+- **THEN** the Story treats them as a Lead from then on
+
+#### Scenario: The Story never promotes anyone
+- **GIVEN** the Player Character has spent five Scenes in a row with Neville, who is not a Lead
+- **THEN** Neville is still not a Lead, and nothing suggests making him one
+
+### Requirement: Groups are the player's to arrange
+
+The player SHALL decide who is in which **Group**, and each person SHALL be in at most one. Everyone in the
+**Cast** who is not in a Group SHALL be followed one by one. The Story SHALL never move anyone into or out of a
+Group.
+
+#### Scenario: Goyle starts to matter
+- **GIVEN** Goyle is in the "Crabbe and Goyle" Group
+- **WHEN** Goyle saves the Player Character's life in a Scene
+- **THEN** Goyle is still in the Group until the player takes him out
+
+### Requirement: Portraits are real images
+
+Every person's **Portrait** SHALL be a real image, curated by Claude when the Story is made or uploaded by the player
+from the phone. The app SHALL never draw one. An uploaded Portrait SHALL be a JPEG, PNG or WebP image of at most 10
+MB, and SHALL replace the person's Portrait from that moment onward on the current Path.
+
+#### Scenario: Uploading a Portrait
+- **WHEN** the player uploads an image from the phone for Daphne Greengrass
+- **THEN** it is her Portrait everywhere she appears
+
+### Requirement: Home shows where every Story stands
+
+The home screen SHALL list every Story with where it stands on its current Path: the Scene being played or the
+**Day View** waiting.
+
+#### Scenario: Two Stories on the home screen
+- **GIVEN** one Story mid-Scene in "After curfew" and another waiting at a Day View on Sunday at 7:40 am
+- **THEN** the home screen shows "Scene 14 · After curfew" for the first
+- **AND** "Sunday 7:40 am · choosing where to go" for the second
+
+### Requirement: Opening a Story returns exactly where the player left
+
+One tap on a **Story** SHALL return to exactly where the player left it, mid-**Scene** or at the **Day View**. When
+the player has been away more than a day, a dismissible "Previously" card SHALL say where the Story stands, from what
+the Story already keeps: when they left mid-Scene, The Story So Far's newest paragraph and the Scene they are in, where
+and with whom; when they left at the Day View, the Scene that closed; and how long ago they last played. A Scene's end
+that finishes later is not play. Opening the Story SHALL never wait for the card to be written. Once
+dismissed, the card SHALL stay gone until the player has been away more than a day again.
+
+#### Scenario: Back after a night away
+- **GIVEN** the player stopped mid-Scene with Hermione and returns 30 hours later
+- **WHEN** they open the Story
+- **THEN** they are in that Scene at its latest Reply, with a "Previously" card above it
+
+#### Scenario: Back the same evening
+- **GIVEN** the player stopped mid-Scene with Hermione and returns three hours later
+- **WHEN** they open the Story
+- **THEN** they are in that Scene at its latest Reply, with no "Previously" card
+
+#### Scenario: Back to a Day View
+- **GIVEN** the player ended "After curfew", stopped at the Day View, and returns two days later
+- **WHEN** they open the Story
+- **THEN** the Day View has a "Previously" card saying what happened in "After curfew"
+
+#### Scenario: Dismissing the card
+- **GIVEN** the "Previously" card is above the latest Reply
+- **WHEN** the player dismisses it, leaves, and opens the Story again without playing
+- **THEN** the card does not come back
+
+### Requirement: Story time stands still while the player is away
+
+Nothing in a Story SHALL move while the player is not playing it; Story time SHALL pass only through play.
+
+#### Scenario: A week away
+- **GIVEN** the player stopped on Saturday at 11:47 pm in the Story
+- **WHEN** they open it a week later
+- **THEN** it is still Saturday 11:47 pm, and nothing has happened since
+
+### Requirement: The Director can bring someone new into the Story
+
+The **Director** SHALL be able to bring a new person into the Story when it plans a **Stretch**, with their name and
+who they are. From that plan onward on that **Path**, they SHALL be among the Story's people: named, played,
+remembered, and shown on the World screen once he has met them. A person already in the Story SHALL not be brought in
+again.
+
+#### Scenario: A new person stays
+- **GIVEN** the Director brings in Elspeth Vane, a seventh-year who runs the Hogsmeade duelling club
+- **WHEN** the player meets her, and she comes up again three Stretches later
+- **THEN** she is the same person, with what passed between them remembered
+
+#### Scenario: Not on another Path
+- **GIVEN** Elspeth Vane was brought in by the plan after Scene 12
+- **WHEN** the player goes back to Scene 10 and plays another way
+- **THEN** she is not among the Story's people on that Path, until a plan there brings her in
+
+### Requirement: Story time is told as dates
+
+When a Story has a calendar, everyone who reads its time SHALL read it as a date: the agents as a weekday, day,
+month and year with the time, such as "Friday 6 September 1991, 9:40 pm"; the player as the weekday and date on the
+Day View, such as "Friday 6 September", and the weekday and time elsewhere. No agent SHALL be shown a day number,
+and agents SHALL answer with dates, which the Story turns into its own times. A Story with no calendar SHALL say its
+days by number.
+
+#### Scenario: The Director plans on dates
+- **GIVEN** a Story whose first day is Sunday 1 September 1991, now Friday 6 September at 9:40 pm
+- **WHEN** the Director plans the next Stretch
+- **THEN** it is told today is Friday 6 September 1991, picks each Scene that matters from the Stretch's dates, and
+  each lands on the date it picked
+
+#### Scenario: An arrangement made for a date
+- **GIVEN** the same Story, and Draconia says on the page "Saturday the fourteenth, eight o'clock, the owlery"
+- **WHEN** the Chronicler records it as 1991-09-14 20:00
+- **THEN** the Engagement is on Saturday 14 September 1991 at 8:00 pm
+
+#### Scenario: The Day View says the date
+- **GIVEN** the same Story, now Saturday 7 September at 7:30 am
+- **WHEN** the player is at the Day View
+- **THEN** it says "Saturday 7 September"

@@ -1,0 +1,26 @@
+{
+  "title": "Beyond the Arc — Rewritten",
+  "storyId": "9273ee45-7c16-457e-8df4-f0c6d79b30b2",
+  "created": true,
+  "home": "/Users/sairoopesh/Library/Application Support/Open Fantasia",
+  "folder": "/Users/sairoopesh/Downloads/open-fantasia/examples/beyond-the-arc-rewritten",
+  "headEntryId": "e41cc60b-ec57-45e4-bbc3-0544a956c375",
+  "opening": "The away end",
+  "clock": "Day 1 16:55",
+  "dayOne": "2026-10-03",
+  "characters": 39,
+  "previousStories": [
+    "The Night Train to Kalka",
+    "The Malfoy Problem (first play)",
+    "The Malfoy Problem",
+    "The Malfoy Problem",
+    "The Malfoy Problem",
+    "Complex Cases",
+    "Beyond the Arc"
+  ],
+  "previousPathsUnchanged": true,
+  "playerMoves": 0,
+  "modelCalls": 0,
+  "sourceSha256": "46c65f8b8be3d4e5f704975ecc5890ac28c9f9520990c07c3dfdb1a7c02a652d",
+  "importedAt": "2026-11-08T16:27:55.786Z"
+}

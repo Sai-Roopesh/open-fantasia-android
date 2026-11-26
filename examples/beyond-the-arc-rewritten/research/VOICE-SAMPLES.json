@@ -1,0 +1,33 @@
+{
+  "model": {
+    "provider": "codex",
+    "model": "gpt-6.1-sol",
+    "effort": "high"
+  },
+  "sourceSha256": "6aaabef01eca0071cdb0479b545f59fb7dde768e43633114395791b2de99d902",
+  "checkedAt": "2026-11-08T16:24:14.777Z",
+  "liveModelCalls": {
+    "n": 6
+  },
+  "productionStoryMoves": 0,
+  "samples": [
+    {
+      "scenario": "showcase-loyalty",
+      "move": "I go over to Natalie and ask, \"Are you really cheering against us tonight?\"",
+      "plan": "Natalie answers yes: she's cheering for Adrian and Julian tonight and sitting with her parents. She defends that familiar choice plainly. Keep the exchange with her; don't supply an apology, compensating affection, or an interruption to settle it.",
+      "reply": "“Yeah. I’m cheering for Adrian and Julian tonight.”\n\nNatalie keeps her eyes on him. Up close, the music makes it necessary to lean a little nearer to talk, but she doesn’t lower her voice.\n\n“I’m sitting with Mom and Dad. Adrian’s been putting this together for months. Of course I’m going to cheer for him.”\n\nShe catches the edge of her paper ticket between her fingers, bending one corner.\n\n“And Julian’s playing with him. He’s our friend, Sai. I know you don’t like it, but I’m going to cheer when he scores, too.”\n\nHer thumb smooths the corner flat again.\n\n“I’m not going to spend the whole game keeping quiet when they do something good.”"
+    },
+    {
+      "scenario": "lakers-family",
+      "move": "I look at the jersey and say to Natalie, \"I thought you might wear mine tonight.\"",
+      "plan": "Natalie doesn't offer to change. She explains that she came with her parents to support Julian at his opener. Keep her answer brief and slightly defensive. Julian continues talking with Daniel rather than answering for her.",
+      "reply": "Natalie glanced down at the eighteen on her jersey, then back at him.\n\n“I came with Mom and Dad. We’re here for Julian’s opener.” Her fingers caught briefly at the hem. “You knew I was sitting with them.”\n\nBeside her, Daniel asked Julian about his outside shot.\n\n“Felt good in warm-ups,” Julian said. “We’ll see. They’ve been on me about getting my feet set.”\n\nClaire lifted her bag off Natalie’s seat and tucked it beneath her own. Natalie stayed where she was, facing Roopesh."
+    },
+    {
+      "scenario": "ordinary-conversation",
+      "move": "I sit beside Natalie and ask, \"How's the paper going?\"",
+      "plan": "Natalie answers honestly: she's written plenty, but the conclusion overreaches what her case studies show. She angles the laptop toward him and points out the troublesome paragraph. Keep her concern with the paper concrete and the affection familiar.",
+      "reply": "“There's plenty of it.” Natalie glanced at the word count. “I'm just not sure the last bit's true.”\n\nShe angled the laptop toward him, shifting a cushion out from between them. On the screen, three lines near the bottom were highlighted yellow.\n\n“I say the tenant protections reduced displacement. But one case study only tracks people who stayed, so that's already a problem. And the other city brought in rental assistance at almost the same time.” She pointed to the final sentence. “Then I apparently decided I'd proved which policy worked.”\n\nHer bare foot settled against his ankle as she scrolled up to a table.\n\n“I can say eviction filings fell. I've got that. I can't say everyone who would've been pushed out got to stay.” She rubbed at a small crease in the cushion. “I liked the ending yesterday. That's annoying.”\n\nShe looked over at him.\n\n“Will you read this paragraph? Just tell me where you stop believing me.”"
+    }
+  ]
+}

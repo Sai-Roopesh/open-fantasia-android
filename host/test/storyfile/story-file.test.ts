@@ -1,0 +1,287 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { describe, expect, it } from "vitest";
+import { layers } from "../../src/context/lens.js";
+import { besideOf } from "../../src/store/beside.js";
+import { open } from "../../src/story/truth.js";
+import { checkStoryFile } from "../../src/storyfile/check.js";
+import { importStoryFile } from "../../src/storyfile/import.js";
+import { personDetail } from "../../src/views/people.js";
+import { listStories } from "../../src/views/stories.js";
+import { freshHome } from "../support/host.js";
+import { playable } from "../support/play.js";
+import { hogwartsStoryFile, malfoyProblemStoryFile, minimalStoryFile, writeStoryFile } from "../support/story-files.js";
+
+function storyCount(db: ReturnType<typeof freshHome>["db"]): number {
+  return (db.prepare("SELECT COUNT(*) AS n FROM stories").get() as { n: number }).n;
+}
+
+describe("story-file", () => {
+  // GIVEN a folder holding the setup document and 46 Portrait images it names
+  // WHEN it is imported
+  // THEN each person's Portrait is the image the document names for them
+  it("story-file › A Story File is one folder › A folder with its Portraits", () => {
+    const mac = freshHome();
+    const story = malfoyProblemStoryFile();
+    story.people = story.people.map(person => ({ ...person, portrait: `portraits/${person.name.replace(/\W+/g, "-")}.png` })) as typeof story.people;
+    const result = importStoryFile(writeStoryFile(story), mac);
+    if (!result.ok) throw new Error(result.problems.map(problem => problem.message).join("; "));
+    const state = mac.states.at(mac.tree.currentPath(result.storyId)!.headEntryId);
+    expect(Object.keys(state.people)).toHaveLength(46);
+    for (const person of Object.values(state.people)) {
+      expect(person.portrait).not.toBeNull();
+      expect(existsSync(join(mac.home, "portraits", result.storyId, person.portrait!))).toBe(true);
+    }
+  });
+
+  // WHEN a Story File declares a format version the app does not understand
+  // THEN the import is refused, naming the version found and the versions understood
+  it("story-file › A Story File is one folder › An unknown version", () => {
+    const mac = freshHome();
+    const result = importStoryFile(writeStoryFile({ ...minimalStoryFile(), format: 2 }), mac);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.problems).toHaveLength(1);
+    expect(result.problems[0]!.message).toMatch(/format 2/);
+    expect(result.problems[0]!.message).toMatch(/understands format 1/);
+    expect(storyCount(mac.db)).toBe(0);
+  });
+
+  // GIVEN a Story File with only a title, two people, the Player Character, a Premise, a Style and an opening Scene
+  // WHEN it is imported
+  // THEN the Story is created with no Groups, Arcs or Landmarks, and plays its opening Scene
+  it("story-file › A Story File sets up every part of a Story › A small Story File", () => {
+    const mac = freshHome();
+    const result = importStoryFile(writeStoryFile(minimalStoryFile()), mac);
+    if (!result.ok) throw new Error(result.problems.map(problem => problem.message).join("; "));
+    const state = mac.states.at(mac.tree.currentPath(result.storyId)!.headEntryId);
+    expect(state.groups).toEqual([]);
+    expect(state.arcs).toEqual([]);
+    expect(state.landmarks).toEqual([]);
+    expect(state).toMatchObject({ routine: [], threads: [], plan: null });
+    expect(besideOf(mac, result.storyId).brief).toEqual({ more: [], less: [] });
+    expect(state.truth.rules).toEqual({});
+    expect(state.scene).toMatchObject({ number: 1, title: "The night train", place: "A sleeper compartment", at: "Day 1 23:10", here: ["Mira"] });
+  });
+
+  // GIVEN a Story File with the Thread "the dragon egg in Hagrid's hut", where it stands "Hagrid is keeping it warm in the fire"
+  // WHEN it is imported
+  // THEN the Story's World has that Thread, standing where the Story File put it
+  it("story-file › A Story File sets up every part of a Story › A Story File with a Thread", () => {
+    const mac = freshHome();
+    const story = { ...minimalStoryFile(), threads: [{ name: "the dragon egg in Hagrid's hut", now: "Hagrid is keeping it warm in the fire" }] };
+    const result = importStoryFile(writeStoryFile(story), mac);
+    if (!result.ok) throw new Error(result.problems.map(problem => problem.message).join("; "));
+    const state = mac.states.at(mac.tree.currentPath(result.storyId)!.headEntryId);
+    expect(state.threads).toEqual([{ name: "the dragon egg in Hagrid's hut", now: "Hagrid is keeping it warm in the fire" }]);
+  });
+
+  // What the Player Character knows of someone is kept apart from who they really are (openspec story-file); the World
+  // screen's half of this scenario is proved with the World screen.
+  it("keeps who someone is and what the Player Character knows of them apart", () => {
+    const mac = freshHome();
+    const story = minimalStoryFile();
+    story.people = story.people.map((person, index) => index === 1
+      ? { ...person, who_they_are: "Serves Voldemort, who lives on the back of his head.", known: "The nervous Defence teacher, who stammers and smells of garlic." }
+      : person) as typeof story.people;
+    const result = importStoryFile(writeStoryFile(story), mac);
+    if (!result.ok) throw new Error(result.problems.map(problem => problem.message).join("; "));
+    const person = mac.states.at(mac.tree.currentPath(result.storyId)!.headEntryId).people[story.people[1]!.name]!;
+    expect(person.whoTheyAre).toBe("Serves Voldemort, who lives on the back of his head.");
+    expect(person.known).toBe("The nervous Defence teacher, who stammers and smells of garlic.");
+    // Someone the Story File says nothing of is known for nothing yet.
+    expect(mac.states.at(mac.tree.currentPath(result.storyId)!.headEntryId).people[story.people[0]!.name]!.known).toBeNull();
+  });
+
+  // GIVEN a Story File where Draconia's Bond says she called him the word on the train, he saved her twenty minutes later,
+  //   and she owes him and calls him Stray
+  // WHEN it is imported and her page is opened
+  // THEN Between you shows that standing before any Scene is played
+  it("story-file › A Story File sets up every part of a Story › A Bond to start from", () => {
+    const mac = freshHome();
+    const story = malfoyProblemStoryFile();
+    const standing = "She called him the word on the train; twenty minutes later he saved her. She owes him, hates owing him, and calls him Stray.";
+    story.people = story.people.map(person => person.name === "Draconia Malfoy" ? { ...person, bond: standing } : person) as typeof story.people;
+    const result = importStoryFile(writeStoryFile(story), mac);
+    if (!result.ok) throw new Error(result.problems.map(problem => problem.message).join("; "));
+    expect(personDetail(mac, result.storyId, "Draconia Malfoy", "t").between).toEqual({ standing, turns: [] });
+    // Someone the Story File gives no Bond has none yet.
+    expect(personDetail(mac, result.storyId, "Hermione Granger", "t").between).toBeNull();
+  });
+
+  // GIVEN a Story File whose routine says lectures run on weekday mornings and Friday nights are at the Three Broomsticks
+  // WHEN the Director plans a Stretch
+  // THEN its Scenes that matter fall around the routine, and some of them break it
+  // (Where the Scenes fall is the Director's to judge. The code's part: the routine, and the player's brief, are the
+  // Story's from the import on, and the Director plans from them, as the Weaver moves the World around the routine.)
+  it("story-file › A Story File sets up every part of a Story › A routine to build on", async () => {
+    const story = hogwartsStoryFile({ title: "After curfew", at: "Day 3 21:40" });
+    story.routine = ["Lectures run on weekday mornings, nine to noon.", "Friday nights are at the Three Broomsticks."];
+    story.brief = { more: ["Draconia's temper"], less: ["Quidditch"] };
+    const { state, play, engine, storyId, head, models, mac } = playable(story);
+    expect(state().routine).toEqual(["Lectures run on weekday mornings, nine to noon.", "Friday nights are at the Three Broomsticks."]);
+    // The brief is the player's, kept beside the Story from the import on (docs/adr/0020).
+    expect(besideOf(mac, storyId).brief).toEqual({ more: ["Draconia's temper"], less: ["Quidditch"] });
+    const standing = layers(state(), besideOf(mac, storyId), "director", [], [], []).standing;
+    const routine = "His routine:\n- Lectures run on weekday mornings, nine to noon.\n- Friday nights are at the Three Broomsticks.";
+    expect(standing).toContain(routine);
+    expect(standing).toContain("More of:\n- Draconia's temper");
+
+    await play("I say goodnight to Hermione.");
+    engine.endScene(storyId, head(), "trace-end");
+    await engine.ended(storyId);
+    // The Director and the Weaver read the routine on the calendar, where things stand.
+    const theirs = "His routine:\n- Lectures run on weekday mornings, nine to noon.\n- Friday nights are at the Three Broomsticks.";
+    const director = models.director.requests[0]!.prompt;
+    expect(director).toContain(theirs);
+    expect(director).toContain("More of:\n- Draconia's temper");
+    expect(director).toContain("Less of:\n- Quidditch");
+    expect(models.weaver.requests[0]!.prompt).toContain(theirs);
+  });
+
+  // GIVEN a Story File whose Rules say Hogwarts is a university and everyone in it is eighteen or older
+  // WHEN it is imported
+  // THEN the Story keeps those Rules from its first Scene
+  it("story-file › A Story File sets up every part of a Story › Rules to start from", () => {
+    const mac = freshHome();
+    const rules = ["Hogwarts is a university.", "Everyone in it is eighteen or older."];
+    const result = importStoryFile(writeStoryFile({ ...minimalStoryFile(), rules }), mac);
+    if (!result.ok) throw new Error(result.problems.map(problem => problem.message).join("; "));
+    const state = mac.states.at(mac.tree.currentPath(result.storyId)!.headEntryId);
+    // Opened at Scene 0, the Story's start, from the Story File itself rather than a passage of play.
+    expect(open(state.truth.rules).map(rule => ({ what: rule.what, opened: rule.opened, sources: rule.sources }))).toEqual(rules.map(what => ({ what, opened: 0, sources: [] })));
+    expect(state.scene!.number).toBe(1);
+  });
+
+  it("opens what each person knew when the Story began as their beliefs from Scene 0", () => {
+    const mac = freshHome();
+    const story = minimalStoryFile();
+    const knows = ["The 9:40 to Kalka is always late.", "Her sister is getting married in Shimla on Sunday."];
+    story.people = story.people.map((person, index) => index === 1 ? { ...person, knows } : person) as typeof story.people;
+    const result = importStoryFile(writeStoryFile(story), mac);
+    if (!result.ok) throw new Error(result.problems.map(problem => problem.message).join("; "));
+    const holder = story.people[1]!.name;
+    const state = mac.states.at(mac.tree.currentPath(result.storyId)!.headEntryId);
+    expect(open(state.truth.beliefs)).toEqual(knows.map((what, index) => ({
+      id: `k0.${holder}.${index + 1}`, holder, what, true: true, opened: 0, closed: null, closedBy: null, sources: []
+    })));
+  });
+
+  it("checks The Malfoy Problem's own Story File, with its starting Rules", () => {
+    const checked = checkStoryFile(fileURLToPath(new URL("../../../examples/malfoy-problem", import.meta.url)));
+    if (!checked.ok) throw new Error(checked.problems.map(problem => `${problem.where}: ${problem.message}`).join("; "));
+    expect(checked.storyFile.rules).toEqual([
+      "Hogwarts is a university: students arrive at eighteen and leave four years later.",
+      "Everyone at Hogwarts, students and staff, is eighteen or older.",
+      "Roopesh's power is hidden: nobody knows it, and he does not use it unless the player chooses to.",
+      "It is 1991: there are no mobile phones and no internet."
+    ]);
+  });
+
+  // A Bond is where things stand between him and someone else, in forty words or fewer (lasting-records design decision 1).
+  it("refuses a Bond for the Player Character himself, or one over forty words", () => {
+    const mac = freshHome();
+    const story = malfoyProblemStoryFile();
+    const pc = story.people.findIndex(person => person.name === story.player_character);
+    const draconia = story.people.findIndex(person => person.name === "Draconia Malfoy");
+    story.people = story.people.map((person, index) => index === pc ? { ...person, bond: "He is himself." }
+      : index === draconia ? { ...person, bond: Array.from({ length: 41 }, () => "word").join(" ") } : person) as typeof story.people;
+    const result = importStoryFile(writeStoryFile(story), mac);
+    expect(result.ok ? [] : result.problems).toHaveLength(2);
+    expect(result.ok ? [] : result.problems).toEqual(expect.arrayContaining([
+      { where: `people[${pc}].bond`, message: `${story.player_character} is the Player Character; a Bond is between him and someone else` },
+      { where: `people[${draconia}].bond`, message: "Draconia Malfoy's Bond is 41 words; say where things stand in forty or fewer" }
+    ]));
+  });
+
+  // WHEN a Story File has two people named "Weasley"
+  // THEN the import is refused, naming the duplicated name
+  it("story-file › People are referred to by name › Two people with one name", () => {
+    const mac = freshHome();
+    const story = minimalStoryFile();
+    story.people = [...story.people, { name: "Weasley", who_they_are: "A redhead." }, { name: "Weasley", who_they_are: "Another redhead." }];
+    const result = importStoryFile(writeStoryFile(story), mac);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.problems.map(problem => problem.message).join("\n")).toMatch(/"Weasley"/);
+    expect(storyCount(mac.db)).toBe(0);
+  });
+
+  // GIVEN a Story File whose Lead "Ginny Weasley" is not among its people and whose Portrait for Hermione is missing from the folder
+  // WHEN it is imported
+  // THEN nothing is created
+  // AND the refusal names both problems and where each is
+  it("story-file › An import is checked whole and taken in whole › Several problems at once", () => {
+    const mac = freshHome();
+    const story = malfoyProblemStoryFile();
+    story.leads = [...story.leads!, "Ginny Weasley"];
+    const result = importStoryFile(writeStoryFile(story, { omitPortraits: ["portraits/hermione.png"] }), mac);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.problems).toHaveLength(2);
+    expect(result.problems).toContainEqual(expect.objectContaining({ where: "leads[3]", message: expect.stringMatching(/Ginny Weasley/) }));
+    expect(result.problems).toContainEqual(expect.objectContaining({ where: "people[1].portrait", message: expect.stringMatching(/portraits\/hermione\.png/) }));
+    expect(storyCount(mac.db)).toBe(0);
+    expect(existsSync(join(mac.home, "portraits"))).toBe(false);
+  });
+
+  // WHEN a valid Story File is imported
+  // THEN the Story exists in full on the Mac and appears on the phone's home screen
+  it("story-file › An import is checked whole and taken in whole › A file with no problems", () => {
+    const mac = freshHome();
+    const result = importStoryFile(writeStoryFile(malfoyProblemStoryFile()), mac);
+    if (!result.ok) throw new Error(result.problems.map(problem => problem.message).join("; "));
+    const path = mac.tree.currentPath(result.storyId)!;
+    expect(mac.tree.pathTo(path.headEntryId).map(entry => entry.payload.kind)).toEqual(["story_set_up", "scene_opened"]);
+    expect(listStories(mac).map(story => story.title)).toEqual(["The Malfoy Problem"]);
+  });
+
+  // WHEN the same Story File is imported twice
+  // THEN there are two separate Stories, and playing one leaves the other unchanged
+  it("story-file › Importing never touches another Story › Importing the same file twice", () => {
+    const mac = freshHome();
+    const folder = writeStoryFile(minimalStoryFile());
+    const first = importStoryFile(folder, mac);
+    const second = importStoryFile(folder, mac);
+    if (!first.ok || !second.ok) throw new Error("Both imports should succeed");
+    expect(first.storyId).not.toBe(second.storyId);
+    const secondHead = mac.tree.currentPath(second.storyId)!.headEntryId;
+    const firstPath = mac.tree.currentPath(first.storyId)!;
+    const move = mac.tree.append(first.storyId, firstPath.headEntryId, { kind: "move", text: "I offer her a seat." });
+    mac.tree.moveHead(firstPath.id, firstPath.headEntryId, move.id);
+    expect(mac.tree.currentPath(second.storyId)!.headEntryId).toBe(secondHead);
+  });
+});
+
+describe("stories", () => {
+  // GIVEN a Story File for "The Malfoy Problem" with 46 people, three Leads and an opening at a party
+  // WHEN it is imported on the Mac
+  // THEN the Story appears on the phone's home screen
+  // AND opening it lands in the opening Scene with its title card
+  it("stories › A Story File becomes a Story whole › The Harry Potter Story is imported", () => {
+    const mac = freshHome();
+    const result = importStoryFile(writeStoryFile(malfoyProblemStoryFile()), mac);
+    if (!result.ok) throw new Error(result.problems.map(problem => problem.message).join("; "));
+    expect(listStories(mac)).toEqual([expect.objectContaining({ title: "The Malfoy Problem", standing: "Scene 1 · The insult" })]);
+    const state = mac.states.at(mac.tree.currentPath(result.storyId)!.headEntryId);
+    expect(Object.keys(state.people)).toHaveLength(46);
+    expect(state.leads).toHaveLength(3);
+    expect(state.scene).toMatchObject({ title: "The insult", place: "The Three Broomsticks", at: "Day 1 21:40" });
+  });
+
+  // GIVEN a Story File whose Leads include "Ginny Weasley" but whose people do not
+  // WHEN it is imported
+  // THEN nothing is created
+  // AND the refusal names Ginny Weasley as a Lead with no person
+  it("stories › A Story File becomes a Story whole › A file names a Lead who is not in it", () => {
+    const mac = freshHome();
+    const story = minimalStoryFile();
+    story.leads = ["Mira", "Ginny Weasley"];
+    const result = importStoryFile(writeStoryFile(story), mac);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.problems).toEqual([{ where: "leads[1]", message: "\"Ginny Weasley\" is a Lead but not one of the people" }]);
+    expect(storyCount(mac.db)).toBe(0);
+  });
+});

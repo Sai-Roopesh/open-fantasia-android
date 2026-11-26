@@ -1,0 +1,93 @@
+import { describe, expect, it } from "vitest";
+import { lastPlayed } from "../../src/story/played.js";
+import { sceneView } from "../../src/views/scene.js";
+import { playable } from "../support/play.js";
+import { hogwartsStoryFile } from "../support/story-files.js";
+
+const HOUR = 3600_000;
+
+/** A Story mid-Scene with Hermione, played and then left. */
+async function leftMidScene() {
+  const played = playable(hogwartsStoryFile({ who: ["Hermione Granger"] }));
+  await played.play("I sit at the other end of the sofa.");
+  await played.play("I ask what she is reading.");
+  return { ...played, lastPlayed: lastPlayed(played.mac, played.head())! };
+}
+
+/** "After curfew" played, ended, and left at the Day View once its end was done. */
+async function leftAtTheDayView() {
+  const played = playable(hogwartsStoryFile({ title: "After curfew", who: ["Hermione Granger"] }));
+  await played.play("I say goodnight to Hermione.");
+  played.engine.endScene(played.storyId, played.head(), "trace-end");
+  await played.engine.ended(played.storyId);
+  return { ...played, lastPlayed: lastPlayed(played.mac, played.head())! };
+}
+
+/** The Scene view the phone gets on opening the Story [hours] after it was last played. */
+const openedAfter = (played: ReturnType<typeof playable>, lastPlayed: string, hours: number) =>
+  sceneView(played.mac, played.engine, played.storyId, "trace-open", new Date(Date.parse(lastPlayed) + hours * HOUR));
+
+describe("the Previously card", () => {
+  // GIVEN the player stopped mid-Scene with Hermione and returns 30 hours later
+  // WHEN they open the Story
+  // THEN they are in that Scene at its latest Reply, with a "Previously" card above it
+  it("stories › Opening a Story returns exactly where the player left › Back after a night away", async () => {
+    const played = await leftMidScene();
+    const view = openedAfter(played, played.lastPlayed, 30);
+    expect(view.day_view).toBeNull();
+    expect(view.head_entry_id).toBe(played.head());
+    expect(view.exchanges.at(-1)?.move?.text).toBe("I ask what she is reading.");
+    expect(view.previously).toEqual({ summary: expect.stringContaining("Now: "), since: played.lastPlayed });
+  });
+
+  // GIVEN the player stopped mid-Scene with Hermione and returns three hours later
+  // WHEN they open the Story
+  // THEN they are in that Scene at its latest Reply, with no "Previously" card
+  it("stories › Opening a Story returns exactly where the player left › Back the same evening", async () => {
+    const played = await leftMidScene();
+    const view = openedAfter(played, played.lastPlayed, 3);
+    expect(view.day_view).toBeNull();
+    expect(view.head_entry_id).toBe(played.head());
+    expect(view.exchanges.at(-1)?.move?.text).toBe("I ask what she is reading.");
+    expect(view.previously).toBeNull();
+  });
+
+  // GIVEN the player ended "After curfew", stopped at the Day View, and returns two days later
+  // WHEN they open the Story
+  // THEN the Day View has a "Previously" card saying what happened in "After curfew"
+  it("stories › Opening a Story returns exactly where the player left › Back to a Day View", async () => {
+    const played = await leftAtTheDayView();
+    const view = openedAfter(played, played.lastPlayed, 48);
+    expect(view.day_view).not.toBeNull();
+    expect(view.scene.title).toBe("After curfew");
+    expect(view.previously).toEqual({ summary: "The Scene was played to its end.", since: played.lastPlayed });
+  });
+
+  // The card says how long ago they last played: editing the Story is not playing it.
+  it("counts from when the player last played, not from an edit made since", async () => {
+    const played = await leftAtTheDayView();
+    played.engine.setKnown(played.storyId, "Hermione Granger", "Reads in the common room until late.", played.head(), "trace-known");
+    played.engine.setLead(played.storyId, "Hermione Granger", false, played.head(), "trace-lead");
+    const view = openedAfter(played, played.lastPlayed, 30);
+    expect(view.previously).toEqual({ summary: "The Scene was played to its end.", since: played.lastPlayed });
+  });
+
+  it("counts from when the player last played, not from an edit to the rest of the Story made since", async () => {
+    const played = await leftAtTheDayView();
+    played.engine.setStyle(played.storyId, "Dry and British.", played.head(), "trace-style");
+    played.engine.setClock(played.storyId, "Day 4 09:00", undefined, played.head(), "trace-clock");
+    played.engine.setLandmark(played.storyId, { name: "The Yule Ball", at: "Day 100 19:00", what: "A dance." }, true, played.head(), "trace-landmark");
+    played.engine.setBrief(played.storyId, ["Draconia's temper"], [], "trace-brief");
+    played.engine.setReaction(played.storyId, 1, "more", null, "trace-reaction");
+    const view = openedAfter(played, played.lastPlayed, 30);
+    expect(view.previously).toEqual({ summary: "The Scene was played to its end.", since: played.lastPlayed });
+  });
+
+  it("is the summary of the Scene the player is in, never an earlier Scene's", async () => {
+    const played = await leftAtTheDayView();
+    // The next Scene opens and is played: the summary of "After curfew" is not passed off as its own.
+    await played.play("In the morning I go down to breakfast.");
+    const since = lastPlayed(played.mac, played.head())!;
+    expect(openedAfter(played, since, 30).previously?.summary).not.toBe("The Scene was played to its end.");
+  });
+});
