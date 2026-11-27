@@ -13,11 +13,11 @@ export { LONG_SCENE, parseComposedAnswer, planFromMeta, recordDue, type Composer
 
 const PROMPT = readFileSync(new URL("./COMPOSER.md", import.meta.url), "utf8");
 
-/** Natural, target-based length guidance paired 1-to-1 with provider verbosity. */
+/** Natural ceiling-based length guidance paired 1-to-1 with provider verbosity. */
 export const REPLY_LENGTH_GUIDE = {
-  short: "Write around 140–200 words (1–2 paragraphs). Keep the beat crisp and grounded, then stop where the player's next choice belongs.",
-  medium: "Write around 240–340 words (2–4 paragraphs). Give the moment room for subtext and physical detail without padding, then stop where the player's next choice belongs.",
-  full: "Write around 380–520 words. Give the beat room for atmosphere, physical detail, and real emotional movement without padding or rushing past the player's next choice."
+  short: "Keep the Reply crisp (around 100–180 words, 1–2 paragraphs) and stop where the player's next choice belongs.",
+  medium: "Up to about 240–320 words (2–4 paragraphs); let quick back-and-forth exchanges stay shorter and natural instead of padding, then stop where the player's next choice belongs.",
+  full: "Up to about 380–500 words when the moment has real action, atmosphere, or emotional weight; let quick dialogue turns stay tighter and natural rather than padding with speeches or recaps, then stop where the player's next choice belongs."
 } as const;
 
 export const REPLY_VERBOSITY = {
@@ -30,7 +30,7 @@ export const REPLY_VERBOSITY = {
  * Who Layer 2 (standing) covers: pinned to Leads + the Scene's opening cast so Turn 0 never mutates mid-Scene when a
  * supporting character walks in or is mentioned — preserving 92%+ KV-cache hits across the entire Scene.
  */
-function presentFor(ask: ComposerAsk): string[] {
+export function presentFor(ask: ComposerAsk): string[] {
   const opening = openingOf(ask.state);
   if (opening === "day_view") return [...new Set([...ask.state.leads, ...(ask.choice?.who ?? ask.state.scene?.here ?? [])])];
   const opened = ask.scene.find(entry => entry.payload.kind === "scene_opened");
@@ -39,7 +39,7 @@ function presentFor(ask: ComposerAsk): string[] {
 }
 
 /** People currently present (who entered mid-Scene) or named in the Move who are not already in Layer 2's static cast. */
-function mentionedPart(ask: ComposerAsk, standing: string[]): string | null {
+export function mentionedPart(ask: ComposerAsk, standing: string[]): string | null {
   const pc = ask.state.playerCharacter;
   const known = new Set([pc, ...standing]);
   const midSceneHere = openingOf(ask.state) === "day_view" ? [] : ask.state.scene?.here ?? [];
@@ -57,7 +57,7 @@ function mentionedPart(ask: ComposerAsk, standing: string[]): string | null {
   return section("mentioned", lines.join("\n"));
 }
 
-function longRunPart(state: State): string | null {
+export function longRunPart(state: State): string | null {
   return state.plan ? section("long_run", [
     `Toward ${state.plan.toward}, a ${state.plan.phase} Stretch.`,
     ...state.plan.arcs.map(arc => `- ${arc.arc}: now ${arc.now}; may move to ${arc.next}; not yet ${arc.notYet}`),
@@ -65,7 +65,7 @@ function longRunPart(state: State): string | null {
   ].join("\n")) : null;
 }
 
-function describeChoice(state: State, choice: Choice): string {
+export function describeChoice(state: State, choice: Choice): string {
   const parts = [choice.kind === "follow" ? `follow ${choice.who.join(", ")}` : choice.kind === "somewhere" ? `go to ${choice.place}` : choice.kind === "skip" ? "skip ahead" : `go to ${choice.place ?? "what is on"}`];
   const at = choice.at ? parseStoryTime(choice.at) : null;
   if (at) parts.push(`on ${sayDate(at, state.dayOne, true)} at ${sayTime(at)}`);
@@ -78,7 +78,7 @@ function describeChoice(state: State, choice: Choice): string {
  * happened on the immediately preceding beat (or after `scene_recorded` trimmed history) — keeping ordinary steady
  * turns 100% bare (max KV-cache) while preventing state drift after transitions.
  */
-function sceneDeltaPart(state: State, scene: Entry[]): string | null {
+export function sceneDeltaPart(state: State, scene: Entry[]): string | null {
   const current = state.scene;
   if (!current || current.closed) return null;
   const notes = scene.filter((entry): entry is Entry & { payload: Extract<Entry["payload"], { kind: "beat_note" }> } => entry.payload.kind === "beat_note");
@@ -103,7 +103,7 @@ function sceneDeltaPart(state: State, scene: Entry[]): string | null {
  * Turn 1 when Linger is on) — so steady-state turns stay 100% bare (max KV-cache) and mid-scene toggles never bust
  * Turn 0.
  */
-function sceneControlsPart(state: State, scene: Entry[]): string | null {
+export function sceneControlsPart(state: State, scene: Entry[]): string | null {
   const current = state.scene;
   if (!current || current.closed) return null;
   const lastReplyAt = scene.findLastIndex(entry => entry.payload.kind === "reply");

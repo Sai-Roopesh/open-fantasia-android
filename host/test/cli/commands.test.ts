@@ -112,6 +112,7 @@ describe("the fantasia command", () => {
     const shown = capture();
     expect(models(mac, [], shown.out)).toBe(true);
     expect(shown.text()).toBe([
+      "rephraser  opencode  grok-4.7  effort medium  (default)",
       "editor  claude  claude-sonnet-5-5  (default)",
       "chronicler  claude  claude-opus-5-5  effort medium  (default)",
       "director  claude  claude-fable-5-1  effort high  (default)",
@@ -131,7 +132,7 @@ describe("the fantasia command", () => {
     expect(scripted.editor.requests[0]!.model).toEqual({ provider: "claude", model: "claude-opus-5-5", effort: "high" });
     const after = capture();
     models(mac, [], after.out);
-    expect(after.text().split("\n")[0]).toBe("editor  claude  claude-opus-5-5  effort high");
+    expect(after.text().split("\n")[1]).toBe("editor  claude  claude-opus-5-5  effort high");
   });
 
   it("sets the Director, and any job on any provider the Mac knows", () => {
@@ -162,7 +163,7 @@ describe("the fantasia command", () => {
     await offeredCatalog(mac.home);
     const job = capture();
     expect(models(mac, ["narrator", "claude", "claude-opus-5-5"], job.out)).toBe(false);
-    expect(job.text()).toMatch(/No job "narrator"\. The jobs are: editor, chronicler, director, weaver, folder, or actor "<Story>"/);
+    expect(job.text()).toMatch(/No job "narrator"\. The jobs are: rephraser, editor, chronicler, director, weaver, folder, or actor "<Story>"/);
     const provider = capture();
     expect(models(mac, ["editor", "openai", "gpt-6.1-sol"], provider.out)).toBe(false);
     expect(provider.text()).toMatch(/No provider "openai"\. The providers are: claude, codex, antigravity/);

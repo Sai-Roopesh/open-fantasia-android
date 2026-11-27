@@ -13,7 +13,7 @@ import type { Mac } from "../mac.js";
 import { pathsView } from "../views/paths.js";
 import { randomUUID } from "node:crypto";
 import { Catalog } from "../models/catalog.js";
-import { actorOf, DEFAULT_JOB_MODELS, editsEveryReply, JOBS, jobModels, setEditsEveryReply, setJobModel, setStoryActor, storyActor, type Job } from "../models/jobs.js";
+import { actorOf, DEFAULT_JOB_MODELS, editsEveryReply, JOBS, jobModels, rephrasesEveryReply, setEditsEveryReply, setJobModel, setRephrasesEveryReply, setStoryActor, storyActor, type Job } from "../models/jobs.js";
 import { CLAUDE_TOKEN, OPENCODE_KEY, readSecret, storeSecret } from "../secrets.js";
 import { antigravityToken, codexCredentials, opencodeApiKey } from "../models/direct.js";
 import type { ModelChoice } from "../story/state.js";
@@ -22,6 +22,7 @@ import { parseStoryTime, sayStoryTime } from "../time.js";
 import { importStoryFile } from "../storyfile/import.js";
 import { besideOf, tasteOf } from "../store/beside.js";
 import { composerCall, parseComposedAnswer } from "../agents/composer.js";
+import { cleanRephrasedText, rephraserCall } from "../agents/rephraser.js";
 import { tokens } from "../context/lens.js";
 import { subscriptionRunners } from "../models/runners.js";
 import { Models } from "../models/model-call.js";
@@ -254,17 +255,26 @@ export function prompts(mac: Mac, storyId: string, move: string, out: Out): bool
   return true;
 }
 
+function parseModelSpec(spec: string): ModelChoice | null {
+  const [providerPart, rest = ""] = spec.split("/");
+  const [modelPart, effortPart] = rest.split(":");
+  if ((providerPart === "codex" || providerPart === "claude" || providerPart === "antigravity" || providerPart === "opencode") && modelPart) {
+    return { provider: providerPart, model: modelPart, ...(effortPart ? { effort: effortPart } : {}) };
+  }
+  return null;
+}
+
 /**
  * `fantasia bench`: reports exact Storyteller prompt token breakdown, cacheable prefix share, Path-isolated Direction
- * count, Outline/Chronicler status, and with `--run` executes one non-mutating live generation so prose & usage can be
- * judged directly before playing.
+ * count, Outline/Chronicler status, and with `--run` executes one non-mutating live generation (plus optional Rephraser
+ * pass) so prose & usage can be judged directly before playing.
  */
 export async function bench(
   mac: Mac,
   storyId: string,
   move: string,
   out: Out,
-  options: { run?: boolean; model?: string } = {}
+  options: { run?: boolean; model?: string; rephrase?: string | boolean } = {}
 ): Promise<boolean> {
   const path = mac.tree.currentPath(storyId);
   if (!path) return (out(`No Story ${storyId}.`), false);
@@ -273,7 +283,8 @@ export async function bench(
   const allNotes = besideOf(mac, storyId).notes.filter(note => note.active !== false);
   const activeNotes = beside.notes.filter(note => note.active !== false);
   const { state, entries } = sceneEntries(mac, head);
-  const writing = composerCall({ state, scene: entries, move, choice: null, beside, path: mac.tree.pathTo(head) });
+  const ask = { state, scene: entries, move, choice: null, beside, path: mac.tree.pathTo(head) };
+  const writing = composerCall(ask);
   const sysTok = tokens(writing.system);
   const turnTokens = writing.conversation.map(turn => tokens(turn.text));
   const standingTok = turnTokens[0] ?? 0;
@@ -293,23 +304,25 @@ export async function bench(
 
   let choice = actorOf(mac, storyId);
   if (options.model) {
-    const [providerPart, rest = ""] = options.model.split("/");
-    const [modelPart, effortPart] = rest.split(":");
-    if ((providerPart === "codex" || providerPart === "claude" || providerPart === "antigravity" || providerPart === "opencode") && modelPart) {
-      choice = { provider: providerPart, model: modelPart, ...(effortPart ? { effort: effortPart } : {}) };
-    } else {
-      out("Model format: provider/model[:effort], e.g. codex/gpt-6.1-sol:medium");
-      return false;
-    }
+    const parsedModel = parseModelSpec(options.model);
+    if (!parsedModel) return (out("Model format: provider/model[:effort], e.g. opencode/glm-5.3:high"), false);
+    choice = parsedModel;
   }
   if (!choice) return (out("No Actor model configured for this Story."), false);
+  const wantsRephrase = options.rephrase !== undefined ? Boolean(options.rephrase) : rephrasesEveryReply(mac.home);
+  let rephraseChoice: ModelChoice | null = wantsRephrase ? jobModels(mac.home).rephraser : null;
+  if (typeof options.rephrase === "string") {
+    rephraseChoice = parseModelSpec(options.rephrase);
+    if (!rephraseChoice) return (out("Rephraser format: provider/model[:effort], e.g. opencode/grok-4.7:medium"), false);
+  }
   const runners = subscriptionRunners(mac.home);
   const models = new Models(mac.db, runners);
   const started = Date.now();
   try {
+    const traceId = `bench-${randomUUID().slice(0, 8)}`;
     const answer = await models.call({
       agent: "actor", model: choice, system: writing.system, prompt: writing.prompt, conversation: writing.conversation,
-      verbosity: writing.verbosity, tools: writing.tools, turns: 4, traceId: `bench-${randomUUID().slice(0, 8)}`, storyId
+      verbosity: writing.verbosity, tools: writing.tools, turns: 4, traceId, storyId
     });
     const parsed = parseComposedAnswer(answer.text);
     const words = parsed.reply.split(/\s+/).filter(Boolean).length;
@@ -319,6 +332,21 @@ export async function bench(
     if (parsed.meta) out(`Scene state: ${JSON.stringify(parsed.meta)}`);
     out("--- REPLY ---");
     out(parsed.reply);
+    if (rephraseChoice) {
+      const rStarted = Date.now();
+      const rephraseReq = rephraserCall(ask, parsed.reply);
+      const rAnswer = await models.call({
+        agent: "rephraser", model: rephraseChoice, system: rephraseReq.system, prompt: rephraseReq.prompt, conversation: rephraseReq.conversation,
+        verbosity: rephraseReq.verbosity, tools: rephraseReq.tools, turns: 1, traceId, storyId
+      });
+      const rText = cleanRephrasedText(rAnswer.text);
+      const rWords = rText.split(/\s+/).filter(Boolean).length;
+      const rRow = mac.db.prepare("SELECT usage FROM calls WHERE id = ?").get(rAnswer.callId) as { usage: string | null } | undefined;
+      out(`Rephraser: ${rephraseChoice.provider}/${rephraseChoice.model}${rephraseChoice.effort ? ` (${rephraseChoice.effort})` : ""} · ${((Date.now() - rStarted) / 1000).toFixed(1)}s · ${rWords} words`);
+      if (rRow?.usage) out(`Rephraser usage: ${rRow.usage}`);
+      out("--- REPHRASED ---");
+      out(rText);
+    }
     return true;
   } finally {
     runners.close();
@@ -574,6 +602,23 @@ export function editor(mac: Mac, onOff: string | undefined, out: Out): boolean {
   if (onOff !== "on" && onOff !== "off") return (out("Say on or off."), false);
   setEditsEveryReply(mac.home, onOff === "on");
   out(onOff === "on" ? "Every Reply is edited before you read it." : "Replies come straight to you; Redo is yours.");
+  return true;
+}
+
+/** `fantasia rephraser`: whether the Rephraser (Human Speech Agent) rewrites every Reply into natural human speech. */
+export function rephraser(mac: Mac, onOff: string | undefined, out: Out): boolean {
+  const choice = jobModels(mac.home).rephraser;
+  if (onOff === undefined) {
+    out(rephrasesEveryReply(mac.home)
+      ? `Every Reply is rephrased into human speech using ${sayChoice(choice)}.`
+      : `Rephraser is off (configured model: ${sayChoice(choice)}).`);
+    return true;
+  }
+  if (onOff !== "on" && onOff !== "off") return (out("Say on or off."), false);
+  setRephrasesEveryReply(mac.home, onOff === "on");
+  out(onOff === "on"
+    ? `Every Reply is rephrased into human speech using ${sayChoice(choice)}.`
+    : "Rephraser is off; Replies come straight from the Actor.");
   return true;
 }
 

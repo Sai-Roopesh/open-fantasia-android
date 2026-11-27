@@ -4,20 +4,24 @@ import type { Mac } from "../mac.js";
 import type { ModelChoice } from "../story/state.js";
 
 /** The jobs whose model is the Mac's to choose for every Story. The Actor is each Story's own (docs/adr/0008). */
-export const JOBS = ["editor", "chronicler", "director", "weaver", "folder"] as const;
-/** Writer remains readable in historical settings and failed turns; new writing uses the Story's Actor. */
+export const JOBS = ["rephraser", "editor", "chronicler", "director", "weaver", "folder"] as const;
+/** Writer remains readable in historical settings and wire job ids (mapped to Rephraser on the Models screen). */
 export type Job = (typeof JOBS)[number] | "writer";
 
 const OPUS: ModelChoice = { provider: "claude", model: "claude-opus-5-5" };
+const OPENCODE_REPHRASER: ModelChoice = { provider: "opencode", model: "grok-4.7", effort: "medium" };
+const OPENCODE_REPHRASER_BACKUP: ModelChoice = { provider: "opencode", model: "glm-5.3", effort: "high" };
 
 /**
  * Each job's model until the player sets one (openspec outside-the-scene: One Models screen › The defaults). The
  * player chose quality over speed (docs/goal.md): Opus 5.5 for every job, the Writer and the Chronicler at medium
  * effort since one plans before every Reply and the other holds up every Scene's end; Fable 5.1 at high effort for the Director, who shapes the whole Story; and Sonnet 5.5 for the
- * Editor, who checks every Reply against what is established while the player waits.
+ * Editor, who checks every Reply against what is established while the player waits. Rephraser defaults to an OpenCode
+ * Go model so picking a human-speech rephraser never touches Codex unless explicitly chosen.
  */
 export const DEFAULT_JOB_MODELS: Record<Job, ModelChoice> = {
   writer: { ...OPUS, effort: "medium" },
+  rephraser: OPENCODE_REPHRASER,
   editor: { provider: "claude", model: "claude-sonnet-5-5" },
   // Recording a Scene is careful reading, not deep thought: at medium effort it takes a minute or two, not five.
   chronicler: { ...OPUS, effort: "medium" },
@@ -28,7 +32,8 @@ export const DEFAULT_JOB_MODELS: Record<Job, ModelChoice> = {
 
 /**
  * Every job's second model, the Actor's too, tried once when its own fails or runs too long (openspec presence:
- * Nothing fails silently): GPT 6.1 Sol, on another provider, which can search the web.
+ * Nothing fails silently): GPT 6.1 Sol, on another provider, which can search the web. Rephraser defaults to a second
+ * OpenCode Go model so it stays off Codex unless explicitly configured.
  */
 const SOL: ModelChoice = { provider: "codex", model: "gpt-6.1-sol" };
 
@@ -38,6 +43,8 @@ type Saved = Partial<Record<Job, ModelChoice>> & {
   backups?: Partial<Record<Job | "actor", ModelChoice>>;
   /** Whether a model Editor reads every Reply before the player does (docs/adr/0024). Off unless turned on. */
   editEveryReply?: boolean;
+  /** Whether the Rephraser rewrites every Reply into natural human speech. Off until configured or turned on. */
+  rephraseEveryReply?: boolean;
 };
 
 const file = (home: string) => join(home, "models.json");
@@ -66,6 +73,15 @@ export function setEditsEveryReply(home: string, on: boolean): void {
   save(home, { ...saved(home), editEveryReply: on });
 }
 
+/** Whether the Rephraser (Human Speech Agent) rewrites every Reply before it is committed to the Path. */
+export function rephrasesEveryReply(home: string): boolean {
+  return saved(home).rephraseEveryReply === true;
+}
+
+export function setRephrasesEveryReply(home: string, on: boolean): void {
+  save(home, { ...saved(home), rephraseEveryReply: on });
+}
+
 /**
  * The model for each job, from models.json in the Mac's folder, or the default for any job it does not name. Read
  * every time a job runs, so a change reaches the next call without restarting anything.
@@ -75,10 +91,11 @@ export function jobModels(home: string): Record<Job, ModelChoice> {
   return { writer: settings.writer ?? DEFAULT_JOB_MODELS.writer, ...Object.fromEntries(JOBS.map(job => [job, settings[job] ?? DEFAULT_JOB_MODELS[job]])) } as Record<Job, ModelChoice>;
 }
 
-/** Each job's second model, from models.json or GPT 6.1 Sol. */
+/** Each job's second model, from models.json or its default backup. */
 export function backupModels(home: string): Record<Job | "actor", ModelChoice> {
   const settings = saved(home);
-  return { writer: settings.backups?.writer ?? SOL, ...Object.fromEntries(JOBS.map(job => [job, settings.backups?.[job] ?? SOL])), actor: settings.backups?.actor ?? SOL } as Record<Job | "actor", ModelChoice>;
+  const defaultBackup = (job: Job) => (job === "rephraser" ? OPENCODE_REPHRASER_BACKUP : SOL);
+  return { writer: settings.backups?.writer ?? SOL, ...Object.fromEntries(JOBS.map(job => [job, settings.backups?.[job] ?? defaultBackup(job)])), actor: settings.backups?.actor ?? SOL } as Record<Job | "actor", ModelChoice>;
 }
 
 const same = (a: ModelChoice, b: ModelChoice) => a.provider === b.provider && a.model === b.model;
@@ -119,7 +136,8 @@ export function setBackupModel(home: string, job: Job | "actor", choice: ModelCh
 }
 
 export function setJobModel(home: string, job: Job, choice: ModelChoice): void {
-  save(home, { ...saved(home), [job]: choice });
+  const current = saved(home);
+  save(home, { ...current, [job]: choice, ...(job === "rephraser" ? { rephraseEveryReply: true } : {}) });
 }
 
 /** The Actor the player set for this Story, or null when it is the one its Story File names. */

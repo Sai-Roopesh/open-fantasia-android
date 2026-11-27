@@ -23,7 +23,7 @@ import { pastScene, sceneView } from "../views/scene.js";
 import { modelsView } from "../views/models.js";
 import { listStories } from "../views/stories.js";
 import type { Catalog } from "../models/catalog.js";
-import { JOBS, setBackupModel, setEditsEveryReply, setJobModel, setStoryActor, type Job } from "../models/jobs.js";
+import { JOBS, setBackupModel, setEditsEveryReply, setJobModel, setRephrasesEveryReply, setStoryActor, type Job } from "../models/jobs.js";
 import { MAX_PORTRAIT_BYTES } from "../engine/people.js";
 import { LinkError, STATUS } from "../errors.js";
 import type { Pairing } from "./pairing.js";
@@ -149,9 +149,10 @@ export function buildLink(options: LinkOptions): FastifyInstance {
   app.get("/models", async request => modelsView(mac, options.catalog, request.traceId));
 
   app.put<{ Params: { job: string } }>("/models/jobs/:job", async request => {
-    const job = request.params.job;
+    const raw = request.params.job;
+    const job = raw === "writer" ? "rephraser" : raw;
     const backup = request.body && typeof request.body === "object" && (request.body as { backup?: boolean }).backup === true;
-    if (!(JOBS as readonly string[]).includes(job) && !(backup && job === "actor")) throw new LinkError("invalid", job === "actor" ? "There is no job \"actor\" for every Story; the Actor is set per Story." : `There is no job "${job}".`);
+    if (!(JOBS as readonly string[]).includes(job) && !(backup && job === "actor")) throw new LinkError("invalid", job === "actor" ? "There is no job \"actor\" for every Story; the Actor is set per Story." : `There is no job "${raw}".`);
     if (!validSetJobModel(request.body)) throw new LinkError("invalid", "A job's model needs its provider and the model's id, and an effort or null.");
     if (backup) setBackupModel(mac.home, job as Job | "actor", offered(options.catalog, request.body.model));
     else setJobModel(mac.home, job as Job, offered(options.catalog, request.body.model));
@@ -161,6 +162,12 @@ export function buildLink(options: LinkOptions): FastifyInstance {
   app.put("/models/editor-enabled", async request => {
     if (!validSetEditorEnabled(request.body)) throw new LinkError("invalid", "Say whether the Editor should check every Reply.");
     setEditsEveryReply(mac.home, request.body.enabled);
+    return modelsView(mac, options.catalog, request.traceId);
+  });
+
+  app.put("/models/rephraser-enabled", async request => {
+    if (!validSetEditorEnabled(request.body)) throw new LinkError("invalid", "Say whether the Rephraser should rewrite every Reply into natural human speech.");
+    setRephrasesEveryReply(mac.home, request.body.enabled);
     return modelsView(mac, options.catalog, request.traceId);
   });
 

@@ -5,13 +5,14 @@ import { backupModels, DEFAULT_JOB_MODELS, JOBS, jobModels, setBackupModel, setJ
 import { freshHome } from "../support/host.js";
 
 describe("the Mac's model settings (docs/adr/0008)", () => {
-  it("lists every job, the Editor, the Director and the Folder included, each on its default until it is set", () => {
+  it("lists every job, the Rephraser, the Editor, the Director and the Folder included, each on its default until it is set", () => {
     const { home } = freshHome();
-    expect(JOBS).toEqual(["editor", "chronicler", "director", "weaver", "folder"]);
+    expect(JOBS).toEqual(["rephraser", "editor", "chronicler", "director", "weaver", "folder"]);
     expect(jobModels(home)).toEqual(DEFAULT_JOB_MODELS);
     const opus = { provider: "claude", model: "claude-opus-5-5" };
     expect(DEFAULT_JOB_MODELS).toEqual({
       writer: { ...opus, effort: "medium" },
+      rephraser: { provider: "opencode", model: "grok-4.7", effort: "medium" },
       editor: { provider: "claude", model: "claude-sonnet-5-5" },
       chronicler: { ...opus, effort: "medium" },
       weaver: opus,
@@ -20,10 +21,11 @@ describe("the Mac's model settings (docs/adr/0008)", () => {
     });
   });
 
-  it("gives every job, the Actor too, GPT 6.1 Sol as its second model until one is set", () => {
+  it("gives every job its default second model until one is set, keeping Rephraser on OpenCode", () => {
     const { home } = freshHome();
     const sol = { provider: "codex", model: "gpt-6.1-sol" };
-    expect(backupModels(home)).toEqual({ writer: sol, editor: sol, chronicler: sol, weaver: sol, director: sol, folder: sol, actor: sol });
+    const rephraserBackup = { provider: "opencode", model: "glm-5.3", effort: "high" };
+    expect(backupModels(home)).toEqual({ writer: sol, rephraser: rephraserBackup, editor: sol, chronicler: sol, weaver: sol, director: sol, folder: sol, actor: sol });
     // A job moved to another model keeps GPT 6.1 Sol; one set keeps what it was set to, whatever the job's own model.
     setJobModel(home, "writer", { provider: "antigravity", model: "gemini-3.8-flash", effort: "high" });
     setBackupModel(home, "director", { provider: "codex", model: "gpt-6-luna", effort: "medium" });

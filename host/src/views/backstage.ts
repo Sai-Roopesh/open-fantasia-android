@@ -209,7 +209,7 @@ function howItsGoing(mac: Mac, storyId: string, path: Entry[], state: State, bes
   const rows = mac.db.prepare("SELECT agent, trace_id, model, answer, error FROM calls WHERE story_id = ? ORDER BY rowid").all(storyId) as CallRow[];
   const jobs: JobHealth[] = (["actor", "writer", "editor", "chronicler", "weaver", "director", "folder"] as const).map(job => {
     const traces = new Map<string, { models: Set<string>; ok: boolean }>();
-    for (const row of rows.filter(item => item.agent === job)) {
+    for (const row of rows.filter(item => item.agent === job || (job === "writer" && item.agent === "rephraser"))) {
       const trace = traces.get(row.trace_id) ?? { models: new Set<string>(), ok: false };
       trace.models.add(row.model);
       if (!row.error) trace.ok = true;

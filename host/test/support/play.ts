@@ -12,7 +12,7 @@ import { freshHome } from "./host.js";
 import { hogwartsStoryFile, writeStoryFile } from "./story-files.js";
 
 /** What each job's scripted model answers, in turn; a job with nothing scripted answers by itself, keeping every rule. */
-type Scripts = { writer?: Script[]; actor?: Script[]; editor?: Script[]; chronicler?: Script[]; weaver?: Script[]; director?: Script[]; outline?: Script[]; folder?: Script[] };
+type Scripts = { writer?: Script[]; actor?: Script[]; rephraser?: Script[]; editor?: Script[]; chronicler?: Script[]; weaver?: Script[]; director?: Script[]; outline?: Script[]; folder?: Script[] };
 
 /** A Story ready to play on scripted models, with every event it sends kept. */
 export function playable(storyFile: StoryFile = hogwartsStoryFile(), scripts: Scripts = {}, actorFallback?: ConstructorParameters<typeof FakeModels>[1]) {
