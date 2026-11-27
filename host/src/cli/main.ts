@@ -5,7 +5,7 @@ import { openMac } from "../mac.js";
 import { Engine } from "../engine/engine.js";
 import { subscriptionRunners } from "../models/runners.js";
 import { Models } from "../models/model-call.js";
-import { arc, bench, claudeToken, clock, doctor, edit, editor, group, importCommand, install, known, landmark, lead, length, models, moments, opencodeKey, pair, person, place, portrait, premise, prompts, record, show, stories, style, taste, trace, world, worldIs, type LandmarkOptions, type PersonOptions } from "./commands.js";
+import { arc, bench, claudeToken, clock, doctor, edit, editor, group, importCommand, install, known, landmark, lead, length, models, moments, opencodeKey, pair, person, place, portrait, premise, prompts, record, rephraser, show, stories, style, taste, trace, world, worldIs, type LandmarkOptions, type PersonOptions } from "./commands.js";
 import { serve } from "./serve.js";
 
 /**
@@ -50,9 +50,10 @@ program.command("prompts").argument("<story>", "a Story's id").argument("[move..
   .action((story: string, move: string[]) => exitWith(prompts(mac(), story, move.join(" ") || "I wait to see what happens.", out)));
 program.command("bench").argument("<story>", "a Story's id").argument("[move...]", "optional Move to evaluate")
   .option("--run", "execute one live read-only Reply and print prose, word count, and usage")
-  .option("--model <spec>", "override Actor model as provider/model[:effort], e.g. codex/gpt-6.1-sol:medium")
+  .option("--model <spec>", "override Actor model as provider/model[:effort], e.g. opencode/glm-5.3:high")
+  .option("--rephrase [spec]", "also run the Rephraser pass (optionally overriding its model as provider/model[:effort])")
   .description("Measure prompt token breakdown, cacheable ratio, Path isolation, and optionally A/B test a live Reply")
-  .action(async (story: string, move: string[], options: { run?: boolean; model?: string }) =>
+  .action(async (story: string, move: string[], options: { run?: boolean; model?: string; rephrase?: string | boolean }) =>
     exitWith(await bench(mac(), story, move.join(" ") || "I wait to see what happens.", out, options)));
 program.command("world").argument("<story>", "a Story's id")
   .option("--summary <words>", "what the World is: set it from here on the current Path").option("--history <words>", "the World's history: set it likewise")
@@ -77,6 +78,9 @@ program.command("person").argument("<story>", "a Story's id").argument("<name>",
 program.command("editor").argument("[on-or-off]", "whether a model Editor reads every Reply before you do")
   .description("Show or set whether every Reply is edited by a second model before you read it (off by default)")
   .action((onOff: string | undefined) => exitWith(editor(mac(), onOff, out)));
+program.command("rephraser").argument("[on-or-off]", "whether the Rephraser rewrites every Reply into natural human speech")
+  .description("Show or set whether every Reply is rewritten into natural human speech by the Rephraser")
+  .action((onOff: string | undefined) => exitWith(rephraser(mac(), onOff, out)));
 program.command("lead").argument("<story>", "a Story's id").argument("<name>", "the person").argument("<on-or-off>")
   .description("Make someone a Lead, or stop them being one")
   .action((story: string, name: string, onOff: string) => { const home = mac(); exitWith(lead(home, new Engine(home, new Models(home.db, {})), story, name, onOff, out)); });

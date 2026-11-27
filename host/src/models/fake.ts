@@ -204,6 +204,12 @@ export function fakeEditorAnswer(request?: ModelRequest): Script {
   return { answer: JSON.stringify({ fixes: [], breaks: [] }) };
 }
 
+/** A Rephraser's answer that passes through the draft cleanly when no script is queued. */
+export function fakeRephraseAnswer(request: ModelRequest): Script {
+  const draft = [...request.prompt.matchAll(/<draft_reply>\n([\s\S]*?)\n<\/draft_reply>/g)].at(-1)?.[1]?.trim();
+  return { answer: draft || "She looks at you, and waits." };
+}
+
 /**
  * Scripted models for every agent: each job has its own queue of answers, and answers by itself when its queue is
  * empty. Every scenario test runs on this, and `fantasia serve --fake-models` too.
@@ -211,6 +217,7 @@ export function fakeEditorAnswer(request?: ModelRequest): Script {
 export class FakeModels implements ModelRunner {
   readonly writer: ScriptedRunner;
   readonly actor: ScriptedRunner;
+  readonly rephraser: ScriptedRunner;
   readonly chronicler: ScriptedRunner;
   readonly weaver: ScriptedRunner;
   readonly director: ScriptedRunner;
@@ -220,9 +227,10 @@ export class FakeModels implements ModelRunner {
   readonly editor: ScriptedRunner;
   readonly requests: ModelRequest[] = [];
 
-  constructor(scripts: { writer?: Script[]; actor?: Script[]; chronicler?: Script[]; weaver?: Script[]; director?: Script[]; outline?: Script[]; folder?: Script[]; editor?: Script[] } = {}, actorFallback: (request: ModelRequest) => Script = () => ({ answer: "She looks at you, and waits." })) {
+  constructor(scripts: { writer?: Script[]; actor?: Script[]; rephraser?: Script[]; chronicler?: Script[]; weaver?: Script[]; director?: Script[]; outline?: Script[]; folder?: Script[]; editor?: Script[] } = {}, actorFallback: (request: ModelRequest) => Script = () => ({ answer: "She looks at you, and waits." })) {
     this.writer = new ScriptedRunner(scripts.writer ?? [], fakeWriterAnswer);
     this.actor = new ScriptedRunner(scripts.actor ?? [], actorFallback);
+    this.rephraser = new ScriptedRunner(scripts.rephraser ?? [], fakeRephraseAnswer);
     this.chronicler = new ScriptedRunner(scripts.chronicler ?? [], fakeChronicleAnswer);
     this.weaver = new ScriptedRunner(scripts.weaver ?? [], fakeWeaveAnswer);
     this.director = new ScriptedRunner(scripts.director ?? [], fakeDirectorAnswer);
@@ -248,7 +256,7 @@ export class FakeModels implements ModelRunner {
       return answer;
     }
     const director = isOutline(request) ? this.outline : this.director;
-    const runner = request.agent === "writer" ? this.writer : request.agent === "chronicler" ? this.chronicler : request.agent === "weaver" ? this.weaver
+    const runner = request.agent === "writer" ? this.writer : request.agent === "rephraser" ? this.rephraser : request.agent === "chronicler" ? this.chronicler : request.agent === "weaver" ? this.weaver
       : request.agent === "director" ? director : request.agent === "folder" ? this.folder : request.agent === "editor" ? this.editor : this.actor;
     return runner.run(request, onText, signal, tools);
   }

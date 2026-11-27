@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { composeReply, recordDue, rewriteComposedReply } from "../agents/composer.js";
+import { rephraseReply } from "../agents/rephraser.js";
 import { Drafts, type Draft } from "../store/drafts.js";
 import { writeChronicle } from "../agents/chronicler.js";
 import { directionDue, writePlan } from "../agents/director.js";
@@ -15,7 +16,7 @@ import { playersPartBreak } from "../agents/deciding.js";
 import { LinkError } from "../errors.js";
 import type { Mac } from "../mac.js";
 import type { Catalog } from "../models/catalog.js";
-import { actorOf, backupModels, editsEveryReply, jobModels, secondModel, type Job } from "../models/jobs.js";
+import { actorOf, backupModels, editsEveryReply, jobModels, rephrasesEveryReply, secondModel, type Job } from "../models/jobs.js";
 import { nameIndex, storyName } from "../story/names.js";
 import { checkPerson, portraitExtension } from "./people.js";
 import { arcsSet, clockSet, landmarkDropped, landmarkSet, placeSet, premiseSet, replyLengthSet, styleSet, worldSet, worldStands } from "./story.js";
@@ -90,7 +91,7 @@ interface Stopped {
   seq: number;
 }
 
-type TurnJob = "weaver" | "chronicler" | "writer" | "actor" | "editor";
+type TurnJob = "weaver" | "chronicler" | "writer" | "rephraser" | "actor" | "editor";
 
 /**
  * What a Reply under way is doing: looking something up (the Writer, or a long Scene being recorded so far), being
@@ -104,6 +105,7 @@ const TURN_FAILED: Record<TurnJob, string> = {
   weaver: "The time until then could not be moved on",
   chronicler: "The Scene so far could not be recorded",
   writer: "The Reply could not be planned",
+  rephraser: "The Reply could not be rephrased",
   actor: "The Reply could not be written",
   editor: "The Reply could not be checked"
 };
@@ -192,7 +194,12 @@ export class Engine {
     const failure = this.failures.get(storyId);
     this.failures.delete(storyId);
     const move = this.lastMove(head.id);
-    const job: TurnJob = failure?.headId === head.id ? failure.job : head.payload.kind === "beat_note" ? "actor" : "writer";
+    const pendingDraft = head.payload.kind === "beat_note" ? this.drafts.get(head.id) : null;
+    const job: TurnJob = failure?.headId === head.id
+      ? failure.job
+      : head.payload.kind === "beat_note"
+        ? (rephrasesEveryReply(this.mac.home) && pendingDraft && !pendingDraft.rephrased ? "rephraser" : "actor")
+        : "writer";
     this.startTurn(storyId, path.id, move, traceId, model ? { [job === "writer" ? "actor" : job]: model } : {});
     return { move_entry_id: move.id, trace_id: traceId };
   }
@@ -768,7 +775,7 @@ export class Engine {
     }
     if (!head || !this.waiting(head)) return { kind: "idle" };
     const failure = this.failures.get(storyId);
-    if (failure?.headId === head.id) return { kind: "failed", reason: failure.reason, trace_id: failure.traceId, job: failure.job };
+    if (failure?.headId === head.id) return { kind: "failed", reason: failure.reason, trace_id: failure.traceId, job: failure.job === "rephraser" ? "writer" : failure.job };
     return { kind: "failed", reason: "The Reply was interrupted before it finished. Retry to write it.", trace_id: this.lastTraceFor(storyId) ?? "unknown" };
   }
 
@@ -1148,7 +1155,7 @@ export class Engine {
     const choice = turn.move.payload.kind === "move" ? turn.move.payload.choice ?? null : null;
     const beside = besideOf(this.mac, turn.storyId, head.id);
     const ask = { state, scene: moveAt >= 0 ? entries.slice(0, moveAt) : entries, move: text, choice, beside, path: this.mac.tree.pathTo(head.id) };
-    const streamDelta = editsEveryReply(this.mac.home) ? undefined : (delta: string) => {
+    const streamDelta = editsEveryReply(this.mac.home) || rephrasesEveryReply(this.mac.home) ? undefined : (delta: string) => {
       turn.streamed += delta;
       const seq = this.newestSeq(turn.storyId);
       this.emit(turn.storyId, { id: `${seq}.delta.${++turn.deltas}`, event: { kind: "reply_delta", seq, delta, trace_id: turn.traceId } });
@@ -1187,22 +1194,36 @@ export class Engine {
     const { state, entries } = sceneEntries(this.mac, note.id);
     const checkpoint = this.drafts.get(note.id);
     const beside = checkpoint?.beside ?? besideOf(this.mac, turn.storyId, note.id);
-    const write = async (again?: { draft: string; notes: string[] }) => {
-      turn.step = "actor";
-      this.say(turn, "writing");
+    const beforeAsk = () => {
       const baseId = checkpoint?.beforeId ?? note.parentId ?? note.id;
       const beforeState = this.mac.states.at(baseId);
       const beforeScene = sceneEntries(this.mac, baseId).entries;
       const moveAt = beforeScene.findIndex(entry => entry.id === turn.move.id);
       const text = turn.move.payload.kind === "move" ? turn.move.payload.text : "";
       const choice = turn.move.payload.kind === "move" ? turn.move.payload.choice ?? null : null;
-      const ask = { state: beforeState, scene: moveAt >= 0 ? beforeScene.slice(0, moveAt) : beforeScene, move: text, choice, beside, path: this.mac.tree.pathTo(baseId) };
+      return { state: beforeState, scene: moveAt >= 0 ? beforeScene.slice(0, moveAt) : beforeScene, move: text, choice, beside, path: this.mac.tree.pathTo(baseId) };
+    };
+    const write = async (again?: { draft: string; notes: string[] }) => {
+      turn.step = "actor";
+      this.say(turn, "writing");
+      const ask = beforeAsk();
       if (again) return rewriteComposedReply(this.models, this.turnChoices(turn, "actor"), ask, again, turn.storyId, turn.traceId, turn.abort.signal);
       const composed = await composeReply(this.models, this.turnChoices(turn, "actor"), ask, turn.storyId, turn.traceId, turn.abort.signal);
       return { text: composed.value.reply, callId: composed.callId, model: composed.model };
     };
+    const emitDelta = (delta: string) => {
+      turn.streamed += delta;
+      const seq = this.newestSeq(turn.storyId);
+      this.emit(turn.storyId, { id: `${seq}.delta.${++turn.deltas}`, event: { kind: "reply_delta", seq, delta, trace_id: turn.traceId } });
+    };
+    const rephrase = async (draftText: string, stream: boolean, again?: { draft: string; notes: string[] }) => {
+      turn.step = "rephraser";
+      this.say(turn, "writing");
+      return rephraseReply(this.models, this.turnChoices(turn, "rephraser"), beforeAsk(), draftText, turn.storyId, turn.traceId, turn.abort.signal, stream ? emitDelta : undefined, again);
+    };
     const pc = state.playerCharacter;
     const editing = editsEveryReply(this.mac.home);
+    const rephrasing = rephrasesEveryReply(this.mac.home);
     const check = async (reply: string): Promise<{ text: string; notes: string[]; callId: string | null }> => {
       if (!editing) {
         const phrase = playerPartIn(state, reply);
@@ -1215,9 +1236,26 @@ export class Engine {
     };
     let reply: Draft = checkpoint ?? { ...await write(), beside, rewrites: 0 };
     this.drafts.save(note.id, reply);
+    if (rephrasing && !reply.rephrased) {
+      const rawText = reply.rawText ?? reply.text;
+      const rephrased = await rephrase(rawText, !editing);
+      reply = { ...reply, text: rephrased.text, rawText, rephraseCallId: rephrased.callId, rephrased: true };
+      this.drafts.save(note.id, reply);
+    }
     let edit = await check(reply.text);
     if (edit.notes.length && reply.rewrites < 1) {
-      reply = { ...await write({ draft: reply.text, notes: edit.notes }), beside, rewrites: reply.rewrites + 1, ...(checkpoint?.beforeId ? { beforeId: checkpoint.beforeId } : {}) };
+      if (rephrasing && !editing) {
+        const fixed = await rephrase(reply.rawText ?? reply.text, false, { draft: reply.text, notes: edit.notes });
+        reply = { ...reply, text: fixed.text, rephraseCallId: fixed.callId, rephrased: true, rewrites: reply.rewrites + 1 };
+      } else {
+        const rewritten = await write({ draft: reply.text, notes: edit.notes });
+        if (rephrasing) {
+          const rephrased = await rephrase(rewritten.text, false);
+          reply = { ...rewritten, text: rephrased.text, rawText: rewritten.text, rephraseCallId: rephrased.callId, rephrased: true, beside, rewrites: reply.rewrites + 1, ...(checkpoint?.beforeId ? { beforeId: checkpoint.beforeId } : {}) };
+        } else {
+          reply = { ...rewritten, beside, rewrites: reply.rewrites + 1, ...(checkpoint?.beforeId ? { beforeId: checkpoint.beforeId } : {}) };
+        }
+      }
       this.drafts.save(note.id, reply);
       edit = await check(reply.text);
     }
@@ -1225,6 +1263,7 @@ export class Engine {
     const kept = this.mac.tree.append(turn.storyId, note.id, { kind: "reply", text: edit.text, callId: reply.callId, model: reply.model, ...(breaks ? { note: breaks } : {}) });
     if (!this.mac.tree.moveHead(turn.pathId, note.id, kept.id)) throw new Error("The Path moved while its Reply was being written");
     this.models.attach(reply.callId, kept.id);
+    if (reply.rephraseCallId) this.models.attach(reply.rephraseCallId, kept.id);
     if (edit.callId) this.models.attach(edit.callId, kept.id);
     this.turns.delete(turn.storyId);
     this.publish(turn.storyId, kept);

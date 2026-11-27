@@ -32,6 +32,7 @@ describe("the Models screen over the link", () => {
     expect(view.stories).toEqual([{ story_id: storyId, title: "The Malfoy Problem", own: false,
       actor: { choice: { provider: "claude", model: "claude-opus-5-5", effort: null }, label: "Opus 5.5" } }]);
     expect(view.jobs.map(job => [job.job, job.title, job.does])).toEqual([
+      ["writer", "Rephraser", "Rewrites Replies into natural human speech"],
       ["editor", "Editor", "Checks each Reply before you read it"],
       ["chronicler", "Chronicler", "Records what happened"],
       ["director", "Director", "Keeps the Outline and plans the days ahead"],
@@ -39,6 +40,7 @@ describe("the Models screen over the link", () => {
       ["folder", "Folder", "Keeps The Story So Far short"]
     ]);
     expect(view.jobs.map(job => job.model.choice)).toEqual([
+      { provider: "opencode", model: "grok-4.7", effort: "medium" },
       { provider: "claude", model: "claude-sonnet-5-5", effort: null },
       { provider: "claude", model: "claude-opus-5-5", effort: "medium" },
       { provider: "claude", model: "claude-fable-5-1", effort: "high" },
@@ -136,6 +138,7 @@ describe("the Models screen over the link", () => {
     closers.push(story.close);
     const view = await (await story.call("/models")).json() as ModelsView;
     expect(view.jobs.map(job => [job.title, job.model.label, job.backup.label])).toEqual([
+      ["Rephraser", "Off", "GLM-5.3 · high"],
       ["Editor", "Sonnet 5.5", "GPT 6.1 Sol"],
       ["Chronicler", "Opus 5.5 · medium", "GPT 6.1 Sol"],
       ["Director", "Fable 5.1 · high", "GPT 6.1 Sol"],

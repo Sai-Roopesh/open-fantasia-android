@@ -5,7 +5,7 @@ import type { ModelChoice } from "../story/state.js";
 export type { ToolSpec };
 
 /** Which job a call is for (CONTEXT.md: Who writes the Story). */
-export type Agent = "actor" | "writer" | "editor" | "chronicler" | "weaver" | "director" | "folder" | "judge";
+export type Agent = "actor" | "writer" | "rephraser" | "editor" | "chronicler" | "weaver" | "director" | "folder" | "judge";
 
 /**
  * What a call may look things up in (docs/adr/0018): the Story on one Path, as of its head, and the web. Plain data,
